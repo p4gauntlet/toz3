@@ -31,8 +31,8 @@
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
 
-    AutoCompileContext autoP4toZ3Context(new P4TOZ3::P4toZ3Context);
-    auto &options = P4TOZ3::P4toZ3Context::get().options();
+    AutoCompileContext autoP4toZ3Context(new TOZ3_V2::P4toZ3Context);
+    auto &options = TOZ3_V2::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = "p4toz3 test";
@@ -42,16 +42,6 @@ int main(int argc, char *const argv[]) {
     }
     if (::errorCount() > 0)
         return 1;
-    // check input and output file
-    if (options.file == nullptr || options.o_file == nullptr) {
-        options.usage();
-        return 1;
-    }
-    auto ostream = openFile(options.o_file, false);
-    if (ostream == nullptr) {
-        ::error("must have --output [file]");
-        return 1;
-    }
 
     auto hook = options.getDebugHook();
 
@@ -60,11 +50,12 @@ int main(int argc, char *const argv[]) {
     program = P4::parseP4File(options);
 
     if (program != nullptr && ::errorCount() == 0) {
+        z3::context ctx;
         try {
             P4::P4COptionPragmaParser optionsPragmaParser;
             program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
             // convert the P4 program to Z3 Python
-            TOZ3::CodeGenToz3 *cgt3 = new TOZ3::CodeGenToz3(0, ostream);
+            TOZ3_V2::CodeGenToz3 *cgt3 = new TOZ3_V2::CodeGenToz3(&ctx);
             program->apply(*cgt3);
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;

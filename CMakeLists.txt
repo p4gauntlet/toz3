@@ -21,7 +21,7 @@ build_unified(TOZ3V2_SRCS)
 
 
 add_executable(p4toz3_v2 ${TOZ3V2_SRCS})
-target_link_libraries (p4toz3_v2 ${P4C_LIBRARIES} ${P4C_LIB_DEPS})
+target_link_libraries (p4toz3_v2 ${P4C_LIBRARIES} ${P4C_LIB_DEPS} -lz3)
 add_dependencies(p4toz3_v2 genIR frontend)
 
 

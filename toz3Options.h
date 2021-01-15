@@ -6,15 +6,15 @@
 #include "frontends/common/options.h"
 #include "lib/options.h"
 
-namespace P4TOZ3 {
+namespace TOZ3_V2 {
 
 class toz3Options : public CompilerOptions {
-  public:
+ public:
     toz3Options();
 };
 
 using P4toZ3Context = P4CContextWithOptions<toz3Options>;
 
-} // namespace P4TOZ3
+} // namespace TOZ3_V2
 
 #endif /* _TOZ3_OPTIONS_H_ */

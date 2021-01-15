@@ -1,15 +1,7 @@
 #include "toz3Options.h"
 
-namespace P4TOZ3 {
+namespace TOZ3_V2 {
 
-toz3Options::toz3Options() {
-    registerOption(
-        "--output", "file",
-        [this](const char *arg) {
-            o_file = arg;
-            return true;
-        },
-        "The translated Z3 file.");
-}
+toz3Options::toz3Options() {}
 
-} // namespace P4TOZ3
+} // namespace TOZ3_V2
