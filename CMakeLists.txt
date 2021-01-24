@@ -8,11 +8,14 @@ set (TOZ3V2_SRCS
     toz3Options.cpp
     codegen.cpp
     main.cpp
+    state.cpp
     )
 
 set (TOZ3V2_HDRS
     toz3Options.h
     codegen.h
+    context.h
+    state.h
     )
 
 

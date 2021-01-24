@@ -7,17 +7,17 @@
 #include <vector>
 
 #include "ir/ir.h"
+#include "context.h"
+#include "state.h"
 
 namespace TOZ3_V2 {
 
 class CodeGenToz3 : public Inspector {
  public:
-    z3::context *ctx;
-    CodeGenToz3(z3::context *context) : ctx(context) {}
-
-    z3::ast formula = ctx->bool_val(true);
-    std::map<cstring, const IR::Type *> type_map;
-    std::map<cstring, std::vector<const IR::Node *> *> z3_type_map;
+    P4State *state;
+    CodeGenToz3(z3::context *ctx) {
+        state = new P4State(ctx);
+    }
 
     // for initialization and ending
     Visitor::profile_t init_apply(const IR::Node *node) override;
@@ -75,7 +75,7 @@ class CodeGenToz3 : public Inspector {
     // bool preorder(const IR::SelectExpression *se) override;
     // bool preorder(const IR::SelectCase *se) override;
     // /***** Methods *****/
-    // bool preorder(const IR::P4Control *c) override;
+    bool preorder(const IR::P4Control *c) override;
     // bool preorder(const IR::P4Action *p4action) override;
     // bool preorder(const IR::Parameter *param) override;
     // bool preorder(const IR::ParameterList *p) override;
