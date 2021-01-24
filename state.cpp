@@ -1,15 +1,21 @@
-#include "codegen.h"
+#include "state.h"
+#include "complex_type.h"
 
 namespace TOZ3_V2 {
 
 boost::any P4State::gen_instance(cstring name, const IR::Type *type) {
     if (auto tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
-        /*        if (type_map.count(type_name)) {
-                    const IR::Type *sub_type = type_map[type_name];
-                } else {
-                    BUG("Type name \"%s\" not found!.", type_name);
-                }*/
+        if (type_map.count(type_name)) {
+            const IR::Type *sub_type = type_map[type_name];
+            if (auto ts = sub_type->to<IR::Type_StructLike>()) {
+                return StructInstance(this, ts, 0);
+            } else {
+                BUG("Type name \"%s\" not supported!.", type);
+            }
+        } else {
+            BUG("Type name \"%s\" not found!.", type_name);
+        }
     } else if (auto tbi = type->to<IR::Type_Bits>()) {
         return ctx->bv_const(name, tbi->width_bits());
     } else if (auto tvb = type->to<IR::Type_Varbits>()) {

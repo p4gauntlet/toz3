@@ -7,6 +7,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.cmake"
 set (TOZ3V2_SRCS
     toz3Options.cpp
     codegen.cpp
+    complex_type.cpp
     main.cpp
     state.cpp
     )
@@ -15,6 +16,7 @@ set (TOZ3V2_HDRS
     toz3Options.h
     codegen.h
     context.h
+    complex_type.h
     state.h
     )
 
