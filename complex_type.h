@@ -11,10 +11,6 @@
 
 namespace TOZ3_V2 {
 
-template <typename Base, typename T> inline bool instanceof (const T *) {
-    return std::is_base_of<Base, T>::value;
-}
-
 class P4ComplexInstance {
  public:
     P4ComplexInstance() {}
@@ -34,33 +30,28 @@ class StructInstance : public P4ComplexInstance {
     uint64_t member_id;
     uint64_t width;
     StructInstance(P4State *state, const IR::Type_StructLike *type,
-                   uint64_t member_id)
-        : p4_type(type), member_id(member_id) {
-        width = 0;
-        uint64_t flat_id = member_id;
-
-        for (auto field : type->fields) {
-            cstring name = cstring(std::to_string(flat_id));
-            auto member = state->gen_instance(name, field->type);
-            members.emplace(name, member);
-            if (field->type->is<IR::Type_Name>()) {
-                auto si = boost::any_cast<StructInstance>(member);
-                width += si.width;
-            } else if (auto tbi = field->type->to<IR::Type_Bits>()) {
-                width += tbi->width_bits();
-            } else if (auto tvb = field->type->to<IR::Type_Varbits>()) {
-                width += tvb->width_bits();
-            } else if (field->type->is<IR::Type_Boolean>()) {
-                width++;
-            } else {
-                BUG("Type \"%s\" not supported!.", field->type);
-            }
-            flat_id++;
-        }
-    }
-
+                   uint64_t member_id);
     void bind(z3::ast bind_const);
 };
+
+class EnumInstance : public P4ComplexInstance {
+ private:
+ public:
+    const IR::Type_Enum *p4_type;
+    std::map<cstring, boost::any> members;
+    uint64_t width;
+    EnumInstance(P4State *state, const IR::Type_Enum *type);
+};
+
+class ErrorInstance : public P4ComplexInstance {
+ private:
+ public:
+    const IR::Type_Error *p4_type;
+    std::map<cstring, boost::any> members;
+    uint64_t width;
+    ErrorInstance(P4State *state, const IR::Type_Error *type);
+};
+
 } // namespace TOZ3_V2
 
 #endif // _TOZ3_COMPLEX_TYPE_H_

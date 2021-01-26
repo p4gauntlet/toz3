@@ -23,6 +23,7 @@ class P4State {
     std::vector<P4Scope *> scopes;
     boost::any gen_instance(cstring name, const IR::Type *type);
     void add_scope(P4Scope *scope);
+    const IR::Type *resolve_type(const IR::Type *type);
     void insert_var(cstring name, boost::any var);
     boost::any find_var(cstring name, P4Scope **owner_scope);
 };
