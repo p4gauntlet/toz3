@@ -16,7 +16,7 @@ namespace TOZ3_V2 {
 class StructInstance : public P4ComplexInstance {
  public:
     const IR::Type_StructLike *p4_type;
-    std::map<cstring, boost::any> members;
+    std::map<cstring, P4Z3Type *> members;
     uint64_t member_id;
     uint64_t width;
     StructInstance(P4State *state, const IR::Type_StructLike *type,
@@ -29,7 +29,7 @@ class EnumInstance : public P4ComplexInstance {
  private:
  public:
     const IR::Type_Enum *p4_type;
-    std::map<cstring, boost::any> members;
+    std::map<cstring, P4Z3Type *> members;
     uint64_t width;
     EnumInstance(P4State *state, const IR::Type_Enum *type);
 };
@@ -38,7 +38,7 @@ class ErrorInstance : public P4ComplexInstance {
  private:
  public:
     const IR::Type_Error *p4_type;
-    std::map<cstring, boost::any> members;
+    std::map<cstring, P4Z3Type *> members;
     uint64_t width;
     ErrorInstance(P4State *state, const IR::Type_Error *type);
 };
@@ -47,7 +47,7 @@ class ExternInstance : public P4ComplexInstance {
  private:
  public:
     const IR::Type_Extern *p4_type;
-    std::map<cstring, boost::any> members;
+    std::map<cstring, P4Z3Type *> members;
     uint64_t width;
     ExternInstance(P4State *state, const IR::Type_Extern *type);
 };

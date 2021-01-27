@@ -50,13 +50,13 @@ bool CodeGenToz3::preorder(const IR::P4Control *c) {
     state->add_scope(scope);
     for (auto param : *c->getApplyParameters()) {
         auto par_type = state->resolve_type(param->type);
-        boost::any var = state->gen_instance(param->name.name, par_type);
-        state->insert_var(param->name.name, var);
-        if (par_type->is<IR::Type_StructLike>()) {
+        P4Z3Type var = state->gen_instance(param->name.name, par_type);
+        state->insert_var(param->name.name, &var);
+/*        if (par_type->is<IR::Type_StructLike>()) {
             StructInstance *si = boost::any_cast<StructInstance>(&var);
             auto vars = si->get_z3_vars();
             std::cout << vars << "\n";
-        }
+        }*/
     }
     return false;
 }

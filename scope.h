@@ -32,7 +32,7 @@ typedef boost::variant<z3::ast, P4ComplexInstance> P4Z3Type;
 class P4Scope {
  public:
     // a map of local values
-    std::map<cstring, boost::any> value_map;
+    std::map<cstring, P4Z3Type *> value_map;
 };
 } // namespace TOZ3_V2
 
