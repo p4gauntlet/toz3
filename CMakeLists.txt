@@ -15,7 +15,7 @@ set (TOZ3V2_SRCS
 set (TOZ3V2_HDRS
     toz3Options.h
     codegen.h
-    context.h
+    scope.h
     complex_type.h
     state.h
     )

@@ -5,23 +5,13 @@
 
 #include <map>    // std::map
 #include <string> // std::to_string
+#include <vector> // std::vector
 
 #include "ir/ir.h"
 #include "state.h"
 
 namespace TOZ3_V2 {
 
-class P4ComplexInstance {
- public:
-    P4ComplexInstance() {}
-    template <typename T> bool is() const { return to<T>() != nullptr; }
-    template <typename T> const T *to() const {
-        return dynamic_cast<const T *>(this);
-    }
-    template <typename T> const T &as() const {
-        return dynamic_cast<const T &>(*this);
-    }
-};
 
 class StructInstance : public P4ComplexInstance {
  public:
@@ -32,6 +22,7 @@ class StructInstance : public P4ComplexInstance {
     StructInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
     void bind(z3::ast bind_const);
+    std::vector<z3::ast> get_z3_vars();
 };
 
 class EnumInstance : public P4ComplexInstance {
@@ -50,6 +41,15 @@ class ErrorInstance : public P4ComplexInstance {
     std::map<cstring, boost::any> members;
     uint64_t width;
     ErrorInstance(P4State *state, const IR::Type_Error *type);
+};
+
+class ExternInstance : public P4ComplexInstance {
+ private:
+ public:
+    const IR::Type_Extern *p4_type;
+    std::map<cstring, boost::any> members;
+    uint64_t width;
+    ExternInstance(P4State *state, const IR::Type_Extern *type);
 };
 
 } // namespace TOZ3_V2

@@ -6,7 +6,7 @@
 #include <map>
 #include <vector>
 
-#include "context.h"
+#include "scope.h"
 #include "ir/ir.h"
 
 namespace TOZ3_V2 {
@@ -25,7 +25,7 @@ class P4State {
     void add_scope(P4Scope *scope);
     const IR::Type *resolve_type(const IR::Type *type);
     void insert_var(cstring name, boost::any var);
-    boost::any find_var(cstring name, P4Scope **owner_scope);
+    boost::any *find_var(cstring name, P4Scope **owner_scope);
 };
 } // namespace TOZ3_V2
 

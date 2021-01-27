@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "ir/ir.h"
-#include "context.h"
+#include "scope.h"
 #include "state.h"
 
 namespace TOZ3_V2 {
@@ -40,7 +40,7 @@ class CodeGenToz3 : public Inspector {
     // bool preorder(const IR::Type_Parser *) override;
     // bool preorder(const IR::Type_Control *) override;
 
-    // bool preorder(const IR::Type_Extern *t) override;
+    bool preorder(const IR::Type_Extern *t) override;
     // bool preorder(const IR::Type_Method *t) override;
     // bool preorder(const IR::Type_Typedef *t) override;
     // bool preorder(const IR::Type_Newtype *t) override;

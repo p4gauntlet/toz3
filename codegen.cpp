@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "complex_type.h"
 
 namespace TOZ3_V2 {
 
@@ -23,17 +24,23 @@ void CodeGenToz3::fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
 }
 
 bool CodeGenToz3::preorder(const IR::Type_StructLike *t) {
-    state->type_map.emplace(t->name.name, t);
+    state->type_map[t->name.name] = t;
     return false;
 }
 
 bool CodeGenToz3::preorder(const IR::Type_Stack *) { return false; }
 bool CodeGenToz3::preorder(const IR::Type_Enum *t) {
-    state->type_map.emplace(t->name.name, t);
+    state->type_map[t->name.name] = t;
     return false;
 }
+
 bool CodeGenToz3::preorder(const IR::Type_Error *t) {
-    state->type_map.emplace(t->name.name, t);
+    state->type_map[t->name.name] = t;
+    return false;
+}
+
+bool CodeGenToz3::preorder(const IR::Type_Extern *t) {
+    state->type_map[t->name.name] = t;
     return false;
 }
 
@@ -45,8 +52,12 @@ bool CodeGenToz3::preorder(const IR::P4Control *c) {
         auto par_type = state->resolve_type(param->type);
         boost::any var = state->gen_instance(param->name.name, par_type);
         state->insert_var(param->name.name, var);
+        if (par_type->is<IR::Type_StructLike>()) {
+            StructInstance *si = boost::any_cast<StructInstance>(&var);
+            auto vars = si->get_z3_vars();
+            std::cout << vars << "\n";
+        }
     }
-
     return false;
 }
 

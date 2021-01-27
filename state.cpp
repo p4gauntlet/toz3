@@ -10,6 +10,8 @@ boost::any P4State::gen_instance(cstring name, const IR::Type *type) {
         return EnumInstance(this, te);
     } else if (auto te = type->to<IR::Type_Error>()) {
         return ErrorInstance(this, te);
+    } else if (auto te = type->to<IR::Type_Extern>()) {
+        return ExternInstance(this, te);
     } else if (auto tbi = type->to<IR::Type_Bits>()) {
         return ctx->bv_const(name, tbi->width_bits());
     } else if (auto tvb = type->to<IR::Type_Varbits>()) {
@@ -35,24 +37,23 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) {
     return ret_type;
 }
 
-boost::any P4State::find_var(cstring name, P4Scope **owner_scope) {
+boost::any *P4State::find_var(cstring name, P4Scope **owner_scope) {
     for (P4Scope *scope : scopes) {
         if (scope->value_map.count(name)) {
             *owner_scope = scope;
-            boost::any var = scope->value_map.at(name);
-            return var;
+            return &scope->value_map.at(name);
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void P4State::insert_var(cstring name, boost::any var) {
-    P4Scope *target_scope = NULL;
+    P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
-        target_scope->value_map.emplace(name, var);
+        target_scope->value_map[name] = var;
     } else {
-        scopes.back()->value_map.emplace(name, var);
+        scopes.back()->value_map[name] = var;
     }
 }
 

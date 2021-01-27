@@ -2,7 +2,6 @@
 
 namespace TOZ3_V2 {
 
-
 StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
     : p4_type(type), member_id(member_id) {
@@ -31,9 +30,26 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
         } else {
             BUG("Type \"%s\" not supported!.", field->type);
         }
-        members.emplace(name, member);
+        members[name] = member;
         flat_id++;
     }
+}
+
+std::vector<z3::ast> StructInstance::get_z3_vars() {
+    std::vector<z3::ast> z3_vars;
+    for (auto member_tuple : members) {
+        cstring name = member_tuple.first;
+        auto member = member_tuple.second;
+        if (z3::ast *z3_var = boost::any_cast<z3::ast>(&member)) {
+            z3_vars.push_back(*z3_var);
+        } else if (StructInstance *z3_var =
+                       boost::any_cast<StructInstance>(&member)) {
+            auto z3_sub_vars = z3_var->get_z3_vars();
+            z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
+                           z3_sub_vars.end());
+        }
+    }
+    return z3_vars;
 }
 
 void StructInstance::bind(z3::ast bind_const) {}
@@ -46,7 +62,7 @@ EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type)
     for (auto member : type->members) {
         cstring name = member->name.name;
         auto member_var = state->gen_instance(name, member_type);
-        members.emplace(name, &member_var);
+        members[name] = member_var;
     }
 }
 
@@ -58,8 +74,11 @@ ErrorInstance::ErrorInstance(P4State *state, const IR::Type_Error *type)
     for (auto member : type->members) {
         cstring name = member->name.name;
         auto member_var = state->gen_instance(name, member_type);
-        members.emplace(name, &member_var);
+        members[name] = member_var;
     }
 }
+
+ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *type)
+    : p4_type(type) {}
 
 } // namespace TOZ3_V2
