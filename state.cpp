@@ -5,13 +5,13 @@ namespace TOZ3_V2 {
 
 P4Z3Type P4State::gen_instance(cstring name, const IR::Type *type) {
     if (auto ts = type->to<IR::Type_StructLike>()) {
-        return StructInstance(this, ts, 0);
+        return new StructInstance(this, ts, 0);
     } else if (auto te = type->to<IR::Type_Enum>()) {
-        return EnumInstance(this, te);
+        return new EnumInstance(this, te);
     } else if (auto te = type->to<IR::Type_Error>()) {
-        return ErrorInstance(this, te);
+        return new ErrorInstance(this, te);
     } else if (auto te = type->to<IR::Type_Extern>()) {
-        return ExternInstance(this, te);
+        return new ExternInstance(this, te);
     } else if (auto tbi = type->to<IR::Type_Bits>()) {
         return ctx->bv_const(name, tbi->width_bits());
     } else if (auto tvb = type->to<IR::Type_Varbits>()) {

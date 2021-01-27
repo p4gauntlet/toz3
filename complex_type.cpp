@@ -13,14 +13,17 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
         auto resolved_type = state->resolve_type(field->type);
         auto member = state->gen_instance(name, resolved_type);
         if (resolved_type->is<IR::Type_StructLike>()) {
-            auto si = boost::get<StructInstance>(member);
-            width += si.width;
+            P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(member);
+            StructInstance *si  = dynamic_cast<StructInstance *>(pi);
+            width += si->width;
         } else if (resolved_type->is<IR::Type_Enum>()) {
-            auto si = boost::get<EnumInstance>(member);
-            width += si.width;
+            P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(member);
+            EnumInstance *si  = dynamic_cast<EnumInstance *>(pi);
+            width += si->width;
         } else if (resolved_type->is<IR::Type_Error>()) {
-            auto si = boost::get<ErrorInstance>(member);
-            width += si.width;
+            P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(member);
+            ErrorInstance *si  = dynamic_cast<ErrorInstance *>(pi);
+            width += si->width;
         } else if (auto tbi = resolved_type->to<IR::Type_Bits>()) {
             width += tbi->width_bits();
         } else if (auto tvb = resolved_type->to<IR::Type_Varbits>()) {

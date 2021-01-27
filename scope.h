@@ -25,9 +25,10 @@ class P4ComplexInstance {
     template <typename T> const T &as() const {
         return dynamic_cast<const T &>(*this);
     }
+    virtual ~P4ComplexInstance() = default;
 };
 
-typedef boost::variant<z3::ast, P4ComplexInstance> P4Z3Type;
+typedef boost::variant<z3::ast, P4ComplexInstance *> P4Z3Type;
 
 class P4Scope {
  public:
