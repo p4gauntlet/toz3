@@ -25,7 +25,7 @@ class CodeGenToz3 : public Inspector {
 
     /***** Unimplemented z3::sort CodeGenToz3::resolve_type(IR::Type t) {
      *****/
-    bool preorder(const IR::Node *expr) override { return false; }
+    bool preorder(const IR::Node *) override { return false; }
 
     bool preorder(const IR::P4Program *) override;
 

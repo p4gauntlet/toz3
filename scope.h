@@ -30,10 +30,19 @@ class P4ComplexInstance {
 
 typedef boost::variant<z3::ast, P4ComplexInstance *> P4Z3Type;
 
+template <typename T> T *check_complex(P4Z3Type type) {
+    try {
+        P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(type);
+        return dynamic_cast<T *>(pi);
+    } catch (boost::bad_get &) {
+        return nullptr;
+    }
+}
+
 class P4Scope {
  public:
     // a map of local values
-    std::map<cstring, P4Z3Type *> value_map;
+    std::map<cstring, P4Z3Type> value_map;
 };
 } // namespace TOZ3_V2
 

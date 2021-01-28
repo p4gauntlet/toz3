@@ -3,13 +3,13 @@
 
 namespace TOZ3_V2 {
 
-P4Z3Type P4State::gen_instance(cstring name, const IR::Type *type) {
+P4Z3Type P4State::gen_instance(cstring name, const IR::Type *type, uint64_t id) {
     if (auto ts = type->to<IR::Type_StructLike>()) {
-        return new StructInstance(this, ts, 0);
+        return new StructInstance(this, ts, id);
     } else if (auto te = type->to<IR::Type_Enum>()) {
-        return new EnumInstance(this, te);
+        return new EnumInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Error>()) {
-        return new ErrorInstance(this, te);
+        return new ErrorInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Extern>()) {
         return new ExternInstance(this, te);
     } else if (auto tbi = type->to<IR::Type_Bits>()) {
@@ -37,7 +37,7 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) {
     return ret_type;
 }
 
-P4Z3Type *P4State::find_var(cstring name, P4Scope **owner_scope) {
+P4Z3Type P4State::find_var(cstring name, P4Scope **owner_scope) {
     for (P4Scope *scope : scopes) {
         if (scope->value_map.count(name)) {
             *owner_scope = scope;
@@ -47,13 +47,13 @@ P4Z3Type *P4State::find_var(cstring name, P4Scope **owner_scope) {
     return nullptr;
 }
 
-void P4State::insert_var(cstring name, P4Z3Type *var) {
+void P4State::insert_var(cstring name, P4Z3Type var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
-        target_scope->value_map[name] = var;
+        target_scope->value_map.insert({name, var});
     } else {
-        scopes.back()->value_map[name] = var;
+        scopes.back()->value_map.insert({name, var});
     }
 }
 
