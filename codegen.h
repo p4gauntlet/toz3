@@ -23,8 +23,8 @@ class CodeGenToz3 : public Inspector {
     Visitor::profile_t init_apply(const IR::Node *node) override;
     void end_apply(const IR::Node *node) override;
 
-    /***** Unimplemented z3::sort CodeGenToz3::resolve_type(IR::Type t) {
-     *****/
+    P4Z3Type resolve_member(const IR::Member *t);
+
     bool preorder(const IR::Node *) override { return false; }
 
     bool preorder(const IR::P4Program *) override;
@@ -58,8 +58,8 @@ class CodeGenToz3 : public Inspector {
     // bool preorder(const IR::ArrayIndex *a) override;
 
     // /***** Statements *****/
-    // bool preorder(const IR::BlockStatement *b) override;
-    // bool preorder(const IR::AssignmentStatement *as) override;
+    bool preorder(const IR::BlockStatement *b) override;
+    bool preorder(const IR::AssignmentStatement *as) override;
     // bool preorder(const IR::MethodCallStatement *mcs) override;
     // bool preorder(const IR::IfStatement *ifs) override;
     // bool preorder(const IR::SwitchStatement *ss) override;
@@ -97,7 +97,8 @@ class CodeGenToz3 : public Inspector {
     // /***** Expressions *****/
     // bool preorder(const IR::Member *m) override;
     // bool preorder(const IR::SerEnumMember *m) override;
-    // bool preorder(const IR::PathExpression *p) override;
+    bool preorder(const IR::PathExpression *p) override;
+    bool preorder(const IR::Constant *c) override;
     // bool preorder(const IR::DefaultExpression *) override;
     // bool preorder(const IR::ListExpression *le) override;
     // bool preorder(const IR::TypeNameExpression *) override;
@@ -105,7 +106,6 @@ class CodeGenToz3 : public Inspector {
     // bool preorder(const IR::StructExpression *sie) override;
     // bool preorder(const IR::ConstructorCallExpression *) override;
     // bool preorder(const IR::MethodCallExpression *mce) override;
-    // bool preorder(const IR::Constant *c) override;
     // bool preorder(const IR::BoolLiteral *bl) override;
     // bool preorder(const IR::StringLiteral *str) override;
 

@@ -3,7 +3,6 @@
 #include "codegen.h"
 #include "complex_type.h"
 
-
 namespace TOZ3_V2 {
 
 Visitor::profile_t CodeGenToz3::init_apply(const IR::Node *node) {
@@ -63,7 +62,7 @@ bool CodeGenToz3::preorder(const IR::P4Control *c) {
         state_names.push_back(param->name.name);
     }
     // DO SOMETHING
-
+    visit(c->body);
     // COLLECT
     for (auto state_name : state_names) {
         P4Scope *scope;
@@ -82,7 +81,7 @@ bool CodeGenToz3::preorder(const IR::P4Control *c) {
             auto z3_sub_vars = z3_var->get_z3_vars();
             state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                               z3_sub_vars.end());
-        } else if (auto z3_var = check_complex<ExternInstance>(member)) {
+        } else if (check_complex<ExternInstance>(member)) {
             printf("Skipping extern...\n");
         } else {
             BUG("Var is neither type z3::ast nor P4ComplexInstance!");
@@ -93,6 +92,80 @@ bool CodeGenToz3::preorder(const IR::P4Control *c) {
         auto var = tuple.second;
         std::cout << name << ": " << var << "\n";
     }
+    return false;
+}
+
+
+P4Z3Type CodeGenToz3::resolve_member(const IR::Member *m) {
+    P4Z3Type complex_class = nullptr;
+    const IR::Expression *parent = m->expr;
+    if (auto member = parent->to<IR::Member>()) {
+        complex_class = resolve_member(member);
+    } else if (auto name = parent->to<IR::PathExpression>()) {
+        complex_class = state->get_var(name->path->name);
+    } else {
+        BUG("Parent Type  %s not implemented!", parent->node_type_name());
+    }
+    StructInstance *si = check_complex<StructInstance>(complex_class);
+    if (not si) {
+        BUG("Unknown class");
+        std::cout << complex_class << "\n";
+    }
+    return si->members.at(m->member.name);
+}
+
+bool CodeGenToz3::preorder(const IR::BlockStatement *b) {
+    for (auto c : b->components) {
+        visit(c);
+    }
+    return false;
+}
+
+bool CodeGenToz3::preorder(const IR::AssignmentStatement *as) {
+    visit(as->right);
+    auto var = state->return_expr;
+    auto target = as->left;
+    if (auto name = target->to<IR::PathExpression>()) {
+        state->insert_var(name->path->name, var);
+    } else if (auto member = target->to<IR::Member>()) {
+        const IR::Expression *parent = member->expr;
+        P4Z3Type complex_class = nullptr;
+        if (auto sub_member = parent->to<IR::Member>()) {
+            complex_class = resolve_member(sub_member);
+        } else if (auto name = parent->to<IR::PathExpression>()) {
+            complex_class = state->get_var(name->path->name);
+        } else {
+            BUG("Parent Type  %s not implemented!", parent->node_type_name());
+        }
+        StructInstance *si = check_complex<StructInstance>(complex_class);
+        if (not si) {
+            BUG("Unknown class");
+            std::cout << complex_class << "\n";
+        }
+        si->members.at(member->member.name) = var;
+    } else {
+        BUG("Unknown target %s!", target->node_type_name());
+    }
+    return false;
+}
+
+bool CodeGenToz3::preorder(const IR::Constant *c) {
+    auto val_string = Util::toString(c->value, 0, false);
+    if (auto tb = c->type->to<IR::Type_Bits>()) {
+        if (tb->isSigned) {
+        } else {
+            state->return_expr = state->ctx->bv_val(val_string, tb->size);
+            return false;
+        }
+    } else if (c->type->is<IR::Type_InfInt>()) {
+    }
+    BUG("Constant Node %s not implemented!", c->type->node_type_name());
+    return false;
+}
+
+bool CodeGenToz3::preorder(const IR::PathExpression *p) {
+    P4Scope *scope;
+    state->return_expr = state->find_var(p->path->name, &scope);
     return false;
 }
 

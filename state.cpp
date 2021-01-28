@@ -47,6 +47,15 @@ P4Z3Type P4State::find_var(cstring name, P4Scope **owner_scope) {
     return nullptr;
 }
 
+P4Z3Type P4State::get_var(cstring name) {
+    for (P4Scope *scope : scopes) {
+        if (scope->value_map.count(name)) {
+            return scope->value_map.at(name);
+        }
+    }
+    return nullptr;
+}
+
 void P4State::insert_var(cstring name, P4Z3Type var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
@@ -56,5 +65,11 @@ void P4State::insert_var(cstring name, P4Z3Type var) {
         scopes.back()->value_map.insert({name, var});
     }
 }
+
+void P4State::set_var(const IR::Expression *target, P4Z3Type var) {
+}
+
+void P4State::resolve_expr(const IR::Expression *) {}
+
 
 } // namespace TOZ3_V2

@@ -21,11 +21,17 @@ class P4State {
     std::map<cstring, std::vector<const IR::Node *> *> z3_type_map;
 
     std::vector<P4Scope *> scopes;
+    P4Z3Type return_expr = nullptr;
+
+
     P4Z3Type gen_instance(cstring name, const IR::Type *typ, uint64_t id = 0);
     void add_scope(P4Scope *scope);
     const IR::Type *resolve_type(const IR::Type *type);
     void insert_var(cstring name, P4Z3Type var);
+    void set_var(const IR::Expression *target, P4Z3Type var);
     P4Z3Type find_var(cstring name, P4Scope **owner_scope);
+    P4Z3Type get_var(cstring name);
+    void resolve_expr(const IR::Expression *expr);
 };
 } // namespace TOZ3_V2
 
