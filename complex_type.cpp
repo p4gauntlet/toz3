@@ -1,5 +1,6 @@
 #include "complex_type.h"
 
+#include <cstdio>
 #include <utility>
 
 #include "z3_int.h"
@@ -18,47 +19,56 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
         P4Z3Type member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto si = check_complex<StructInstance>(member_var)) {
             width += si->width;
+            flat_id += si->members.size();
         } else if (auto ei = check_complex<EnumInstance>(member_var)) {
             width += ei->width;
+            flat_id += ei->members.size();
         } else if (auto ei = check_complex<ErrorInstance>(member_var)) {
             width += ei->width;
+            flat_id += ei->members.size();
         } else if (auto tbi = resolved_type->to<IR::Type_Bits>()) {
             width += tbi->width_bits();
+            flat_id++;
         } else if (auto tvb = resolved_type->to<IR::Type_Varbits>()) {
             width += tvb->width_bits();
+            flat_id++;
         } else if (resolved_type->is<IR::Type_Boolean>()) {
             width++;
+            flat_id++;
         } else {
             BUG("Type \"%s\" not supported!.", field->type);
         }
         members.insert({field->name.name, member_var});
         member_types.insert({field->name.name, field->type});
-        flat_id++;
     }
 }
 
-std::vector<std::pair<cstring, z3::ast>> StructInstance::get_z3_vars() {
+std::vector<std::pair<cstring, z3::ast>>
+StructInstance::get_z3_vars(cstring prefix) {
     std::vector<std::pair<cstring, z3::ast>> z3_vars;
     for (auto member_tuple : members) {
         cstring name = member_tuple.first;
+        if (prefix.size() != 0) {
+            name = prefix + "." + name;
+        }
         P4Z3Type member = member_tuple.second;
         if (z3::ast *z3_var = boost::get<z3::ast>(&member)) {
             z3_vars.push_back({name, *z3_var});
         } else if (auto z3_var = check_complex<StructInstance>(member)) {
-            auto z3_sub_vars = z3_var->get_z3_vars();
+            auto z3_sub_vars = z3_var->get_z3_vars(name);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = check_complex<ErrorInstance>(member)) {
-            auto z3_sub_vars = z3_var->get_z3_vars();
+            auto z3_sub_vars = z3_var->get_z3_vars(name);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = check_complex<EnumInstance>(member)) {
-            auto z3_sub_vars = z3_var->get_z3_vars();
+            auto z3_sub_vars = z3_var->get_z3_vars(name);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = check_complex<Z3Int>(member)) {
             // We receive an int that we need to cast towards the member type
-            const IR::Type *type = member_types[name];
+            const IR::Type *type = member_types[member_tuple.first];
             auto val_string = Util::toString(z3_var->val, 0, false);
             auto val = state->ctx->bv_val(val_string, type->width_bits());
             z3_vars.push_back({name, val});
@@ -83,11 +93,16 @@ EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
     }
 }
 
-std::vector<std::pair<cstring, z3::ast>> EnumInstance::get_z3_vars() {
+std::vector<std::pair<cstring, z3::ast>>
+EnumInstance::get_z3_vars(cstring prefix) {
     std::vector<std::pair<cstring, z3::ast>> z3_vars;
     z3::expr z3_const =
         state->ctx->constant(p4_type->name.name, state->ctx->bv_sort(32));
-    z3_vars.push_back({std::to_string(member_id), z3_const});
+    cstring name = std::to_string(member_id);
+    if (prefix.size() != 0) {
+        name = prefix + "." + name;
+    }
+    z3_vars.push_back({name, z3_const});
     return z3_vars;
 }
 
@@ -103,10 +118,14 @@ ErrorInstance::ErrorInstance(P4State *state, const IR::Type_Error *type,
     }
 }
 
-std::vector<std::pair<cstring, z3::ast>> ErrorInstance::get_z3_vars() {
+std::vector<std::pair<cstring, z3::ast>>
+ErrorInstance::get_z3_vars(cstring prefix) {
     std::vector<std::pair<cstring, z3::ast>> z3_vars;
-    z3::expr z3_const =
-        state->ctx->constant(p4_type->name.name, state->ctx->bv_sort(32));
+    cstring name = p4_type->name.name;
+    if (prefix.size() != 0) {
+        name = prefix + "." + name;
+    }
+    z3::expr z3_const = state->ctx->constant(name, state->ctx->bv_sort(32));
     z3_vars.push_back({std::to_string(member_id), z3_const});
     return z3_vars;
 }

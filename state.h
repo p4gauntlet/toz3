@@ -43,6 +43,14 @@ class P4State {
     P4Z3Type get_var(cstring name);
     void resolve_expr(const IR::Expression *expr);
 };
+
+class ControlState : public P4ComplexInstance {
+ public:
+    std::vector<std::pair<cstring, z3::ast>> state_vars;
+    ControlState(std::vector<std::pair<cstring, z3::ast>> state_vars)
+        : state_vars(state_vars){};
+};
+
 } // namespace TOZ3_V2
 
 #endif // _TOZ3_STATE_H_

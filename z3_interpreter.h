@@ -4,6 +4,7 @@
 #include <z3++.h>
 
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "ir/ir.h"
@@ -15,12 +16,17 @@ namespace TOZ3_V2 {
 class Z3Visitor : public Inspector {
  public:
     P4State *state;
-    Z3Visitor(P4State *state) : state(state) { }
+    std::vector<std::pair<cstring, P4Z3Type>> decl_result;
+    Z3Visitor(P4State *state) : state(state) {}
 
+    std::vector<std::pair<cstring, P4Z3Type>> get_decl_result() {
+        return decl_result;
+    }
+
+ private:
     // for initialization and ending
     Visitor::profile_t init_apply(const IR::Node *node) override;
     void end_apply(const IR::Node *node) override;
-
     P4Z3Type resolve_member(const IR::Member *t);
 
     /***** Unimplemented *****/
@@ -28,7 +34,6 @@ class Z3Visitor : public Inspector {
         // FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
         return false;
     }
-
 
     // bool preorder(const IR::P4Program *) override;
 
@@ -123,9 +128,11 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Declaration_Variable *dv) override;
     // bool preorder(const IR::Declaration_Constant *dv) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
- private:
     void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
                             const IR::Type *t);
+    std::vector<std::pair<cstring, P4Z3Type>>
+    merge_args_with_params(const IR::Vector<IR::Argument> *args,
+                           const IR::ParameterList *params);
 };
 } // namespace TOZ3_V2
 

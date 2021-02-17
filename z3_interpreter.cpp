@@ -22,9 +22,6 @@ void Z3Visitor::fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
 }
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
-    auto ctrl_name = c->name.name;
-    std::cout << "TYPE: " << ctrl_name << "\n";
-
     // DO SOMETHING
     visit(c->body);
     return false;
@@ -107,12 +104,11 @@ bool Z3Visitor::preorder(const IR::PathExpression *p) {
 
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
-
+    std::vector<std::pair<cstring, z3::ast>> state_vars;
     if (auto c = resolved_type->to<IR::P4Control>()) {
         auto scope = new P4Scope();
         state->add_scope(scope);
         std::vector<cstring> state_names;
-        std::vector<std::pair<cstring, z3::ast>> state_vars;
         // INITIALIZE
         for (auto param : *c->getApplyParameters()) {
             auto par_type = state->resolve_type(param->type);
@@ -131,15 +127,15 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
             if (z3::ast *z3_var = boost::get<z3::ast>(&member)) {
                 state_vars.push_back({state_name, *z3_var});
             } else if (auto z3_var = check_complex<StructInstance>(member)) {
-                auto z3_sub_vars = z3_var->get_z3_vars();
+                auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
             } else if (auto z3_var = check_complex<ErrorInstance>(member)) {
-                auto z3_sub_vars = z3_var->get_z3_vars();
+                auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
             } else if (auto z3_var = check_complex<EnumInstance>(member)) {
-                auto z3_sub_vars = z3_var->get_z3_vars();
+                auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
             } else if (check_complex<ExternInstance>(member)) {
@@ -148,19 +144,41 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
                 BUG("Var is neither type z3::ast nor P4ComplexInstance!");
             }
         }
-        for (auto tuple : state_vars) {
-            auto name = tuple.first;
-            auto var = tuple.second;
-            std::cout << name << ": " << var << "\n";
-        }
     }
+    state->return_expr = new ControlState(state_vars);
 
     return false;
 }
 
+std::vector<std::pair<cstring, P4Z3Type>>
+Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
+                                  const IR::ParameterList *params) {
+    std::vector<std::pair<cstring, P4Z3Type>> merged_vec;
+    size_t arg_len = args->size();
+    size_t idx = 0;
+    for (auto param : params->parameters) {
+        if (idx < arg_len) {
+            const IR::Argument *arg = args->at(idx);
+            visit(arg->expression);
+            merged_vec.push_back({param->name.name, state->return_expr});
+        } else {
+            auto arg_expr = state->gen_instance(param->name.name, param->type);
+            merged_vec.push_back({param->name.name, arg_expr});
+        }
+        idx++;
+    }
+
+    return merged_vec;
+}
+
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
-    for (auto arg : *di->arguments) {
-        visit(arg->expression);
+    const IR::Type *resolved_type = state->resolve_type(di->type);
+    if (auto pkt_type = resolved_type->to<IR::Type_Package>()) {
+        decl_result =
+            merge_args_with_params(di->arguments, pkt_type->getParameters());
+    } else {
+        BUG("Declaration Instance Type %s not supported.",
+            resolved_type->node_type_name());
     }
     return false;
 }

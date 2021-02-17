@@ -8,6 +8,7 @@
 #include <vector> // std::vector
 
 #include "ir/ir.h"
+#include "lib/cstring.h"
 #include "state.h"
 
 namespace TOZ3_V2 {
@@ -25,7 +26,7 @@ class StructInstance : public P4ComplexInstance {
     StructInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
     void bind(z3::ast bind_const);
-    std::vector<std::pair<cstring, z3::ast>> get_z3_vars();
+    std::vector<std::pair<cstring, z3::ast>> get_z3_vars(cstring prefix="");
 };
 
 class EnumInstance : public P4ComplexInstance {
@@ -38,7 +39,7 @@ class EnumInstance : public P4ComplexInstance {
     uint64_t width;
     uint64_t member_id;
     EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
-    std::vector<std::pair<cstring, z3::ast>> get_z3_vars();
+    std::vector<std::pair<cstring, z3::ast>> get_z3_vars(cstring prefix="");
 };
 
 class ErrorInstance : public P4ComplexInstance {
@@ -52,7 +53,7 @@ class ErrorInstance : public P4ComplexInstance {
     uint64_t width;
     ErrorInstance(P4State *state, const IR::Type_Error *type,
                   uint64_t member_id);
-    std::vector<std::pair<cstring, z3::ast>> get_z3_vars();
+    std::vector<std::pair<cstring, z3::ast>> get_z3_vars(cstring prefix="");
 };
 
 class ExternInstance : public P4ComplexInstance {

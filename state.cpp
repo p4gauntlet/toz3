@@ -91,6 +91,5 @@ void P4State::insert_var(cstring name, P4Z3Type var) {
 
 void P4State::set_var(const IR::Expression *target, P4Z3Type var) {}
 
-void P4State::resolve_expr(const IR::Expression *) {}
 
 } // namespace TOZ3_V2

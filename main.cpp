@@ -74,6 +74,22 @@ int main(int argc, char *const argv[]) {
             program->apply(*map_builder);
             auto decl = get_main_decl(state);
             decl->apply(*to_z3);
+            auto decl_result = to_z3->get_decl_result();
+            for (auto pipe_state : decl_result) {
+                cstring pipe_name = pipe_state.first;
+                auto pipe_vars = TOZ3_V2::check_complex<TOZ3_V2::ControlState>(
+                    pipe_state.second);
+                if (pipe_vars) {
+                    printf("Pipe %s state:\n", pipe_name);
+                    for (auto tuple : pipe_vars->state_vars) {
+                        auto name = tuple.first;
+                        auto var = tuple.second;
+                        std::cout << name << ": " << var << "\n";
+                    }
+                } else {
+                    warning("No results for pipe %s", pipe_name);
+                }
+            }
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;
             return 1;
