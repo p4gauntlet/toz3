@@ -23,9 +23,14 @@ class Z3Visitor : public Inspector {
 
     P4Z3Type resolve_member(const IR::Member *t);
 
-    bool preorder(const IR::Node *) override { return false; }
+    /***** Unimplemented *****/
+    bool preorder(const IR::Node *) override {
+        // FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
+        return false;
+    }
 
-    bool preorder(const IR::P4Program *) override;
+
+    // bool preorder(const IR::P4Program *) override;
 
     // /***** Statements *****/
     bool preorder(const IR::BlockStatement *b) override;
@@ -74,7 +79,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::TypeNameExpression *) override;
     // bool preorder(const IR::NamedExpression *ne) override;
     // bool preorder(const IR::StructExpression *sie) override;
-    // bool preorder(const IR::ConstructorCallExpression *) override;
+    bool preorder(const IR::ConstructorCallExpression *) override;
     // bool preorder(const IR::MethodCallExpression *mce) override;
     // bool preorder(const IR::BoolLiteral *bl) override;
     // bool preorder(const IR::StringLiteral *str) override;
@@ -113,7 +118,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Mux *) override;
 
     // /***** Declarations *****/
-    // bool preorder(const IR::Declaration_Instance *di) override;
+    bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
     // bool preorder(const IR::Declaration_Variable *dv) override;
     // bool preorder(const IR::Declaration_Constant *dv) override;

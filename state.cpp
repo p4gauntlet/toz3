@@ -3,7 +3,8 @@
 
 namespace TOZ3_V2 {
 
-P4Z3Type P4State::gen_instance(cstring name, const IR::Type *type, uint64_t id) {
+P4Z3Type P4State::gen_instance(cstring name, const IR::Type *type,
+                               uint64_t id) {
     if (auto ts = type->to<IR::Type_StructLike>()) {
         return new StructInstance(this, ts, id);
     } else if (auto te = type->to<IR::Type_Enum>()) {
@@ -24,17 +25,39 @@ P4Z3Type P4State::gen_instance(cstring name, const IR::Type *type, uint64_t id) 
 
 void P4State::add_scope(P4Scope *scope) { scopes.push_back(scope); }
 
+void P4State::add_type(cstring type_name, const IR::Type *t) {
+    type_map[type_name] = t;
+}
+
+const IR::Type *P4State::get_type(cstring type_name) {
+    if (type_map.count(type_name)) {
+        return type_map[type_name];
+    } else {
+        BUG("Type name \"%s\" not found!.", type_name);
+    }
+    return nullptr;
+}
+
 const IR::Type *P4State::resolve_type(const IR::Type *type) {
     const IR::Type *ret_type = type;
     if (auto tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
-        if (type_map.count(type_name)) {
-            ret_type = type_map[type_name];
-        } else {
-            BUG("Type name \"%s\" not found!.", type_name);
-        }
+        return get_type(type_name);
     }
     return ret_type;
+}
+
+void P4State::add_decl(cstring decl_name, const IR::Declaration *d) {
+    decl_map[decl_name] = d;
+}
+
+const IR::Declaration *P4State::get_decl(cstring decl_name) {
+    if (decl_map.count(decl_name)) {
+        return decl_map[decl_name];
+    } else {
+        BUG("Decl name \"%s\" not found!.", decl_name);
+    }
+    return nullptr;
 }
 
 P4Z3Type P4State::find_var(cstring name, P4Scope **owner_scope) {
@@ -66,10 +89,8 @@ void P4State::insert_var(cstring name, P4Z3Type var) {
     }
 }
 
-void P4State::set_var(const IR::Expression *target, P4Z3Type var) {
-}
+void P4State::set_var(const IR::Expression *target, P4Z3Type var) {}
 
 void P4State::resolve_expr(const IR::Expression *) {}
-
 
 } // namespace TOZ3_V2

@@ -33,8 +33,8 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::Type_Enum *) override;
     bool preorder(const IR::Type_Error *) override;
     // bool preorder(const IR::Type_SerEnum *) override;
-    // bool preorder(const IR::Type_Parser *) override;
-    // bool preorder(const IR::Type_Control *) override;
+    bool preorder(const IR::Type_Parser *) override;
+    bool preorder(const IR::Type_Control *) override;
 
     bool preorder(const IR::Type_Extern *t) override;
     // bool preorder(const IR::Type_Method *t) override;
@@ -52,9 +52,15 @@ class TypeVisitor : public Inspector {
     // bool preorder(const IR::Type_Dontcare *) override;
     // bool preorder(const IR::Type_String *) override;
 
- private:
-    void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
-                            const IR::Type *t);
+    // /***** Declarations *****/
+    bool preorder(const IR::P4Parser *p) override;
+    bool preorder(const IR::P4Control *c) override;
+
+    bool preorder(const IR::Declaration_Instance *di) override;
+    // bool preorder(const IR::Declaration_ID *di) override;
+    // bool preorder(const IR::Declaration_Variable *dv) override;
+    // bool preorder(const IR::Declaration_Constant *dv) override;
+    // bool preorder(const IR::Declaration_MatchKind *) override;
 };
 } // namespace TOZ3_V2
 

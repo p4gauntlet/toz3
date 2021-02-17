@@ -2,6 +2,8 @@
 
 #include <utility>
 
+#include "z3_int.h"
+
 namespace TOZ3_V2 {
 
 StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
@@ -12,7 +14,7 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
 
     for (auto field : type->fields) {
         cstring name = cstring(std::to_string(flat_id));
-        auto resolved_type = state->resolve_type(field->type);
+        const IR::Type *resolved_type = state->resolve_type(field->type);
         P4Z3Type member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto si = check_complex<StructInstance>(member_var)) {
             width += si->width;
@@ -30,6 +32,7 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
             BUG("Type \"%s\" not supported!.", field->type);
         }
         members.insert({field->name.name, member_var});
+        member_types.insert({field->name.name, field->type});
         flat_id++;
     }
 }
@@ -53,6 +56,12 @@ std::vector<std::pair<cstring, z3::ast>> StructInstance::get_z3_vars() {
             auto z3_sub_vars = z3_var->get_z3_vars();
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
+        } else if (auto z3_var = check_complex<Z3Int>(member)) {
+            // We receive an int that we need to cast towards the member type
+            const IR::Type *type = member_types[name];
+            auto val_string = Util::toString(z3_var->val, 0, false);
+            auto val = state->ctx->bv_val(val_string, type->width_bits());
+            z3_vars.push_back({name, val});
         } else {
             BUG("Var is neither type z3::ast nor P4ComplexInstance!");
         }

@@ -19,6 +19,7 @@ class StructInstance : public P4ComplexInstance {
  public:
     const IR::Type_StructLike *p4_type;
     std::map<cstring, P4Z3Type> members;
+    std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
     uint64_t width;
     StructInstance(P4State *state, const IR::Type_StructLike *type,

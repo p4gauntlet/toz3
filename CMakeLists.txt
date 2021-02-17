@@ -20,6 +20,7 @@ set (TOZ3V2_HDRS
     complex_type.h
     state.h
     type_map.h
+    z3_int.h
     )
 
 

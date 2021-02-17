@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <fstream>
 
 #include "frontends/common/applyOptionsPragmas.h"
@@ -18,6 +19,7 @@
 #include "frontends/p4/fromv1.0/v1model.h"
 #include "frontends/p4/toP4/toP4.h"
 
+#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
@@ -29,6 +31,15 @@
 #include "toz3Options.h"
 #include "type_map.h"
 #include "z3_interpreter.h"
+
+const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
+    const IR::Declaration *main = state->get_decl("main");
+    if (auto main_pkg = main->to<IR::Declaration_Instance>()) {
+        return main_pkg;
+    } else {
+        BUG("Main node %s not implemented!", main->node_type_name());
+    }
+}
 
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
@@ -61,7 +72,8 @@ int main(int argc, char *const argv[]) {
             TOZ3_V2::TypeVisitor *map_builder = new TOZ3_V2::TypeVisitor(state);
             TOZ3_V2::Z3Visitor *to_z3 = new TOZ3_V2::Z3Visitor(state);
             program->apply(*map_builder);
-            program->apply(*to_z3);
+            auto decl = get_main_decl(state);
+            decl->apply(*to_z3);
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;
             return 1;
