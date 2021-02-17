@@ -1,17 +1,18 @@
 #include <utility>
 
-#include "codegen.h"
+#include "z3_interpreter.h"
 #include "complex_type.h"
+#include "lib/exceptions.h"
 
 namespace TOZ3_V2 {
 
-Visitor::profile_t CodeGenToz3::init_apply(const IR::Node *node) {
+Visitor::profile_t Z3Visitor::init_apply(const IR::Node *node) {
     return Inspector::init_apply(node);
 }
 
-void CodeGenToz3::end_apply(const IR::Node *) {}
+void Z3Visitor::end_apply(const IR::Node *) {}
 
-bool CodeGenToz3::preorder(const IR::P4Program *p) {
+bool Z3Visitor::preorder(const IR::P4Program *p) {
     // Start to visit the actual AST objects
     for (auto o : p->objects) {
         visit(o);
@@ -19,34 +20,13 @@ bool CodeGenToz3::preorder(const IR::P4Program *p) {
     return false;
 }
 
-void CodeGenToz3::fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
+void Z3Visitor::fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
                                      const IR::Type *t) {
     t = state->resolve_type(t);
     sorts->push_back(t);
 }
 
-bool CodeGenToz3::preorder(const IR::Type_StructLike *t) {
-    state->type_map[t->name.name] = t;
-    return false;
-}
-
-bool CodeGenToz3::preorder(const IR::Type_Stack *) { return false; }
-bool CodeGenToz3::preorder(const IR::Type_Enum *t) {
-    state->type_map[t->name.name] = t;
-    return false;
-}
-
-bool CodeGenToz3::preorder(const IR::Type_Error *t) {
-    state->type_map[t->name.name] = t;
-    return false;
-}
-
-bool CodeGenToz3::preorder(const IR::Type_Extern *t) {
-    state->type_map[t->name.name] = t;
-    return false;
-}
-
-bool CodeGenToz3::preorder(const IR::P4Control *c) {
+bool Z3Visitor::preorder(const IR::P4Control *c) {
     auto ctrl_name = c->name.name;
     std::cout << "TYPE: " << ctrl_name << "\n";
 
@@ -96,7 +76,7 @@ bool CodeGenToz3::preorder(const IR::P4Control *c) {
 }
 
 
-P4Z3Type CodeGenToz3::resolve_member(const IR::Member *m) {
+P4Z3Type Z3Visitor::resolve_member(const IR::Member *m) {
     P4Z3Type complex_class = nullptr;
     const IR::Expression *parent = m->expr;
     if (auto member = parent->to<IR::Member>()) {
@@ -114,14 +94,14 @@ P4Z3Type CodeGenToz3::resolve_member(const IR::Member *m) {
     return si->members.at(m->member.name);
 }
 
-bool CodeGenToz3::preorder(const IR::BlockStatement *b) {
+bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     for (auto c : b->components) {
         visit(c);
     }
     return false;
 }
 
-bool CodeGenToz3::preorder(const IR::AssignmentStatement *as) {
+bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
     auto var = state->return_expr;
     auto target = as->left;
@@ -149,7 +129,7 @@ bool CodeGenToz3::preorder(const IR::AssignmentStatement *as) {
     return false;
 }
 
-bool CodeGenToz3::preorder(const IR::Constant *c) {
+bool Z3Visitor::preorder(const IR::Constant *c) {
     auto val_string = Util::toString(c->value, 0, false);
     if (auto tb = c->type->to<IR::Type_Bits>()) {
         if (tb->isSigned) {
@@ -163,7 +143,7 @@ bool CodeGenToz3::preorder(const IR::Constant *c) {
     return false;
 }
 
-bool CodeGenToz3::preorder(const IR::PathExpression *p) {
+bool Z3Visitor::preorder(const IR::PathExpression *p) {
     P4Scope *scope;
     state->return_expr = state->find_var(p->path->name, &scope);
     return false;

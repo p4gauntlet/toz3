@@ -25,8 +25,10 @@
 #include "lib/log.h"
 #include "lib/nullstream.h"
 
-#include "codegen.h"
+#include "state.h"
 #include "toz3Options.h"
+#include "type_map.h"
+#include "z3_interpreter.h"
 
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
@@ -55,8 +57,11 @@ int main(int argc, char *const argv[]) {
             P4::P4COptionPragmaParser optionsPragmaParser;
             program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
             // convert the P4 program to Z3 Python
-            TOZ3_V2::CodeGenToz3 *cgt3 = new TOZ3_V2::CodeGenToz3(&ctx);
-            program->apply(*cgt3);
+            TOZ3_V2::P4State *state = new TOZ3_V2::P4State(&ctx);
+            TOZ3_V2::TypeVisitor *map_builder = new TOZ3_V2::TypeVisitor(state);
+            TOZ3_V2::Z3Visitor *to_z3 = new TOZ3_V2::Z3Visitor(state);
+            program->apply(*map_builder);
+            program->apply(*to_z3);
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;
             return 1;
