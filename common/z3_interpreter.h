@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "expression_resolver.h"
 #include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "scope.h"
@@ -18,19 +19,19 @@ class Z3Visitor : public Inspector {
  public:
     P4State *state;
     P4Z3Result decl_result;
-    Z3Visitor(P4State *state) : state(state) {}
+    Z3Visitor(P4State *state) : state(state) {
+    }
 
     P4Z3Result get_decl_result() { return decl_result; }
 
  private:
     // for initialization and ending
     Visitor::profile_t init_apply(const IR::Node *node) override;
-    void end_apply(const IR::Node *node) override;
     P4Z3Instance resolve_member(const IR::Member *t);
 
     /***** Unimplemented *****/
-    bool preorder(const IR::Node *) override {
-        // FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
+    bool preorder(const IR::Node *expr) override {
+        FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
         return false;
     }
 
@@ -73,54 +74,6 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::KeyElement *ke) override;
     // bool preorder(const IR::ExpressionValue *ev) override;
 
-    // /***** Expressions *****/
-    // bool preorder(const IR::Member *m) override;
-    // bool preorder(const IR::SerEnumMember *m) override;
-    bool preorder(const IR::PathExpression *p) override;
-    bool preorder(const IR::Constant *c) override;
-    // bool preorder(const IR::DefaultExpression *) override;
-    // bool preorder(const IR::ListExpression *le) override;
-    // bool preorder(const IR::TypeNameExpression *) override;
-    // bool preorder(const IR::NamedExpression *ne) override;
-    // bool preorder(const IR::StructExpression *sie) override;
-    bool preorder(const IR::ConstructorCallExpression *) override;
-    // bool preorder(const IR::MethodCallExpression *mce) override;
-    // bool preorder(const IR::BoolLiteral *bl) override;
-    // bool preorder(const IR::StringLiteral *str) override;
-
-    // void visit_unary(const IR::Operation_Unary *);
-    // void visit_binary(const IR::Operation_Binary *);
-    // void visit_ternary(const IR::Operation_Ternary *);
-    // bool preorder(const IR::Neg *expr) override;
-    // bool preorder(const IR::Cmpl *expr) override;
-    // bool preorder(const IR::LNot *expr) override;
-    // bool preorder(const IR::Mul *expr) override;
-    // bool preorder(const IR::Div *expr) override;
-    // bool preorder(const IR::Mod *expr) override;
-    // bool preorder(const IR::Add *expr) override;
-    // bool preorder(const IR::AddSat *expr) override;
-    // bool preorder(const IR::Sub *expr) override;
-    // bool preorder(const IR::SubSat *expr) override;
-    // bool preorder(const IR::Shl *expr) override;
-    // bool preorder(const IR::Shr *expr) override;
-    // bool preorder(const IR::Equ *expr) override;
-    // bool preorder(const IR::Neq *expr) override;
-    // bool preorder(const IR::Lss *expr) override;
-    // bool preorder(const IR::Leq *expr) override;
-    // bool preorder(const IR::Grt *expr) override;
-    // bool preorder(const IR::Geq *expr) override;
-    // bool preorder(const IR::BAnd *expr) override;
-    // bool preorder(const IR::BOr *expr) override;
-    // bool preorder(const IR::BXor *expr) override;
-    // bool preorder(const IR::LAnd *expr) override;
-    // bool preorder(const IR::LOr *expr) override;
-    // bool preorder(const IR::Mask *) override;
-    // bool preorder(const IR::Range *) override;
-    bool preorder(const IR::Cast *c) override;
-    // bool preorder(const IR::Concat *c) override;
-    // bool preorder(const IR::Slice *s) override;
-    // bool preorder(const IR::Mux *) override;
-
     // /***** Declarations *****/
     bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
@@ -129,7 +82,6 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Declaration_MatchKind *) override;
     void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
                             const IR::Type *t);
-    P4Z3Instance cast(P4Z3Instance expr, const IR::Type *destType);
     P4Z3Result merge_args_with_params(const IR::Vector<IR::Argument> *args,
                                       const IR::ParameterList *params);
 };

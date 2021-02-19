@@ -6,6 +6,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.cmake"
 
 set (TOZ3V2_COMMON_SRCS
     common/z3_interpreter.cpp
+    common/expression_resolver.cpp
     common/complex_type.cpp
     common/state.cpp
     common/type_map.cpp
@@ -13,6 +14,7 @@ set (TOZ3V2_COMMON_SRCS
 
 set (TOZ3V2_COMMON_HDRS
     common/z3_interpreter.h
+    common/expression_resolver.h
     common/scope.h
     common/complex_type.h
     common/state.h
