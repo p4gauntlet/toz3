@@ -16,7 +16,7 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
     for (auto field : type->fields) {
         cstring name = cstring(std::to_string(flat_id));
         const IR::Type *resolved_type = state->resolve_type(field->type);
-        P4Z3Type member_var = state->gen_instance(name, resolved_type, flat_id);
+        P4Z3Instance member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto si = check_complex<StructInstance>(member_var)) {
             width += si->width;
             flat_id += si->members.size();
@@ -43,16 +43,16 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
     }
 }
 
-std::vector<std::pair<cstring, z3::ast>>
+std::vector<std::pair<cstring, z3::expr>>
 StructInstance::get_z3_vars(cstring prefix) {
-    std::vector<std::pair<cstring, z3::ast>> z3_vars;
+    std::vector<std::pair<cstring, z3::expr>> z3_vars;
     for (auto member_tuple : members) {
         cstring name = member_tuple.first;
         if (prefix.size() != 0) {
             name = prefix + "." + name;
         }
-        P4Z3Type member = member_tuple.second;
-        if (z3::ast *z3_var = boost::get<z3::ast>(&member)) {
+        P4Z3Instance member = member_tuple.second;
+        if (z3::expr *z3_var = boost::get<z3::expr>(&member)) {
             z3_vars.push_back({name, *z3_var});
         } else if (auto z3_var = check_complex<StructInstance>(member)) {
             auto z3_sub_vars = z3_var->get_z3_vars(name);
@@ -73,13 +73,13 @@ StructInstance::get_z3_vars(cstring prefix) {
             auto val = state->ctx->bv_val(val_string, type->width_bits());
             z3_vars.push_back({name, val});
         } else {
-            BUG("Var is neither type z3::ast nor P4ComplexInstance!");
+            BUG("Var is neither type z3::expr nor P4ComplexInstance!");
         }
     }
     return z3_vars;
 }
 
-void StructInstance::bind(z3::ast) {}
+void StructInstance::bind(z3::expr) {}
 
 EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
                            uint64_t member_id)
@@ -93,9 +93,9 @@ EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
     }
 }
 
-std::vector<std::pair<cstring, z3::ast>>
+std::vector<std::pair<cstring, z3::expr>>
 EnumInstance::get_z3_vars(cstring prefix) {
-    std::vector<std::pair<cstring, z3::ast>> z3_vars;
+    std::vector<std::pair<cstring, z3::expr>> z3_vars;
     z3::expr z3_const =
         state->ctx->constant(p4_type->name.name, state->ctx->bv_sort(32));
     cstring name = std::to_string(member_id);
@@ -118,9 +118,9 @@ ErrorInstance::ErrorInstance(P4State *state, const IR::Type_Error *type,
     }
 }
 
-std::vector<std::pair<cstring, z3::ast>>
+std::vector<std::pair<cstring, z3::expr>>
 ErrorInstance::get_z3_vars(cstring prefix) {
-    std::vector<std::pair<cstring, z3::ast>> z3_vars;
+    std::vector<std::pair<cstring, z3::expr>> z3_vars;
     cstring name = p4_type->name.name;
     if (prefix.size() != 0) {
         name = prefix + "." + name;

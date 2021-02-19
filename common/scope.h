@@ -4,6 +4,7 @@
 #include <z3++.h>
 
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "boost/any.hpp"
@@ -28,9 +29,10 @@ class P4ComplexInstance {
     virtual ~P4ComplexInstance() = default;
 };
 
-typedef boost::variant<z3::ast, P4ComplexInstance *> P4Z3Type;
+typedef boost::variant<z3::expr, P4ComplexInstance *> P4Z3Instance;
+typedef std::vector<std::pair<cstring, P4Z3Instance>> P4Z3Result;
 
-template <typename T> T *check_complex(P4Z3Type type) {
+template <typename T> T *check_complex(P4Z3Instance type) {
     try {
         P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(type);
         return dynamic_cast<T *>(pi);
@@ -42,8 +44,10 @@ template <typename T> T *check_complex(P4Z3Type type) {
 class P4Scope {
  public:
     // a map of local values
-    std::map<cstring, P4Z3Type> value_map;
+    std::map<cstring, P4Z3Instance> value_map;
 };
+
+
 } // namespace TOZ3_V2
 
 #endif // _TOZ3_CONTEXT_H_

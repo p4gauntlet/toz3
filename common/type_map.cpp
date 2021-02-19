@@ -1,9 +1,9 @@
 #include <cstdio>
 #include <utility>
 
-#include "type_map.h"
 #include "complex_type.h"
 #include "lib/exceptions.h"
+#include "type_map.h"
 
 namespace TOZ3_V2 {
 
@@ -12,7 +12,6 @@ Visitor::profile_t TypeVisitor::init_apply(const IR::Node *node) {
 }
 
 void TypeVisitor::end_apply(const IR::Node *) {}
-
 bool TypeVisitor::preorder(const IR::P4Program *p) {
     // Start to visit the actual AST objects
     for (auto o : p->objects) {
@@ -70,8 +69,5 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
     state->add_decl(di->name.name, di);
     return false;
 }
-
-
-
 
 } // namespace TOZ3_V2

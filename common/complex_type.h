@@ -19,14 +19,14 @@ class StructInstance : public P4ComplexInstance {
 
  public:
     const IR::Type_StructLike *p4_type;
-    std::map<cstring, P4Z3Type> members;
+    std::map<cstring, P4Z3Instance> members;
     std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
     uint64_t width;
     StructInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
-    void bind(z3::ast bind_const);
-    std::vector<std::pair<cstring, z3::ast>> get_z3_vars(cstring prefix="");
+    void bind(z3::expr bind_const);
+    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix="");
 };
 
 class EnumInstance : public P4ComplexInstance {
@@ -35,11 +35,11 @@ class EnumInstance : public P4ComplexInstance {
 
  public:
     const IR::Type_Enum *p4_type;
-    std::map<cstring, P4Z3Type> members;
+    std::map<cstring, P4Z3Instance> members;
     uint64_t width;
     uint64_t member_id;
     EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
-    std::vector<std::pair<cstring, z3::ast>> get_z3_vars(cstring prefix="");
+    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix="");
 };
 
 class ErrorInstance : public P4ComplexInstance {
@@ -48,19 +48,19 @@ class ErrorInstance : public P4ComplexInstance {
 
  public:
     const IR::Type_Error *p4_type;
-    std::map<cstring, P4Z3Type> members;
+    std::map<cstring, P4Z3Instance> members;
     uint64_t member_id;
     uint64_t width;
     ErrorInstance(P4State *state, const IR::Type_Error *type,
                   uint64_t member_id);
-    std::vector<std::pair<cstring, z3::ast>> get_z3_vars(cstring prefix="");
+    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix="");
 };
 
 class ExternInstance : public P4ComplexInstance {
  private:
  public:
     const IR::Type_Extern *p4_type;
-    std::map<cstring, P4Z3Type> members;
+    std::map<cstring, P4Z3Instance> members;
     uint64_t width;
     ExternInstance(P4State *state, const IR::Type_Extern *type);
 };

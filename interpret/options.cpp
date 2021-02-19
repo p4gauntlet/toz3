@@ -1,4 +1,4 @@
-#include "toz3Options.h"
+#include "options.h"
 
 namespace TOZ3_V2 {
 

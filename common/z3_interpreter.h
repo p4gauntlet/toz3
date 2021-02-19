@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "scope.h"
 #include "state.h"
@@ -16,18 +17,16 @@ namespace TOZ3_V2 {
 class Z3Visitor : public Inspector {
  public:
     P4State *state;
-    std::vector<std::pair<cstring, P4Z3Type>> decl_result;
+    P4Z3Result decl_result;
     Z3Visitor(P4State *state) : state(state) {}
 
-    std::vector<std::pair<cstring, P4Z3Type>> get_decl_result() {
-        return decl_result;
-    }
+    P4Z3Result get_decl_result() { return decl_result; }
 
  private:
     // for initialization and ending
     Visitor::profile_t init_apply(const IR::Node *node) override;
     void end_apply(const IR::Node *node) override;
-    P4Z3Type resolve_member(const IR::Member *t);
+    P4Z3Instance resolve_member(const IR::Member *t);
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *) override {
@@ -117,7 +116,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::LOr *expr) override;
     // bool preorder(const IR::Mask *) override;
     // bool preorder(const IR::Range *) override;
-    // bool preorder(const IR::Cast *c) override;
+    bool preorder(const IR::Cast *c) override;
     // bool preorder(const IR::Concat *c) override;
     // bool preorder(const IR::Slice *s) override;
     // bool preorder(const IR::Mux *) override;
@@ -130,9 +129,9 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Declaration_MatchKind *) override;
     void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
                             const IR::Type *t);
-    std::vector<std::pair<cstring, P4Z3Type>>
-    merge_args_with_params(const IR::Vector<IR::Argument> *args,
-                           const IR::ParameterList *params);
+    P4Z3Instance cast(P4Z3Instance expr, const IR::Type *destType);
+    P4Z3Result merge_args_with_params(const IR::Vector<IR::Argument> *args,
+                                      const IR::ParameterList *params);
 };
 } // namespace TOZ3_V2
 

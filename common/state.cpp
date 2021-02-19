@@ -3,7 +3,7 @@
 
 namespace TOZ3_V2 {
 
-P4Z3Type P4State::gen_instance(cstring name, const IR::Type *type,
+P4Z3Instance P4State::gen_instance(cstring name, const IR::Type *type,
                                uint64_t id) {
     if (auto ts = type->to<IR::Type_StructLike>()) {
         return new StructInstance(this, ts, id);
@@ -60,7 +60,7 @@ const IR::Declaration *P4State::get_decl(cstring decl_name) {
     return nullptr;
 }
 
-P4Z3Type P4State::find_var(cstring name, P4Scope **owner_scope) {
+P4Z3Instance P4State::find_var(cstring name, P4Scope **owner_scope) {
     for (P4Scope *scope : scopes) {
         if (scope->value_map.count(name)) {
             *owner_scope = scope;
@@ -70,7 +70,7 @@ P4Z3Type P4State::find_var(cstring name, P4Scope **owner_scope) {
     return nullptr;
 }
 
-P4Z3Type P4State::get_var(cstring name) {
+P4Z3Instance P4State::get_var(cstring name) {
     for (P4Scope *scope : scopes) {
         if (scope->value_map.count(name)) {
             return scope->value_map.at(name);
@@ -79,7 +79,7 @@ P4Z3Type P4State::get_var(cstring name) {
     return nullptr;
 }
 
-void P4State::insert_var(cstring name, P4Z3Type var) {
+void P4State::insert_var(cstring name, P4Z3Instance var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
@@ -89,7 +89,7 @@ void P4State::insert_var(cstring name, P4Z3Type var) {
     }
 }
 
-void P4State::set_var(const IR::Expression *target, P4Z3Type var) {}
+void P4State::set_var(const IR::Expression *target, P4Z3Instance var) {}
 
 
 } // namespace TOZ3_V2

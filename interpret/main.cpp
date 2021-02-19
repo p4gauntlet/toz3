@@ -27,10 +27,10 @@
 #include "lib/log.h"
 #include "lib/nullstream.h"
 
-#include "state.h"
-#include "toz3Options.h"
-#include "type_map.h"
-#include "z3_interpreter.h"
+#include "toz3_v2/common/state.h"
+#include "options.h"
+#include "toz3_v2/common/type_map.h"
+#include "toz3_v2/common/z3_interpreter.h"
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
     const IR::Declaration *main = state->get_decl("main");
