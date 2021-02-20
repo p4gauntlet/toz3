@@ -62,6 +62,7 @@ P4Z3Result get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
             return to_z3->get_decl_result();
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;
+            exit(EXIT_FAILURE);
         }
     }
     return z3_return;
@@ -82,25 +83,31 @@ void unroll_result(P4Z3Result z3_repr_prog, std::vector<z3::expr> *result_vec) {
     }
 }
 
-int compare_progs(z3::context *ctx, std::vector<z3::expr> z3_repr_prog_before,
-                  std::vector<z3::expr> z3_repr_prog_after) {
+int compare_progs(z3::context *ctx,
+                  std::vector<std::vector<z3::expr>> z3_progs) {
     z3::solver s(*ctx);
-    for (size_t i = 0; i < z3_repr_prog_before.size(); ++i) {
-        auto left_val = z3_repr_prog_before[i];
-        auto right_val = z3_repr_prog_after[i];
-        s.add(left_val == right_val);
+
+    for (size_t i = 1; i < z3_progs.size(); ++i) {
+        std::vector<z3::expr> z3_repr_prog_before = z3_progs[i - 1];
+        std::vector<z3::expr> z3_repr_prog_after = z3_progs[i];
+
+        for (size_t i = 0; i < z3_repr_prog_before.size(); ++i) {
+            auto left_val = z3_repr_prog_before[i];
+            auto right_val = z3_repr_prog_after[i];
+            s.add(left_val == right_val);
+        }
+        switch (s.check()) {
+        case z3::sat:
+            break;
+        case z3::unsat:
+            error("Programs are not equal! Found validation error.\n");
+            return EXIT_FAILURE;
+        case z3::unknown:
+            error("Could not determine equality. Error\n");
+            return EXIT_FAILURE;
+        }
     }
-    switch (s.check()) {
-    case z3::sat:
-        printf("Programs are equal!\n");
-        return EXIT_SUCCESS;
-    case z3::unsat:
-        printf("Programs are not equal! Found validation error.\n");
-        return EXIT_FAILURE;
-    case z3::unknown:
-        printf("Could not determine equality. Error\n");
-        return EXIT_FAILURE;
-    }
+    printf("Passed all checks.\n");
     return EXIT_SUCCESS;
 }
 } // namespace TOZ3_V2
@@ -149,29 +156,22 @@ int main(int argc, char *const argv[]) {
         options.usage();
         return EXIT_FAILURE;
     }
-    const IR::P4Program *prog_before = nullptr;
-    const IR::P4Program *prog_after = nullptr;
-
-    // parse the first program
-    // use a little trick here to get the second program
-    options.file = prog_list[0];
-    prog_before = P4::parseP4File(options);
-
-    options.file = prog_list[1];
-    prog_after = P4::parseP4File(options);
 
     z3::context ctx;
+    const IR::P4Program *prog_parsed = nullptr;
+    // parse the first program
+    // use a little trick here to get the second program
+    std::vector<std::vector<z3::expr>> z3_progs;
+    for (auto prog : prog_list) {
+        options.file = prog;
+        prog_parsed = P4::parseP4File(options);
+        TOZ3_V2::P4Z3Result z3_repr_prog =
+            TOZ3_V2::get_z3_repr(prog_parsed, &ctx);
+        std::vector<z3::expr> result_vec;
+        TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
+        z3_progs.push_back(result_vec);
+    }
 
-    TOZ3_V2::P4Z3Result z3_repr_prog_before =
-        TOZ3_V2::get_z3_repr(prog_before, &ctx);
-    std::vector<z3::expr> result_vec_before;
-    TOZ3_V2::unroll_result(z3_repr_prog_before, &result_vec_before);
-    TOZ3_V2::P4Z3Result z3_repr_prog_after =
-        TOZ3_V2::get_z3_repr(prog_after, &ctx);
-    std::vector<z3::expr> result_vec_after;
-    TOZ3_V2::unroll_result(z3_repr_prog_after, &result_vec_after);
-
-    int result =
-        TOZ3_V2::compare_progs(&ctx, result_vec_before, result_vec_after);
+    int result = TOZ3_V2::compare_progs(&ctx, z3_progs);
     return result;
 }

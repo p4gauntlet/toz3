@@ -26,7 +26,6 @@ class Z3Visitor : public Inspector {
     // for initialization and ending
     Visitor::profile_t init_apply(const IR::Node *node) override;
     void end_apply(const IR::Node *node) override;
-    P4Z3Instance resolve_member(const IR::Member *t);
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *) override {
@@ -74,7 +73,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::ExpressionValue *ev) override;
 
     // /***** Expressions *****/
-    // bool preorder(const IR::Member *m) override;
+    bool preorder(const IR::Member *m) override;
     // bool preorder(const IR::SerEnumMember *m) override;
     bool preorder(const IR::PathExpression *p) override;
     bool preorder(const IR::Constant *c) override;
