@@ -100,7 +100,6 @@ Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
         }
         idx++;
     }
-    printf("DSADADADSasd\n");
     return merged_vec;
 }
 

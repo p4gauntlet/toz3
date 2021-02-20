@@ -105,6 +105,21 @@ int compare_progs(z3::context *ctx, std::vector<z3::expr> z3_repr_prog_before,
 }
 } // namespace TOZ3_V2
 
+std::vector<cstring> split_input_progs(cstring input_progs) {
+    std::vector<cstring> prog_list;
+    const char *pos = 0;
+    cstring prog;
+
+    while ((pos = input_progs.find((size_t)',')) != nullptr) {
+        size_t idx = (size_t)(pos - input_progs);
+        prog = input_progs.substr(0, idx);
+        prog_list.push_back(prog);
+        input_progs = input_progs.substr(idx + 1);
+    }
+    prog_list.push_back(input_progs);
+    return prog_list;
+}
+
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
 
@@ -123,20 +138,26 @@ int main(int argc, char *const argv[]) {
 
     auto hook = options.getDebugHook();
 
-    // check input and output file
-    if (options.file == nullptr || options.compare_file == nullptr) {
+    // check input file
+    if (options.file == nullptr) {
         options.usage();
         return EXIT_FAILURE;
     }
-
+    auto prog_list = split_input_progs(options.file);
+    if (prog_list.size() < 2) {
+        error("At least two input programs expected.");
+        options.usage();
+        return EXIT_FAILURE;
+    }
     const IR::P4Program *prog_before = nullptr;
     const IR::P4Program *prog_after = nullptr;
 
     // parse the first program
+    // use a little trick here to get the second program
+    options.file = prog_list[0];
     prog_before = P4::parseP4File(options);
 
-    // use a little trick here to get the second program
-    options.file = options.compare_file;
+    options.file = prog_list[1];
     prog_after = P4::parseP4File(options);
 
     z3::context ctx;
