@@ -1,10 +1,45 @@
 #include "state.h"
 #include "complex_type.h"
+#include <cstdio>
 
 namespace TOZ3_V2 {
 
+P4Scope::P4Scope(const P4Scope &other) {
+    for (auto value_tuple : other.value_map) {
+        cstring name = value_tuple.first;
+        P4Z3Instance var = value_tuple.second;
+        if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
+            value_map.insert({name, *z3_var});
+        } else if (StructInstance *z3_var =
+                       check_complex<StructInstance>(var)) {
+            StructInstance member_cpy = *z3_var;
+            value_map.insert({name, &member_cpy});
+        } else {
+        }
+    }
+}
+
+// overload = operator
+P4Scope &P4Scope::operator=(const P4Scope &other) {
+    if (this == &other)
+        return *this; // self assignment
+
+    for (auto value_tuple : other.value_map) {
+        cstring name = value_tuple.first;
+        P4Z3Instance var = value_tuple.second;
+        if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
+            value_map.insert({name, *z3_var});
+        } else if (auto z3_var = check_complex<StructInstance>(var)) {
+            StructInstance member_cpy = *z3_var;
+            value_map.insert({name, &member_cpy});
+        } else {
+        }
+    }
+    return *this;
+}
+
 P4Z3Instance P4State::gen_instance(cstring name, const IR::Type *type,
-                               uint64_t id) {
+                                   uint64_t id) {
     if (auto ts = type->to<IR::Type_StructLike>()) {
         return new StructInstance(this, ts, id);
     } else if (auto te = type->to<IR::Type_Enum>()) {
@@ -89,7 +124,46 @@ void P4State::insert_var(cstring name, P4Z3Instance var) {
     }
 }
 
-void P4State::set_var(const IR::Expression *target, P4Z3Instance var) {}
+std::vector<P4Scope *> P4State::checkpoint() {
+    std::vector<P4Scope *> cloned_scopes;
+    for (auto scope : scopes) {
+        P4Scope cloned_scope = *scope;
+        cloned_scopes.push_back(&cloned_scope);
+    }
+    return scopes;
+}
 
-
+void P4State::merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
+                          std::vector<P4Scope *> else_state) {
+    for (size_t i = 1; i < then_state.size(); ++i) {
+        auto then_scope = then_state[i];
+        auto else_scope = else_state[i];
+        for (auto then_tuple : then_scope->value_map) {
+            cstring then_name = then_tuple.first;
+            P4Z3Instance then_var = then_tuple.second;
+            P4Z3Instance else_var = else_scope->value_map.at(then_name);
+            if (z3::expr *z3_then_var = boost::get<z3::expr>(&then_var)) {
+                if (z3::expr *z3_else_var = boost::get<z3::expr>(&else_var)) {
+                    z3::expr merged_expr =
+                        z3::ite(cond, *z3_then_var, *z3_else_var);
+                    then_scope->value_map.insert({then_name, merged_expr});
+                } else {
+                    BUG("Z3 Expr Merge not yet supported. ");
+                }
+            } else if (auto z3_var = check_complex<Z3Int>(then_var)) {
+                BUG("Int Merge not supported. ");
+            } else if (auto z3_then_var =
+                           check_complex<StructInstance>(then_var)) {
+                if (auto z3_else_var =
+                        check_complex<StructInstance>(else_var)) {
+                    z3_then_var->merge(cond, z3_else_var);
+                } else {
+                    BUG("Z3 Struct Merge not yet supported. ");
+                }
+            } else {
+                BUG("Merge not supported. ");
+            }
+        }
+    }
+}
 } // namespace TOZ3_V2

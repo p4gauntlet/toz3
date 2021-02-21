@@ -48,6 +48,34 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
     return false;
 }
 
+
+bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
+    visit(ifs->condition);
+    auto cond = state->return_expr;
+    auto saved_state = state->checkpoint();
+    visit(ifs->ifTrue);
+    auto then_state = state->checkpoint();
+    state->set_state(saved_state);
+    if (not ifs->ifFalse) {
+    } else {
+        visit(ifs->ifFalse);
+    }
+    if (z3::expr *z3_cond = boost::get<z3::expr>(&cond)) {
+        state->merge_state(*z3_cond, then_state, state->get_state());
+        state->set_state(then_state);
+    } else {
+        BUG("Unsupported condition type.");
+    }
+    return false;
+}
+
+
+bool Z3Visitor::preorder(const IR::BlockStatement *b) {
+    for (auto c : b->components) {
+        visit(c);
+    }
+    return false;
+}
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
     auto var = state->return_expr;
@@ -74,6 +102,20 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     if (auto pkt_type = resolved_type->to<IR::Type_Package>()) {
         decl_result =
             merge_args_with_params(di->arguments, pkt_type->getParameters());
+    } else if (auto spec_type = resolved_type->to<IR::Type_Specialized>()) {
+        const IR::Type *resolved_base_type =
+            state->resolve_type(spec_type->baseType);
+        if (auto pkt_type = resolved_base_type->to<IR::Type_Package>()) {
+            decl_result = merge_args_with_params(di->arguments,
+                                                 pkt_type->getParameters());
+            // FIXME: Figure out what do here
+            // for (auto arg : *spec_type->arguments) {
+            //     const IR::Type *resolved_arg = state->resolve_type(arg);
+            // }
+        } else {
+            BUG("Specialized type %s not supported.",
+                resolved_base_type->node_type_name());
+        }
     } else {
         BUG("Declaration Instance Type %s not supported.",
             resolved_type->node_type_name());

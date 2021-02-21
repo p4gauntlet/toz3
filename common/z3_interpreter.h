@@ -28,8 +28,8 @@ class Z3Visitor : public Inspector {
     void end_apply(const IR::Node *node) override;
 
     /***** Unimplemented *****/
-    bool preorder(const IR::Node *) override {
-        // FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
+    bool preorder(const IR::Node *expr) override {
+        FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
         return false;
     }
 
@@ -39,7 +39,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::BlockStatement *b) override;
     bool preorder(const IR::AssignmentStatement *as) override;
     // bool preorder(const IR::MethodCallStatement *mcs) override;
-    // bool preorder(const IR::IfStatement *ifs) override;
+    bool preorder(const IR::IfStatement *ifs) override;
     // bool preorder(const IR::SwitchStatement *ss) override;
     // bool preorder(const IR::SwitchCase *sc) override;
     // bool preorder(const IR::EmptyStatement *) override;
@@ -102,7 +102,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::SubSat *expr) override;
     // bool preorder(const IR::Shl *expr) override;
     // bool preorder(const IR::Shr *expr) override;
-    // bool preorder(const IR::Equ *expr) override;
+    bool preorder(const IR::Equ *expr) override;
     // bool preorder(const IR::Neq *expr) override;
     // bool preorder(const IR::Lss *expr) override;
     // bool preorder(const IR::Leq *expr) override;

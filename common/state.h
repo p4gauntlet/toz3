@@ -13,6 +13,22 @@
 
 namespace TOZ3_V2 {
 
+class P4Scope {
+ public:
+    // a map of local values
+    std::map<cstring, P4Z3Instance> value_map;
+    // constructor
+    P4Scope() {}
+
+    // destructor
+    ~P4Scope() {}
+    // copy constructor
+    P4Scope(const P4Scope &other);
+
+    // overload = operator
+    P4Scope &operator=(const P4Scope &other);
+};
+
 class P4State {
  public:
     z3::context *ctx;
@@ -30,6 +46,12 @@ class P4State {
 
     P4Z3Instance gen_instance(cstring name, const IR::Type *typ,
                               uint64_t id = 0);
+
+    std::vector<P4Scope *> get_state() { return scopes; }
+    void merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
+                     std::vector<P4Scope *> else_state);
+    void set_state(std::vector<P4Scope *> set_scopes) { scopes = set_scopes; }
+
     void add_scope(P4Scope *scope);
 
     const IR::Type *resolve_type(const IR::Type *type);
@@ -40,10 +62,10 @@ class P4State {
     const IR::Declaration *get_decl(cstring decl_name);
 
     void insert_var(cstring name, P4Z3Instance var);
-    void set_var(const IR::Expression *target, P4Z3Instance var);
     P4Z3Instance find_var(cstring name, P4Scope **owner_scope);
     P4Z3Instance get_var(cstring name);
     void resolve_expr(const IR::Expression *expr);
+    std::vector<P4Scope *> checkpoint();
 };
 
 class ControlState : public P4ComplexInstance {

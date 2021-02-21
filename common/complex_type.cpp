@@ -16,7 +16,8 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
     for (auto field : type->fields) {
         cstring name = cstring(std::to_string(flat_id));
         const IR::Type *resolved_type = state->resolve_type(field->type);
-        P4Z3Instance member_var = state->gen_instance(name, resolved_type, flat_id);
+        P4Z3Instance member_var =
+            state->gen_instance(name, resolved_type, flat_id);
         if (auto si = check_complex<StructInstance>(member_var)) {
             width += si->width;
             flat_id += si->members.size();
@@ -40,6 +41,42 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
         }
         members.insert({field->name.name, member_var});
         member_types.insert({field->name.name, field->type});
+    }
+}
+
+void StructInstance::merge(z3::expr cond, StructInstance *else_instance) {
+    auto else_members = else_instance->members;
+    for (auto member_tuple : members) {
+        cstring member_name = member_tuple.first;
+        P4Z3Instance member_var = member_tuple.second;
+        P4Z3Instance else_var = else_members.at(member_name);
+        if (z3::expr *z3_member_var = boost::get<z3::expr>(&member_var)) {
+            if (z3::expr *z3_else_var = boost::get<z3::expr>(&else_var)) {
+                z3::expr merged_expr =
+                    z3::ite(cond, *z3_member_var, *z3_else_var);
+                members.insert({member_name, merged_expr});
+            } else {
+                BUG("Z3 Expr Merge not yet supported. ");
+            }
+        } else if (auto z3_member_var = check_complex<Z3Int>(member_var)) {
+            if (auto *z3_else_var = check_complex<Z3Int>(else_var)) {
+                z3::expr merged_expr =
+                    z3::ite(cond, z3_member_var->val, z3_else_var->val);
+                std::cout << "EXPR: " << merged_expr << std::endl;
+                members.insert({member_name, merged_expr});
+            } else {
+                BUG("Z3 Int Merge not yet supported. ");
+            }
+        } else if (auto z3_member_var =
+                       check_complex<StructInstance>(member_var)) {
+            if (auto z3_else_var = check_complex<StructInstance>(else_var)) {
+                z3_member_var->merge(cond, z3_else_var);
+            } else {
+                BUG("Z3 Struct Merge not yet supported. ");
+            }
+        } else {
+            BUG("Merge not supported. ");
+        }
     }
 }
 
@@ -69,8 +106,9 @@ StructInstance::get_z3_vars(cstring prefix) {
         } else if (auto z3_var = check_complex<Z3Int>(member)) {
             // We receive an int that we need to cast towards the member type
             const IR::Type *type = member_types[member_tuple.first];
-            auto val_string = Util::toString(z3_var->val, 0, false);
-            auto val = state->ctx->bv_val(val_string, type->width_bits());
+            auto val_string = z3_var->val.get_decimal_string(0);
+            auto val =
+                state->ctx->bv_val(val_string.c_str(), type->width_bits());
             z3_vars.push_back({name, val});
         } else {
             BUG("Var is neither type z3::expr nor P4ComplexInstance!");

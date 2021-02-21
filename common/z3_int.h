@@ -11,9 +11,9 @@ namespace TOZ3_V2 {
 
 class Z3Int : public P4ComplexInstance {
  public:
-    uint64_t val;
+    z3::expr val;
     int64_t width;
-    Z3Int(big_int val, int64_t width) : val(val), width(width){};
+    Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
 };
 
 } // namespace TOZ3_V2

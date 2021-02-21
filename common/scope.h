@@ -1,6 +1,7 @@
 #ifndef _TOZ3_CONTEXT_H_
 #define _TOZ3_CONTEXT_H_
 
+#include <cstdio>
 #include <z3++.h>
 
 #include <map>
@@ -40,13 +41,6 @@ template <typename T> T *check_complex(P4Z3Instance type) {
         return nullptr;
     }
 }
-
-class P4Scope {
- public:
-    // a map of local values
-    std::map<cstring, P4Z3Instance> value_map;
-};
-
 
 } // namespace TOZ3_V2
 

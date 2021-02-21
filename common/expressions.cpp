@@ -1,5 +1,7 @@
 #include <cstdio>
+#include <iostream>
 #include <utility>
+#include <z3++.h>
 
 #include "complex_type.h"
 #include "ir/ir-generated.h"
@@ -15,14 +17,13 @@ P4Z3Instance Z3Visitor::cast(P4Z3Instance expr, const IR::Type *dest_type) {
             if (z3_var->get_sort().is_bv()) {
                 return state->ctx->bv_val(z3_var->get_decimal_string(0).c_str(),
                                           dest_type->width_bits());
-            } else if (z3_var->get_sort().is_bool()) {
-
             } else {
+                BUG("Cast type not supported ");
             }
-
         } else if (auto z3_var = check_complex<Z3Int>(expr)) {
-            auto val_string = Util::toString(z3_var->val, 0, false);
-            return state->ctx->bv_val(val_string, dest_type->width_bits());
+            auto val_string = z3_var->val.get_decimal_string(0);
+            return state->ctx->bv_val(val_string.c_str(),
+                                      dest_type->width_bits());
         } else {
             BUG("Cast from expr xpr to node %s supported ",
                 dest_type->node_type_name());
@@ -32,9 +33,25 @@ P4Z3Instance Z3Visitor::cast(P4Z3Instance expr, const IR::Type *dest_type) {
     }
 }
 
-bool Z3Visitor::preorder(const IR::BlockStatement *b) {
-    for (auto c : b->components) {
-        visit(c);
+bool Z3Visitor::preorder(const IR::Equ *expr) {
+    visit(expr->left);
+    auto left = state->return_expr;
+    visit(expr->right);
+    auto right = state->return_expr;
+
+    if (z3::expr *z3_left_var = boost::get<z3::expr>(&left)) {
+        if (z3::expr *z3_right_var = boost::get<z3::expr>(&right)) {
+            printf("YOOO\n");
+            state->return_expr = *z3_left_var == *z3_right_var;
+        } else {
+            BUG("Z3 eq with int not yet supported. ");
+        }
+    } else if (auto z3_var = check_complex<Z3Int>(left)) {
+        BUG("Int eq not supported. ");
+    } else if (auto z3_left = check_complex<StructInstance>(left)) {
+        BUG("Z3 Struct eq not yet supported. ");
+    } else {
+        BUG("Merge not supported. ");
     }
     return false;
 }
@@ -43,13 +60,14 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
     auto val_string = Util::toString(c->value, 0, false);
     if (auto tb = c->type->to<IR::Type_Bits>()) {
         if (tb->isSigned) {
-            state->return_expr = new Z3Int(c->value, tb->size);
+            state->return_expr =
+                new Z3Int(state->ctx->int_val(val_string), tb->size);
         } else {
             state->return_expr = state->ctx->bv_val(val_string, tb->size);
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
-        state->return_expr = new Z3Int(c->value, -1);
+        state->return_expr = new Z3Int(state->ctx->int_val(val_string), -1);
         return false;
     }
     BUG("Constant Node %s not implemented!", c->type->node_type_name());

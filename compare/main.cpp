@@ -58,7 +58,6 @@ P4Z3Result get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
             program->apply(*map_builder);
             auto decl = get_main_decl(state);
             decl->apply(*to_z3);
-            P4Z3Result decl_result = to_z3->get_decl_result();
             return to_z3->get_decl_result();
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;
