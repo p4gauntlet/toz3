@@ -42,7 +42,6 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
 
     if (z3::expr *z3_left_var = boost::get<z3::expr>(&left)) {
         if (z3::expr *z3_right_var = boost::get<z3::expr>(&right)) {
-            printf("YOOO\n");
             state->return_expr = *z3_left_var == *z3_right_var;
         } else {
             BUG("Z3 eq with int not yet supported. ");
@@ -100,8 +99,7 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     }
     StructInstance *si = check_complex<StructInstance>(complex_class);
     if (not si) {
-        BUG("Unknown class");
-        std::cout << complex_class << "\n";
+        BUG("Can not cast to StructInstance.");
     }
     state->return_expr = si->members.at(m->member.name);
     return false;

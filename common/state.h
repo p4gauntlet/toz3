@@ -25,13 +25,13 @@ class P4Scope {
     // constructor
     P4Scope() {}
 
-    // destructor
-    ~P4Scope() {}
-    // copy constructor
-    P4Scope(const P4Scope &other);
+    /*    // destructor
+        ~P4Scope() {}
+        // copy constructor
+        P4Scope(const P4Scope &other);
 
-    // overload = operator
-    P4Scope &operator=(const P4Scope &other);
+        // overload = operator
+        P4Scope &operator=(const P4Scope &other);*/
 };
 
 class P4State {
@@ -67,9 +67,15 @@ class P4State {
                               uint64_t id = 0);
 
     std::vector<P4Scope *> get_state() { return scopes; }
+    void merge_var_maps(z3::expr cond,
+                        std::map<cstring, P4Z3Instance> *then_map,
+                        std::map<cstring, P4Z3Instance> *else_map);
+
     void merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
                      std::vector<P4Scope *> else_state);
-    void set_state(std::vector<P4Scope *> set_scopes) { scopes = set_scopes; }
+    void restore_state(std::vector<P4Scope *> set_scopes) {
+        scopes = set_scopes;
+    }
 
     void add_scope(P4Scope *scope);
 

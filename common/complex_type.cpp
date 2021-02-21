@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <utility>
 
+#include "scope.h"
 #include "z3_int.h"
 
 namespace TOZ3_V2 {
@@ -44,40 +45,53 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
     }
 }
 
-void StructInstance::merge(z3::expr cond, StructInstance *else_instance) {
-    auto else_members = else_instance->members;
-    for (auto member_tuple : members) {
-        cstring member_name = member_tuple.first;
-        P4Z3Instance member_var = member_tuple.second;
-        P4Z3Instance else_var = else_members.at(member_name);
-        if (z3::expr *z3_member_var = boost::get<z3::expr>(&member_var)) {
-            if (z3::expr *z3_else_var = boost::get<z3::expr>(&else_var)) {
-                z3::expr merged_expr =
-                    z3::ite(cond, *z3_member_var, *z3_else_var);
-                members.insert({member_name, merged_expr});
-            } else {
-                BUG("Z3 Expr Merge not yet supported. ");
-            }
-        } else if (auto z3_member_var = check_complex<Z3Int>(member_var)) {
-            if (auto *z3_else_var = check_complex<Z3Int>(else_var)) {
-                z3::expr merged_expr =
-                    z3::ite(cond, z3_member_var->val, z3_else_var->val);
-                std::cout << "EXPR: " << merged_expr << std::endl;
-                members.insert({member_name, merged_expr});
-            } else {
-                BUG("Z3 Int Merge not yet supported. ");
-            }
-        } else if (auto z3_member_var =
-                       check_complex<StructInstance>(member_var)) {
-            if (auto z3_else_var = check_complex<StructInstance>(else_var)) {
-                z3_member_var->merge(cond, z3_else_var);
-            } else {
-                BUG("Z3 Struct Merge not yet supported. ");
-            }
+StructInstance::StructInstance(const StructInstance &other)
+    : P4ComplexInstance(other) {
+    width = other.width;
+    state = other.state;
+    members.clear();
+    for (auto value_tuple : other.members) {
+        cstring name = value_tuple.first;
+        P4Z3Instance var = value_tuple.second;
+        if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
+            z3::expr member_cpy = *z3_var;
+            members.insert({name, member_cpy});
+        } else if (auto complex_var = check_complex<StructInstance>(var)) {
+            P4Z3Instance member_cpy = new StructInstance(*complex_var);
+            members.insert({name, member_cpy});
+        } else if (auto int_var = check_complex<Z3Int>(var)) {
+            P4Z3Instance member_cpy = new Z3Int(*int_var);
+            members.insert({name, member_cpy});
         } else {
-            BUG("Merge not supported. ");
+            BUG("Var is neither type z3::expr nor StructInstance!");
         }
     }
+}
+
+StructInstance &StructInstance::operator=(const StructInstance &other) {
+    if (this == &other) {
+        return *this;
+    }
+    width = other.width;
+    state = other.state;
+    members.clear();
+    for (auto value_tuple : other.members) {
+        cstring name = value_tuple.first;
+        P4Z3Instance var = value_tuple.second;
+        if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
+            z3::expr member_cpy = *z3_var;
+            members.insert({name, member_cpy});
+        } else if (auto complex_var = check_complex<StructInstance>(var)) {
+            P4Z3Instance member_cpy = new StructInstance(*complex_var);
+            members.insert({name, member_cpy});
+        } else if (auto int_var = check_complex<Z3Int>(var)) {
+            P4Z3Instance member_cpy = new Z3Int(*int_var);
+            members.insert({name, member_cpy});
+        } else {
+            BUG("Var is neither type z3::expr nor StructInstance!");
+        }
+    }
+    return *this;
 }
 
 std::vector<std::pair<cstring, z3::expr>>

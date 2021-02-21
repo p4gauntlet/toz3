@@ -48,27 +48,26 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
     auto cond = state->return_expr;
-    auto saved_state = state->checkpoint();
+    std::vector<P4Scope *> saved_state = state->checkpoint();
     visit(ifs->ifTrue);
-    auto then_state = state->checkpoint();
-    state->set_state(saved_state);
+    std::vector<P4Scope *> then_state = state->get_state();
+    state->restore_state(saved_state);
     if (not ifs->ifFalse) {
     } else {
         visit(ifs->ifFalse);
     }
     if (z3::expr *z3_cond = boost::get<z3::expr>(&cond)) {
-        state->merge_state(*z3_cond, then_state, state->get_state());
-        state->set_state(then_state);
+        state->merge_state(!*z3_cond, state->get_state(), then_state);
     } else {
         BUG("Unsupported condition type.");
     }
     return false;
 }
-
 
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     for (auto c : b->components) {
