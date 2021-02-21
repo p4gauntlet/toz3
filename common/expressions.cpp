@@ -6,6 +6,7 @@
 #include "complex_type.h"
 #include "ir/ir-generated.h"
 #include "lib/exceptions.h"
+#include "state.h"
 #include "z3_int.h"
 #include "z3_interpreter.h"
 
@@ -57,17 +58,16 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
 }
 
 bool Z3Visitor::preorder(const IR::Constant *c) {
-    auto val_string = Util::toString(c->value, 0, false);
     if (auto tb = c->type->to<IR::Type_Bits>()) {
         if (tb->isSigned) {
-            state->return_expr =
-                new Z3Int(state->ctx->int_val(val_string), tb->size);
+            state->return_expr = state->create_int(c->value, tb->size);
         } else {
+            auto val_string = Util::toString(c->value, 0, false);
             state->return_expr = state->ctx->bv_val(val_string, tb->size);
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
-        state->return_expr = new Z3Int(state->ctx->int_val(val_string), -1);
+        state->return_expr = state->create_int(c->value, -1);
         return false;
     }
     BUG("Constant Node %s not implemented!", c->type->node_type_name());
@@ -150,7 +150,11 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
             }
         }
     }
-    state->return_expr = new ControlState(state_vars);
+
+    // FIXME: Figure out when and how to free this
+    auto ctrl_state = new ControlState(state_vars);
+    // state->add_to_allocated(ctrl_state);
+    state->return_expr = ctrl_state;
 
     return false;
 }

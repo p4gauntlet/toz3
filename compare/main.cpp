@@ -52,13 +52,14 @@ P4Z3Result get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
             P4::P4COptionPragmaParser optionsPragmaParser;
             program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
             // convert the P4 program to Z3
-            P4State *state = new P4State(ctx);
-            TypeVisitor *map_builder = new TypeVisitor(state);
-            Z3Visitor *to_z3 = new Z3Visitor(state);
-            program->apply(*map_builder);
-            auto decl = get_main_decl(state);
-            decl->apply(*to_z3);
-            return to_z3->get_decl_result();
+            P4State state(ctx);
+            TypeVisitor map_builder = TypeVisitor(&state);
+            Z3Visitor to_z3 = Z3Visitor(&state);
+            program->apply(map_builder);
+            auto decl = get_main_decl(&state);
+            decl->apply(to_z3);
+            auto decl_result = to_z3.get_decl_result();
+            return decl_result;
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;
             exit(EXIT_FAILURE);

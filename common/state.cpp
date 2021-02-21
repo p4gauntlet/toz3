@@ -41,13 +41,21 @@ P4Scope &P4Scope::operator=(const P4Scope &other) {
 P4Z3Instance P4State::gen_instance(cstring name, const IR::Type *type,
                                    uint64_t id) {
     if (auto ts = type->to<IR::Type_StructLike>()) {
-        return new StructInstance(this, ts, id);
+        auto instance = new StructInstance(this, ts, id);
+        add_to_allocated(instance);
+        return instance;
     } else if (auto te = type->to<IR::Type_Enum>()) {
-        return new EnumInstance(this, te, id);
+        auto instance = new EnumInstance(this, te, id);
+        add_to_allocated(instance);
+        return instance;
     } else if (auto te = type->to<IR::Type_Error>()) {
-        return new ErrorInstance(this, te, id);
+        auto instance = new ErrorInstance(this, te, id);
+        add_to_allocated(instance);
+        return instance;
     } else if (auto te = type->to<IR::Type_Extern>()) {
-        return new ExternInstance(this, te);
+        auto instance = new ExternInstance(this, te);
+        add_to_allocated(instance);
+        return instance;
     } else if (auto tbi = type->to<IR::Type_Bits>()) {
         return ctx->bv_const(name, tbi->width_bits());
     } else if (auto tvb = type->to<IR::Type_Varbits>()) {

@@ -68,13 +68,13 @@ int main(int argc, char *const argv[]) {
             P4::P4COptionPragmaParser optionsPragmaParser;
             program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
             // convert the P4 program to Z3 Python
-            TOZ3_V2::P4State *state = new TOZ3_V2::P4State(&ctx);
-            TOZ3_V2::TypeVisitor *map_builder = new TOZ3_V2::TypeVisitor(state);
-            TOZ3_V2::Z3Visitor *to_z3 = new TOZ3_V2::Z3Visitor(state);
-            program->apply(*map_builder);
-            auto decl = get_main_decl(state);
-            decl->apply(*to_z3);
-            auto decl_result = to_z3->get_decl_result();
+            TOZ3_V2::P4State state = TOZ3_V2::P4State(&ctx);
+            TOZ3_V2::TypeVisitor map_builder = TOZ3_V2::TypeVisitor(&state);
+            TOZ3_V2::Z3Visitor to_z3 = TOZ3_V2::Z3Visitor(&state);
+            program->apply(map_builder);
+            auto decl = get_main_decl(&state);
+            decl->apply(to_z3);
+            auto decl_result = to_z3.get_decl_result();
             for (auto pipe_state : decl_result) {
                 cstring pipe_name = pipe_state.first;
                 auto pipe_vars = TOZ3_V2::check_complex<TOZ3_V2::ControlState>(
