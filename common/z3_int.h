@@ -5,7 +5,8 @@
 
 #include "ir/ir.h"
 #include "lib/gmputil.h"
-#include "state.h"
+
+#include "scope.h"
 
 namespace TOZ3_V2 {
 

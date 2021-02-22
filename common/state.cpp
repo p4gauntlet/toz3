@@ -1,9 +1,10 @@
-#include "state.h"
-#include "complex_type.h"
-#include "scope.h"
 #include <complex>
 #include <cstdio>
 #include <ostream>
+
+#include "complex_type.h"
+#include "scope.h"
+#include "state.h"
 
 namespace TOZ3_V2 {
 

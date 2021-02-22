@@ -1,17 +1,17 @@
 #ifndef _TOZ3_STATE_H_
 #define _TOZ3_STATE_H_
 
+#include <sys/types.h>
+#include <z3++.h>
+
 #include <alloca.h>
 #include <bits/stdint-uintn.h>
 #include <cstdio>
-#include <sys/types.h>
-#include <z3++.h>
 
 #include <map>
 #include <utility>
 #include <vector>
 
-#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "scope.h"
 #include "z3_int.h"
