@@ -20,7 +20,6 @@
 #include "frontends/p4/fromv1.0/v1model.h"
 #include "frontends/p4/toP4/toP4.h"
 
-#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"

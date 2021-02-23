@@ -1,7 +1,8 @@
+#include <z3++.h>
+
 #include <cstdio>
 #include <iostream>
 #include <utility>
-#include <z3++.h>
 
 #include "complex_type.h"
 #include "lib/exceptions.h"
@@ -101,13 +102,42 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     if (not si) {
         BUG("Can not cast to StructInstance.");
     }
-    state->return_expr = si->members.at(m->member.name);
+
+    state->return_expr = si->get_var(m->member.name);
     return false;
+}
+
+IR::Vector<IR::Expression>
+Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
+                        const IR::ParameterList *params) {
+    IR::Vector<IR::Expression> resolved_args;
+
+    size_t arg_len = args->size();
+    size_t idx = 0;
+    for (auto param : params->parameters) {
+        auto direction = param->direction;
+        if (direction == IR::Direction::In ||
+            direction == IR::Direction::None) {
+            continue;
+        }
+        if (idx < arg_len) {
+            const IR::Argument *arg = args->at(idx);
+            if (auto path_expr = arg->to<IR::Member>()) {
+                // TODO: Index
+                resolved_args.push_back(arg->expression);
+            } else {
+                resolved_args.push_back(arg->expression);
+            }
+        }
+        idx++;
+    }
+    return resolved_args;
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Declaration *callable;
     const IR::ParameterList *params;
+    P4Z3Instance return_expr = nullptr;
 
     if (auto path_expr = mce->method->to<IR::PathExpression>()) {
         P4Declaration *method_decl =
@@ -124,18 +154,38 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             mce->method->node_type_name());
     }
 
+    IR::Vector<IR::Expression> copy_out_args =
+        resolve_args(mce->arguments, params);
     P4Z3Result merged_args = merge_args_with_params(mce->arguments, params);
+
+    state->push_scope();
     for (auto arg_tuple : merged_args) {
         cstring param_name = arg_tuple.first;
         P4Z3Instance arg_val = arg_tuple.second;
-        state->update_or_declare_var(param_name, arg_val);
+        state->declare_local_var(param_name, arg_val);
     }
-    state->push_scope();
     visit(callable);
-    state->pop_scope();
+    return_expr = state->return_expr;
 
+    std::vector<P4Z3Instance> copy_out_vals;
+    for (auto param : params->parameters) {
+        auto direction = param->direction;
+        if (direction == IR::Direction::In ||
+            direction == IR::Direction::None) {
+            continue;
+        }
+        P4Z3Instance val = state->get_var(param->name.name);
+        copy_out_vals.push_back(val);
+    }
+    state->pop_scope();
+    size_t idx = 0;
+    for (auto arg : copy_out_args) {
+        set_var(arg, copy_out_vals[idx]);
+    }
+    state->return_expr = return_expr;
     return false;
 }
+
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     std::vector<std::pair<cstring, z3::expr>> state_vars;
@@ -146,7 +196,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         for (auto param : *c->getApplyParameters()) {
             auto par_type = state->resolve_type(param->type);
             P4Z3Instance var = state->gen_instance(param->name.name, par_type);
-            state->update_or_declare_var(param->name.name, var);
+            state->declare_local_var(param->name.name, var);
             state_names.push_back(param->name.name);
         }
 

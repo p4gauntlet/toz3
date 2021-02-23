@@ -2,7 +2,6 @@
 #include <utility>
 
 #include "complex_type.h"
-#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
 #include "type_map.h"
 #include "z3_int.h"
@@ -64,7 +63,7 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
 bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     // TODO: Casting
     visit(dv->initializer);
-    state->update_or_declare_var(dv->name.name, state->return_expr);
+    state->declare_local_var(dv->name.name, state->return_expr);
     return false;
 }
 
@@ -101,24 +100,26 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
-    visit(as->right);
-    auto var = state->return_expr;
-    auto target = as->left;
+void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
     if (auto name = target->to<IR::PathExpression>()) {
-        state->update_var(name->path->name, var);
+        state->update_var(name->path->name, val);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
         P4Z3Instance complex_class = state->return_expr;
-        StructInstance *si = check_complex<StructInstance>(state->return_expr);
+        StructInstance *si = check_complex<StructInstance>(complex_class);
         if (not si) {
-            BUG("Unknown class");
+            BUG("Can not cast to StructInstance.");
             std::cout << complex_class << "\n";
         }
-        si->members.at(member->member.name) = var;
+        si->set_var(member->member.name, val);
     } else {
         BUG("Unknown target %s!", target->node_type_name());
     }
+}
+
+bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
+    visit(as->right);
+    set_var(as->left, state->return_expr);
     return false;
 }
 

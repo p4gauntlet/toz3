@@ -30,6 +30,16 @@ class StructInstance : public P4ComplexInstance {
     void bind(z3::expr bind_const);
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = "");
 
+    P4Z3Instance get_var(cstring name) {
+        if (members.count(name)) {
+            return members.at(name);
+        } else {
+            BUG("Var %s not found in StructInstance", name);
+        }
+    }
+
+    void set_var(cstring name, P4Z3Instance val) { members.at(name) = val; }
+
     ~StructInstance() {}
     // copy constructor
     StructInstance(const StructInstance &other);

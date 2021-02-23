@@ -82,7 +82,7 @@ class P4State {
     const IR::Type *get_type(cstring decl_name);
 
     void update_var(cstring name, P4Z3Instance var);
-    void update_or_declare_var(cstring name, P4Z3Instance var);
+    void declare_local_var(cstring name, P4Z3Instance var);
     void declare_var(cstring name, const IR::Declaration *decl);
     P4Z3Instance find_var(cstring name, P4Scope **owner_scope);
     P4Z3Instance get_var(cstring name);
@@ -104,7 +104,6 @@ class P4State {
         add_to_allocated(var);
         return var;
     }
-
 };
 
 } // namespace TOZ3_V2

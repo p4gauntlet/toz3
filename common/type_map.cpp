@@ -2,7 +2,6 @@
 #include <utility>
 
 #include "complex_type.h"
-#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
 #include "type_map.h"
 #include "z3_interpreter.h"
@@ -96,7 +95,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
     // TODO: Casting
     dc->initializer->apply(resolve_expr);
-    state->update_or_declare_var(dc->name.name, state->return_expr);
+    state->declare_local_var(dc->name.name, state->return_expr);
     return false;
 }
 
@@ -104,7 +103,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
     // TODO: Casting
     dv->initializer->apply(resolve_expr);
-    state->update_or_declare_var(dv->name.name, state->return_expr);
+    state->declare_local_var(dv->name.name, state->return_expr);
     return false;
 }
 

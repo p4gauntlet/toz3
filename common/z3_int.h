@@ -5,7 +5,6 @@
 
 #include "ir/ir.h"
 #include "lib/gmputil.h"
-#include "scope.h"
 
 #include "scope.h"
 

@@ -105,18 +105,12 @@ void P4State::update_var(cstring name, P4Z3Instance var) {
     }
 }
 
-void P4State::update_or_declare_var(cstring name, P4Z3Instance var) {
-    P4Scope *target_scope = nullptr;
-    find_var(name, &target_scope);
-    if (target_scope) {
-        target_scope->value_map.insert({name, var});
+void P4State::declare_local_var(cstring name, P4Z3Instance var) {
+    if (scopes.empty()) {
+        main_scope->value_map.insert({name, var});
+        // assume we insert into the global scope
     } else {
-        if (scopes.empty()) {
-            main_scope->value_map.insert({name, var});
-            // assume we insert into the global scope
-        } else {
-            scopes.back()->value_map.insert({name, var});
-        }
+        scopes.back()->value_map.insert({name, var});
     }
 }
 
