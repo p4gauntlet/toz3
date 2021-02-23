@@ -57,9 +57,14 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
 }
 
 bool Z3Visitor::preorder(const IR::P4Action *a) {
-
     visit(a->body);
+    return false;
+}
 
+bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
+    // TODO: Casting
+    visit(dv->initializer);
+    state->update_or_declare_var(dv->name.name, state->return_expr);
     return false;
 }
 

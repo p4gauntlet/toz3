@@ -130,7 +130,10 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         P4Z3Instance arg_val = arg_tuple.second;
         state->update_or_declare_var(param_name, arg_val);
     }
+    state->push_scope();
     visit(callable);
+    state->pop_scope();
+
     return false;
 }
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {

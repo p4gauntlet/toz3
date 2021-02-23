@@ -5,6 +5,7 @@
 #include "ir/ir-generated.h"
 #include "lib/exceptions.h"
 #include "type_map.h"
+#include "z3_interpreter.h"
 
 namespace TOZ3_V2 {
 
@@ -67,7 +68,12 @@ bool TypeVisitor::preorder(const IR::P4Control *c) {
 }
 
 bool TypeVisitor::preorder(const IR::Method *m) {
-    state->declare_var(m->name.name, m);
+    // FIXME: Overloading
+    cstring overloaded_name = m->name.name;
+    for (auto param : m->getParameters()->parameters) {
+        overloaded_name += param->node_type_name();
+    }
+    state->declare_var(overloaded_name, m);
     return false;
 }
 
@@ -83,6 +89,22 @@ bool TypeVisitor::preorder(const IR::P4Table *t) {
 
 bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
     state->declare_var(di->name.name, di);
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
+    TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
+    // TODO: Casting
+    dc->initializer->apply(resolve_expr);
+    state->update_or_declare_var(dc->name.name, state->return_expr);
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
+    TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
+    // TODO: Casting
+    dv->initializer->apply(resolve_expr);
+    state->update_or_declare_var(dv->name.name, state->return_expr);
     return false;
 }
 
