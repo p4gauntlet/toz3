@@ -40,12 +40,10 @@ class P4State {
     z3::expr formula = ctx->bool_val(true);
     std::map<cstring, const IR::Type *> type_map;
     std::vector<P4Scope *> scopes;
-    P4Scope * main_scope;
+    P4Scope *main_scope;
     P4Z3Instance return_expr = nullptr;
 
-    P4State(z3::context *context) : ctx(context) {
-        main_scope = new P4Scope();
-    }
+    P4State(z3::context *context) : ctx(context) { main_scope = new P4Scope(); }
     ~P4State() {
         for (auto var : allocated_vars) {
             delete var;
@@ -54,6 +52,7 @@ class P4State {
         for (auto scope : scopes) {
             delete scope;
         }
+        delete main_scope;
         scopes.clear();
     }
 
@@ -75,7 +74,8 @@ class P4State {
         scopes = set_scopes;
     }
 
-    void add_scope(P4Scope *scope);
+    void push_scope();
+    void pop_scope();
 
     const IR::Type *resolve_type(const IR::Type *type);
     void add_type(cstring type_name, const IR::Type *t);
@@ -86,6 +86,15 @@ class P4State {
     void declare_var(cstring name, const IR::Declaration *decl);
     P4Z3Instance find_var(cstring name, P4Scope **owner_scope);
     P4Z3Instance get_var(cstring name);
+    template <typename T> T *get_var(cstring name) {
+        P4Z3Instance var = get_var(name);
+        if (auto cast_var = TOZ3_V2::check_complex<T>(var)) {
+            return cast_var;
+        } else {
+            BUG("Could not cast to type %s.", typeid(T).name());
+        }
+    }
+
     void resolve_expr(const IR::Expression *expr);
     std::vector<P4Scope *> checkpoint();
 
@@ -95,6 +104,7 @@ class P4State {
         add_to_allocated(var);
         return var;
     }
+
 };
 
 } // namespace TOZ3_V2

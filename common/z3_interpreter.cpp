@@ -2,10 +2,11 @@
 #include <utility>
 
 #include "complex_type.h"
+#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
+#include "type_map.h"
 #include "z3_int.h"
 #include "z3_interpreter.h"
-#include "type_map.h"
 
 namespace TOZ3_V2 {
 
@@ -31,10 +32,10 @@ Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
             visit(arg->expression);
-            merged_vec.push_back({param->name.name, state->return_expr});
+            merged_vec.insert({param->name.name, state->return_expr});
         } else {
             auto arg_expr = state->gen_instance(param->name.name, param->type);
-            merged_vec.push_back({param->name.name, arg_expr});
+            merged_vec.insert({param->name.name, arg_expr});
         }
         idx++;
     }
@@ -52,6 +53,13 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
 
     // DO SOMETHING
     visit(c->body);
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::P4Action *a) {
+
+    visit(a->body);
+
     return false;
 }
 
@@ -88,7 +96,6 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
     auto var = state->return_expr;
@@ -111,7 +118,10 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
+
+    state->push_scope();
     const IR::Type *resolved_type = state->resolve_type(di->type);
+
     if (auto pkt_type = resolved_type->to<IR::Type_Package>()) {
         decl_result =
             merge_args_with_params(di->arguments, pkt_type->getParameters());
@@ -133,6 +143,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
         BUG("Declaration Instance Type %s not supported.",
             resolved_type->node_type_name());
     }
+    state->pop_scope();
     return false;
 }
 

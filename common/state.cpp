@@ -38,7 +38,12 @@ P4Z3Instance P4State::gen_instance(cstring name, const IR::Type *type,
     BUG("Type \"%s\" not supported!.", type);
 } // namespace TOZ3_V2
 
-void P4State::add_scope(P4Scope *scope) { scopes.push_back(scope); }
+void P4State::push_scope() {
+    P4Scope *scope = new P4Scope();
+    scopes.push_back(scope);
+}
+
+void P4State::pop_scope() { scopes.pop_back(); }
 
 void P4State::add_type(cstring type_name, const IR::Type *t) {
     type_map[type_name] = t;
@@ -185,11 +190,13 @@ void P4State::merge_var_maps(z3::expr cond,
             } else {
                 BUG("Z3 Struct Merge not yet supported. ");
             }
+        } else if (auto z3_then_var = check_complex<P4Declaration>(then_var)) {
+            // these are constant, do nothing
         } else {
-            BUG("Merge not supported. ");
+            BUG("State merge not supported. ");
         }
     }
-}
+} // namespace TOZ3_V2
 
 void P4State::merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
                           std::vector<P4Scope *> else_state) {

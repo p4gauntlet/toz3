@@ -51,7 +51,7 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
     } else if (auto z3_left = check_complex<StructInstance>(left)) {
         BUG("Z3 Struct eq not yet supported. ");
     } else {
-        BUG("Merge not supported. ");
+        BUG("Eq not supported. ");
     }
     return false;
 }
@@ -106,24 +106,38 @@ bool Z3Visitor::preorder(const IR::Member *m) {
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
-    P4Z3Result merged_args;
-    auto expression = mce->method;
-    if (auto path_expr = expression->to<IR::PathExpression>()) {
-        // auto method_decl = state->get_decl(path_expr->path->name.name);
+    const IR::Declaration *callable;
+    const IR::ParameterList *params;
+
+    if (auto path_expr = mce->method->to<IR::PathExpression>()) {
+        P4Declaration *method_decl =
+            state->get_var<P4Declaration>(path_expr->path->name.name);
+        if (auto p4action = method_decl->decl->to<IR::P4Action>()) {
+            callable = p4action;
+            params = p4action->getParameters();
+        } else {
+            BUG("Method type %s not supported.",
+                method_decl->decl->node_type_name());
+        }
     } else {
-        BUG("Method type %s not supported.", expression->node_type_name());
+        BUG("Method reference %s not supported.",
+            mce->method->node_type_name());
     }
 
-    visit(mce->method);
+    P4Z3Result merged_args = merge_args_with_params(mce->arguments, params);
+    for (auto arg_tuple : merged_args) {
+        cstring param_name = arg_tuple.first;
+        P4Z3Instance arg_val = arg_tuple.second;
+        state->update_or_declare_var(param_name, arg_val);
+    }
+    visit(callable);
     return false;
 }
-
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     std::vector<std::pair<cstring, z3::expr>> state_vars;
+    state->push_scope();
     if (auto c = resolved_type->to<IR::P4Control>()) {
-        auto scope = new P4Scope();
-        state->add_scope(scope);
         std::vector<cstring> state_names;
         // INITIALIZE
         for (auto param : *c->getApplyParameters()) {
@@ -161,6 +175,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
             }
         }
     }
+    state->pop_scope();
 
     // FIXME: Figure out when and how to free this
     auto ctrl_state = new ControlState(state_vars);

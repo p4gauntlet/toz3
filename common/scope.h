@@ -31,7 +31,7 @@ class P4ComplexInstance {
 };
 
 typedef boost::variant<z3::expr, P4ComplexInstance *> P4Z3Instance;
-typedef std::vector<std::pair<cstring, P4Z3Instance>> P4Z3Result;
+typedef std::map<cstring, P4Z3Instance> P4Z3Result;
 
 template <typename T> T *check_complex(P4Z3Instance type) {
     try {
@@ -49,7 +49,6 @@ class P4Scope {
     // constructor
     P4Scope() {}
 };
-
 
 } // namespace TOZ3_V2
 
