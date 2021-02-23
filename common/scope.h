@@ -42,6 +42,15 @@ template <typename T> T *check_complex(P4Z3Instance type) {
     }
 }
 
+class P4Scope {
+ public:
+    // a map of local values
+    std::map<cstring, P4Z3Instance> value_map;
+    // constructor
+    P4Scope() {}
+};
+
+
 } // namespace TOZ3_V2
 
 #endif // _TOZ3_CONTEXT_H_

@@ -2,6 +2,7 @@
 #include <utility>
 
 #include "complex_type.h"
+#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
 #include "type_map.h"
 
@@ -65,8 +66,29 @@ bool TypeVisitor::preorder(const IR::P4Control *c) {
     return false;
 }
 
+bool TypeVisitor::preorder(const IR::Method *m) {
+    state->declare_var(m->name.name, m);
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::P4Action *a) {
+    state->declare_var(a->name.name, a);
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::P4Table *t) {
+    state->declare_var(t->name.name, t);
+    return false;
+}
+
 bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
-    state->add_decl(di->name.name, di);
+    state->declare_var(di->name.name, di);
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::Declaration_MatchKind *) {
+    // TODO: Figure out purpose of Declaration_MatchKind
+    // state->add_decl(dm->name.name, dm);
     return false;
 }
 

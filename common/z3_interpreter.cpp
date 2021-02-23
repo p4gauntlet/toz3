@@ -2,10 +2,10 @@
 #include <utility>
 
 #include "complex_type.h"
-#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
 #include "z3_int.h"
 #include "z3_interpreter.h"
+#include "type_map.h"
 
 namespace TOZ3_V2 {
 
@@ -43,6 +43,13 @@ Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
 }
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
+
+    TypeVisitor map_builder = TypeVisitor(state);
+
+    for (const IR::Declaration *local_decl : c->controlLocals) {
+        local_decl->apply(map_builder);
+    }
+
     // DO SOMETHING
     visit(c->body);
     return false;
@@ -75,12 +82,19 @@ bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     }
     return false;
 }
+
+bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
+    visit(mcs->methodCall);
+    return false;
+}
+
+
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
     auto var = state->return_expr;
     auto target = as->left;
     if (auto name = target->to<IR::PathExpression>()) {
-        state->insert_var(name->path->name, var);
+        state->update_var(name->path->name, var);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
         P4Z3Instance complex_class = state->return_expr;

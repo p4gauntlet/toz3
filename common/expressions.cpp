@@ -4,8 +4,8 @@
 #include <z3++.h>
 
 #include "complex_type.h"
-#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
+#include "scope.h"
 #include "state.h"
 #include "z3_int.h"
 #include "z3_interpreter.h"
@@ -105,6 +105,19 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
+    P4Z3Result merged_args;
+    auto expression = mce->method;
+    if (auto path_expr = expression->to<IR::PathExpression>()) {
+        // auto method_decl = state->get_decl(path_expr->path->name.name);
+    } else {
+        BUG("Method type %s not supported.", expression->node_type_name());
+    }
+
+    visit(mce->method);
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     std::vector<std::pair<cstring, z3::expr>> state_vars;
@@ -116,7 +129,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         for (auto param : *c->getApplyParameters()) {
             auto par_type = state->resolve_type(param->type);
             P4Z3Instance var = state->gen_instance(param->name.name, par_type);
-            state->insert_var(param->name.name, var);
+            state->update_or_declare_var(param->name.name, var);
             state_names.push_back(param->name.name);
         }
 

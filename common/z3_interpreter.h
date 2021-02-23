@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "scope.h"
 #include "state.h"
@@ -38,7 +37,7 @@ class Z3Visitor : public Inspector {
     // /***** Statements *****/
     bool preorder(const IR::BlockStatement *b) override;
     bool preorder(const IR::AssignmentStatement *as) override;
-    // bool preorder(const IR::MethodCallStatement *mcs) override;
+    bool preorder(const IR::MethodCallStatement *mcs) override;
     bool preorder(const IR::IfStatement *ifs) override;
     // bool preorder(const IR::SwitchStatement *ss) override;
     // bool preorder(const IR::SwitchCase *sc) override;
@@ -83,7 +82,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::NamedExpression *ne) override;
     // bool preorder(const IR::StructExpression *sie) override;
     bool preorder(const IR::ConstructorCallExpression *) override;
-    // bool preorder(const IR::MethodCallExpression *mce) override;
+    bool preorder(const IR::MethodCallExpression *mce) override;
     // bool preorder(const IR::BoolLiteral *bl) override;
     // bool preorder(const IR::StringLiteral *str) override;
 

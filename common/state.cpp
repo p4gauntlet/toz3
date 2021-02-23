@@ -1,10 +1,12 @@
+#include "state.h"
+
 #include <complex>
 #include <cstdio>
 #include <ostream>
 
 #include "complex_type.h"
+#include "lib/exceptions.h"
 #include "scope.h"
-#include "state.h"
 
 namespace TOZ3_V2 {
 
@@ -60,15 +62,15 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) {
     return ret_type;
 }
 
-void P4State::add_decl(cstring decl_name, const IR::Declaration *d) {
-    decl_map[decl_name] = d;
-}
-
-const IR::Declaration *P4State::get_decl(cstring decl_name) {
-    if (decl_map.count(decl_name)) {
-        return decl_map[decl_name];
-    } else {
-        BUG("Decl name \"%s\" not found!.", decl_name);
+P4Z3Instance P4State::get_var(cstring name) {
+    for (P4Scope *scope : scopes) {
+        if (scope->value_map.count(name)) {
+            return scope->value_map.at(name);
+        }
+    }
+    // also check the parent scope
+    if (main_scope->value_map.count(name)) {
+        return main_scope->value_map.at(name);
     }
     return nullptr;
 }
@@ -80,25 +82,53 @@ P4Z3Instance P4State::find_var(cstring name, P4Scope **owner_scope) {
             return scope->value_map.at(name);
         }
     }
-    return nullptr;
-}
-
-P4Z3Instance P4State::get_var(cstring name) {
-    for (P4Scope *scope : scopes) {
-        if (scope->value_map.count(name)) {
-            return scope->value_map.at(name);
-        }
+    // also check the parent scope
+    if (main_scope->value_map.count(name)) {
+        *owner_scope = main_scope;
+        return main_scope->value_map.at(name);
     }
     return nullptr;
 }
 
-void P4State::insert_var(cstring name, P4Z3Instance var) {
+void P4State::update_var(cstring name, P4Z3Instance var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
         target_scope->value_map.insert({name, var});
     } else {
-        scopes.back()->value_map.insert({name, var});
+        FATAL_ERROR("Variable %s not found.", name);
+    }
+}
+
+void P4State::update_or_declare_var(cstring name, P4Z3Instance var) {
+    P4Scope *target_scope = nullptr;
+    find_var(name, &target_scope);
+    if (target_scope) {
+        target_scope->value_map.insert({name, var});
+    } else {
+        if (scopes.empty()) {
+            main_scope->value_map.insert({name, var});
+            // assume we insert into the global scope
+        } else {
+            scopes.back()->value_map.insert({name, var});
+        }
+    }
+}
+
+void P4State::declare_var(cstring name, const IR::Declaration *decl) {
+    P4Scope *target_scope = nullptr;
+    find_var(name, &target_scope);
+    if (target_scope) {
+        FATAL_ERROR("Variable %s already exists in target scope.", name);
+    } else {
+        auto decl_instance = new P4Declaration(decl);
+        add_to_allocated(decl_instance);
+        if (scopes.empty()) {
+            main_scope->value_map.insert({name, decl_instance});
+            // assume we insert into the global scope
+        } else {
+            scopes.back()->value_map.insert({name, decl_instance});
+        }
     }
 }
 

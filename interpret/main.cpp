@@ -19,7 +19,6 @@
 #include "frontends/p4/fromv1.0/v1model.h"
 #include "frontends/p4/toP4/toP4.h"
 
-#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
@@ -27,17 +26,21 @@
 #include "lib/log.h"
 #include "lib/nullstream.h"
 
-#include "toz3_v2/common/state.h"
 #include "options.h"
+#include "toz3_v2/common/state.h"
 #include "toz3_v2/common/type_map.h"
 #include "toz3_v2/common/z3_interpreter.h"
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    const IR::Declaration *main = state->get_decl("main");
-    if (auto main_pkg = main->to<IR::Declaration_Instance>()) {
-        return main_pkg;
+    TOZ3_V2::P4Z3Instance main = state->get_var("main");
+    if (auto decl = TOZ3_V2::check_complex<TOZ3_V2::P4Declaration>(main)) {
+        if (auto main_pkg = decl->decl->to<IR::Declaration_Instance>()) {
+            return main_pkg;
+        } else {
+            BUG("Main node %s not implemented!", decl->decl->node_type_name());
+        }
     } else {
-        BUG("Main node %s not implemented!", main->node_type_name());
+        BUG("Unsupported main declaration type.");
     }
 }
 

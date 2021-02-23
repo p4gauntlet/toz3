@@ -8,7 +8,7 @@
 
 #include "ir/ir.h"
 #include "scope.h"
-#include "state.h"
+#include "complex_type.h"
 
 namespace TOZ3_V2 {
 
@@ -21,11 +21,15 @@ class TypeVisitor : public Inspector {
     Visitor::profile_t init_apply(const IR::Node *node) override;
     void end_apply(const IR::Node *node) override;
 
-    bool preorder(const IR::Node *) override { return false; }
+    /***** Unimplemented *****/
+    bool preorder(const IR::Node *expr) override {
+        FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
+        return false;
+    }
 
     bool preorder(const IR::P4Program *) override;
 
-    // /***** Types *****/
+    /***** Types *****/
     bool preorder(const IR::Type_Package *) override;
 
     bool preorder(const IR::Type_StructLike *t) override;
@@ -52,15 +56,18 @@ class TypeVisitor : public Inspector {
     // bool preorder(const IR::Type_Dontcare *) override;
     // bool preorder(const IR::Type_String *) override;
 
-    // /***** Declarations *****/
     bool preorder(const IR::P4Parser *p) override;
     bool preorder(const IR::P4Control *c) override;
 
+     /***** Declarations *****/
+    bool preorder(const IR::Method *m) override;
+    bool preorder(const IR::P4Action *a) override;
+    bool preorder(const IR::P4Table *t) override;
     bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
     // bool preorder(const IR::Declaration_Variable *dv) override;
     // bool preorder(const IR::Declaration_Constant *dv) override;
-    // bool preorder(const IR::Declaration_MatchKind *) override;
+    bool preorder(const IR::Declaration_MatchKind *) override;
 };
 } // namespace TOZ3_V2
 
