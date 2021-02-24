@@ -17,7 +17,7 @@ class Z3Visitor : public Inspector {
  public:
     P4State *state;
     P4Z3Result decl_result;
-    Z3Visitor(P4State *state) : state(state) {}
+    Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
 
     P4Z3Result get_decl_result() { return decl_result; }
 
@@ -130,8 +130,9 @@ class Z3Visitor : public Inspector {
     P4Z3Instance cast(P4Z3Instance expr, const IR::Type *destType);
     P4Z3Result merge_args_with_params(const IR::Vector<IR::Argument> *args,
                                       const IR::ParameterList *params);
-    IR::Vector<IR::Expression> resolve_args(const IR::Vector<IR::Argument> *args,
-                                          const IR::ParameterList *params);
+    std::vector<std::pair<const IR::Expression *, cstring>>
+    resolve_args(const IR::Vector<IR::Argument> *args,
+                 const IR::ParameterList *params);
     void set_var(const IR::Expression *target, P4Z3Instance val);
 };
 } // namespace TOZ3_V2

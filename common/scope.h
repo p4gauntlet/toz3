@@ -30,7 +30,7 @@ class P4ComplexInstance {
     virtual ~P4ComplexInstance() = default;
 };
 
-typedef boost::variant<z3::expr, P4ComplexInstance *> P4Z3Instance;
+typedef boost::variant<P4ComplexInstance *, z3::expr> P4Z3Instance;
 typedef std::map<cstring, P4Z3Instance> P4Z3Result;
 
 template <typename T> T *check_complex(P4Z3Instance type) {

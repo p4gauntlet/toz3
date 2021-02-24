@@ -12,6 +12,9 @@ namespace TOZ3_V2 {
 
 P4Z3Instance P4State::gen_instance(cstring name, const IR::Type *type,
                                    uint64_t id) {
+    if (auto tn = type->to<IR::Type_Name>()) {
+        type = resolve_type(tn);
+    }
     if (auto ts = type->to<IR::Type_StructLike>()) {
         auto instance = new StructInstance(this, ts, id);
         add_to_allocated(instance);
@@ -99,7 +102,7 @@ void P4State::update_var(cstring name, P4Z3Instance var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
-        target_scope->value_map.insert({name, var});
+        target_scope->value_map.at(name) = var;
     } else {
         FATAL_ERROR("Variable %s not found.", name);
     }
@@ -107,8 +110,8 @@ void P4State::update_var(cstring name, P4Z3Instance var) {
 
 void P4State::declare_local_var(cstring name, P4Z3Instance var) {
     if (scopes.empty()) {
-        main_scope->value_map.insert({name, var});
         // assume we insert into the global scope
+        main_scope->value_map.insert({name, var});
     } else {
         scopes.back()->value_map.insert({name, var});
     }

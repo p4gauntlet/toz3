@@ -107,10 +107,10 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     return false;
 }
 
-IR::Vector<IR::Expression>
+std::vector<std::pair<const IR::Expression *, cstring>>
 Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
                         const IR::ParameterList *params) {
-    IR::Vector<IR::Expression> resolved_args;
+    std::vector<std::pair<const IR::Expression *, cstring>> resolved_args;
 
     size_t arg_len = args->size();
     size_t idx = 0;
@@ -124,9 +124,9 @@ Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
             const IR::Argument *arg = args->at(idx);
             if (auto path_expr = arg->to<IR::Member>()) {
                 // TODO: Index
-                resolved_args.push_back(arg->expression);
+                resolved_args.push_back({arg->expression, param->name.name});
             } else {
-                resolved_args.push_back(arg->expression);
+                resolved_args.push_back({arg->expression, param->name.name});
             }
         }
         idx++;
@@ -154,7 +154,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             mce->method->node_type_name());
     }
 
-    IR::Vector<IR::Expression> copy_out_args =
+    std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
         resolve_args(mce->arguments, params);
     P4Z3Result merged_args = merge_args_with_params(mce->arguments, params);
 
@@ -168,19 +168,17 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     return_expr = state->return_expr;
 
     std::vector<P4Z3Instance> copy_out_vals;
-    for (auto param : params->parameters) {
-        auto direction = param->direction;
-        if (direction == IR::Direction::In ||
-            direction == IR::Direction::None) {
-            continue;
-        }
-        P4Z3Instance val = state->get_var(param->name.name);
+    for (auto arg_tuple :copy_out_args) {
+        auto source = arg_tuple.second;
+        P4Z3Instance val = state->get_var(source);
         copy_out_vals.push_back(val);
     }
     state->pop_scope();
     size_t idx = 0;
-    for (auto arg : copy_out_args) {
-        set_var(arg, copy_out_vals[idx]);
+    for (auto arg_tuple : copy_out_args) {
+        auto target = arg_tuple.first;
+        set_var(target, copy_out_vals[idx]);
+        idx++;
     }
     state->return_expr = return_expr;
     return false;

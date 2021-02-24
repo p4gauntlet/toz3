@@ -6,16 +6,16 @@
 #include <map>
 #include <vector>
 
+#include "complex_type.h"
 #include "ir/ir.h"
 #include "scope.h"
-#include "complex_type.h"
 
 namespace TOZ3_V2 {
 
 class TypeVisitor : public Inspector {
  public:
     P4State *state;
-    TypeVisitor(P4State *state) : state(state) {}
+    TypeVisitor(P4State *state) : state(state) { visitDagOnce = false; }
 
     // for initialization and ending
     Visitor::profile_t init_apply(const IR::Node *node) override;
@@ -59,7 +59,7 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::P4Parser *p) override;
     bool preorder(const IR::P4Control *c) override;
 
-     /***** Declarations *****/
+    /***** Declarations *****/
     bool preorder(const IR::Method *m) override;
     bool preorder(const IR::P4Action *a) override;
     bool preorder(const IR::P4Table *t) override;

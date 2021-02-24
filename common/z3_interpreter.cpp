@@ -60,13 +60,6 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
-    // TODO: Casting
-    visit(dv->initializer);
-    state->declare_local_var(dv->name.name, state->return_expr);
-    return false;
-}
-
 bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
@@ -120,6 +113,20 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
     set_var(as->left, state->return_expr);
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
+    // TODO: Casting
+    P4Z3Instance left = nullptr;
+    if (dv->initializer) {
+        visit(dv->initializer);
+        left = state->return_expr;
+        state->declare_local_var(dv->name.name, state->return_expr);
+    } else {
+        left = state->gen_instance("undefined", dv->type);
+        state->declare_local_var(dv->name.name, left);
+    }
     return false;
 }
 
