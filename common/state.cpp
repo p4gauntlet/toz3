@@ -15,8 +15,12 @@ P4Z3Instance P4State::gen_instance(cstring name, const IR::Type *type,
     if (auto tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
     }
-    if (auto ts = type->to<IR::Type_StructLike>()) {
+    if (auto ts = type->to<IR::Type_Struct>()) {
         auto instance = new StructInstance(this, ts, id);
+        add_to_allocated(instance);
+        return instance;
+    } else if (auto te = type->to<IR::Type_Header>()) {
+        auto instance = new HeaderInstance(this, te, id);
         add_to_allocated(instance);
         return instance;
     } else if (auto te = type->to<IR::Type_Enum>()) {
@@ -97,7 +101,7 @@ const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
     return nullptr;
 }
 
-P4Z3Instance P4State::get_var(cstring name) {
+P4Z3Instance *P4State::get_var(cstring name) {
     for (P4Scope *scope : scopes) {
         if (scope->has_var(name)) {
             return scope->get_var(name);
@@ -107,7 +111,7 @@ P4Z3Instance P4State::get_var(cstring name) {
     return main_scope->get_var(name);
 }
 
-P4Z3Instance P4State::find_var(cstring name, P4Scope **owner_scope) {
+P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
     for (P4Scope *scope : scopes) {
         if (scope->has_var(name)) {
             *owner_scope = scope;
@@ -126,7 +130,7 @@ void P4State::update_var(cstring name, P4Z3Instance var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
-        target_scope->get_var(name) = var;
+        target_scope->update_var(name, var);
     } else {
         FATAL_ERROR("Variable %s not found.", name);
     }
@@ -169,8 +173,8 @@ std::vector<P4Scope *> P4State::checkpoint() {
         for (auto value_tuple : *scope->get_var_map()) {
             auto var_name = value_tuple.first;
             auto var = &value_tuple.second;
-            if (auto complex_var = to_type<StructInstance>(var)) {
-                P4Z3Instance cloned_var = new StructInstance(*complex_var);
+            if (auto complex_var = to_type<StructBase>(var)) {
+                P4Z3Instance cloned_var = new StructBase(*complex_var);
                 cloned_scope->declare_var(var_name, cloned_var);
             } else {
                 cloned_scope->declare_var(var_name, *var);
@@ -204,8 +208,8 @@ void P4State::merge_var_maps(z3::expr cond,
             } else {
                 BUG("Int merge with other type not yet supported. ");
             }
-        } else if (auto z3_then_var = to_type<StructInstance>(then_var)) {
-            if (auto z3_else_var = to_type<StructInstance>(else_var)) {
+        } else if (auto z3_then_var = to_type<StructBase>(then_var)) {
+            if (auto z3_else_var = to_type<StructBase>(else_var)) {
                 merge_var_maps(cond, z3_then_var->get_member_map(),
                                z3_else_var->get_member_map());
             } else {

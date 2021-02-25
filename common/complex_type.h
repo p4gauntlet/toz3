@@ -40,8 +40,8 @@ class Z3Int : public P4ComplexInstance {
     Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
 };
 
-class StructInstance : public P4ComplexInstance {
- private:
+class StructBase : public P4ComplexInstance {
+ protected:
     P4State *state;
     std::map<cstring, P4Z3Instance> members;
     std::map<cstring, const IR::Type *> member_types;
@@ -50,10 +50,10 @@ class StructInstance : public P4ComplexInstance {
     const IR::Type_StructLike *p4_type;
     uint64_t member_id;
     uint64_t width;
-    StructInstance(P4State *state, const IR::Type_StructLike *type,
-                   uint64_t member_id);
-    void bind(z3::expr bind_const);
-    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = "");
+    StructBase(P4State *state, const IR::Type_StructLike *type,
+               uint64_t member_id);
+    virtual std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring prefix = "");
 
     P4Z3Instance get_member(cstring name) { return members.at(name); }
 
@@ -68,11 +68,33 @@ class StructInstance : public P4ComplexInstance {
         return &members;
     }
 
-    ~StructInstance() {}
+    ~StructBase() {}
     // copy constructor
-    StructInstance(const StructInstance &other);
+    StructBase(const StructBase &other);
     // overload = operator
-    StructInstance &operator=(const StructInstance &other);
+    StructBase &operator=(const StructBase &other);
+};
+
+class StructInstance : public StructBase {
+    using StructBase::StructBase;
+};
+
+class HeaderInstance : public StructBase {
+    using StructBase::StructBase;
+
+ private:
+    z3::expr valid;
+
+ public:
+    HeaderInstance(P4State *state, const IR::Type_StructLike *type,
+                   uint64_t member_id);
+    void set_valid();
+
+    void set_invalid();
+
+    z3::expr is_valid();
+    std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring prefix = "") override;
 };
 
 class EnumInstance : public P4ComplexInstance {

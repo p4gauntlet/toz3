@@ -43,7 +43,7 @@ class P4State {
         allocated_vars.push_back(var);
     }
 
-    P4Z3Instance gen_instance(cstring name, const IR::Type *typ,
+    P4Z3Instance gen_instance(cstring name, const IR::Type *type,
                               uint64_t id = 0);
 
     std::vector<P4Scope *> get_state() { return scopes; }
@@ -68,11 +68,11 @@ class P4State {
     void update_var(cstring name, P4Z3Instance var);
     void declare_local_var(cstring name, P4Z3Instance var);
     void declare_var(cstring name, const IR::Declaration *decl);
-    P4Z3Instance find_var(cstring name, P4Scope **owner_scope);
-    P4Z3Instance get_var(cstring name);
+    P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
+    P4Z3Instance *get_var(cstring name);
     template <typename T> T *get_var(cstring name) {
-        P4Z3Instance var = get_var(name);
-        if (auto cast_var = TOZ3_V2::to_type<T>(&var)) {
+        P4Z3Instance *var = get_var(name);
+        if (auto cast_var = TOZ3_V2::to_type<T>(var)) {
             return cast_var;
         } else {
             BUG("Could not cast to type %s.", typeid(T).name());

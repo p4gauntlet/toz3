@@ -32,8 +32,8 @@
 #include "toz3_v2/common/z3_interpreter.h"
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    TOZ3_V2::P4Z3Instance main = state->get_var("main");
-    if (auto decl = TOZ3_V2::to_type<TOZ3_V2::P4Declaration>(&main)) {
+    TOZ3_V2::P4Z3Instance *main = state->get_var("main");
+    if (auto decl = TOZ3_V2::to_type<TOZ3_V2::P4Declaration>(main)) {
         if (auto main_pkg = decl->decl->to<IR::Declaration_Instance>()) {
             return main_pkg;
         } else {

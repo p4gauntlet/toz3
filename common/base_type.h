@@ -1,8 +1,9 @@
 #ifndef _TOZ3_BASE_TYPE_H_
 #define _TOZ3_BASE_TYPE_H_
 
-#include <cstdio>
 #include <z3++.h>
+
+#include <cstdio>
 
 #include <map>    // std::map
 #include <vector> // std::vector
@@ -15,7 +16,7 @@
 #include <boost/variant/get.hpp>
 
 namespace TOZ3_V2 {
-
+// template <class Derived>
 class P4ComplexInstance {
  public:
     P4ComplexInstance() {}
@@ -29,7 +30,27 @@ class P4ComplexInstance {
     virtual ~P4ComplexInstance() = default;
 };
 
+class Z3Int;
+class P4Declaration;
+class ControlState;
+class StructInstance;
+class HeaderInstance;
+class EnumInstance;
+class ErrorInstance;
+class ExternInstance;
+
+// typedef boost::variant<boost::recursive_wrapper<Z3Int *>,
+//                        boost::recursive_wrapper<P4Declaration *>,
+//                        boost::recursive_wrapper<ControlState *>,
+//                        boost::recursive_wrapper<StructInstance *>,
+//                        boost::recursive_wrapper<HeaderInstance *>,
+//                        boost::recursive_wrapper<EnumInstance *>,
+//                        boost::recursive_wrapper<ErrorInstance *>,
+//                        boost::recursive_wrapper<ExternInstance *>>
+//     ComplexType;
+
 typedef boost::variant<P4ComplexInstance *, z3::expr> P4Z3Instance;
+
 typedef std::map<cstring, P4Z3Instance> P4Z3Result;
 
 template <typename T> T *to_type(P4Z3Instance *type) {

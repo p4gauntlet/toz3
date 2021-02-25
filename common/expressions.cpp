@@ -47,10 +47,6 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
         } else {
             BUG("Z3 eq with int not yet supported. ");
         }
-    } else if (auto z3_var = to_type<Z3Int>(left)) {
-        BUG("Int eq not supported. ");
-    } else if (auto z3_left = to_type<StructInstance>(left)) {
-        BUG("Z3 Struct eq not yet supported. ");
     } else {
         BUG("Eq not supported. ");
     }
@@ -76,7 +72,7 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 
 bool Z3Visitor::preorder(const IR::PathExpression *p) {
     P4Scope *scope;
-    state->return_expr = state->find_var(p->path->name, &scope);
+    state->return_expr = *state->find_var(p->path->name, &scope);
     return false;
 }
 
@@ -89,22 +85,22 @@ bool Z3Visitor::preorder(const IR::Cast *c) {
 }
 
 bool Z3Visitor::preorder(const IR::Member *m) {
-    P4Z3Instance complex_class;
+    P4Z3Instance *complex_class;
     const IR::Expression *parent = m->expr;
     if (auto member = parent->to<IR::Member>()) {
         visit(member);
-        complex_class = state->return_expr;
+        complex_class = &state->return_expr;
     } else if (auto name = parent->to<IR::PathExpression>()) {
         complex_class = state->get_var(name->path->name);
     } else {
         BUG("Parent Type  %s not implemented!", parent->node_type_name());
     }
-    StructInstance *si = to_type<StructInstance>(&complex_class);
-    if (not si) {
-        BUG("Can not cast to StructInstance.");
+    if (auto si = to_type<StructBase>(complex_class)) {
+        state->return_expr = si->get_member(m->member.name);
+    } else {
+        BUG("Can not cast to StructBase.");
     }
 
-    state->return_expr = si->get_member(m->member.name);
     return false;
 }
 
@@ -171,7 +167,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     std::vector<P4Z3Instance> copy_out_vals;
     for (auto arg_tuple : copy_out_args) {
         auto source = arg_tuple.second;
-        P4Z3Instance val = state->get_var(source);
+        P4Z3Instance val = *state->get_var(source);
         copy_out_vals.push_back(val);
     }
     state->pop_scope();
@@ -206,21 +202,21 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         for (auto state_name : state_names) {
             P4Scope *scope;
             auto var = state->find_var(state_name, &scope);
-            if (z3::expr *z3_var = to_type<z3::expr>(&var)) {
+            if (z3::expr *z3_var = to_type<z3::expr>(var)) {
                 state_vars.push_back({state_name, *z3_var});
-            } else if (auto z3_var = to_type<StructInstance>(&var)) {
+            } else if (auto z3_var = to_type<StructBase>(var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (auto z3_var = to_type<ErrorInstance>(&var)) {
+            } else if (auto z3_var = to_type<ErrorInstance>(var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (auto z3_var = to_type<EnumInstance>(&var)) {
+            } else if (auto z3_var = to_type<EnumInstance>(var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (to_type<ExternInstance>(&var)) {
+            } else if (to_type<ExternInstance>(var)) {
                 printf("Skipping extern...\n");
             } else {
                 BUG("Var is neither type z3::expr nor P4ComplexInstance!");

@@ -19,7 +19,7 @@ class P4Scope {
     // constructor
     P4Scope() {}
 
-    P4Z3Instance get_var(cstring name) { return var_map.at(name); }
+    P4Z3Instance *get_var(cstring name) { return &var_map.at(name); }
     void update_var(cstring name, P4Z3Instance val) { var_map.at(name) = val; }
     void declare_var(cstring name, P4Z3Instance val) {
         var_map.insert({name, val});

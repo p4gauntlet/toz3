@@ -97,13 +97,12 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
         state->update_var(name->path->name, val);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
-        P4Z3Instance complex_class = state->return_expr;
-        StructInstance *si = to_type<StructInstance>(&complex_class);
-        if (not si) {
-            BUG("Can not cast to StructInstance.");
-            std::cout << complex_class << "\n";
+        P4Z3Instance *complex_class = &state->return_expr;
+        if (auto si = to_type<StructBase>(complex_class)) {
+            si->update_member(member->member.name, val);
+        }  else {
+            BUG("Can not cast to StructBase.");
         }
-        si->update_member(member->member.name, val);
     } else {
         BUG("Unknown target %s!", target->node_type_name());
     }
