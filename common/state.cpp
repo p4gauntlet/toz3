@@ -206,8 +206,8 @@ void P4State::merge_var_maps(z3::expr cond,
             }
         } else if (auto z3_then_var = check_complex<StructInstance>(then_var)) {
             if (auto z3_else_var = check_complex<StructInstance>(else_var)) {
-                merge_var_maps(cond, &z3_then_var->members,
-                               &z3_else_var->members);
+                merge_var_maps(cond, z3_then_var->get_member_map(),
+                               z3_else_var->get_member_map());
             } else {
                 BUG("Z3 Struct Merge not yet supported. ");
             }

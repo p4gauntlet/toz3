@@ -52,8 +52,9 @@ class P4Scope {
     void declare_var(cstring name, P4Z3Instance val) {
         var_map.insert({name, val});
     }
-
     bool has_var(cstring name) { return var_map.count(name) > 0; }
+    std::map<cstring, P4Z3Instance> *get_var_map() { return &var_map; }
+
 
     void add_type(cstring type_name, const IR::Type *t) {
         type_map[type_name] = t;
@@ -63,6 +64,8 @@ class P4Scope {
         return type_map.at(type_name);
     }
 
+    bool has_type(cstring name) { return type_map.count(name) > 0; }
+
     const IR::Type *resolve_type(const IR::Type *type) {
         const IR::Type *ret_type = type;
         if (auto tn = type->to<IR::Type_Name>()) {
@@ -71,13 +74,11 @@ class P4Scope {
         }
         return ret_type;
     }
-    bool has_type(cstring name) { return type_map.count(name) > 0; }
 
     std::map<cstring, const IR::Type *> *get_type_map() { return &type_map; }
-    std::map<cstring, P4Z3Instance> *get_var_map() { return &var_map; }
 
  private:
-    // a map of local values
+    // maps of local values and types
     std::map<cstring, P4Z3Instance> var_map;
     std::map<cstring, const IR::Type *> type_map;
 };

@@ -18,11 +18,11 @@ namespace TOZ3_V2 {
 class StructInstance : public P4ComplexInstance {
  private:
     P4State *state;
+    std::map<cstring, P4Z3Instance> members;
+    std::map<cstring, const IR::Type *> member_types;
 
  public:
     const IR::Type_StructLike *p4_type;
-    std::map<cstring, P4Z3Instance> members;
-    std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
     uint64_t width;
     StructInstance(P4State *state, const IR::Type_StructLike *type,
@@ -30,15 +30,15 @@ class StructInstance : public P4ComplexInstance {
     void bind(z3::expr bind_const);
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = "");
 
-    P4Z3Instance get_var(cstring name) {
-        if (members.count(name)) {
-            return members.at(name);
-        } else {
-            BUG("Var %s not found in StructInstance", name);
-        }
-    }
+    P4Z3Instance get_member(cstring name) { return members.at(name); }
 
-    void set_var(cstring name, P4Z3Instance val) { members.at(name) = val; }
+    void update_member(cstring name, P4Z3Instance val) {
+        members.at(name) = val;
+    }
+    void insert_member(cstring name, P4Z3Instance val) {
+        members.insert({name, val});
+    }
+    std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
 
     ~StructInstance() {}
     // copy constructor
@@ -50,35 +50,54 @@ class StructInstance : public P4ComplexInstance {
 class EnumInstance : public P4ComplexInstance {
  private:
     P4State *state;
+    std::map<cstring, P4Z3Instance> members;
 
  public:
     const IR::Type_Enum *p4_type;
-    std::map<cstring, P4Z3Instance> members;
     uint64_t width;
     uint64_t member_id;
     EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = "");
+
+    P4Z3Instance get_member(cstring name) { return members.at(name); }
+
+    void update_member(cstring name, P4Z3Instance val) {
+        members.at(name) = val;
+    }
+    void insert_member(cstring name, P4Z3Instance val) {
+        members.insert({name, val});
+    }
+    std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
 };
 
 class ErrorInstance : public P4ComplexInstance {
  private:
     P4State *state;
+    std::map<cstring, P4Z3Instance> members;
 
  public:
     const IR::Type_Error *p4_type;
-    std::map<cstring, P4Z3Instance> members;
     uint64_t member_id;
     uint64_t width;
     ErrorInstance(P4State *state, const IR::Type_Error *type,
                   uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = "");
+
+    P4Z3Instance get_member(cstring name) { return members.at(name); }
+
+    void update_member(cstring name, P4Z3Instance val) {
+        members.at(name) = val;
+    }
+    void insert_member(cstring name, P4Z3Instance val) {
+        members.insert({name, val});
+    }
+    std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
 };
 
 class ExternInstance : public P4ComplexInstance {
  private:
  public:
     const IR::Type_Extern *p4_type;
-    std::map<cstring, P4Z3Instance> members;
     uint64_t width;
     ExternInstance(P4State *state, const IR::Type_Extern *type);
 };

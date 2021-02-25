@@ -20,13 +20,13 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
             state->gen_instance(name, resolved_type, flat_id);
         if (auto si = check_complex<StructInstance>(member_var)) {
             width += si->width;
-            flat_id += si->members.size();
+            flat_id += si->get_member_map()->size();
         } else if (auto ei = check_complex<EnumInstance>(member_var)) {
             width += ei->width;
-            flat_id += ei->members.size();
+            flat_id += ei->get_member_map()->size();
         } else if (auto ei = check_complex<ErrorInstance>(member_var)) {
             width += ei->width;
-            flat_id += ei->members.size();
+            flat_id += ei->get_member_map()->size();
         } else if (auto tbi = resolved_type->to<IR::Type_Bits>()) {
             width += tbi->width_bits();
             flat_id++;
@@ -39,7 +39,7 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
         } else {
             BUG("Type \"%s\" not supported!.", field->type);
         }
-        members.insert({field->name.name, member_var});
+        insert_member(field->name.name, member_var);
         member_types.insert({field->name.name, field->type});
     }
 }
@@ -54,13 +54,13 @@ StructInstance::StructInstance(const StructInstance &other)
         P4Z3Instance var = value_tuple.second;
         if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
             z3::expr member_cpy = *z3_var;
-            members.insert({name, member_cpy});
+            insert_member(name, member_cpy);
         } else if (auto complex_var = check_complex<StructInstance>(var)) {
             P4Z3Instance member_cpy = new StructInstance(*complex_var);
-            members.insert({name, member_cpy});
+            insert_member(name, member_cpy);
         } else if (auto int_var = check_complex<Z3Int>(var)) {
             P4Z3Instance member_cpy = new Z3Int(*int_var);
-            members.insert({name, member_cpy});
+            insert_member(name, member_cpy);
         } else {
             BUG("Var is neither type z3::expr nor StructInstance!");
         }
@@ -79,13 +79,13 @@ StructInstance &StructInstance::operator=(const StructInstance &other) {
         P4Z3Instance var = value_tuple.second;
         if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
             z3::expr member_cpy = *z3_var;
-            members.insert({name, member_cpy});
+            insert_member(name, member_cpy);
         } else if (auto complex_var = check_complex<StructInstance>(var)) {
             P4Z3Instance member_cpy = new StructInstance(*complex_var);
-            members.insert({name, member_cpy});
+            insert_member(name, member_cpy);
         } else if (auto int_var = check_complex<Z3Int>(var)) {
             P4Z3Instance member_cpy = new Z3Int(*int_var);
-            members.insert({name, member_cpy});
+            insert_member(name, member_cpy);
         } else {
             BUG("Var is neither type z3::expr nor StructInstance!");
         }
@@ -140,7 +140,7 @@ EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
     for (auto member : type->members) {
         cstring name = member->name.name;
         auto member_var = state->gen_instance(name, member_type);
-        members.insert({name, member_var});
+        insert_member(name, member_var);
     }
 }
 
@@ -165,7 +165,7 @@ ErrorInstance::ErrorInstance(P4State *state, const IR::Type_Error *type,
     for (auto member : type->members) {
         cstring name = member->name.name;
         auto member_var = state->gen_instance(name, member_type);
-        members.insert({p4_type->name.name, member_var});
+        insert_member(p4_type->name.name, member_var);
     }
 }
 

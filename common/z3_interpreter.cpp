@@ -103,7 +103,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
             BUG("Can not cast to StructInstance.");
             std::cout << complex_class << "\n";
         }
-        si->set_var(member->member.name, val);
+        si->update_member(member->member.name, val);
     } else {
         BUG("Unknown target %s!", target->node_type_name());
     }

@@ -104,7 +104,7 @@ bool Z3Visitor::preorder(const IR::Member *m) {
         BUG("Can not cast to StructInstance.");
     }
 
-    state->return_expr = si->get_var(m->member.name);
+    state->return_expr = si->get_member(m->member.name);
     return false;
 }
 
@@ -169,7 +169,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     return_expr = state->return_expr;
 
     std::vector<P4Z3Instance> copy_out_vals;
-    for (auto arg_tuple :copy_out_args) {
+    for (auto arg_tuple : copy_out_args) {
         auto source = arg_tuple.second;
         P4Z3Instance val = state->get_var(source);
         copy_out_vals.push_back(val);
@@ -205,22 +205,22 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         // COLLECT
         for (auto state_name : state_names) {
             P4Scope *scope;
-            auto member = state->find_var(state_name, &scope);
-            if (z3::expr *z3_var = boost::get<z3::expr>(&member)) {
+            auto var = state->find_var(state_name, &scope);
+            if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
                 state_vars.push_back({state_name, *z3_var});
-            } else if (auto z3_var = check_complex<StructInstance>(member)) {
+            } else if (auto z3_var = check_complex<StructInstance>(var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (auto z3_var = check_complex<ErrorInstance>(member)) {
+            } else if (auto z3_var = check_complex<ErrorInstance>(var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (auto z3_var = check_complex<EnumInstance>(member)) {
+            } else if (auto z3_var = check_complex<EnumInstance>(var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (check_complex<ExternInstance>(member)) {
+            } else if (check_complex<ExternInstance>(var)) {
                 printf("Skipping extern...\n");
             } else {
                 BUG("Var is neither type z3::expr nor P4ComplexInstance!");
