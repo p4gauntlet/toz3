@@ -9,7 +9,7 @@ namespace TOZ3_V2 {
 
 StructBase::StructBase(P4State *state, const IR::Type_StructLike *type,
                        uint64_t member_id)
-    : state(state), p4_type(type), member_id(member_id) {
+    : state(state), member_id(member_id), p4_type(type) {
     width = 0;
     uint64_t flat_id = member_id;
 
@@ -19,14 +19,8 @@ StructBase::StructBase(P4State *state, const IR::Type_StructLike *type,
         P4Z3Instance member_var =
             state->gen_instance(name, resolved_type, flat_id);
         if (auto si = to_type<StructBase>(&member_var)) {
-            width += si->width;
+            width += si->get_width();
             flat_id += si->get_member_map()->size();
-        } else if (auto ei = to_type<EnumInstance>(&member_var)) {
-            width += ei->width;
-            flat_id += ei->get_member_map()->size();
-        } else if (auto ei = to_type<ErrorInstance>(&member_var)) {
-            width += ei->width;
-            flat_id += ei->get_member_map()->size();
         } else if (auto tbi = resolved_type->to<IR::Type_Bits>()) {
             width += tbi->width_bits();
             flat_id++;
@@ -186,7 +180,7 @@ HeaderInstance::get_z3_vars(cstring prefix) {
 
 EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
                            uint64_t member_id)
-    : state(state), p4_type(type), member_id(member_id) {
+    : state(state), member_id(member_id), p4_type(type) {
     width = 32;
     const auto member_type = new IR::Type_Bits(32, false);
     for (auto member : type->members) {
@@ -211,7 +205,7 @@ EnumInstance::get_z3_vars(cstring prefix) {
 
 ErrorInstance::ErrorInstance(P4State *state, const IR::Type_Error *type,
                              uint64_t member_id)
-    : state(state), p4_type(type), member_id(member_id) {
+    : state(state), member_id(member_id), p4_type(type) {
     width = 32;
     const auto member_type = new IR::Type_Bits(32, false);
     for (auto member : type->members) {

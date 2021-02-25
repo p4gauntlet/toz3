@@ -45,15 +45,18 @@ class StructBase : public P4ComplexInstance {
     P4State *state;
     std::map<cstring, P4Z3Instance> members;
     std::map<cstring, const IR::Type *> member_types;
+    uint64_t member_id;
+    uint64_t width;
 
  public:
     const IR::Type_StructLike *p4_type;
-    uint64_t member_id;
-    uint64_t width;
     StructBase(P4State *state, const IR::Type_StructLike *type,
                uint64_t member_id);
+    StructBase() {}
     virtual std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "");
+
+    uint64_t get_width() { return width; }
 
     P4Z3Instance get_member(cstring name) { return members.at(name); }
 
@@ -97,57 +100,38 @@ class HeaderInstance : public StructBase {
     get_z3_vars(cstring prefix = "") override;
 };
 
-class EnumInstance : public P4ComplexInstance {
+class EnumInstance : public StructBase {
+    using StructBase::StructBase;
+
  private:
     P4State *state;
     std::map<cstring, P4Z3Instance> members;
+    uint64_t member_id;
+    uint64_t width;
 
  public:
     const IR::Type_Enum *p4_type;
-    uint64_t width;
-    uint64_t member_id;
     EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
-    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = "");
-
-    P4Z3Instance get_member(cstring name) { return members.at(name); }
-
-    void update_member(cstring name, P4Z3Instance val) {
-        members.at(name) = val;
-    }
-    void insert_member(cstring name, P4Z3Instance val) {
-        members.insert({name, val});
-    }
-    std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
-    const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
-        return &members;
-    }
+    std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring prefix = "") override;
 };
 
-class ErrorInstance : public P4ComplexInstance {
+class ErrorInstance : public StructBase {
+    using StructBase::StructBase;
+
  private:
     P4State *state;
     std::map<cstring, P4Z3Instance> members;
+    uint64_t member_id;
+    uint64_t width;
 
  public:
     const IR::Type_Error *p4_type;
-    uint64_t member_id;
-    uint64_t width;
     ErrorInstance(P4State *state, const IR::Type_Error *type,
                   uint64_t member_id);
-    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = "");
+    std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring prefix = "") override;
 
-    P4Z3Instance get_member(cstring name) { return members.at(name); }
-
-    void update_member(cstring name, P4Z3Instance val) {
-        members.at(name) = val;
-    }
-    void insert_member(cstring name, P4Z3Instance val) {
-        members.insert({name, val});
-    }
-    std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
-    const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
-        return &members;
-    }
 }; // namespace TOZ3_V2
 
 class ExternInstance : public P4ComplexInstance {
