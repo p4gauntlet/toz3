@@ -13,16 +13,16 @@
 
 namespace TOZ3_V2 {
 
-P4Z3Instance Z3Visitor::cast(P4Z3Instance expr, const IR::Type *dest_type) {
+P4Z3Instance Z3Visitor::cast(P4Z3Instance *expr, const IR::Type *dest_type) {
     if (auto tb = dest_type->to<IR::Type_Bits>()) {
-        if (z3::expr *z3_var = boost::get<z3::expr>(&expr)) {
+        if (z3::expr *z3_var = to_type<z3::expr>(expr)) {
             if (z3_var->get_sort().is_bv()) {
                 return state->ctx->bv_val(z3_var->get_decimal_string(0).c_str(),
                                           dest_type->width_bits());
             } else {
                 BUG("Cast type not supported ");
             }
-        } else if (auto z3_var = check_complex<Z3Int>(expr)) {
+        } else if (auto z3_var = to_type<Z3Int>(expr)) {
             auto val_string = z3_var->val.get_decimal_string(0);
             return state->ctx->bv_val(val_string.c_str(),
                                       dest_type->width_bits());
@@ -37,19 +37,19 @@ P4Z3Instance Z3Visitor::cast(P4Z3Instance expr, const IR::Type *dest_type) {
 
 bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->left);
-    auto left = state->return_expr;
+    auto left = &state->return_expr;
     visit(expr->right);
-    auto right = state->return_expr;
+    auto right = &state->return_expr;
 
-    if (z3::expr *z3_left_var = boost::get<z3::expr>(&left)) {
-        if (z3::expr *z3_right_var = boost::get<z3::expr>(&right)) {
+    if (z3::expr *z3_left_var = to_type<z3::expr>(left)) {
+        if (z3::expr *z3_right_var = to_type<z3::expr>(right)) {
             state->return_expr = *z3_left_var == *z3_right_var;
         } else {
             BUG("Z3 eq with int not yet supported. ");
         }
-    } else if (auto z3_var = check_complex<Z3Int>(left)) {
+    } else if (auto z3_var = to_type<Z3Int>(left)) {
         BUG("Int eq not supported. ");
-    } else if (auto z3_left = check_complex<StructInstance>(left)) {
+    } else if (auto z3_left = to_type<StructInstance>(left)) {
         BUG("Z3 Struct eq not yet supported. ");
     } else {
         BUG("Eq not supported. ");
@@ -84,7 +84,7 @@ bool Z3Visitor::preorder(const IR::Cast *c) {
     // resolve expression
     visit(c->expr);
     auto resolved_expr = state->return_expr;
-    state->return_expr = cast(resolved_expr, c->destType);
+    state->return_expr = cast(&resolved_expr, c->destType);
     return false;
 }
 
@@ -99,7 +99,7 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     } else {
         BUG("Parent Type  %s not implemented!", parent->node_type_name());
     }
-    StructInstance *si = check_complex<StructInstance>(complex_class);
+    StructInstance *si = to_type<StructInstance>(&complex_class);
     if (not si) {
         BUG("Can not cast to StructInstance.");
     }
@@ -206,21 +206,21 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         for (auto state_name : state_names) {
             P4Scope *scope;
             auto var = state->find_var(state_name, &scope);
-            if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
+            if (z3::expr *z3_var = to_type<z3::expr>(&var)) {
                 state_vars.push_back({state_name, *z3_var});
-            } else if (auto z3_var = check_complex<StructInstance>(var)) {
+            } else if (auto z3_var = to_type<StructInstance>(&var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (auto z3_var = check_complex<ErrorInstance>(var)) {
+            } else if (auto z3_var = to_type<ErrorInstance>(&var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (auto z3_var = check_complex<EnumInstance>(var)) {
+            } else if (auto z3_var = to_type<EnumInstance>(&var)) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (check_complex<ExternInstance>(var)) {
+            } else if (to_type<ExternInstance>(&var)) {
                 printf("Skipping extern...\n");
             } else {
                 BUG("Var is neither type z3::expr nor P4ComplexInstance!");

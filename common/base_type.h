@@ -32,14 +32,26 @@ class P4ComplexInstance {
 typedef boost::variant<P4ComplexInstance *, z3::expr> P4Z3Instance;
 typedef std::map<cstring, P4Z3Instance> P4Z3Result;
 
-template <typename T> T *check_complex(P4Z3Instance type) {
-    try {
-        P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(type);
+template <typename T> T *to_type(P4Z3Instance *type) {
+    if (type->which() == 0) {
+        P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(*type);
         return dynamic_cast<T *>(pi);
-    } catch (boost::bad_get &) {
-        return nullptr;
+    } else if (type->which() == 1) {
+        return boost::get<T>(type);
+    } else {
+        BUG("Unsupported  type cast");
     }
 }
+
+// template <typename T> bool is_type(P4Z3Instance *type) {
+//     if (type->which() == 0) {
+//         P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(*type);
+//         return dynamic_cast<T *>(pi) != nullptr;
+//     } else if (type->which() == 1) {
+//         return boost::get<T>(type);
+//     }
+// }
+
 } // namespace TOZ3_V2
 
 #endif // _TOZ3_BASE_TYPE_H_

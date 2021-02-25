@@ -36,7 +36,7 @@ namespace TOZ3_V2 {
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
     TOZ3_V2::P4Z3Instance main = state->get_var("main");
-    if (auto decl = TOZ3_V2::check_complex<TOZ3_V2::P4Declaration>(main)) {
+    if (auto decl = TOZ3_V2::to_type<TOZ3_V2::P4Declaration>(&main)) {
         if (auto main_pkg = decl->decl->to<IR::Declaration_Instance>()) {
             return main_pkg;
         } else {
@@ -73,10 +73,10 @@ P4Z3Result get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
 
 void unroll_result(P4Z3Result z3_repr_prog, std::vector<z3::expr> *result_vec) {
     for (auto result_tuple : z3_repr_prog) {
-        if (z3::expr *z3_val = boost::get<z3::expr>(&result_tuple.second)) {
+        if (z3::expr *z3_val = to_type<z3::expr>(&result_tuple.second)) {
             result_vec->push_back(*z3_val);
         } else if (auto z3_var =
-                       check_complex<ControlState>(result_tuple.second)) {
+                       to_type<ControlState>(&result_tuple.second)) {
             for (auto sub_tuple : z3_var->state_vars) {
                 result_vec->push_back(sub_tuple.second);
             }

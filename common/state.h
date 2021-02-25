@@ -72,7 +72,7 @@ class P4State {
     P4Z3Instance get_var(cstring name);
     template <typename T> T *get_var(cstring name) {
         P4Z3Instance var = get_var(name);
-        if (auto cast_var = TOZ3_V2::check_complex<T>(var)) {
+        if (auto cast_var = TOZ3_V2::to_type<T>(&var)) {
             return cast_var;
         } else {
             BUG("Could not cast to type %s.", typeid(T).name());

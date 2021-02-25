@@ -127,7 +127,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Declaration_MatchKind *) override;
     void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
                             const IR::Type *t);
-    P4Z3Instance cast(P4Z3Instance expr, const IR::Type *destType);
+    P4Z3Instance cast(P4Z3Instance *expr, const IR::Type *destType);
     P4Z3Result merge_args_with_params(const IR::Vector<IR::Argument> *args,
                                       const IR::ParameterList *params);
     std::vector<std::pair<const IR::Expression *, cstring>>

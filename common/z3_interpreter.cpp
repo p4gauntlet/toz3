@@ -72,7 +72,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     } else {
         visit(ifs->ifFalse);
     }
-    if (z3::expr *z3_cond = boost::get<z3::expr>(&cond)) {
+    if (z3::expr *z3_cond = to_type<z3::expr>(&cond)) {
         state->merge_state(!*z3_cond, state->get_state(), then_state);
     } else {
         BUG("Unsupported condition type.");
@@ -98,7 +98,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
         P4Z3Instance complex_class = state->return_expr;
-        StructInstance *si = check_complex<StructInstance>(complex_class);
+        StructInstance *si = to_type<StructInstance>(&complex_class);
         if (not si) {
             BUG("Can not cast to StructInstance.");
             std::cout << complex_class << "\n";

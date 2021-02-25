@@ -168,12 +168,12 @@ std::vector<P4Scope *> P4State::checkpoint() {
         std::map<cstring, P4Z3Instance> cloned_map;
         for (auto value_tuple : *scope->get_var_map()) {
             auto var_name = value_tuple.first;
-            auto var = value_tuple.second;
-            if (auto complex_var = check_complex<StructInstance>(var)) {
+            auto var = &value_tuple.second;
+            if (auto complex_var = to_type<StructInstance>(var)) {
                 P4Z3Instance cloned_var = new StructInstance(*complex_var);
                 cloned_scope->declare_var(var_name, cloned_var);
             } else {
-                cloned_scope->declare_var(var_name, var);
+                cloned_scope->declare_var(var_name, *var);
             }
         }
         scopes.push_back(cloned_scope);
@@ -186,32 +186,32 @@ void P4State::merge_var_maps(z3::expr cond,
                              std::map<cstring, P4Z3Instance> *else_map) {
     for (auto then_tuple : *then_map) {
         cstring then_name = then_tuple.first;
-        P4Z3Instance then_var = then_tuple.second;
-        P4Z3Instance else_var = else_map->at(then_name);
-        if (z3::expr *z3_then_var = boost::get<z3::expr>(&then_var)) {
-            if (z3::expr *z3_else_var = boost::get<z3::expr>(&else_var)) {
+        P4Z3Instance *then_var = &then_tuple.second;
+        P4Z3Instance *else_var = &else_map->at(then_name);
+        if (z3::expr *z3_then_var = to_type<z3::expr>(then_var)) {
+            if (z3::expr *z3_else_var = to_type<z3::expr>(else_var)) {
                 z3::expr merged_expr =
                     z3::ite(cond, *z3_then_var, *z3_else_var);
                 then_map->at(then_name) = merged_expr;
             } else {
                 BUG("Z3 Expr Merge not yet supported. ");
             }
-        } else if (auto z3_member_var = check_complex<Z3Int>(then_var)) {
-            if (auto *z3_else_var = check_complex<Z3Int>(else_var)) {
+        } else if (auto z3_member_var = to_type<Z3Int>(then_var)) {
+            if (auto *z3_else_var = to_type<Z3Int>(else_var)) {
                 z3::expr merged_expr =
                     z3::ite(cond, z3_member_var->val, z3_else_var->val);
                 then_map->at(then_name) = merged_expr;
             } else {
                 BUG("Int merge with other type not yet supported. ");
             }
-        } else if (auto z3_then_var = check_complex<StructInstance>(then_var)) {
-            if (auto z3_else_var = check_complex<StructInstance>(else_var)) {
+        } else if (auto z3_then_var = to_type<StructInstance>(then_var)) {
+            if (auto z3_else_var = to_type<StructInstance>(else_var)) {
                 merge_var_maps(cond, z3_then_var->get_member_map(),
                                z3_else_var->get_member_map());
             } else {
                 BUG("Z3 Struct Merge not yet supported. ");
             }
-        } else if (auto z3_then_var = check_complex<P4Declaration>(then_var)) {
+        } else if (auto z3_then_var = to_type<P4Declaration>(then_var)) {
             // these are constant, do nothing
         } else {
             BUG("State merge not supported. ");

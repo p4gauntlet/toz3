@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <utility>
 
-#include "scope.h"
+#include "state.h"
 
 namespace TOZ3_V2 {
 
@@ -18,13 +18,13 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
         const IR::Type *resolved_type = state->resolve_type(field->type);
         P4Z3Instance member_var =
             state->gen_instance(name, resolved_type, flat_id);
-        if (auto si = check_complex<StructInstance>(member_var)) {
+        if (auto si = to_type<StructInstance>(&member_var)) {
             width += si->width;
             flat_id += si->get_member_map()->size();
-        } else if (auto ei = check_complex<EnumInstance>(member_var)) {
+        } else if (auto ei = to_type<EnumInstance>(&member_var)) {
             width += ei->width;
             flat_id += ei->get_member_map()->size();
-        } else if (auto ei = check_complex<ErrorInstance>(member_var)) {
+        } else if (auto ei = to_type<ErrorInstance>(&member_var)) {
             width += ei->width;
             flat_id += ei->get_member_map()->size();
         } else if (auto tbi = resolved_type->to<IR::Type_Bits>()) {
@@ -51,14 +51,14 @@ StructInstance::StructInstance(const StructInstance &other)
     members.clear();
     for (auto value_tuple : other.members) {
         cstring name = value_tuple.first;
-        P4Z3Instance var = value_tuple.second;
-        if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
+        P4Z3Instance *var = &value_tuple.second;
+        if (z3::expr *z3_var = to_type<z3::expr>(var)) {
             z3::expr member_cpy = *z3_var;
             insert_member(name, member_cpy);
-        } else if (auto complex_var = check_complex<StructInstance>(var)) {
+        } else if (auto complex_var = to_type<StructInstance>(var)) {
             P4Z3Instance member_cpy = new StructInstance(*complex_var);
             insert_member(name, member_cpy);
-        } else if (auto int_var = check_complex<Z3Int>(var)) {
+        } else if (auto int_var = to_type<Z3Int>(var)) {
             P4Z3Instance member_cpy = new Z3Int(*int_var);
             insert_member(name, member_cpy);
         } else {
@@ -76,14 +76,14 @@ StructInstance &StructInstance::operator=(const StructInstance &other) {
     members.clear();
     for (auto value_tuple : other.members) {
         cstring name = value_tuple.first;
-        P4Z3Instance var = value_tuple.second;
-        if (z3::expr *z3_var = boost::get<z3::expr>(&var)) {
+        P4Z3Instance *var = &value_tuple.second;
+        if (z3::expr *z3_var = to_type<z3::expr>(var)) {
             z3::expr member_cpy = *z3_var;
             insert_member(name, member_cpy);
-        } else if (auto complex_var = check_complex<StructInstance>(var)) {
+        } else if (auto complex_var = to_type<StructInstance>(var)) {
             P4Z3Instance member_cpy = new StructInstance(*complex_var);
             insert_member(name, member_cpy);
-        } else if (auto int_var = check_complex<Z3Int>(var)) {
+        } else if (auto int_var = to_type<Z3Int>(var)) {
             P4Z3Instance member_cpy = new Z3Int(*int_var);
             insert_member(name, member_cpy);
         } else {
@@ -101,22 +101,22 @@ StructInstance::get_z3_vars(cstring prefix) {
         if (prefix.size() != 0) {
             name = prefix + "." + name;
         }
-        P4Z3Instance member = member_tuple.second;
-        if (z3::expr *z3_var = boost::get<z3::expr>(&member)) {
+        P4Z3Instance *member = &member_tuple.second;
+        if (z3::expr *z3_var = to_type<z3::expr>(member)) {
             z3_vars.push_back({name, *z3_var});
-        } else if (auto z3_var = check_complex<StructInstance>(member)) {
+        } else if (auto z3_var = to_type<StructInstance>(member)) {
             auto z3_sub_vars = z3_var->get_z3_vars(name);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
-        } else if (auto z3_var = check_complex<ErrorInstance>(member)) {
+        } else if (auto z3_var = to_type<ErrorInstance>(member)) {
             auto z3_sub_vars = z3_var->get_z3_vars(name);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
-        } else if (auto z3_var = check_complex<EnumInstance>(member)) {
+        } else if (auto z3_var = to_type<EnumInstance>(member)) {
             auto z3_sub_vars = z3_var->get_z3_vars(name);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
-        } else if (auto z3_var = check_complex<Z3Int>(member)) {
+        } else if (auto z3_var = to_type<Z3Int>(member)) {
             // We receive an int that we need to cast towards the member type
             const IR::Type *type = member_types[member_tuple.first];
             auto val_string = z3_var->val.get_decimal_string(0);
