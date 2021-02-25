@@ -45,6 +45,7 @@ class P4State {
 
     P4Z3Instance gen_instance(cstring name, const IR::Type *type,
                               uint64_t id = 0);
+    z3::expr gen_z3_expr(cstring name, const IR::Type *type);
 
     std::vector<P4Scope *> get_state() { return scopes; }
     void merge_var_maps(z3::expr cond,

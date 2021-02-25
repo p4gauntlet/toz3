@@ -191,6 +191,9 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         for (auto param : *c->getApplyParameters()) {
             auto par_type = state->resolve_type(param->type);
             P4Z3Instance var = state->gen_instance(param->name.name, par_type);
+            if (auto z3_var = to_type<StructBase>(&var)) {
+                z3_var->propagate_validity(nullptr);
+            }
             state->declare_local_var(param->name.name, var);
             state_names.push_back(param->name.name);
         }

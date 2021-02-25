@@ -127,6 +127,14 @@ StructBase::get_z3_vars(cstring prefix) {
     }
     return z3_vars;
 }
+void StructInstance::propagate_validity(z3::expr *valid_expr) {
+    for (auto member_tuple : members) {
+        P4Z3Instance *member = &member_tuple.second;
+        if (auto z3_var = to_type<StructBase>(member)) {
+            z3_var->propagate_validity(valid_expr);
+        }
+    }
+}
 
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
@@ -137,6 +145,22 @@ void HeaderInstance::set_valid() { valid = state->ctx->bool_val(true); }
 void HeaderInstance::set_invalid() { valid = state->ctx->bool_val(false); }
 
 z3::expr HeaderInstance::is_valid() { return valid; }
+
+void HeaderInstance::propagate_validity(z3::expr *valid_expr) {
+    if (valid_expr) {
+        valid = *valid_expr;
+    } else {
+        cstring name = std::to_string(member_id) + "_valid";
+        valid = state->ctx->bool_const(name);
+        valid_expr = &valid;
+    }
+    for (auto member_tuple : members) {
+        P4Z3Instance *member = &member_tuple.second;
+        if (auto z3_var = to_type<StructBase>(member)) {
+            z3_var->propagate_validity(valid_expr);
+        }
+    }
+}
 
 std::vector<std::pair<cstring, z3::expr>>
 HeaderInstance::get_z3_vars(cstring prefix) {
@@ -149,8 +173,8 @@ HeaderInstance::get_z3_vars(cstring prefix) {
         P4Z3Instance *member = &member_tuple.second;
         if (z3::expr *z3_var = to_type<z3::expr>(member)) {
             const IR::Type *type = member_types[member_tuple.first];
-            auto invalid_var = state->gen_instance("invalid", type);
-            auto valid_var = z3::ite(valid, *z3_var, *z3_var);
+            z3::expr invalid_var = state->gen_z3_expr("invalid", type);
+            auto valid_var = z3::ite(valid, *z3_var, invalid_var);
             z3_vars.push_back({name, valid_var});
         } else if (auto z3_var = to_type<StructBase>(member)) {
             auto z3_sub_vars = z3_var->get_z3_vars(name);

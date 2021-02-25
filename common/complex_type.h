@@ -70,6 +70,7 @@ class StructBase : public P4ComplexInstance {
     const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
         return &members;
     }
+    virtual void propagate_validity(z3::expr *)  {}
 
     ~StructBase() {}
     // copy constructor
@@ -80,6 +81,9 @@ class StructBase : public P4ComplexInstance {
 
 class StructInstance : public StructBase {
     using StructBase::StructBase;
+
+ public:
+    void propagate_validity(z3::expr *valid_expr) override;
 };
 
 class HeaderInstance : public StructBase {
@@ -98,6 +102,7 @@ class HeaderInstance : public StructBase {
     z3::expr is_valid();
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") override;
+    void propagate_validity(z3::expr *valid_expr) override;
 };
 
 class EnumInstance : public StructBase {
@@ -131,7 +136,6 @@ class ErrorInstance : public StructBase {
                   uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") override;
-
 }; // namespace TOZ3_V2
 
 class ExternInstance : public P4ComplexInstance {
