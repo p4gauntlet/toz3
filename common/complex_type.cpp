@@ -4,7 +4,6 @@
 #include <utility>
 
 #include "scope.h"
-#include "z3_int.h"
 
 namespace TOZ3_V2 {
 

@@ -14,31 +14,14 @@
 
 #include "ir/ir.h"
 #include "scope.h"
-#include "z3_int.h"
 
 namespace TOZ3_V2 {
-
-class ControlState : public P4ComplexInstance {
- public:
-    std::vector<std::pair<cstring, z3::expr>> state_vars;
-    ControlState(std::vector<std::pair<cstring, z3::expr>> state_vars)
-        : state_vars(state_vars){};
-};
-
-class P4Declaration : public P4ComplexInstance {
-    // A wrapper class for declarations
- public:
-    const IR::Declaration *decl;
-    // constructor
-    P4Declaration(const IR::Declaration *decl) : decl(decl) {}
-};
 
 class P4State {
  public:
     z3::context *ctx;
     std::vector<P4ComplexInstance *> allocated_vars;
     z3::expr formula = ctx->bool_val(true);
-    std::map<cstring, const IR::Type *> type_map;
     std::vector<P4Scope *> scopes;
     P4Scope *main_scope;
     P4Z3Instance return_expr = nullptr;
@@ -80,6 +63,7 @@ class P4State {
     const IR::Type *resolve_type(const IR::Type *type);
     void add_type(cstring type_name, const IR::Type *t);
     const IR::Type *get_type(cstring decl_name);
+    const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
 
     void update_var(cstring name, P4Z3Instance var);
     void declare_local_var(cstring name, P4Z3Instance var);

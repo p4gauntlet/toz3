@@ -10,8 +10,8 @@
 
 #include "ir/ir.h"
 #include "lib/cstring.h"
+
 #include "state.h"
-#include "z3_int.h"
 
 namespace TOZ3_V2 {
 

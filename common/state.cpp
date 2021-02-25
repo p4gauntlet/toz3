@@ -49,16 +49,28 @@ void P4State::push_scope() {
 void P4State::pop_scope() { scopes.pop_back(); }
 
 void P4State::add_type(cstring type_name, const IR::Type *t) {
-    type_map[type_name] = t;
+    P4Scope *target_scope = nullptr;
+    find_type(type_name, &target_scope);
+    if (target_scope) {
+        FATAL_ERROR("Variable %s already exists in target scope.", type_name);
+    } else {
+        if (scopes.empty()) {
+            main_scope->add_type(type_name, t);
+            // assume we insert into the global scope
+        } else {
+            scopes.back()->add_type(type_name, t);
+        }
+    }
 }
 
 const IR::Type *P4State::get_type(cstring type_name) {
-    if (type_map.count(type_name)) {
-        return type_map[type_name];
-    } else {
-        BUG("Type name \"%s\" not found!.", type_name);
+    for (P4Scope *scope : scopes) {
+        if (scope->has_type(type_name)) {
+            return scope->get_type(type_name);
+        }
     }
-    return nullptr;
+    // also check the parent scope
+    return main_scope->get_type(type_name);
 }
 
 const IR::Type *P4State::resolve_type(const IR::Type *type) {
@@ -70,30 +82,42 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) {
     return ret_type;
 }
 
-P4Z3Instance P4State::get_var(cstring name) {
+const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
     for (P4Scope *scope : scopes) {
-        if (scope->value_map.count(name)) {
-            return scope->value_map.at(name);
+        if (scope->has_type(type_name)) {
+            *owner_scope = scope;
+            return scope->get_type(type_name);
         }
     }
     // also check the parent scope
-    if (main_scope->value_map.count(name)) {
-        return main_scope->value_map.at(name);
+    if (main_scope->has_type(type_name)) {
+        *owner_scope = main_scope;
+        return main_scope->get_type(type_name);
     }
     return nullptr;
 }
 
-P4Z3Instance P4State::find_var(cstring name, P4Scope **owner_scope) {
+P4Z3Instance P4State::get_var(cstring name) {
     for (P4Scope *scope : scopes) {
-        if (scope->value_map.count(name)) {
-            *owner_scope = scope;
-            return scope->value_map.at(name);
+        if (scope->has_var(name)) {
+            return scope->get_var(name);
         }
     }
     // also check the parent scope
-    if (main_scope->value_map.count(name)) {
+    return main_scope->get_var(name);
+}
+
+P4Z3Instance P4State::find_var(cstring name, P4Scope **owner_scope) {
+    for (P4Scope *scope : scopes) {
+        if (scope->has_var(name)) {
+            *owner_scope = scope;
+            return scope->get_var(name);
+        }
+    }
+    // also check the parent scope
+    if (main_scope->has_var(name)) {
         *owner_scope = main_scope;
-        return main_scope->value_map.at(name);
+        return main_scope->get_var(name);
     }
     return nullptr;
 }
@@ -102,7 +126,7 @@ void P4State::update_var(cstring name, P4Z3Instance var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
-        target_scope->value_map.at(name) = var;
+        target_scope->get_var(name) = var;
     } else {
         FATAL_ERROR("Variable %s not found.", name);
     }
@@ -111,9 +135,9 @@ void P4State::update_var(cstring name, P4Z3Instance var) {
 void P4State::declare_local_var(cstring name, P4Z3Instance var) {
     if (scopes.empty()) {
         // assume we insert into the global scope
-        main_scope->value_map.insert({name, var});
+        main_scope->declare_var(name, var);
     } else {
-        scopes.back()->value_map.insert({name, var});
+        scopes.back()->declare_var(name, var);
     }
 }
 
@@ -126,10 +150,10 @@ void P4State::declare_var(cstring name, const IR::Declaration *decl) {
         auto decl_instance = new P4Declaration(decl);
         add_to_allocated(decl_instance);
         if (scopes.empty()) {
-            main_scope->value_map.insert({name, decl_instance});
+            main_scope->declare_var(name, decl_instance);
             // assume we insert into the global scope
         } else {
-            scopes.back()->value_map.insert({name, decl_instance});
+            scopes.back()->declare_var(name, decl_instance);
         }
     }
 }
@@ -142,14 +166,14 @@ std::vector<P4Scope *> P4State::checkpoint() {
     for (P4Scope *scope : old_scopes) {
         P4Scope *cloned_scope = new P4Scope();
         std::map<cstring, P4Z3Instance> cloned_map;
-        for (auto value_tuple : scope->value_map) {
+        for (auto value_tuple : *scope->get_var_map()) {
             auto var_name = value_tuple.first;
             auto var = value_tuple.second;
             if (auto complex_var = check_complex<StructInstance>(var)) {
                 P4Z3Instance cloned_var = new StructInstance(*complex_var);
-                cloned_scope->value_map.insert({var_name, cloned_var});
+                cloned_scope->declare_var(var_name, cloned_var);
             } else {
-                cloned_scope->value_map.insert({var_name, var});
+                cloned_scope->declare_var(var_name, var);
             }
         }
         scopes.push_back(cloned_scope);
@@ -200,7 +224,8 @@ void P4State::merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
     for (size_t i = 1; i < then_state.size(); ++i) {
         P4Scope *then_scope = then_state[i];
         P4Scope *else_scope = else_state[i];
-        merge_var_maps(cond, &then_scope->value_map, &else_scope->value_map);
+        merge_var_maps(cond, then_scope->get_var_map(),
+                       else_scope->get_var_map());
     }
 }
 } // namespace TOZ3_V2

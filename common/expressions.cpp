@@ -4,11 +4,11 @@
 #include <iostream>
 #include <utility>
 
-#include "complex_type.h"
 #include "lib/exceptions.h"
+
+#include "complex_type.h"
 #include "scope.h"
 #include "state.h"
-#include "z3_int.h"
 #include "z3_interpreter.h"
 
 namespace TOZ3_V2 {
@@ -67,7 +67,8 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
-        state->return_expr = state->create_int(c->value, -1);
+        auto val_string = Util::toString(c->value, 0, false);
+        state->return_expr = state->ctx->int_val(val_string);
         return false;
     }
     BUG("Constant Node %s not implemented!", c->type->node_type_name());

@@ -4,7 +4,6 @@
 #include "complex_type.h"
 #include "lib/exceptions.h"
 #include "type_map.h"
-#include "z3_int.h"
 #include "z3_interpreter.h"
 
 namespace TOZ3_V2 {
