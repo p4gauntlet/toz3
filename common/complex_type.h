@@ -11,9 +11,34 @@
 #include "ir/ir.h"
 #include "lib/cstring.h"
 
-#include "state.h"
+#include "base_type.h"
 
 namespace TOZ3_V2 {
+
+// Forward declare state
+class P4State;
+
+class ControlState : public P4ComplexInstance {
+ public:
+    std::vector<std::pair<cstring, z3::expr>> state_vars;
+    ControlState(std::vector<std::pair<cstring, z3::expr>> state_vars)
+        : state_vars(state_vars){};
+};
+
+class P4Declaration : public P4ComplexInstance {
+    // A wrapper class for declarations
+ public:
+    const IR::Declaration *decl;
+    // constructor
+    P4Declaration(const IR::Declaration *decl) : decl(decl) {}
+};
+
+class Z3Int : public P4ComplexInstance {
+ public:
+    z3::expr val;
+    int64_t width;
+    Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
+};
 
 class StructInstance : public P4ComplexInstance {
  private:
@@ -39,6 +64,9 @@ class StructInstance : public P4ComplexInstance {
         members.insert({name, val});
     }
     std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
+    const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
+        return &members;
+    }
 
     ~StructInstance() {}
     // copy constructor
@@ -68,6 +96,9 @@ class EnumInstance : public P4ComplexInstance {
         members.insert({name, val});
     }
     std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
+    const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
+        return &members;
+    }
 };
 
 class ErrorInstance : public P4ComplexInstance {
@@ -92,7 +123,10 @@ class ErrorInstance : public P4ComplexInstance {
         members.insert({name, val});
     }
     std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
-};
+    const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
+        return &members;
+    }
+}; // namespace TOZ3_V2
 
 class ExternInstance : public P4ComplexInstance {
  private:

@@ -117,7 +117,7 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
 
 bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     // TODO: Casting
-    P4Z3Instance left = nullptr;
+    P4Z3Instance left;
     if (dv->initializer) {
         visit(dv->initializer);
         left = state->return_expr;

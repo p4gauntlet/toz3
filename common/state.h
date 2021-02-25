@@ -24,7 +24,7 @@ class P4State {
     z3::expr formula = ctx->bool_val(true);
     std::vector<P4Scope *> scopes;
     P4Scope *main_scope;
-    P4Z3Instance return_expr = nullptr;
+    P4Z3Instance return_expr;
 
     P4State(z3::context *context) : ctx(context) { main_scope = new P4Scope(); }
     ~P4State() {

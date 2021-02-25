@@ -184,4 +184,44 @@ ErrorInstance::get_z3_vars(cstring prefix) {
 ExternInstance::ExternInstance(P4State *, const IR::Type_Extern *type)
     : p4_type(type) {}
 
+// Some print definitions
+std::ostream &operator<<(std::ostream &out, const StructInstance &instance) {
+    out << "{";
+    auto member_map = instance.get_immutable_member_map();
+    for (auto it = member_map->begin(); it != member_map->end(); ++it) {
+        cstring name = it->first;
+        P4Z3Instance val = it->second;
+        out << name << ": " << val;
+        if (std::next(it) != member_map->end()) {
+            out << ", ";
+        }
+    }
+    out << "}";
+    return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const StructInstance *instance) {
+    return out << *instance;
+}
+
+std::ostream &operator<<(std::ostream &out, const Z3Int &instance) {
+    out << "Z3Int(" << instance.val << ")";
+    return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const Z3Int *instance) {
+    return out << *instance;
+}
+
+std::ostream &operator<<(std::ostream &out, const P4ComplexInstance *type) {
+    if (auto si = type->to<StructInstance>()) {
+        out << si;
+    } else if (auto z3_int = type->to<Z3Int>()) {
+        out << z3_int;
+    } else {
+        out << "P4ComplexInstance()";
+    }
+    return out;
+}
+
 } // namespace TOZ3_V2

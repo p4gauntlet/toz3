@@ -89,7 +89,7 @@ bool Z3Visitor::preorder(const IR::Cast *c) {
 }
 
 bool Z3Visitor::preorder(const IR::Member *m) {
-    P4Z3Instance complex_class = nullptr;
+    P4Z3Instance complex_class;
     const IR::Expression *parent = m->expr;
     if (auto member = parent->to<IR::Member>()) {
         visit(member);
@@ -138,7 +138,7 @@ Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Declaration *callable;
     const IR::ParameterList *params;
-    P4Z3Instance return_expr = nullptr;
+    P4Z3Instance return_expr;
 
     if (auto path_expr = mce->method->to<IR::PathExpression>()) {
         P4Declaration *method_decl =
