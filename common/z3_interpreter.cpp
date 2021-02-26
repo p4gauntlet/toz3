@@ -100,11 +100,22 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
         P4Z3Instance *complex_class = &state->return_expr;
         if (auto si = to_type<StructBase>(complex_class)) {
             si->update_member(member->member.name, val);
-        }  else {
+        } else {
             BUG("Can not cast to StructBase.");
         }
     } else {
         BUG("Unknown target %s!", target->node_type_name());
+    }
+}
+
+std::function<void(void)>
+Z3Visitor::get_method_member(const IR::Member *member) {
+    visit(member->expr);
+    P4Z3Instance *complex_class = &state->return_expr;
+    if (auto si = to_type<StructBase>(complex_class)) {
+        return si->get_function(member->member.name);
+    } else {
+        BUG("Method member not supported.");
     }
 }
 

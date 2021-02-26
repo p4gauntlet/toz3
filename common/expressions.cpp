@@ -146,6 +146,10 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             BUG("Method type %s not supported.",
                 method_decl->decl->node_type_name());
         }
+    } else if (auto member = mce->method->to<IR::Member>()) {
+        auto method = get_method_member(member);
+        method();
+        return false;
     } else {
         BUG("Method reference %s not supported.",
             mce->method->node_type_name());
@@ -192,7 +196,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
             auto par_type = state->resolve_type(param->type);
             P4Z3Instance var = state->gen_instance(param->name.name, par_type);
             if (auto z3_var = to_type<StructBase>(&var)) {
-                z3_var->propagate_validity(nullptr);
+                z3_var->propagate_validity();
             }
             state->declare_local_var(param->name.name, var);
             state_names.push_back(param->name.name);

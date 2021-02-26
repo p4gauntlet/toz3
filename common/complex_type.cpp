@@ -138,13 +138,21 @@ void StructInstance::propagate_validity(z3::expr *valid_expr) {
 
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
-    : StructBase(state, type, member_id), valid(state->ctx->bool_val(false)) {}
+    : StructBase(state, type, member_id), valid(state->ctx->bool_val(false)) {
+    member_functions["setValid"] = std::bind(&HeaderInstance::setValid, this);
+    member_functions["setInvalid"] =
+        std::bind(&HeaderInstance::setInvalid, this);
+    member_functions["isValid"] = std::bind(&HeaderInstance::isValid, this);
+}
 
-void HeaderInstance::set_valid() { valid = state->ctx->bool_val(true); }
+void HeaderInstance::set_valid(z3::expr *valid_val) { valid = *valid_val; }
+z3::expr *HeaderInstance::get_valid() { return &valid; }
 
-void HeaderInstance::set_invalid() { valid = state->ctx->bool_val(false); }
+void HeaderInstance::setValid() { valid = state->ctx->bool_val(true); }
 
-z3::expr HeaderInstance::is_valid() { return valid; }
+void HeaderInstance::setInvalid() { valid = state->ctx->bool_val(false); }
+
+void HeaderInstance::isValid() { state->return_expr = valid; }
 
 void HeaderInstance::propagate_validity(z3::expr *valid_expr) {
     if (valid_expr) {

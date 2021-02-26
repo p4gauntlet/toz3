@@ -44,6 +44,7 @@ class StructBase : public P4ComplexInstance {
  protected:
     P4State *state;
     std::map<cstring, P4Z3Instance> members;
+    std::map<cstring, std::function<void()>> member_functions;
     std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
     uint64_t width;
@@ -59,6 +60,9 @@ class StructBase : public P4ComplexInstance {
     uint64_t get_width() { return width; }
 
     P4Z3Instance get_member(cstring name) { return members.at(name); }
+    std::function<void()> get_function(cstring name) {
+        return member_functions.at(name);
+    }
 
     void update_member(cstring name, P4Z3Instance val) {
         members.at(name) = val;
@@ -70,7 +74,7 @@ class StructBase : public P4ComplexInstance {
     const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
         return &members;
     }
-    virtual void propagate_validity(z3::expr *)  {}
+    virtual void propagate_validity(z3::expr * = nullptr) {}
 
     ~StructBase() {}
     // copy constructor
@@ -83,7 +87,7 @@ class StructInstance : public StructBase {
     using StructBase::StructBase;
 
  public:
-    void propagate_validity(z3::expr *valid_expr) override;
+    void propagate_validity(z3::expr *valid_expr = nullptr) override;
 };
 
 class HeaderInstance : public StructBase {
@@ -95,14 +99,16 @@ class HeaderInstance : public StructBase {
  public:
     HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
-    void set_valid();
 
-    void set_invalid();
+    void set_valid(z3::expr *valid_val);
+    z3::expr *get_valid();
 
-    z3::expr is_valid();
+    void setValid();
+    void setInvalid();
+    void isValid();
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") override;
-    void propagate_validity(z3::expr *valid_expr) override;
+    void propagate_validity(z3::expr *valid_expr = nullptr) override;
 };
 
 class EnumInstance : public StructBase {

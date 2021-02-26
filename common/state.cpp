@@ -226,13 +226,22 @@ void P4State::merge_var_maps(z3::expr cond,
             } else {
                 BUG("Z3 Struct Merge not yet supported. ");
             }
+            if (auto z3_then_var = to_type<HeaderInstance>(then_var)) {
+                if (auto z3_else_var = to_type<HeaderInstance>(else_var)) {
+                    auto valid_merge = z3::ite(cond, *z3_then_var->get_valid(),
+                                               *z3_else_var->get_valid());
+                    z3_then_var->set_valid(&valid_merge);
+                } else {
+                    BUG("Z3 Valid Merge of this type not supported. ");
+                }
+            }
         } else if (auto z3_then_var = to_type<P4Declaration>(then_var)) {
             // these are constant, do nothing
         } else {
             BUG("State merge not supported. ");
         }
     }
-} // namespace TOZ3_V2
+}
 
 void P4State::merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
                           std::vector<P4Scope *> else_state) {
