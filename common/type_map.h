@@ -23,7 +23,8 @@ class TypeVisitor : public Inspector {
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
-        FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());
+        FATAL_ERROR("TypeVisitor: IR Node %s not implemented!",
+                    expr->node_type_name());
         return false;
     }
 
@@ -60,6 +61,7 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::P4Control *c) override;
 
     /***** Declarations *****/
+    bool preorder(const IR::Function *f) override;
     bool preorder(const IR::Method *m) override;
     bool preorder(const IR::P4Action *a) override;
     bool preorder(const IR::P4Table *t) override;

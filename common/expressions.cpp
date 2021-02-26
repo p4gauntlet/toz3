@@ -37,13 +37,13 @@ P4Z3Instance Z3Visitor::cast(P4Z3Instance *expr, const IR::Type *dest_type) {
 
 bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->left);
-    auto left = &state->return_expr;
+    P4Z3Instance left = state->copy_expr_result();
     visit(expr->right);
-    auto right = &state->return_expr;
+    P4Z3Instance right = state->copy_expr_result();
 
-    if (z3::expr *z3_left_var = to_type<z3::expr>(left)) {
-        if (z3::expr *z3_right_var = to_type<z3::expr>(right)) {
-            state->return_expr = *z3_left_var == *z3_right_var;
+    if (z3::expr *z3_left_var = to_type<z3::expr>(&left)) {
+        if (z3::expr *z3_right_var = to_type<z3::expr>(&right)) {
+            state->set_expr_result(*z3_left_var == *z3_right_var);
         } else {
             BUG("Z3 eq with int not yet supported. ");
         }
@@ -56,15 +56,15 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (auto tb = c->type->to<IR::Type_Bits>()) {
         if (tb->isSigned) {
-            state->return_expr = state->create_int(c->value, tb->size);
+            state->set_expr_result(state->create_int(c->value, tb->size));
         } else {
             auto val_string = Util::toString(c->value, 0, false);
-            state->return_expr = state->ctx->bv_val(val_string, tb->size);
+            state->set_expr_result(state->ctx->bv_val(val_string, tb->size));
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        state->return_expr = state->ctx->int_val(val_string);
+        state->set_expr_result(state->ctx->int_val(val_string));
         return false;
     }
     BUG("Constant Node %s not implemented!", c->type->node_type_name());
@@ -72,15 +72,15 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 
 bool Z3Visitor::preorder(const IR::PathExpression *p) {
     P4Scope *scope;
-    state->return_expr = *state->find_var(p->path->name, &scope);
+    state->set_expr_result(state->find_var(p->path->name, &scope));
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::Cast *c) {
     // resolve expression
     visit(c->expr);
-    auto resolved_expr = state->return_expr;
-    state->return_expr = cast(&resolved_expr, c->destType);
+    P4Z3Instance *resolved_expr = state->get_expr_result();
+    state->set_expr_result(cast(resolved_expr, c->destType));
     return false;
 }
 
@@ -89,14 +89,14 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     const IR::Expression *parent = m->expr;
     if (auto member = parent->to<IR::Member>()) {
         visit(member);
-        complex_class = &state->return_expr;
+        complex_class = state->get_expr_result();
     } else if (auto name = parent->to<IR::PathExpression>()) {
         complex_class = state->get_var(name->path->name);
     } else {
         BUG("Parent Type  %s not implemented!", parent->node_type_name());
     }
     if (auto si = to_type<StructBase>(complex_class)) {
-        state->return_expr = si->get_member(m->member.name);
+        state->set_expr_result(si->get_member(m->member.name));
     } else {
         BUG("Can not cast to StructBase.");
     }
@@ -134,7 +134,6 @@ Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Declaration *callable;
     const IR::ParameterList *params;
-    P4Z3Instance return_expr;
 
     if (auto path_expr = mce->method->to<IR::PathExpression>()) {
         P4Declaration *method_decl =
@@ -142,6 +141,9 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         if (auto p4action = method_decl->decl->to<IR::P4Action>()) {
             callable = p4action;
             params = p4action->getParameters();
+        } else if (auto fun = method_decl->decl->to<IR::Function>()) {
+            callable = fun;
+            params = fun->getParameters();
         } else {
             BUG("Method type %s not supported.",
                 method_decl->decl->node_type_name());
@@ -166,7 +168,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         state->declare_local_var(param_name, arg_val);
     }
     visit(callable);
-    return_expr = state->return_expr;
+    P4Z3Instance expr_result = state->copy_expr_result();
 
     std::vector<P4Z3Instance> copy_out_vals;
     for (auto arg_tuple : copy_out_args) {
@@ -178,10 +180,10 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
         auto target = arg_tuple.first;
-        set_var(target, copy_out_vals[idx]);
+        set_var(target, &copy_out_vals[idx]);
         idx++;
     }
-    state->return_expr = return_expr;
+    state->set_expr_result(expr_result);
     return false;
 }
 
@@ -235,7 +237,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     // FIXME: Figure out when and how to free this
     auto ctrl_state = new ControlState(state_vars);
     // state->add_to_allocated(ctrl_state);
-    state->return_expr = ctrl_state;
+    state->set_expr_result(ctrl_state);
 
     return false;
 }

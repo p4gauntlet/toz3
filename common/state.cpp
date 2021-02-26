@@ -173,12 +173,12 @@ void P4State::declare_var(cstring name, const IR::Declaration *decl) {
     }
 }
 
-std::vector<P4Scope *> P4State::checkpoint() {
-    std::vector<P4Scope *> old_scopes = scopes;
-    std::vector<P4Scope *> cloned_scopes;
+ProgState P4State::checkpoint() {
+    ProgState old_state = scopes;
+    ProgState cloned_state;
 
-    scopes = cloned_scopes;
-    for (P4Scope *scope : old_scopes) {
+    scopes = cloned_state;
+    for (P4Scope *scope : old_state) {
         P4Scope *cloned_scope = new P4Scope();
         std::map<cstring, P4Z3Instance> cloned_map;
         for (auto value_tuple : *scope->get_var_map()) {
@@ -193,7 +193,7 @@ std::vector<P4Scope *> P4State::checkpoint() {
         }
         scopes.push_back(cloned_scope);
     }
-    return old_scopes;
+    return old_state;
 }
 
 void P4State::merge_var_maps(z3::expr cond,
@@ -243,8 +243,8 @@ void P4State::merge_var_maps(z3::expr cond,
     }
 }
 
-void P4State::merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
-                          std::vector<P4Scope *> else_state) {
+void P4State::merge_state(z3::expr cond, ProgState then_state,
+                          ProgState else_state) {
     for (size_t i = 1; i < then_state.size(); ++i) {
         P4Scope *then_scope = then_state[i];
         P4Scope *else_scope = else_state[i];

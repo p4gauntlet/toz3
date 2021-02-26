@@ -30,7 +30,7 @@ Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
             visit(arg->expression);
-            merged_vec.insert({param->name.name, state->return_expr});
+            merged_vec.insert({param->name.name, state->copy_expr_result()});
         } else {
             auto arg_expr = state->gen_instance(param->name.name, param->type);
             merged_vec.insert({param->name.name, arg_expr});
@@ -59,11 +59,23 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::Function *f) {
+    visit(f->body);
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
+bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
+    visit(r->expression);
+    state->return_exprs.push_back(state->copy_expr_result());
+    state->return_states.push_back(state->checkpoint());
+
+    return false;
+     }
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
-    auto cond = state->return_expr;
+    auto cond = state->copy_expr_result();
     std::vector<P4Scope *> saved_state = state->checkpoint();
     visit(ifs->ifTrue);
     std::vector<P4Scope *> then_state = state->get_state();
@@ -92,14 +104,14 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
+void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
-        state->update_var(name->path->name, val);
+        state->update_var(name->path->name, *val);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
-        P4Z3Instance *complex_class = &state->return_expr;
+        P4Z3Instance *complex_class = state->get_expr_result();
         if (auto si = to_type<StructBase>(complex_class)) {
-            si->update_member(member->member.name, val);
+            si->update_member(member->member.name, *val);
         } else {
             BUG("Can not cast to StructBase.");
         }
@@ -111,7 +123,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
 std::function<void(void)>
 Z3Visitor::get_method_member(const IR::Member *member) {
     visit(member->expr);
-    P4Z3Instance *complex_class = &state->return_expr;
+    P4Z3Instance *complex_class = state->get_expr_result();
     if (auto si = to_type<StructBase>(complex_class)) {
         return si->get_function(member->member.name);
     } else {
@@ -121,7 +133,7 @@ Z3Visitor::get_method_member(const IR::Member *member) {
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
-    set_var(as->left, state->return_expr);
+    set_var(as->left, state->get_expr_result());
     return false;
 }
 
@@ -130,12 +142,11 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance left;
     if (dv->initializer) {
         visit(dv->initializer);
-        left = state->return_expr;
-        state->declare_local_var(dv->name.name, state->return_expr);
+        left = state->copy_expr_result();
     } else {
         left = state->gen_instance("undefined", dv->type);
-        state->declare_local_var(dv->name.name, left);
     }
+        state->declare_local_var(dv->name.name, left);
     return false;
 }
 

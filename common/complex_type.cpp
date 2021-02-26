@@ -152,7 +152,7 @@ void HeaderInstance::setValid() { valid = state->ctx->bool_val(true); }
 
 void HeaderInstance::setInvalid() { valid = state->ctx->bool_val(false); }
 
-void HeaderInstance::isValid() { state->return_expr = valid; }
+void HeaderInstance::isValid() { state->set_expr_result(valid); }
 
 void HeaderInstance::propagate_validity(z3::expr *valid_expr) {
     if (valid_expr) {

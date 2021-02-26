@@ -17,14 +17,24 @@
 
 namespace TOZ3_V2 {
 
+typedef std::vector<P4Scope *> ProgState;
+
 class P4State {
- public:
-    z3::context *ctx;
+
+ private:
     std::vector<P4ComplexInstance *> allocated_vars;
-    z3::expr formula = ctx->bool_val(true);
-    std::vector<P4Scope *> scopes;
+    ProgState scopes;
     P4Scope *main_scope;
-    P4Z3Instance return_expr;
+    P4Z3Instance expr_result;
+
+    void merge_var_maps(z3::expr cond,
+                        std::map<cstring, P4Z3Instance> *then_map,
+                        std::map<cstring, P4Z3Instance> *else_map);
+
+ public:
+    std::vector<P4Z3Instance> return_exprs;
+    std::vector<ProgState> return_states;
+    z3::context *ctx;
 
     P4State(z3::context *context) : ctx(context) { main_scope = new P4Scope(); }
     ~P4State() {
@@ -47,16 +57,10 @@ class P4State {
                               uint64_t id = 0);
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
 
-    std::vector<P4Scope *> get_state() { return scopes; }
-    void merge_var_maps(z3::expr cond,
-                        std::map<cstring, P4Z3Instance> *then_map,
-                        std::map<cstring, P4Z3Instance> *else_map);
+    ProgState get_state() { return scopes; }
 
-    void merge_state(z3::expr cond, std::vector<P4Scope *> then_state,
-                     std::vector<P4Scope *> else_state);
-    void restore_state(std::vector<P4Scope *> set_scopes) {
-        scopes = set_scopes;
-    }
+    void merge_state(z3::expr cond, ProgState then_state, ProgState else_state);
+    void restore_state(ProgState set_scopes) { scopes = set_scopes; }
 
     void push_scope();
     void pop_scope();
@@ -81,7 +85,7 @@ class P4State {
     }
 
     void resolve_expr(const IR::Expression *expr);
-    std::vector<P4Scope *> checkpoint();
+    ProgState checkpoint();
 
     Z3Int *create_int(big_int value, uint64_t width) {
         auto val_string = Util::toString(value, 0, false);
@@ -89,6 +93,11 @@ class P4State {
         add_to_allocated(var);
         return var;
     }
+
+    P4Z3Instance *get_expr_result() { return &expr_result; }
+    P4Z3Instance copy_expr_result() { return expr_result; }
+    void set_expr_result(P4Z3Instance *result) { expr_result = *result; }
+    void set_expr_result(P4Z3Instance result) { expr_result = result; }
 };
 
 } // namespace TOZ3_V2
