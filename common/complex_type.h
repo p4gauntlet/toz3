@@ -18,6 +18,12 @@ namespace TOZ3_V2 {
 // Forward declare state
 class P4State;
 
+P4Z3Instance cast(P4State *state, P4Z3Instance *expr,
+                  const IR::Type *dest_type);
+z3::expr z3_cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type);
+z3::expr complex_cast(P4State *state, P4Z3Instance *expr,
+                      P4ComplexInstance *dest_type);
+
 class ControlState : public P4ComplexInstance {
  public:
     std::vector<std::pair<cstring, z3::expr>> state_vars;
@@ -38,6 +44,14 @@ class Z3Int : public P4ComplexInstance {
     z3::expr val;
     int64_t width;
     Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
+
+    virtual z3::expr operator==(const P4ComplexInstance &other) {
+        if (auto other_int = other.to<Z3Int>()) {
+            return val == other_int->val;
+        } else {
+            BUG("Unsupported Z3Int comparison.");
+        }
+    }
 };
 
 class StructBase : public P4ComplexInstance {

@@ -28,6 +28,10 @@ class P4ComplexInstance {
         return dynamic_cast<const T &>(*this);
     }
     virtual ~P4ComplexInstance() = default;
+
+    virtual z3::expr operator==(const P4ComplexInstance &) {
+        BUG("Equality not implemented.");
+    }
 };
 
 class Z3Int;

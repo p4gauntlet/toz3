@@ -65,13 +65,14 @@ bool Z3Visitor::preorder(const IR::Function *f) {
 }
 
 bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
+
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     visit(r->expression);
     state->return_exprs.push_back(state->copy_expr_result());
     state->return_states.push_back(state->checkpoint());
 
     return false;
-     }
+}
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
@@ -104,14 +105,14 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
+void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance val) {
     if (auto name = target->to<IR::PathExpression>()) {
-        state->update_var(name->path->name, *val);
+        state->update_var(name->path->name, val);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
         P4Z3Instance *complex_class = state->get_expr_result();
         if (auto si = to_type<StructBase>(complex_class)) {
-            si->update_member(member->member.name, *val);
+            si->update_member(member->member.name, val);
         } else {
             BUG("Can not cast to StructBase.");
         }
@@ -133,7 +134,7 @@ Z3Visitor::get_method_member(const IR::Member *member) {
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
-    set_var(as->left, state->get_expr_result());
+    set_var(as->left, state->copy_expr_result());
     return false;
 }
 
@@ -146,7 +147,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     } else {
         left = state->gen_instance("undefined", dv->type);
     }
-        state->declare_local_var(dv->name.name, left);
+    state->declare_local_var(dv->name.name, left);
     return false;
 }
 

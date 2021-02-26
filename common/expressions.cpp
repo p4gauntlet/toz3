@@ -13,43 +13,28 @@
 
 namespace TOZ3_V2 {
 
-P4Z3Instance Z3Visitor::cast(P4Z3Instance *expr, const IR::Type *dest_type) {
-    if (auto tb = dest_type->to<IR::Type_Bits>()) {
-        if (z3::expr *z3_var = to_type<z3::expr>(expr)) {
-            if (z3_var->get_sort().is_bv()) {
-                return state->ctx->bv_val(z3_var->get_decimal_string(0).c_str(),
-                                          dest_type->width_bits());
-            } else {
-                BUG("Cast type not supported ");
-            }
-        } else if (auto z3_var = to_type<Z3Int>(expr)) {
-            auto val_string = z3_var->val.get_decimal_string(0);
-            return state->ctx->bv_val(val_string.c_str(),
-                                      dest_type->width_bits());
-        } else {
-            BUG("Cast from expr xpr to node %s supported ",
-                dest_type->node_type_name());
-        }
-    } else {
-        BUG("Cast to type %s not supported", dest_type->node_type_name());
-    }
-}
-
 bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->left);
     P4Z3Instance left = state->copy_expr_result();
     visit(expr->right);
     P4Z3Instance right = state->copy_expr_result();
 
-    if (z3::expr *z3_left_var = to_type<z3::expr>(&left)) {
-        if (z3::expr *z3_right_var = to_type<z3::expr>(&right)) {
-            state->set_expr_result(*z3_left_var == *z3_right_var);
+    if (z3::expr *z3_left_expr = to_type<z3::expr>(&left)) {
+        auto sort = z3_left_expr->get_sort();
+        auto cast_expr = z3_cast(state, &right, &sort);
+        state->set_expr_result(*z3_left_expr == cast_expr);
+    } else if (P4ComplexInstance *z3_left_expr =
+                   to_type<P4ComplexInstance>(&left)) {
+        if (P4ComplexInstance *z3_right_expr =
+                to_type<P4ComplexInstance>(&right)) {
+            state->set_expr_result(*z3_left_expr == *z3_right_expr);
         } else {
-            BUG("Z3 eq with int not yet supported. ");
+            BUG("Unsupported equality operation for complex class.");
         }
     } else {
-        BUG("Eq not supported. ");
+        BUG("Unsupported equality operation");
     }
+
     return false;
 }
 
@@ -63,11 +48,15 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
-        auto val_string = Util::toString(c->value, 0, false);
-        state->set_expr_result(state->ctx->int_val(val_string));
+        state->set_expr_result(state->create_int(c->value, 0));
         return false;
     }
     BUG("Constant Node %s not implemented!", c->type->node_type_name());
+}
+
+bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
+    state->set_expr_result(state->ctx->bool_val(bl->value));
+    return false;
 }
 
 bool Z3Visitor::preorder(const IR::PathExpression *p) {
@@ -80,7 +69,7 @@ bool Z3Visitor::preorder(const IR::Cast *c) {
     // resolve expression
     visit(c->expr);
     P4Z3Instance *resolved_expr = state->get_expr_result();
-    state->set_expr_result(cast(resolved_expr, c->destType));
+    state->set_expr_result(cast(state, resolved_expr, c->destType));
     return false;
 }
 
@@ -156,7 +145,6 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         BUG("Method reference %s not supported.",
             mce->method->node_type_name());
     }
-
     std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
         resolve_args(mce->arguments, params);
     P4Z3Result merged_args = merge_args_with_params(mce->arguments, params);
@@ -180,7 +168,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
         auto target = arg_tuple.first;
-        set_var(target, &copy_out_vals[idx]);
+        set_var(target, copy_out_vals[idx]);
         idx++;
     }
     state->set_expr_result(expr_result);
@@ -235,7 +223,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     state->pop_scope();
 
     // FIXME: Figure out when and how to free this
-    auto ctrl_state = new ControlState(state_vars);
+    P4Z3Instance ctrl_state = new ControlState(state_vars);
     // state->add_to_allocated(ctrl_state);
     state->set_expr_result(ctrl_state);
 

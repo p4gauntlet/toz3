@@ -83,7 +83,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::StructExpression *sie) override;
     bool preorder(const IR::ConstructorCallExpression *) override;
     bool preorder(const IR::MethodCallExpression *mce) override;
-    // bool preorder(const IR::BoolLiteral *bl) override;
+    bool preorder(const IR::BoolLiteral *bl) override;
     // bool preorder(const IR::StringLiteral *str) override;
 
     // void visit_unary(const IR::Operation_Unary *);
@@ -127,13 +127,12 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Declaration_MatchKind *) override;
     void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
                             const IR::Type *t);
-    P4Z3Instance cast(P4Z3Instance *expr, const IR::Type *destType);
     P4Z3Result merge_args_with_params(const IR::Vector<IR::Argument> *args,
                                       const IR::ParameterList *params);
     std::vector<std::pair<const IR::Expression *, cstring>>
     resolve_args(const IR::Vector<IR::Argument> *args,
                  const IR::ParameterList *params);
-    void set_var(const IR::Expression *target, P4Z3Instance *val);
+    void set_var(const IR::Expression *target, P4Z3Instance val);
     std::function<void(void)> get_method_member(const IR::Member *member);
 };
 } // namespace TOZ3_V2

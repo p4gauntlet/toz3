@@ -7,6 +7,68 @@
 
 namespace TOZ3_V2 {
 
+P4Z3Instance cast(P4State *state, P4Z3Instance *expr,
+                  const IR::Type *dest_type) {
+    if (auto tb = dest_type->to<IR::Type_Bits>()) {
+        if (z3::expr *z3_var = to_type<z3::expr>(expr)) {
+            if (z3_var->get_sort().is_bv()) {
+                return state->ctx->bv_val(z3_var->get_decimal_string(0).c_str(),
+                                          dest_type->width_bits());
+            } else {
+                BUG("Cast type not supported ");
+            }
+        } else if (auto z3_var = to_type<Z3Int>(expr)) {
+            auto val_string = z3_var->val.get_decimal_string(0);
+            return state->ctx->bv_val(val_string.c_str(),
+                                      dest_type->width_bits());
+        } else {
+            BUG("Cast from expr xpr to node %s supported ",
+                dest_type->node_type_name());
+        }
+    } else {
+        BUG("Cast to type %s not supported", dest_type->node_type_name());
+    }
+}
+
+z3::expr z3_bv_cast(z3::expr *expr, z3::sort *dest_type) {
+    uint64_t expr_size;
+    uint64_t dest_size = dest_type->bv_size();
+    if (expr->is_bv()) {
+        expr_size = expr->get_sort().bv_size();
+    } else if (expr->is_int()) {
+        return z3::int2bv(dest_type->bv_size(), *expr);
+    } else {
+        BUG("Cast to z3 bit vector type not supported.");
+    }
+
+    // At this point we are only dealing with expr bit vectors
+
+    if (expr_size < dest_size) {
+        // The target value is larger, extend with zeros
+        return z3::zext(*expr, dest_size - expr_size);
+    } else if (expr_size > dest_size) {
+        // The target value is smaller, truncate everything on the right
+        return expr->extract(dest_size - 1, 0);
+    } else {
+        // Nothing to do just return
+        return *expr;
+    }
+}
+
+z3::expr z3_cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type) {
+    if (dest_type->is_bv()) {
+        if (z3::expr *z3_var = to_type<z3::expr>(expr)) {
+            return z3_bv_cast(z3_var, dest_type);
+        } else if (auto z3_var = to_type<Z3Int>(expr)) {
+            return z3_bv_cast(&z3_var->val, dest_type);
+        } else {
+            BUG("Cast to bit vector type not supported.");
+        }
+    } else {
+        BUG("Cast not supported.");
+    }
+}
+
 StructBase::StructBase(P4State *state, const IR::Type_StructLike *type,
                        uint64_t member_id)
     : state(state), member_id(member_id), p4_type(type) {
@@ -115,7 +177,8 @@ StructBase::get_z3_vars(cstring prefix) {
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = to_type<Z3Int>(member)) {
-            // We receive an int that we need to cast towards the member type
+            // We receive an int that we need to cast towards the member
+            // type
             const IR::Type *type = member_types[member_tuple.first];
             auto val_string = z3_var->val.get_decimal_string(0);
             auto val =
@@ -197,7 +260,8 @@ HeaderInstance::get_z3_vars(cstring prefix) {
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = to_type<Z3Int>(member)) {
-            // We receive an int that we need to cast towards the member type
+            // We receive an int that we need to cast towards the member
+            // type
             const IR::Type *type = member_types[member_tuple.first];
             auto val_string = z3_var->val.get_decimal_string(0);
             auto val =
