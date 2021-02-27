@@ -27,7 +27,7 @@ class P4State {
     P4Scope *main_scope;
     P4Z3Instance expr_result;
 
-    void merge_var_maps(z3::expr cond,
+    void merge_var_maps(z3::expr *scond,
                         std::map<cstring, P4Z3Instance> *then_map,
                         std::map<cstring, P4Z3Instance> *else_map);
 

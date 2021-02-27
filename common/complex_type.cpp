@@ -69,6 +69,29 @@ z3::expr z3_cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type) {
     }
 }
 
+z3::expr merge_z3_expr(z3::expr *cond, z3::expr *then_expr,
+                       const P4Z3Instance *else_expr) {
+    if (const z3::expr *z3_var = to_const_type<z3::expr>(else_expr)) {
+        return z3::ite(*cond, *then_expr, *z3_var);
+    } else if (auto z3_var = to_const_type<Z3Int>(else_expr)) {
+        return z3::ite(*cond, *then_expr, z3_var->val);
+    } else {
+        BUG("Z3 expression merge not supported.");
+    }
+}
+
+void Z3Int::merge(z3::expr *cond, const P4ComplexInstance *other) {
+
+    if (auto other_int = other->to<Z3Int>()) {
+        val = z3::ite(*cond, val, other_int->val);
+    }
+    BUG("Unsupported merge class.");
+}
+
+void Z3Int::merge(z3::expr *cond, const z3::expr *other) {
+    val = z3::ite(*cond, val, *other);
+}
+
 StructBase::StructBase(P4State *state, const IR::Type_StructLike *type,
                        uint64_t member_id)
     : state(state), member_id(member_id), p4_type(type) {
@@ -190,6 +213,36 @@ StructBase::get_z3_vars(cstring prefix) {
     }
     return z3_vars;
 }
+
+void StructBase::merge(z3::expr *cond, const P4ComplexInstance *other) {
+    auto other_struct = other->to<StructBase>();
+
+    if (!other_struct) {
+        BUG("Unsupported merge class.");
+    }
+
+    for (auto member_tuple : members) {
+        cstring member_name = member_tuple.first;
+        P4Z3Instance *then_var = &member_tuple.second;
+        auto else_var = other_struct->get_const_member(member_name);
+        if (z3::expr *z3_then_var = to_type<z3::expr>(then_var)) {
+            z3::expr merged_expr = merge_z3_expr(cond, z3_then_var, else_var);
+            update_member(member_name, merged_expr);
+
+        } else if (auto then_complex = to_type<P4ComplexInstance>(then_var)) {
+            if (const z3::expr *z3_else_var =
+                    to_const_type<z3::expr>(else_var)) {
+                then_complex->merge(cond, z3_else_var);
+            } else if (auto else_complex =
+                           to_const_type<P4ComplexInstance>(else_var)) {
+                then_complex->merge(cond, else_complex);
+            } else {
+                BUG("Z3 complex merge not supported. ");
+            }
+        }
+    }
+}
+
 void StructInstance::propagate_validity(z3::expr *valid_expr) {
     for (auto member_tuple : members) {
         P4Z3Instance *member = &member_tuple.second;
@@ -209,7 +262,7 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
 }
 
 void HeaderInstance::set_valid(z3::expr *valid_val) { valid = *valid_val; }
-z3::expr *HeaderInstance::get_valid() { return &valid; }
+const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
 void HeaderInstance::setValid() { valid = state->ctx->bool_val(true); }
 
@@ -272,6 +325,17 @@ HeaderInstance::get_z3_vars(cstring prefix) {
         }
     }
     return z3_vars;
+}
+
+void HeaderInstance::merge(z3::expr *cond, const P4ComplexInstance *other) {
+    auto other_struct = other->to<HeaderInstance>();
+
+    if (!other_struct) {
+        BUG("Unsupported merge class.");
+    }
+    StructBase::merge(cond, other_struct);
+    auto valid_merge = z3::ite(*cond, *get_valid(), *other_struct->get_valid());
+    set_valid(&valid_merge);
 }
 
 EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,

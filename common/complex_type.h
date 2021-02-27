@@ -23,6 +23,8 @@ P4Z3Instance cast(P4State *state, P4Z3Instance *expr,
 z3::expr z3_cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type);
 z3::expr complex_cast(P4State *state, P4Z3Instance *expr,
                       P4ComplexInstance *dest_type);
+z3::expr merge_z3_expr(z3::expr cond, z3::expr *then_expr,
+                       const P4Z3Instance *else_expr);
 
 class ControlState : public P4ComplexInstance {
  public:
@@ -45,13 +47,15 @@ class Z3Int : public P4ComplexInstance {
     int64_t width;
     Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
 
-    virtual z3::expr operator==(const P4ComplexInstance &other) {
+    z3::expr operator==(const P4ComplexInstance &other) override {
         if (auto other_int = other.to<Z3Int>()) {
             return val == other_int->val;
         } else {
             BUG("Unsupported Z3Int comparison.");
         }
     }
+    void merge(z3::expr *cond, const P4ComplexInstance *) override;
+    void merge(z3::expr *cond, const z3::expr *) override;
 };
 
 class StructBase : public P4ComplexInstance {
@@ -73,7 +77,11 @@ class StructBase : public P4ComplexInstance {
 
     uint64_t get_width() { return width; }
 
-    P4Z3Instance get_member(cstring name) { return members.at(name); }
+    const P4Z3Instance *get_const_member(cstring name) const {
+        return &members.at(name);
+    }
+    P4Z3Instance *get_member(cstring name) { return &members.at(name); }
+
     std::function<void()> get_function(cstring name) {
         return member_functions.at(name);
     }
@@ -95,6 +103,8 @@ class StructBase : public P4ComplexInstance {
     StructBase(const StructBase &other);
     // overload = operator
     StructBase &operator=(const StructBase &other);
+
+    void merge(z3::expr *cond, const P4ComplexInstance *) override;
 };
 
 class StructInstance : public StructBase {
@@ -115,7 +125,8 @@ class HeaderInstance : public StructBase {
                    uint64_t member_id);
 
     void set_valid(z3::expr *valid_val);
-    z3::expr *get_valid();
+
+    const z3::expr *get_valid() const;
 
     void setValid();
     void setInvalid();
@@ -123,6 +134,8 @@ class HeaderInstance : public StructBase {
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
+
+    void merge(z3::expr *cond, const P4ComplexInstance *) override;
 };
 
 class EnumInstance : public StructBase {

@@ -196,7 +196,7 @@ ProgState P4State::checkpoint() {
     return old_state;
 }
 
-void P4State::merge_var_maps(z3::expr cond,
+void P4State::merge_var_maps(z3::expr *cond,
                              std::map<cstring, P4Z3Instance> *then_map,
                              std::map<cstring, P4Z3Instance> *else_map) {
     for (auto then_tuple : *then_map) {
@@ -204,36 +204,17 @@ void P4State::merge_var_maps(z3::expr cond,
         P4Z3Instance *then_var = &then_tuple.second;
         P4Z3Instance *else_var = &else_map->at(then_name);
         if (z3::expr *z3_then_var = to_type<z3::expr>(then_var)) {
-            if (z3::expr *z3_else_var = to_type<z3::expr>(else_var)) {
-                z3::expr merged_expr =
-                    z3::ite(cond, *z3_then_var, *z3_else_var);
-                then_map->at(then_name) = merged_expr;
+            then_map->at(then_name) =
+                merge_z3_expr(cond, z3_then_var, else_var);
+        } else if (auto then_complex = to_type<P4ComplexInstance>(then_var)) {
+            if (const z3::expr *z3_else_var =
+                    to_const_type<z3::expr>(else_var)) {
+                then_complex->merge(cond, z3_else_var);
+            } else if (auto else_complex =
+                           to_const_type<P4ComplexInstance>(else_var)) {
+                then_complex->merge(cond, else_complex);
             } else {
-                BUG("Z3 Expr Merge not yet supported. ");
-            }
-        } else if (auto z3_member_var = to_type<Z3Int>(then_var)) {
-            if (auto *z3_else_var = to_type<Z3Int>(else_var)) {
-                z3::expr merged_expr =
-                    z3::ite(cond, z3_member_var->val, z3_else_var->val);
-                then_map->at(then_name) = merged_expr;
-            } else {
-                BUG("Int merge with other type not yet supported. ");
-            }
-        } else if (auto z3_then_var = to_type<StructBase>(then_var)) {
-            if (auto z3_else_var = to_type<StructBase>(else_var)) {
-                merge_var_maps(cond, z3_then_var->get_member_map(),
-                               z3_else_var->get_member_map());
-            } else {
-                BUG("Z3 Struct Merge not yet supported. ");
-            }
-            if (auto z3_then_var = to_type<HeaderInstance>(then_var)) {
-                if (auto z3_else_var = to_type<HeaderInstance>(else_var)) {
-                    auto valid_merge = z3::ite(cond, *z3_then_var->get_valid(),
-                                               *z3_else_var->get_valid());
-                    z3_then_var->set_valid(&valid_merge);
-                } else {
-                    BUG("Z3 Valid Merge of this type not supported. ");
-                }
+                BUG("Z3 complex merge not supported. ");
             }
         } else if (auto z3_then_var = to_type<P4Declaration>(then_var)) {
             // these are constant, do nothing
@@ -248,7 +229,7 @@ void P4State::merge_state(z3::expr cond, ProgState then_state,
     for (size_t i = 1; i < then_state.size(); ++i) {
         P4Scope *then_scope = then_state[i];
         P4Scope *else_scope = else_state[i];
-        merge_var_maps(cond, then_scope->get_var_map(),
+        merge_var_maps(&cond, then_scope->get_var_map(),
                        else_scope->get_var_map());
     }
 }

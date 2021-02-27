@@ -86,7 +86,7 @@ int main(int argc, char *const argv[]) {
                     printf("Pipe %s state:\n", pipe_name.c_str());
                     for (auto tuple : pipe_vars->state_vars) {
                         auto name = tuple.first;
-                        auto var = tuple.second;
+                        auto var = tuple.second.simplify();
                         std::cout << name << ": " << var << "\n";
                     }
                 } else {

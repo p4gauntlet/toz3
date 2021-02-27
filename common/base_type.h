@@ -24,13 +24,18 @@ class P4ComplexInstance {
     template <typename T> const T *to() const {
         return dynamic_cast<const T *>(this);
     }
-    template <typename T> const T &as() const {
-        return dynamic_cast<const T &>(*this);
-    }
     virtual ~P4ComplexInstance() = default;
 
     virtual z3::expr operator==(const P4ComplexInstance &) {
         BUG("Equality not implemented.");
+    }
+
+    virtual void merge(z3::expr *, const P4ComplexInstance *) {
+        BUG("Complex expression merge not implemented.");
+    }
+
+    virtual void merge(z3::expr *, const z3::expr *) {
+        BUG("Z3 expression merge not implemented.");
     }
 };
 
@@ -65,6 +70,18 @@ template <typename T> T *to_type(P4Z3Instance *type) {
         return boost::get<T>(type);
     } else {
         BUG("Unsupported  type cast");
+    }
+}
+
+template <typename T> const T *to_const_type(const P4Z3Instance *type) {
+    if (type->which() == 0) {
+        const P4ComplexInstance *pi =
+            boost::get<P4ComplexInstance *>(*type);
+        return dynamic_cast<const T *>(pi);
+    } else if (type->which() == 1) {
+        return boost::get<const T>(type);
+    } else {
+        BUG("Unsupported type cast");
     }
 }
 
