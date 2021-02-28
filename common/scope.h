@@ -15,17 +15,22 @@
 namespace TOZ3_V2 {
 
 class P4Scope {
- public:
-    // constructor
-    P4Scope() {}
 
-    P4Z3Instance *get_var(cstring name) { return &var_map.at(name); }
-    void update_var(cstring name, P4Z3Instance val) { var_map.at(name) = val; }
-    void declare_var(cstring name, P4Z3Instance val) {
+ private:
+    bool is_returned = false;
+    std::vector<z3::expr> forward_conds;
+
+ public:
+    P4Z3Instance *get_var(cstring name) { return var_map.at(name); }
+    void update_var(cstring name, P4Z3Instance *val) { var_map.at(name) = val; }
+    void declare_var(cstring name, P4Z3Instance *val) {
         var_map.insert({name, val});
     }
     bool has_var(cstring name) { return var_map.count(name) > 0; }
-    std::map<cstring, P4Z3Instance> *get_var_map() { return &var_map; }
+    std::map<cstring, P4Z3Instance *> *get_var_map() { return &var_map; }
+    const std::map<cstring, P4Z3Instance *> *get_const_var_map() const {
+        return &var_map;
+    }
 
     void add_type(cstring type_name, const IR::Type *t) {
         type_map[type_name] = t;
@@ -45,12 +50,20 @@ class P4Scope {
         }
         return ret_type;
     }
+    bool has_returned() { return is_returned; }
+    void set_returned(bool return_state) { is_returned = return_state; }
+
+    void push_forward_cond(const z3::expr *forward_cond) {
+        return forward_conds.push_back(*forward_cond);
+    }
+    std::vector<z3::expr> get_forward_conds() { return forward_conds; }
+    void pop_forward_cond() { forward_conds.pop_back(); }
 
     std::map<cstring, const IR::Type *> *get_type_map() { return &type_map; }
 
  private:
     // maps of local values and types
-    std::map<cstring, P4Z3Instance> var_map;
+    std::map<cstring, P4Z3Instance *> var_map;
     std::map<cstring, const IR::Type *> type_map;
 };
 

@@ -101,7 +101,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
     // TODO: Casting
     dc->initializer->apply(resolve_expr);
-    state->declare_local_var(dc->name.name, state->copy_expr_result());
+    state->declare_local_var(dc->name.name, state->get_expr_result());
     return false;
 }
 
@@ -109,7 +109,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
     // TODO: Casting
     dv->initializer->apply(resolve_expr);
-    state->declare_local_var(dv->name.name, state->copy_expr_result());
+    state->declare_local_var(dv->name.name, state->get_expr_result());
     return false;
 }
 

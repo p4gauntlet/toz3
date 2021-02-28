@@ -10,39 +10,33 @@
 
 namespace TOZ3_V2 {
 
-P4Z3Instance P4State::gen_instance(cstring name, const IR::Type *type,
-                                   uint64_t id) {
+P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
+                                    uint64_t id) {
+    P4Z3Instance *instance;
     if (auto tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
     }
     if (auto ts = type->to<IR::Type_Struct>()) {
-        auto instance = new StructInstance(this, ts, id);
-        add_to_allocated(instance);
-        return instance;
+        instance = new StructInstance(this, ts, id);
     } else if (auto te = type->to<IR::Type_Header>()) {
-        auto instance = new HeaderInstance(this, te, id);
-        add_to_allocated(instance);
-        return instance;
+        instance = new HeaderInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Enum>()) {
-        auto instance = new EnumInstance(this, te, id);
-        add_to_allocated(instance);
-        return instance;
+        instance = new EnumInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Error>()) {
-        auto instance = new ErrorInstance(this, te, id);
-        add_to_allocated(instance);
-        return instance;
+        instance = new ErrorInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Extern>()) {
-        auto instance = new ExternInstance(this, te);
-        add_to_allocated(instance);
-        return instance;
+        instance = new ExternInstance(this, te);
     } else if (auto tbi = type->to<IR::Type_Bits>()) {
-        return ctx->bv_const(name, tbi->width_bits());
+        instance = new Z3Wrapper(ctx->bv_const(name, tbi->width_bits()));
     } else if (auto tvb = type->to<IR::Type_Varbits>()) {
-        return ctx->bv_const(name, tvb->width_bits());
+        instance = new Z3Wrapper(ctx->bv_const(name, tvb->width_bits()));
     } else if (type->is<IR::Type_Boolean>()) {
-        return ctx->bool_const(name);
+        instance = new Z3Wrapper(ctx->bool_const(name));
+    } else {
+        BUG("Type \"%s\" not supported!.", type);
     }
-    BUG("Type \"%s\" not supported!.", type);
+    add_to_allocated_vars(instance);
+    return instance;
 }
 
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
@@ -59,9 +53,11 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
 void P4State::push_scope() {
     P4Scope *scope = new P4Scope();
     scopes.push_back(scope);
+    add_to_allocated_scopes(scope);
 }
 
 void P4State::pop_scope() { scopes.pop_back(); }
+P4Scope *P4State::get_current_scope() { return scopes.back(); }
 
 void P4State::add_type(cstring type_name, const IR::Type *t) {
     P4Scope *target_scope = nullptr;
@@ -137,7 +133,7 @@ P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
     return nullptr;
 }
 
-void P4State::update_var(cstring name, P4Z3Instance var) {
+void P4State::update_var(cstring name, P4Z3Instance *var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
     if (target_scope) {
@@ -147,7 +143,7 @@ void P4State::update_var(cstring name, P4Z3Instance var) {
     }
 }
 
-void P4State::declare_local_var(cstring name, P4Z3Instance var) {
+void P4State::declare_local_var(cstring name, P4Z3Instance *var) {
     if (scopes.empty()) {
         // assume we insert into the global scope
         main_scope->declare_var(name, var);
@@ -163,7 +159,7 @@ void P4State::declare_var(cstring name, const IR::Declaration *decl) {
         FATAL_ERROR("Variable %s already exists in target scope.", name);
     } else {
         auto decl_instance = new P4Declaration(decl);
-        add_to_allocated(decl_instance);
+        add_to_allocated_vars(decl_instance);
         if (scopes.empty()) {
             main_scope->declare_var(name, decl_instance);
             // assume we insert into the global scope
@@ -173,64 +169,83 @@ void P4State::declare_var(cstring name, const IR::Declaration *decl) {
     }
 }
 
-ProgState P4State::checkpoint() {
-    ProgState old_state = scopes;
-    ProgState cloned_state;
+ProgState *P4State::clone_state() {
+    ProgState *cloned_state = new ProgState();
 
-    scopes = cloned_state;
-    for (P4Scope *scope : old_state) {
+    for (P4Scope *scope : scopes) {
         P4Scope *cloned_scope = new P4Scope();
-        std::map<cstring, P4Z3Instance> cloned_map;
+        add_to_allocated_scopes(cloned_scope);
+        P4Z3Instance *member_cpy;
         for (auto value_tuple : *scope->get_var_map()) {
             auto var_name = value_tuple.first;
-            auto var = &value_tuple.second;
-            if (auto complex_var = to_type<StructBase>(var)) {
-                P4Z3Instance cloned_var = new StructBase(*complex_var);
-                cloned_scope->declare_var(var_name, cloned_var);
+            auto var = value_tuple.second;
+            if (auto z3_var = var->to<Z3Wrapper>()) {
+                member_cpy = new Z3Wrapper(*z3_var);
+            } else if (auto complex_var = var->to<StructInstance>()) {
+                member_cpy = new StructInstance(*complex_var);
+            } else if (auto complex_var = var->to<HeaderInstance>()) {
+                member_cpy = new HeaderInstance(*complex_var);
+            } else if (auto int_var = var->to<Z3Int>()) {
+                member_cpy = new Z3Int(*int_var);
             } else {
-                cloned_scope->declare_var(var_name, *var);
+                BUG("Var is neither type z3::expr nor StructInstance!");
             }
+            add_to_allocated_vars(member_cpy);
+            cloned_scope->declare_var(var_name, member_cpy);
         }
-        scopes.push_back(cloned_scope);
+        cloned_state->push_back(cloned_scope);
     }
-    return old_state;
+    cloned_states.push_back(cloned_state);
+    return cloned_state;
 }
 
-void P4State::merge_var_maps(z3::expr *cond,
-                             std::map<cstring, P4Z3Instance> *then_map,
-                             std::map<cstring, P4Z3Instance> *else_map) {
+ProgState P4State::fork_state() {
+    ProgState old_prog_state = scopes;
+    ProgState new_prog_state = ProgState();
+
+    for (P4Scope *scope : old_prog_state) {
+        P4Scope *cloned_scope = new P4Scope();
+        add_to_allocated_scopes(cloned_scope);
+        P4Z3Instance *member_cpy;
+        for (auto value_tuple : *scope->get_var_map()) {
+            auto var_name = value_tuple.first;
+            auto var = value_tuple.second;
+            if (auto z3_var = var->to<Z3Wrapper>()) {
+                member_cpy = new Z3Wrapper(*z3_var);
+            } else if (auto complex_var = var->to<StructInstance>()) {
+                member_cpy = new StructInstance(*complex_var);
+            } else if (auto complex_var = var->to<HeaderInstance>()) {
+                member_cpy = new HeaderInstance(*complex_var);
+            } else if (auto int_var = var->to<Z3Int>()) {
+                member_cpy = new Z3Int(*int_var);
+            } else {
+                BUG("Var is neither type z3::expr nor StructInstance!");
+            }
+            add_to_allocated_vars(member_cpy);
+            cloned_scope->declare_var(var_name, member_cpy);
+        }
+        new_prog_state.push_back(cloned_scope);
+    }
+    scopes = new_prog_state;
+    return old_prog_state;
+}
+
+void merge_var_maps(z3::expr *cond, std::map<cstring, P4Z3Instance *> *then_map,
+                    const std::map<cstring, P4Z3Instance *> *else_map) {
     for (auto then_tuple : *then_map) {
         cstring then_name = then_tuple.first;
-        P4Z3Instance *then_var = &then_tuple.second;
-        P4Z3Instance *else_var = &else_map->at(then_name);
-        if (z3::expr *z3_then_var = to_type<z3::expr>(then_var)) {
-            then_map->at(then_name) =
-                merge_z3_expr(cond, z3_then_var, else_var);
-        } else if (auto then_complex = to_type<P4ComplexInstance>(then_var)) {
-            if (const z3::expr *z3_else_var =
-                    to_const_type<z3::expr>(else_var)) {
-                then_complex->merge(cond, z3_else_var);
-            } else if (auto else_complex =
-                           to_const_type<P4ComplexInstance>(else_var)) {
-                then_complex->merge(cond, else_complex);
-            } else {
-                BUG("Z3 complex merge not supported. ");
-            }
-        } else if (auto z3_then_var = to_type<P4Declaration>(then_var)) {
-            // these are constant, do nothing
-        } else {
-            BUG("State merge not supported. ");
-        }
+        P4Z3Instance *then_var = then_tuple.second;
+        const P4Z3Instance *else_var = else_map->at(then_name);
+        then_var->merge(cond, else_var);
     }
 }
 
-void P4State::merge_state(z3::expr cond, ProgState then_state,
-                          ProgState else_state) {
-    for (size_t i = 1; i < then_state.size(); ++i) {
-        P4Scope *then_scope = then_state[i];
-        P4Scope *else_scope = else_state[i];
+void P4State::merge_state(z3::expr cond, const ProgState *else_state) {
+    for (size_t i = 1; i < scopes.size(); ++i) {
+        P4Scope *then_scope = scopes[i];
+        const P4Scope *else_scope = else_state->at(i);
         merge_var_maps(&cond, then_scope->get_var_map(),
-                       else_scope->get_var_map());
+                       else_scope->get_const_var_map());
     }
 }
 } // namespace TOZ3_V2

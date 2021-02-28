@@ -22,18 +22,15 @@ typedef std::vector<P4Scope *> ProgState;
 class P4State {
 
  private:
-    std::vector<P4ComplexInstance *> allocated_vars;
     ProgState scopes;
     P4Scope *main_scope;
-    P4Z3Instance expr_result;
-
-    void merge_var_maps(z3::expr *scond,
-                        std::map<cstring, P4Z3Instance> *then_map,
-                        std::map<cstring, P4Z3Instance> *else_map);
+    P4Z3Instance *expr_result;
+    std::vector<P4Z3Instance *> allocated_vars;
+    std::vector<P4Scope *> allocated_scopes;
+    std::vector<ProgState *> cloned_states;
 
  public:
-    std::vector<P4Z3Instance> return_exprs;
-    std::vector<ProgState> return_states;
+    std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
     z3::context *ctx;
 
     P4State(z3::context *context) : ctx(context) { main_scope = new P4Scope(); }
@@ -42,42 +39,44 @@ class P4State {
             delete var;
         }
         allocated_vars.clear();
-        for (auto scope : scopes) {
+        for (auto scope : allocated_scopes) {
             delete scope;
         }
         delete main_scope;
-        scopes.clear();
     }
 
-    void add_to_allocated(P4ComplexInstance *var) {
+    void add_to_allocated_vars(P4Z3Instance *var) {
         allocated_vars.push_back(var);
     }
-
-    P4Z3Instance gen_instance(cstring name, const IR::Type *type,
-                              uint64_t id = 0);
+    void add_to_allocated_scopes(P4Scope *scope) {
+        allocated_scopes.push_back(scope);
+    }
+    P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
+                               uint64_t id = 0);
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
 
     ProgState get_state() { return scopes; }
 
-    void merge_state(z3::expr cond, ProgState then_state, ProgState else_state);
-    void restore_state(ProgState set_scopes) { scopes = set_scopes; }
+    void merge_state(z3::expr cond, const ProgState *else_state);
+    void restore_state(ProgState *set_scopes) { scopes = *set_scopes; }
 
     void push_scope();
     void pop_scope();
+    P4Scope *get_current_scope();
 
     const IR::Type *resolve_type(const IR::Type *type);
     void add_type(cstring type_name, const IR::Type *t);
     const IR::Type *get_type(cstring decl_name);
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
 
-    void update_var(cstring name, P4Z3Instance var);
-    void declare_local_var(cstring name, P4Z3Instance var);
+    void update_var(cstring name, P4Z3Instance *var);
+    void declare_local_var(cstring name, P4Z3Instance *var);
     void declare_var(cstring name, const IR::Declaration *decl);
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
     P4Z3Instance *get_var(cstring name);
     template <typename T> T *get_var(cstring name) {
         P4Z3Instance *var = get_var(name);
-        if (auto cast_var = TOZ3_V2::to_type<T>(var)) {
+        if (auto cast_var = var->to_mut<T>()) {
             return cast_var;
         } else {
             BUG("Could not cast to type %s.", typeid(T).name());
@@ -85,19 +84,26 @@ class P4State {
     }
 
     void resolve_expr(const IR::Expression *expr);
-    ProgState checkpoint();
+    ProgState *clone_state();
+    ProgState fork_state();
 
     Z3Int *create_int(big_int value, uint64_t width) {
         auto val_string = Util::toString(value, 0, false);
         auto var = new Z3Int(ctx->int_val(val_string), width);
-        add_to_allocated(var);
+        add_to_allocated_vars(var);
+        return var;
+    }
+    P4Z3Instance *allocate_wrapper(z3::expr val) {
+        auto var = new Z3Wrapper(val);
+        add_to_allocated_vars(var);
         return var;
     }
 
-    P4Z3Instance *get_expr_result() { return &expr_result; }
-    P4Z3Instance copy_expr_result() { return expr_result; }
-    void set_expr_result(P4Z3Instance *result) { expr_result = *result; }
-    void set_expr_result(P4Z3Instance result) { expr_result = result; }
+    P4Z3Instance *get_expr_result() { return expr_result; }
+    P4Z3Instance *copy_expr_result() {
+        return expr_result;
+    }
+    void set_expr_result(P4Z3Instance *result) { expr_result = result; }
 };
 
 } // namespace TOZ3_V2

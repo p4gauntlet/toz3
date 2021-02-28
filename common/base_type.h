@@ -11,88 +11,28 @@
 #include "ir/ir.h"
 #include "lib/cstring.h"
 
-#define BOOST_VARIANT_USE_RELAXED_GET_BY_DEFAULT
-#include <boost/variant.hpp>
-#include <boost/variant/get.hpp>
-
 namespace TOZ3_V2 {
 // template <class Derived>
-class P4ComplexInstance {
+class P4Z3Instance {
  public:
-    P4ComplexInstance() {}
+    P4Z3Instance() {}
     template <typename T> bool is() const { return to<T>() != nullptr; }
     template <typename T> const T *to() const {
         return dynamic_cast<const T *>(this);
     }
-    virtual ~P4ComplexInstance() = default;
+    template <typename T> T *to_mut() { return dynamic_cast<T *>(this); }
+    virtual ~P4Z3Instance() = default;
 
-    virtual z3::expr operator==(const P4ComplexInstance &) {
-        BUG("Equality not implemented.");
-    }
-
-    virtual void merge(z3::expr *, const P4ComplexInstance *) {
-        BUG("Complex expression merge not implemented.");
-    }
-
-    virtual void merge(z3::expr *, const z3::expr *) {
-        BUG("Z3 expression merge not implemented.");
-    }
+    virtual z3::expr operator==(const P4Z3Instance &);
+    virtual z3::expr operator!();
+    virtual z3::expr operator!() const;
+    virtual void merge(z3::expr *, const P4Z3Instance *);
+    virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars() const;
+    virtual cstring get_static_type() = 0;
+    virtual cstring get_static_type() const = 0;
 };
 
-class Z3Int;
-class P4Declaration;
-class ControlState;
-class StructInstance;
-class HeaderInstance;
-class EnumInstance;
-class ErrorInstance;
-class ExternInstance;
-
-// typedef boost::variant<boost::recursive_wrapper<Z3Int *>,
-//                        boost::recursive_wrapper<P4Declaration *>,
-//                        boost::recursive_wrapper<ControlState *>,
-//                        boost::recursive_wrapper<StructInstance *>,
-//                        boost::recursive_wrapper<HeaderInstance *>,
-//                        boost::recursive_wrapper<EnumInstance *>,
-//                        boost::recursive_wrapper<ErrorInstance *>,
-//                        boost::recursive_wrapper<ExternInstance *>>
-//     ComplexType;
-
-typedef boost::variant<P4ComplexInstance *, z3::expr> P4Z3Instance;
-
-typedef std::map<cstring, P4Z3Instance> P4Z3Result;
-
-template <typename T> T *to_type(P4Z3Instance *type) {
-    if (type->which() == 0) {
-        P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(*type);
-        return dynamic_cast<T *>(pi);
-    } else if (type->which() == 1) {
-        return boost::get<T>(type);
-    } else {
-        BUG("Unsupported  type cast");
-    }
-}
-
-template <typename T> const T *to_const_type(const P4Z3Instance *type) {
-    if (type->which() == 0) {
-        const P4ComplexInstance *pi =
-            boost::get<P4ComplexInstance *>(*type);
-        return dynamic_cast<const T *>(pi);
-    } else if (type->which() == 1) {
-        return boost::get<const T>(type);
-    } else {
-        BUG("Unsupported type cast");
-    }
-}
-
-// template <typename T> bool is_type(P4Z3Instance *type) {
-//     if (type->which() == 0) {
-//         P4ComplexInstance *pi = boost::get<P4ComplexInstance *>(*type);
-//         return dynamic_cast<T *>(pi) != nullptr;
-//     } else if (type->which() == 1) {
-//         return boost::get<T>(type);
-//     }
-// }
+typedef std::map<cstring, P4Z3Instance *> P4Z3Result;
 
 } // namespace TOZ3_V2
 

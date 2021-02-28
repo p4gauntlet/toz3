@@ -33,7 +33,7 @@
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
     TOZ3_V2::P4Z3Instance *main = state->get_var("main");
-    if (auto decl = TOZ3_V2::to_type<TOZ3_V2::P4Declaration>(main)) {
+    if (auto decl = main->to<TOZ3_V2::P4Declaration>()) {
         if (auto main_pkg = decl->decl->to<IR::Declaration_Instance>()) {
             return main_pkg;
         } else {
@@ -80,8 +80,7 @@ int main(int argc, char *const argv[]) {
             auto decl_result = to_z3.get_decl_result();
             for (auto pipe_state : decl_result) {
                 cstring pipe_name = pipe_state.first;
-                auto pipe_vars = TOZ3_V2::to_type<TOZ3_V2::ControlState>(
-                    &pipe_state.second);
+                auto pipe_vars = pipe_state.second->to<TOZ3_V2::ControlState>();
                 if (pipe_vars) {
                     printf("Pipe %s state:\n", pipe_name.c_str());
                     for (auto tuple : pipe_vars->state_vars) {

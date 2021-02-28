@@ -8,18 +8,24 @@ set (TOZ3V2_COMMON_SRCS
     common/z3_interpreter.cpp
     common/operands.cpp
     common/expressions.cpp
+    common/simple_type.cpp
     common/complex_type.cpp
+    common/base_type.cpp
     common/state.cpp
     common/type_map.cpp
+    common/print.cpp
     )
 
 set (TOZ3V2_COMMON_HDRS
     common/z3_interpreter.h
     common/scope.h
+    common/simple_type.h
     common/complex_type.h
+    common/base_type.h
     common/state.h
     common/type_map.h
     common/z3_int.h
+    common/print.h
     )
 
 set (TOZ3V2_INTERPRET_SRCS

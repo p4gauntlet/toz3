@@ -17,6 +17,7 @@ bool Z3Visitor::preorder(const IR::Cast *c) {
     // resolve expression
     visit(c->expr);
     P4Z3Instance *resolved_expr = state->get_expr_result();
+
     state->set_expr_result(cast(state, resolved_expr, c->destType));
     return false;
 }
@@ -32,7 +33,7 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     } else {
         BUG("Parent Type  %s not implemented!", parent->node_type_name());
     }
-    if (auto si = to_type<StructBase>(complex_class)) {
+    if (auto si = complex_class->to_mut<StructBase>()) {
         state->set_expr_result(si->get_member(m->member.name));
     } else {
         BUG("Can not cast to StructBase.");
@@ -43,25 +44,21 @@ bool Z3Visitor::preorder(const IR::Member *m) {
 
 bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->left);
-    P4Z3Instance left = state->copy_expr_result();
+    P4Z3Instance *left = state->get_expr_result();
     visit(expr->right);
-    P4Z3Instance right = state->copy_expr_result();
+    P4Z3Instance *right = state->get_expr_result();
 
-    if (z3::expr *z3_left_expr = to_type<z3::expr>(&left)) {
-        auto sort = z3_left_expr->get_sort();
-        auto cast_expr = z3_cast(state, &right, &sort);
-        state->set_expr_result(*z3_left_expr == cast_expr);
-    } else if (P4ComplexInstance *z3_left_expr =
-                   to_type<P4ComplexInstance>(&left)) {
-        if (P4ComplexInstance *z3_right_expr =
-                to_type<P4ComplexInstance>(&right)) {
-            state->set_expr_result(*z3_left_expr == *z3_right_expr);
-        } else {
-            BUG("Unsupported equality operation for complex class.");
-        }
-    } else {
-        BUG("Unsupported equality operation");
-    }
+    auto result_wrapper = state->allocate_wrapper(*left == *right);
+    state->set_expr_result(result_wrapper);
+
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::LNot *expr) {
+    visit(expr->expr);
+    P4Z3Instance *instance = state->copy_expr_result();
+    z3::expr result = !*instance;
+    state->set_expr_result(state->allocate_wrapper(result));
 
     return false;
 }

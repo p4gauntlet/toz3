@@ -19,7 +19,9 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
             state->set_expr_result(state->create_int(c->value, tb->size));
         } else {
             auto val_string = Util::toString(c->value, 0, false);
-            state->set_expr_result(state->ctx->bv_val(val_string, tb->size));
+            auto wrapped_var = state->allocate_wrapper(
+                state->ctx->bv_val(val_string, tb->size));
+            state->set_expr_result(wrapped_var);
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
@@ -30,7 +32,8 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
-    state->set_expr_result(state->ctx->bool_val(bl->value));
+    auto wrapped_var = state->allocate_wrapper(state->ctx->bool_val(bl->value));
+    state->set_expr_result(wrapped_var);
     return false;
 }
 
@@ -55,7 +58,7 @@ Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
         }
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
-            if (auto path_expr = arg->to<IR::Member>()) {
+            if (arg->to<IR::Member>()) {
                 // TODO: Index
                 resolved_args.push_back({arg->expression, param->name.name});
             } else {
@@ -99,16 +102,16 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     state->push_scope();
     for (auto arg_tuple : merged_args) {
         cstring param_name = arg_tuple.first;
-        P4Z3Instance arg_val = arg_tuple.second;
+        P4Z3Instance *arg_val = arg_tuple.second;
         state->declare_local_var(param_name, arg_val);
     }
     visit(callable);
-    P4Z3Instance expr_result = state->copy_expr_result();
+    P4Z3Instance *expr_result = state->get_expr_result();
 
-    std::vector<P4Z3Instance> copy_out_vals;
+    std::vector<P4Z3Instance *> copy_out_vals;
     for (auto arg_tuple : copy_out_args) {
         auto source = arg_tuple.second;
-        P4Z3Instance val = *state->get_var(source);
+        P4Z3Instance *val = state->get_var(source);
         copy_out_vals.push_back(val);
     }
     state->pop_scope();
@@ -131,8 +134,8 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         // INITIALIZE
         for (auto param : *c->getApplyParameters()) {
             auto par_type = state->resolve_type(param->type);
-            P4Z3Instance var = state->gen_instance(param->name.name, par_type);
-            if (auto z3_var = to_type<StructBase>(&var)) {
+            P4Z3Instance *var = state->gen_instance(param->name.name, par_type);
+            if (auto z3_var = var->to_mut<StructBase>()) {
                 z3_var->propagate_validity();
             }
             state->declare_local_var(param->name.name, var);
@@ -144,33 +147,24 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
 
         // COLLECT
         for (auto state_name : state_names) {
-            P4Scope *scope;
-            auto var = state->find_var(state_name, &scope);
-            if (z3::expr *z3_var = to_type<z3::expr>(var)) {
-                state_vars.push_back({state_name, *z3_var});
-            } else if (auto z3_var = to_type<StructBase>(var)) {
+            auto var = state->get_var(state_name);
+            if (auto z3_var = var->to<Z3Wrapper>()) {
+                state_vars.push_back({state_name, z3_var->val});
+            } else if (auto z3_var = var->to<StructBase>()) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);
                 state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                                   z3_sub_vars.end());
-            } else if (auto z3_var = to_type<ErrorInstance>(var)) {
-                auto z3_sub_vars = z3_var->get_z3_vars(state_name);
-                state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
-                                  z3_sub_vars.end());
-            } else if (auto z3_var = to_type<EnumInstance>(var)) {
-                auto z3_sub_vars = z3_var->get_z3_vars(state_name);
-                state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
-                                  z3_sub_vars.end());
-            } else if (to_type<ExternInstance>(var)) {
+            } else if (var->to<ExternInstance>()) {
                 printf("Skipping extern...\n");
             } else {
-                BUG("Var is neither type z3::expr nor P4ComplexInstance!");
+                BUG("Var is neither type z3::expr nor P4Z3Instance!");
             }
         }
     }
     state->pop_scope();
 
     // FIXME: Figure out when and how to free this
-    P4Z3Instance ctrl_state = new ControlState(state_vars);
+    P4Z3Instance *ctrl_state = new ControlState(state_vars);
     // state->add_to_allocated(ctrl_state);
     state->set_expr_result(ctrl_state);
 

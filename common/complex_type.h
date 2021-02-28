@@ -11,57 +11,17 @@
 #include "ir/ir.h"
 #include "lib/cstring.h"
 
-#include "base_type.h"
+#include "simple_type.h"
 
 namespace TOZ3_V2 {
 
-// Forward declare state
-class P4State;
+P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
+                   const IR::Type *dest_type);
 
-P4Z3Instance cast(P4State *state, P4Z3Instance *expr,
-                  const IR::Type *dest_type);
-z3::expr z3_cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type);
-z3::expr complex_cast(P4State *state, P4Z3Instance *expr,
-                      P4ComplexInstance *dest_type);
-z3::expr merge_z3_expr(z3::expr cond, z3::expr *then_expr,
-                       const P4Z3Instance *else_expr);
-
-class ControlState : public P4ComplexInstance {
- public:
-    std::vector<std::pair<cstring, z3::expr>> state_vars;
-    ControlState(std::vector<std::pair<cstring, z3::expr>> state_vars)
-        : state_vars(state_vars){};
-};
-
-class P4Declaration : public P4ComplexInstance {
-    // A wrapper class for declarations
- public:
-    const IR::Declaration *decl;
-    // constructor
-    P4Declaration(const IR::Declaration *decl) : decl(decl) {}
-};
-
-class Z3Int : public P4ComplexInstance {
- public:
-    z3::expr val;
-    int64_t width;
-    Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
-
-    z3::expr operator==(const P4ComplexInstance &other) override {
-        if (auto other_int = other.to<Z3Int>()) {
-            return val == other_int->val;
-        } else {
-            BUG("Unsupported Z3Int comparison.");
-        }
-    }
-    void merge(z3::expr *cond, const P4ComplexInstance *) override;
-    void merge(z3::expr *cond, const z3::expr *) override;
-};
-
-class StructBase : public P4ComplexInstance {
+class StructBase : public P4Z3Instance {
  protected:
     P4State *state;
-    std::map<cstring, P4Z3Instance> members;
+    std::map<cstring, P4Z3Instance *> members;
     std::map<cstring, std::function<void()>> member_functions;
     std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
@@ -73,27 +33,27 @@ class StructBase : public P4ComplexInstance {
                uint64_t member_id);
     StructBase() {}
     virtual std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "");
+    get_z3_vars(cstring prefix = "") const;
 
     uint64_t get_width() { return width; }
 
     const P4Z3Instance *get_const_member(cstring name) const {
-        return &members.at(name);
+        return members.at(name);
     }
-    P4Z3Instance *get_member(cstring name) { return &members.at(name); }
+    P4Z3Instance *get_member(cstring name) { return members.at(name); }
 
     std::function<void()> get_function(cstring name) {
         return member_functions.at(name);
     }
 
-    void update_member(cstring name, P4Z3Instance val) {
+    void update_member(cstring name, P4Z3Instance *val) {
         members.at(name) = val;
     }
-    void insert_member(cstring name, P4Z3Instance val) {
+    void insert_member(cstring name, P4Z3Instance *val) {
         members.insert({name, val});
     }
-    std::map<cstring, P4Z3Instance> *get_member_map() { return &members; }
-    const std::map<cstring, P4Z3Instance> *get_immutable_member_map() const {
+    std::map<cstring, P4Z3Instance *> *get_member_map() { return &members; }
+    const std::map<cstring, P4Z3Instance *> *get_immutable_member_map() const {
         return &members;
     }
     virtual void propagate_validity(z3::expr * = nullptr) {}
@@ -104,7 +64,7 @@ class StructBase : public P4ComplexInstance {
     // overload = operator
     StructBase &operator=(const StructBase &other);
 
-    void merge(z3::expr *cond, const P4ComplexInstance *) override;
+    void merge(z3::expr *cond, const P4Z3Instance *) override;
 };
 
 class StructInstance : public StructBase {
@@ -112,6 +72,8 @@ class StructInstance : public StructBase {
 
  public:
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
+    cstring get_static_type() const override { return "StructInstance"; }
+    cstring get_static_type() override { return "StructInstance"; }
 };
 
 class HeaderInstance : public StructBase {
@@ -132,10 +94,11 @@ class HeaderInstance : public StructBase {
     void setInvalid();
     void isValid();
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "") override;
+    get_z3_vars(cstring prefix = "") const override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
-
-    void merge(z3::expr *cond, const P4ComplexInstance *) override;
+    void merge(z3::expr *cond, const P4Z3Instance *) override;
+    cstring get_static_type() const override { return "HeaderInstance"; }
+    cstring get_static_type() override { return "HeaderInstance"; }
 };
 
 class EnumInstance : public StructBase {
@@ -143,7 +106,6 @@ class EnumInstance : public StructBase {
 
  private:
     P4State *state;
-    std::map<cstring, P4Z3Instance> members;
     uint64_t member_id;
     uint64_t width;
 
@@ -151,7 +113,9 @@ class EnumInstance : public StructBase {
     const IR::Type_Enum *p4_type;
     EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "") override;
+    get_z3_vars(cstring prefix = "") const override;
+    cstring get_static_type() const override { return "EnumInstance"; }
+    cstring get_static_type() override { return "EnumInstance"; }
 };
 
 class ErrorInstance : public StructBase {
@@ -159,7 +123,6 @@ class ErrorInstance : public StructBase {
 
  private:
     P4State *state;
-    std::map<cstring, P4Z3Instance> members;
     uint64_t member_id;
     uint64_t width;
 
@@ -168,15 +131,22 @@ class ErrorInstance : public StructBase {
     ErrorInstance(P4State *state, const IR::Type_Error *type,
                   uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "") override;
+    get_z3_vars(cstring prefix = "") const override;
+    cstring get_static_type() const override { return "ErrorInstance"; }
+    cstring get_static_type() override { return "ErrorInstance"; }
 }; // namespace TOZ3_V2
 
-class ExternInstance : public P4ComplexInstance {
+class ExternInstance : public P4Z3Instance {
  private:
  public:
     const IR::Type_Extern *p4_type;
     uint64_t width;
     ExternInstance(P4State *state, const IR::Type_Extern *type);
+    void merge(z3::expr *, const P4Z3Instance *) override{
+        // Merge is a no-op here.
+    };
+    cstring get_static_type() const override { return "ExternInstance"; }
+    cstring get_static_type() override { return "ExternInstance"; }
 };
 
 } // namespace TOZ3_V2
