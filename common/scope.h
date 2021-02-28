@@ -10,13 +10,17 @@
 
 #include "ir/ir.h"
 
-#include "complex_type.h"
+#include "type_complex.h"
 
 namespace TOZ3_V2 {
 
 class P4Scope {
 
  private:
+    // maps of local values and types
+    std::map<cstring, P4Z3Instance *> var_map;
+    std::map<cstring, const IR::Type *> var_types;
+    std::map<cstring, const IR::Type *> type_map;
     bool is_returned = false;
     std::vector<z3::expr> forward_conds;
 
@@ -50,6 +54,15 @@ class P4Scope {
         }
         return ret_type;
     }
+
+    void add_type_to_var(cstring type_name, const IR::Type *t) {
+        var_types[type_name] = t;
+    }
+
+    const IR::Type *get_type_for_var(cstring type_name) {
+        return var_types.at(type_name);
+    }
+
     bool has_returned() { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
 
@@ -60,13 +73,22 @@ class P4Scope {
     void pop_forward_cond() { forward_conds.pop_back(); }
 
     std::map<cstring, const IR::Type *> *get_type_map() { return &type_map; }
-
- private:
-    // maps of local values and types
-    std::map<cstring, P4Z3Instance *> var_map;
-    std::map<cstring, const IR::Type *> type_map;
 };
 
 } // namespace TOZ3_V2
+
+inline std::ostream &operator<<(std::ostream &out,
+                                const TOZ3_V2::P4Scope &scope) {
+    auto var_map = scope.get_const_var_map();
+    for (auto it = var_map->begin(); it != var_map->end(); ++it) {
+        const cstring name = it->first;
+        const TOZ3_V2::P4Z3Instance *val = it->second;
+        out << name << ": " << *val;
+        if (std::next(it) != var_map->end()) {
+            out << ", ";
+        }
+    }
+    return out;
+}
 
 #endif // _TOZ3_CONTEXT_H_

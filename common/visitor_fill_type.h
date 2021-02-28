@@ -6,9 +6,8 @@
 #include <map>
 #include <vector>
 
-#include "complex_type.h"
 #include "ir/ir.h"
-#include "scope.h"
+#include "state.h"
 
 namespace TOZ3_V2 {
 

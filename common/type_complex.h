@@ -11,12 +11,9 @@
 #include "ir/ir.h"
 #include "lib/cstring.h"
 
-#include "simple_type.h"
+#include "type_simple.h"
 
 namespace TOZ3_V2 {
-
-P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
-                   const IR::Type *dest_type);
 
 class StructBase : public P4Z3Instance {
  protected:
@@ -41,6 +38,9 @@ class StructBase : public P4Z3Instance {
         return members.at(name);
     }
     P4Z3Instance *get_member(cstring name) { return members.at(name); }
+    const IR::Type *get_member_type(cstring name) {
+        return member_types.at(name);
+    }
 
     std::function<void()> get_function(cstring name) {
         return member_functions.at(name);
@@ -71,9 +71,22 @@ class StructInstance : public StructBase {
     using StructBase::StructBase;
 
  public:
+    StructInstance *copy() const override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
     cstring get_static_type() const override { return "StructInstance"; }
     cstring get_static_type() override { return "StructInstance"; }
+    cstring to_string() const override {
+        cstring ret = "StructInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first)
+                ret += ", ";
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
 };
 
 class HeaderInstance : public StructBase {
@@ -97,8 +110,21 @@ class HeaderInstance : public StructBase {
     get_z3_vars(cstring prefix = "") const override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
     void merge(z3::expr *cond, const P4Z3Instance *) override;
+    HeaderInstance *copy() const override;
     cstring get_static_type() const override { return "HeaderInstance"; }
     cstring get_static_type() override { return "HeaderInstance"; }
+    cstring to_string() const override {
+        cstring ret = "HeaderInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first)
+                ret += ", ";
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
 };
 
 class EnumInstance : public StructBase {
@@ -116,6 +142,18 @@ class EnumInstance : public StructBase {
     get_z3_vars(cstring prefix = "") const override;
     cstring get_static_type() const override { return "EnumInstance"; }
     cstring get_static_type() override { return "EnumInstance"; }
+    cstring to_string() const override {
+        cstring ret = "EnumInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first)
+                ret += ", ";
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
 };
 
 class ErrorInstance : public StructBase {
@@ -134,6 +172,18 @@ class ErrorInstance : public StructBase {
     get_z3_vars(cstring prefix = "") const override;
     cstring get_static_type() const override { return "ErrorInstance"; }
     cstring get_static_type() override { return "ErrorInstance"; }
+    cstring to_string() const override {
+        cstring ret = "ErrorInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first)
+                ret += ", ";
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
 }; // namespace TOZ3_V2
 
 class ExternInstance : public P4Z3Instance {
@@ -147,6 +197,11 @@ class ExternInstance : public P4Z3Instance {
     };
     cstring get_static_type() const override { return "ExternInstance"; }
     cstring get_static_type() override { return "ExternInstance"; }
+    cstring to_string() const override {
+        cstring ret = "ExternInstance(";
+        ret += ")";
+        return ret;
+    }
 };
 
 } // namespace TOZ3_V2

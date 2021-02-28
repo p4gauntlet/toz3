@@ -1,4 +1,4 @@
-#include "complex_type.h"
+#include "type_complex.h"
 
 #include <cstdio>
 #include <utility>
@@ -6,30 +6,6 @@
 #include "state.h"
 
 namespace TOZ3_V2 {
-
-P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
-                   const IR::Type *dest_type) {
-    if (auto tb = dest_type->to<IR::Type_Bits>()) {
-        if (auto z3_var = expr->to<Z3Wrapper>()) {
-            if (z3_var->val.get_sort().is_bv()) {
-                return state->allocate_wrapper(state->ctx->bv_val(
-                    z3_var->val.get_decimal_string(0).c_str(),
-                    tb->width_bits()));
-            } else {
-                BUG("Cast type not supported ");
-            }
-        } else if (auto z3_var = expr->to<Z3Int>()) {
-            auto val_string = z3_var->val.get_decimal_string(0);
-            return state->allocate_wrapper(
-                state->ctx->bv_val(val_string.c_str(), tb->width_bits()));
-        } else {
-            BUG("Cast from expr xpr to node %s supported ",
-                dest_type->node_type_name());
-        }
-    } else {
-        BUG("Cast to type %s not supported", dest_type->node_type_name());
-    }
-}
 
 StructBase::StructBase(P4State *state, const IR::Type_StructLike *type,
                        uint64_t member_id)
@@ -65,28 +41,13 @@ StructBase::StructBase(P4State *state, const IR::Type_StructLike *type,
 StructBase::StructBase(const StructBase &other) : P4Z3Instance(other) {
     width = other.width;
     state = other.state;
-    members.clear();
+    p4_type = other.p4_type;
+    member_types = other.member_types;
     for (auto value_tuple : other.members) {
         cstring name = value_tuple.first;
-        P4Z3Instance *var = value_tuple.second;
-        if (auto z3_var = var->to<Z3Wrapper>()) {
-            Z3Wrapper *member_cpy = new Z3Wrapper(*z3_var);
-            insert_member(name, member_cpy);
-        } else if (auto complex_var = var->to<StructInstance>()) {
-            StructInstance *member_cpy = new StructInstance(*complex_var);
-            state->add_to_allocated_vars(member_cpy);
-            insert_member(name, member_cpy);
-        } else if (auto complex_var = var->to<HeaderInstance>()) {
-            HeaderInstance *member_cpy = new HeaderInstance(*complex_var);
-            state->add_to_allocated_vars(member_cpy);
-            insert_member(name, member_cpy);
-        } else if (auto int_var = var->to<Z3Int>()) {
-            Z3Int *member_cpy = new Z3Int(*int_var);
-            state->add_to_allocated_vars(member_cpy);
-            insert_member(name, member_cpy);
-        } else {
-            BUG("Var is neither type z3::expr nor StructInstance!");
-        }
+        P4Z3Instance *member_cpy = value_tuple.second->copy();
+        state->add_to_allocated_vars(member_cpy);
+        insert_member(name, member_cpy);
     }
 }
 
@@ -96,28 +57,13 @@ StructBase &StructBase::operator=(const StructBase &other) {
     }
     width = other.width;
     state = other.state;
-    members.clear();
+    p4_type = other.p4_type;
+    member_types = other.member_types;
     for (auto value_tuple : other.members) {
         cstring name = value_tuple.first;
-        P4Z3Instance *var = value_tuple.second;
-        if (auto z3_var = var->to<Z3Wrapper>()) {
-            Z3Wrapper *member_cpy = new Z3Wrapper(*z3_var);
-            insert_member(name, member_cpy);
-        } else if (auto complex_var = var->to<StructInstance>()) {
-            StructInstance *member_cpy = new StructInstance(*complex_var);
-            state->add_to_allocated_vars(member_cpy);
-            insert_member(name, member_cpy);
-        } else if (auto complex_var = var->to<HeaderInstance>()) {
-            HeaderInstance *member_cpy = new HeaderInstance(*complex_var);
-            state->add_to_allocated_vars(member_cpy);
-            insert_member(name, member_cpy);
-        } else if (auto int_var = var->to<Z3Int>()) {
-            Z3Int *member_cpy = new Z3Int(*int_var);
-            state->add_to_allocated_vars(member_cpy);
-            insert_member(name, member_cpy);
-        } else {
-            BUG("Var is neither type z3::expr nor StructInstance!");
-        }
+        P4Z3Instance *member_cpy = value_tuple.second->copy();
+        state->add_to_allocated_vars(member_cpy);
+        insert_member(name, member_cpy);
     }
     return *this;
 }
@@ -139,11 +85,12 @@ StructBase::get_z3_vars(cstring prefix) const {
                            z3_sub_vars.end());
         } else if (auto z3_var = member->to<Z3Int>()) {
             // We receive an int that we need to cast towards the member type
-            const IR::Type *type = member_types.at(member_tuple.first);
-            auto val_string = z3_var->val.get_decimal_string(0);
-            auto val =
-                state->ctx->bv_val(val_string.c_str(), type->width_bits());
-            z3_vars.push_back({name, val});
+            // Ints must be compile constants so we can resolve them
+            const IR::Type *dest_type = member_types.at(member_tuple.first);
+            auto cast_val =
+                z3::int2bv(dest_type->width_bits(), z3_var->val).simplify();
+            printf("SIMPLIFIED VAL %s", cast_val.to_string().c_str());
+            z3_vars.push_back({name, cast_val});
         } else {
             BUG("Var is neither type z3::expr nor P4Z3Instance!");
         }
@@ -175,6 +122,10 @@ void StructInstance::propagate_validity(z3::expr *valid_expr) {
     }
 }
 
+StructInstance *StructInstance::copy() const {
+    return new StructInstance(*this);
+};
+
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
     : StructBase(state, type, member_id), valid(state->ctx->bool_val(false)) {
@@ -192,6 +143,7 @@ void HeaderInstance::setValid() { valid = state->ctx->bool_val(true); }
 void HeaderInstance::setInvalid() { valid = state->ctx->bool_val(false); }
 
 void HeaderInstance::isValid() {
+    // TODO: Fix this
     // state->set_expr_result(valid);
 }
 
@@ -210,6 +162,10 @@ void HeaderInstance::propagate_validity(z3::expr *valid_expr) {
         }
     }
 }
+
+HeaderInstance *HeaderInstance::copy() const {
+    return new HeaderInstance(*this);
+};
 
 std::vector<std::pair<cstring, z3::expr>>
 HeaderInstance::get_z3_vars(cstring prefix) const {
@@ -230,14 +186,13 @@ HeaderInstance::get_z3_vars(cstring prefix) const {
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = member->to<Z3Int>()) {
-            // We receive an int that we need to cast towards the member
-            // type
-            const IR::Type *type = member_types.at(member_tuple.first);
-            auto val_string = z3_var->val.get_decimal_string(0);
-            auto val =
-                state->ctx->bv_val(val_string.c_str(), type->width_bits());
-            z3::expr invalid_var = state->gen_z3_expr("invalid", type);
-            auto valid_var = z3::ite(valid, val, invalid_var);
+            // We receive an int that we need to cast towards the member type
+            const IR::Type *dest_type = member_types.at(member_tuple.first);
+            auto cast_val =
+                z3::int2bv(dest_type->width_bits(), z3_var->val).simplify();
+            printf("SIMPLIFIED VAL %s", cast_val.to_string().c_str());
+            z3::expr invalid_var = state->gen_z3_expr("invalid", dest_type);
+            auto valid_var = z3::ite(valid, cast_val, invalid_var);
             z3_vars.push_back({name, valid_var});
         } else {
             BUG("Var is neither type z3::expr nor P4Z3Instance!");

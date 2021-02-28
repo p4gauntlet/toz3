@@ -1,10 +1,9 @@
 #include <cstdio>
 #include <utility>
 
-#include "complex_type.h"
 #include "lib/exceptions.h"
-#include "type_map.h"
-#include "z3_interpreter.h"
+#include "visitor_fill_type.h"
+#include "visitor_interpret.h"
 
 namespace TOZ3_V2 {
 

@@ -6,10 +6,7 @@
 
 #include "lib/exceptions.h"
 
-#include "complex_type.h"
-#include "scope.h"
-#include "state.h"
-#include "z3_interpreter.h"
+#include "visitor_interpret.h"
 
 namespace TOZ3_V2 {
 
@@ -38,8 +35,7 @@ bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
 }
 
 bool Z3Visitor::preorder(const IR::PathExpression *p) {
-    P4Scope *scope;
-    state->set_expr_result(state->find_var(p->path->name, &scope));
+    state->set_expr_result(state->get_var(p->path->name));
     return false;
 }
 
@@ -107,7 +103,6 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     }
     visit(callable);
     P4Z3Instance *expr_result = state->get_expr_result();
-
     std::vector<P4Z3Instance *> copy_out_vals;
     for (auto arg_tuple : copy_out_args) {
         auto source = arg_tuple.second;

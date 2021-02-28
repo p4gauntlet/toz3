@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "ir/ir.h"
-#include "scope.h"
 #include "state.h"
 
 namespace TOZ3_V2 {

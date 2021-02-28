@@ -6,10 +6,7 @@
 
 #include "lib/exceptions.h"
 
-#include "complex_type.h"
-#include "scope.h"
-#include "state.h"
-#include "z3_interpreter.h"
+#include "visitor_interpret.h"
 
 namespace TOZ3_V2 {
 
@@ -44,9 +41,9 @@ bool Z3Visitor::preorder(const IR::Member *m) {
 
 bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->left);
-    P4Z3Instance *left = state->get_expr_result();
+    P4Z3Instance *left = state->copy_expr_result();
     visit(expr->right);
-    P4Z3Instance *right = state->get_expr_result();
+    P4Z3Instance *right = state->copy_expr_result();
 
     auto result_wrapper = state->allocate_wrapper(*left == *right);
     state->set_expr_result(result_wrapper);
@@ -56,7 +53,7 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
 
 bool Z3Visitor::preorder(const IR::LNot *expr) {
     visit(expr->expr);
-    P4Z3Instance *instance = state->copy_expr_result();
+    P4Z3Instance *instance = state->get_expr_result();
     z3::expr result = !*instance;
     state->set_expr_result(state->allocate_wrapper(result));
 

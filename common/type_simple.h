@@ -11,18 +11,12 @@
 #include "ir/ir.h"
 #include "lib/cstring.h"
 
-#include "base_type.h"
+#include "type_base.h"
 
 namespace TOZ3_V2 {
 
 // Forward declare state
 class P4State;
-
-z3::expr z3_cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type);
-z3::expr complex_cast(P4State *state, P4Z3Instance *expr,
-                      P4Z3Instance *dest_type);
-z3::expr merge_z3_expr(z3::expr *cond, z3::expr *then_expr,
-                       const P4Z3Instance *else_expr);
 
 class ControlState : public P4Z3Instance {
  public:
@@ -32,8 +26,23 @@ class ControlState : public P4Z3Instance {
     void merge(z3::expr *, const P4Z3Instance *) override{
         // Merge is a no-op here.
     };
+    // TODO: This is a little pointless....
+    ControlState *copy() const override {return new ControlState(state_vars);}
+
     cstring get_static_type() const override { return "ControlState"; }
     cstring get_static_type() override { return "ControlState"; }
+    cstring to_string() const override {
+        cstring ret = "ControlState(";
+        bool first = true;
+        for (auto tuple : state_vars) {
+            if (!first)
+                ret += ", ";
+            ret += tuple.first + ": " + tuple.second.to_string().c_str();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
 };
 
 class P4Declaration : public P4Z3Instance {
@@ -42,11 +51,17 @@ class P4Declaration : public P4Z3Instance {
     const IR::Declaration *decl;
     // constructor
     P4Declaration(const IR::Declaration *decl) : decl(decl) {}
-    void merge(z3::expr *, const P4Z3Instance *) override{
-        // Merge is a no-op here.
-    };
+    // Merge is a no-op here.
+    void merge(z3::expr *, const P4Z3Instance *) override {}
+    // TODO: This is a little pointless....
+    P4Declaration *copy() const override {return new P4Declaration(decl);}
+
     cstring get_static_type() const override { return "P4Declaration"; }
     cstring get_static_type() override { return "P4Declaration"; }
+    cstring to_string() const override {
+        cstring ret = "P4Declaration(";
+        return ret + decl->toString() + ")";
+    }
 };
 
 class Z3Int : public P4Z3Instance {
@@ -63,8 +78,14 @@ class Z3Int : public P4Z3Instance {
         }
     }
     void merge(z3::expr *cond, const P4Z3Instance *) override;
+    Z3Int *copy() const override;
     cstring get_static_type() const override { return "Z3Int"; }
     cstring get_static_type() override { return "Z3Int"; }
+    cstring to_string() const override {
+        cstring ret = "Z3Int(";
+        return ret + val.to_string().c_str() + "," + std::to_string(width) +
+               " )";
+    }
 };
 
 class Z3Wrapper : public P4Z3Instance {
@@ -85,8 +106,14 @@ class Z3Wrapper : public P4Z3Instance {
     z3::expr operator!() override { return !val; }
     z3::expr operator!() const override { return !val; }
     void merge(z3::expr *cond, const P4Z3Instance *) override;
+    Z3Wrapper *copy() const override;
+
     cstring get_static_type() const override { return "Z3Wrapper"; }
     cstring get_static_type() override { return "Z3Wrapper"; }
+    cstring to_string() const override {
+        cstring ret = "Z3Wrapper(";
+        return ret + val.to_string().c_str() + ")";
+    }
 };
 
 } // namespace TOZ3_V2

@@ -28,9 +28,8 @@
 #include "lib/nullstream.h"
 
 #include "options.h"
-#include "toz3_v2/common/state.h"
-#include "toz3_v2/common/type_map.h"
-#include "toz3_v2/common/z3_interpreter.h"
+#include "toz3_v2/common/visitor_fill_type.h"
+#include "toz3_v2/common/visitor_interpret.h"
 
 namespace TOZ3_V2 {
 
@@ -85,23 +84,60 @@ void unroll_result(P4Z3Result z3_repr_prog, std::vector<z3::expr> *result_vec) {
     }
 }
 
-int compare_progs(z3::context *ctx,
-                  std::vector<std::vector<z3::expr>> z3_progs) {
+int compare_progs(
+    z3::context *ctx,
+    std::vector<std::pair<cstring, std::vector<z3::expr>>> z3_progs) {
     z3::solver s(*ctx);
 
     for (size_t i = 1; i < z3_progs.size(); ++i) {
-        std::vector<z3::expr> z3_repr_prog_before = z3_progs[i - 1];
-        std::vector<z3::expr> z3_repr_prog_after = z3_progs[i];
+        s.push();
+        cstring prog_before_name = z3_progs[i - 1].first;
+        cstring prog_after_name = z3_progs[i].first;
+        printf("Comparing %s and %s \n", prog_before_name.c_str(),
+               prog_after_name.c_str());
+        std::vector<z3::expr> z3_repr_prog_before = z3_progs[i - 1].second;
+        std::vector<z3::expr> z3_repr_prog_after = z3_progs[i].second;
+        z3::expr_vector z3_vec_before(*ctx);
+        z3::expr_vector z3_vec_after(*ctx);
+        std::vector<z3::sort> z3_vec_before_sorts;
+        std::vector<z3::sort> z3_vec_after_sorts;
+        std::vector<const char *> before_names;
+        std::vector<const char *> after_names;
+        z3::func_decl_vector before_getters(*ctx);
+        z3::func_decl_vector after_getters(*ctx);
 
         for (size_t i = 0; i < z3_repr_prog_before.size(); ++i) {
-            auto left_val = z3_repr_prog_before[i];
-            auto right_val = z3_repr_prog_after[i];
-            s.add(left_val == right_val);
+            // auto before_val = z3_repr_prog_before[i];
+            // auto after_val = z3_repr_prog_after[i];
+            // std::cout << "Adding " << comp << std::endl;
+            cstring before_name = "before" + std::to_string(i);
+            cstring after_name = "after" + std::to_string(i);
+            before_names.push_back(before_name.c_str());
+            after_names.push_back(after_name.c_str());
+            z3_vec_before.push_back(z3_repr_prog_before[i]);
+            z3_vec_after.push_back(z3_repr_prog_after[i]);
+            z3_vec_before_sorts.push_back(z3_repr_prog_after[i].get_sort());
+            z3_vec_after_sorts.push_back(z3_repr_prog_after[i].get_sort());
         }
-        switch (s.check()) {
-        case z3::sat:
-            break;
+        z3::func_decl before_sort = ctx->tuple_sort(
+            "State_before", z3_vec_before.size(), &before_names.at(0),
+            &z3_vec_before_sorts.at(0), before_getters);
+
+        z3::func_decl after_sort = ctx->tuple_sort(
+            "State_before", z3_vec_after.size(), &after_names.at(0),
+            &z3_vec_after_sorts.at(0), after_getters);
+        z3::expr prog_before = before_sort(z3_vec_before);
+        z3::expr after_before = after_sort(z3_vec_after);
+
+        s.add(prog_before != after_before);
+        std::cout << "Checking... " << std::endl;
+        auto ret = s.check();
+        std::cout << "Result: " << ret << std::endl;
+        s.pop();
+        switch (ret) {
         case z3::unsat:
+            break;
+        case z3::sat:
             error("Programs are not equal! Found validation error.\n");
             return EXIT_FAILURE;
         case z3::unknown:
@@ -163,7 +199,7 @@ int main(int argc, char *const argv[]) {
     const IR::P4Program *prog_parsed = nullptr;
     // parse the first program
     // use a little trick here to get the second program
-    std::vector<std::vector<z3::expr>> z3_progs;
+    std::vector<std::pair<cstring, std::vector<z3::expr>>> z3_progs;
     for (auto prog : prog_list) {
         options.file = prog;
         prog_parsed = P4::parseP4File(options);
@@ -171,9 +207,8 @@ int main(int argc, char *const argv[]) {
             TOZ3_V2::get_z3_repr(prog_parsed, &ctx);
         std::vector<z3::expr> result_vec;
         TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
-        z3_progs.push_back(result_vec);
+        z3_progs.push_back({prog, result_vec});
     }
-
     int result = TOZ3_V2::compare_progs(&ctx, z3_progs);
     return result;
 }

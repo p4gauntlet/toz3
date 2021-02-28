@@ -1,10 +1,9 @@
 #include <cstdio>
 #include <utility>
 
-#include "complex_type.h"
 #include "lib/exceptions.h"
-#include "type_map.h"
-#include "z3_interpreter.h"
+#include "visitor_fill_type.h"
+#include "visitor_interpret.h"
 
 namespace TOZ3_V2 {
 
@@ -35,7 +34,7 @@ Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
             visit(arg->expression);
-            merged_vec.insert({param->name.name, state->get_expr_result()});
+            merged_vec.insert({param->name.name, state->copy_expr_result()});
         } else {
             auto arg_expr = state->gen_instance(param->name.name, param->type);
             merged_vec.insert({param->name.name, arg_expr});
@@ -65,6 +64,7 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
 }
 
 bool Z3Visitor::preorder(const IR::Function *f) {
+    state->return_exprs.clear();
     visit(f->body);
 
     auto begin = state->return_exprs.rbegin();
@@ -72,10 +72,12 @@ bool Z3Visitor::preorder(const IR::Function *f) {
     if (begin == end) {
         return false;
     }
-    P4Z3Instance *merged_return = begin->second;
+    auto return_type = f->type->returnType;
+    P4Z3Instance *merged_return = cast(state, begin->second, return_type);
     for (auto it = std::next(begin); it != end; ++it) {
         z3::expr cond = it->first;
-        merged_return->merge(&cond, it->second);
+        P4Z3Instance *then_var = cast(state, it->second, return_type);
+        merged_return->merge(&cond, then_var);
     }
     state->set_expr_result(merged_return);
     state->return_exprs.clear();
@@ -116,10 +118,10 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     state->get_current_scope()->pop_forward_cond();
 
     // If both branches have returned we set the if statement to returned
-    state->get_current_scope()->set_returned(old_state.back()->has_returned() &&
-                                             then_state.back()->has_returned());
+    state->get_current_scope()->set_returned(old_state.back().has_returned() &&
+                                             then_state.back().has_returned());
 
-    state->merge_state(!z3_cond->val, &then_state);
+    state->merge_state(z3_cond->val, &then_state);
     return false;
 }
 
@@ -140,15 +142,31 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
 
 void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
+        if (auto mut_int = val->to_mut<Z3Int>()) {
+            auto source_var = state->get_var(name->path->name);
+            if (auto dst_var = source_var->to<Z3Wrapper>()) {
+                auto z3_sort = dst_var->val.get_sort();
+                mut_int->val = cast(state, val, &z3_sort);
+            } else {
+                BUG("CAST NOT SUPPORTED>>>>>>");
+            }
+        }
+
         state->update_var(name->path->name, val);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
         P4Z3Instance *complex_class = state->get_expr_result();
-        if (auto si = complex_class->to_mut<StructBase>()) {
-            si->update_member(member->member.name, val);
-        } else {
+        auto si = complex_class->to_mut<StructBase>();
+        if (!si) {
             BUG("Can not cast to StructBase.");
         }
+        if (val->is<Z3Int>()) {
+            auto dst_type = si->get_member_type(member->member.name);
+            val = cast(state, val, dst_type);
+        }
+        // We must cast Ints to avoid Z3 being slow
+        // As they are compile constants we are free to do that
+        si->update_member(member->member.name, val);
     } else {
         BUG("Unknown target %s!", target->node_type_name());
     }

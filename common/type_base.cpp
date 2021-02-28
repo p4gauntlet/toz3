@@ -1,4 +1,4 @@
-#include "base_type.h"
+#include "type_base.h"
 
 namespace TOZ3_V2 {
 
@@ -14,6 +14,9 @@ void P4Z3Instance::merge(z3::expr *, const P4Z3Instance *) {
 }
 std::vector<std::pair<cstring, z3::expr>> P4Z3Instance::get_z3_vars() const {
     BUG("Get Z3 vars not implemented for %s.", get_static_type());
+}
+P4Z3Instance *P4Z3Instance::copy() const {
+    BUG("Copy not implemented for %s.", get_static_type());
 }
 
 } // namespace TOZ3_V2

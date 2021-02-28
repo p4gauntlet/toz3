@@ -5,27 +5,24 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/version.h" @ONLY)
 
 set (TOZ3V2_COMMON_SRCS
-    common/z3_interpreter.cpp
-    common/operands.cpp
-    common/expressions.cpp
-    common/simple_type.cpp
-    common/complex_type.cpp
-    common/base_type.cpp
     common/state.cpp
-    common/type_map.cpp
-    common/print.cpp
+    common/type_base.cpp
+    common/type_simple.cpp
+    common/type_complex.cpp
+    common/visitor_fill_type.cpp
+    common/visitor_interpret.cpp
+    common/expressions.cpp
+    common/operands.cpp
     )
 
 set (TOZ3V2_COMMON_HDRS
-    common/z3_interpreter.h
     common/scope.h
-    common/simple_type.h
-    common/complex_type.h
-    common/base_type.h
     common/state.h
-    common/type_map.h
-    common/z3_int.h
-    common/print.h
+    common/type_base.h
+    common/type_simple.h
+    common/type_complex.h
+    common/visitor_interpret.h
+    common/visitor_fill_type.h
     )
 
 set (TOZ3V2_INTERPRET_SRCS

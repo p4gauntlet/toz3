@@ -5,8 +5,9 @@
 
 #include <cstdio>
 
-#include <map>    // std::map
-#include <vector> // std::vector
+#include <map>     // std::map
+#include <utility> // std::pair
+#include <vector>  // std::vector
 
 #include "ir/ir.h"
 #include "lib/cstring.h"
@@ -30,10 +31,17 @@ class P4Z3Instance {
     virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars() const;
     virtual cstring get_static_type() = 0;
     virtual cstring get_static_type() const = 0;
+    virtual P4Z3Instance *copy() const;
+    virtual cstring to_string() const = 0;
 };
 
 typedef std::map<cstring, P4Z3Instance *> P4Z3Result;
 
 } // namespace TOZ3_V2
+
+inline std::ostream &operator<<(std::ostream &out,
+                                const TOZ3_V2::P4Z3Instance &type) {
+    return out << type.to_string();
+}
 
 #endif // _TOZ3_BASE_TYPE_H_
