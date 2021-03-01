@@ -51,9 +51,10 @@ z3::expr cast(P4State *, P4Z3Instance *expr, z3::sort *dest_type) {
 P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
                    const IR::Type *dest_type) {
     if (auto tb = dest_type->to<IR::Type_Bits>()) {
-        auto dest_sort = state->ctx->bv_sort(dest_type->width_bits());
+        auto dest_sort = state->get_z3_ctx()->bv_sort(dest_type->width_bits());
         auto cast_val = cast(state, expr, &dest_sort);
-        return state->allocate_wrapper(cast_val);
+        state->set_expr_result(cast_val);
+        return state->copy_expr_result();
     } else {
         BUG("Cast to type %s not supported", dest_type->node_type_name());
     }
@@ -75,12 +76,8 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         instance = new ErrorInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, te);
-    } else if (auto tbi = type->to<IR::Type_Bits>()) {
-        instance = new Z3Wrapper(ctx->bv_const(name, tbi->width_bits()));
-    } else if (auto tvb = type->to<IR::Type_Varbits>()) {
-        instance = new Z3Wrapper(ctx->bv_const(name, tvb->width_bits()));
-    } else if (type->is<IR::Type_Boolean>()) {
-        instance = new Z3Wrapper(ctx->bool_const(name));
+    } else if (auto tbi = type->to<IR::Type_Base>()) {
+        instance = new Z3Wrapper(gen_z3_expr(name, type));
     } else {
         BUG("Type \"%s\" not supported!.", type);
     }

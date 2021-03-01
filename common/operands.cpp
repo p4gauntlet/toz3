@@ -45,8 +45,7 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->right);
     P4Z3Instance *right = state->copy_expr_result();
 
-    auto result_wrapper = state->allocate_wrapper(*left == *right);
-    state->set_expr_result(result_wrapper);
+    state->set_expr_result(*left == *right);
 
     return false;
 }
@@ -54,8 +53,7 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
 bool Z3Visitor::preorder(const IR::LNot *expr) {
     visit(expr->expr);
     P4Z3Instance *instance = state->get_expr_result();
-    z3::expr result = !*instance;
-    state->set_expr_result(state->allocate_wrapper(result));
+    state->set_expr_result(!*instance);
 
     return false;
 }

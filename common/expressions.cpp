@@ -16,9 +16,7 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
             state->set_expr_result(state->create_int(c->value, tb->size));
         } else {
             auto val_string = Util::toString(c->value, 0, false);
-            auto wrapped_var = state->allocate_wrapper(
-                state->ctx->bv_val(val_string, tb->size));
-            state->set_expr_result(wrapped_var);
+            state->set_expr_result(state->get_z3_ctx()->bv_val(val_string, tb->size));
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
@@ -29,8 +27,7 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
-    auto wrapped_var = state->allocate_wrapper(state->ctx->bool_val(bl->value));
-    state->set_expr_result(wrapped_var);
+    state->set_expr_result(state->get_z3_ctx()->bool_val(bl->value));
     return false;
 }
 

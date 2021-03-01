@@ -89,7 +89,7 @@ bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     auto forward_conds = state->get_current_scope()->get_forward_conds();
 
-    z3::expr cond = state->ctx->bool_val(true);
+    z3::expr cond = state->get_z3_ctx()->bool_val(true);
     for (z3::expr sub_cond : forward_conds) {
         cond = cond && sub_cond;
     }
@@ -143,6 +143,7 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
 void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
         if (auto mut_int = val->to_mut<Z3Int>()) {
+            //FIXME: This is a mess that should not exist
             auto source_var = state->get_var(name->path->name);
             if (auto dst_var = source_var->to<Z3Wrapper>()) {
                 auto z3_sort = dst_var->val.get_sort();
@@ -185,7 +186,7 @@ Z3Visitor::get_method_member(const IR::Member *member) {
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
-    set_var(as->left, state->get_expr_result());
+    set_var(as->left, state->copy_expr_result());
     return false;
 }
 

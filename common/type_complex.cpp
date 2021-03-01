@@ -128,7 +128,7 @@ StructInstance *StructInstance::copy() const {
 
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
-    : StructBase(state, type, member_id), valid(state->ctx->bool_val(false)) {
+    : StructBase(state, type, member_id), valid(state->get_z3_ctx()->bool_val(false)) {
     member_functions["setValid"] = std::bind(&HeaderInstance::setValid, this);
     member_functions["setInvalid"] =
         std::bind(&HeaderInstance::setInvalid, this);
@@ -138,21 +138,18 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
 void HeaderInstance::set_valid(z3::expr *valid_val) { valid = *valid_val; }
 const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
-void HeaderInstance::setValid() { valid = state->ctx->bool_val(true); }
+void HeaderInstance::setValid() { valid = state->get_z3_ctx()->bool_val(true); }
 
-void HeaderInstance::setInvalid() { valid = state->ctx->bool_val(false); }
+void HeaderInstance::setInvalid() { valid = state->get_z3_ctx()->bool_val(false); }
 
-void HeaderInstance::isValid() {
-    // TODO: Fix this
-    // state->set_expr_result(valid);
-}
+void HeaderInstance::isValid() { state->set_expr_result(valid); }
 
 void HeaderInstance::propagate_validity(z3::expr *valid_expr) {
     if (valid_expr) {
         valid = *valid_expr;
     } else {
         cstring name = std::to_string(member_id) + "_valid";
-        valid = state->ctx->bool_const(name);
+        valid = state->get_z3_ctx()->bool_const(name);
         valid_expr = &valid;
     }
     for (auto member_tuple : members) {
@@ -228,7 +225,7 @@ std::vector<std::pair<cstring, z3::expr>>
 EnumInstance::get_z3_vars(cstring prefix) const {
     std::vector<std::pair<cstring, z3::expr>> z3_vars;
     z3::expr z3_const =
-        state->ctx->constant(p4_type->name.name, state->ctx->bv_sort(32));
+        state->get_z3_ctx()->constant(p4_type->name.name, state->get_z3_ctx()->bv_sort(32));
     cstring name = std::to_string(member_id);
     if (prefix.size() != 0) {
         name = prefix + "." + name;
@@ -256,7 +253,7 @@ ErrorInstance::get_z3_vars(cstring prefix) const {
     if (prefix.size() != 0) {
         name = prefix + "." + name;
     }
-    z3::expr z3_const = state->ctx->constant(name, state->ctx->bv_sort(32));
+    z3::expr z3_const = state->get_z3_ctx()->constant(name, state->get_z3_ctx()->bv_sort(32));
     z3_vars.push_back({std::to_string(member_id), z3_const});
     return z3_vars;
 }

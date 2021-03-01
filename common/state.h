@@ -25,7 +25,9 @@ class P4State {
  private:
     ProgState scopes;
     P4Scope main_scope;
+    z3::context *ctx;
     P4Z3Instance *expr_result;
+    Z3Wrapper z3_expr_buffer;
     std::vector<P4Z3Instance *> allocated_vars;
     std::vector<ProgState *> cloned_states;
 
@@ -34,9 +36,11 @@ class P4State {
 
  public:
     std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
-    z3::context *ctx;
 
-    P4State(z3::context *context) : ctx(context) { main_scope = P4Scope(); }
+    P4State(z3::context *context)
+        : ctx(context), z3_expr_buffer(context->bool_val(false)) {
+        main_scope = P4Scope();
+    }
     ~P4State() {
         for (auto var : allocated_vars) {
             delete var;
@@ -44,26 +48,41 @@ class P4State {
         allocated_vars.clear();
     }
 
-    void add_to_allocated_vars(P4Z3Instance *var) {
-        allocated_vars.push_back(var);
-    }
+    /****** GETTERS ******/
+    ProgState get_state() { return scopes; }
+    z3::context *get_z3_ctx() { return ctx; }
+    P4Z3Instance *get_z3_expr_buffer() { return &z3_expr_buffer; }
+    P4Z3Instance *get_expr_result() { return expr_result; }
+
+    /****** ALLOCATIONS ******/
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
                                uint64_t id = 0);
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
+    Z3Int *create_int(big_int value, uint64_t width) {
+        auto val_string = Util::toString(value, 0, false);
+        auto var = new Z3Int(ctx->int_val(val_string), width);
+        add_to_allocated_vars(var);
+        return var;
+    }
+    void add_to_allocated_vars(P4Z3Instance *var) {
+        allocated_vars.push_back(var);
+    }
 
-    ProgState get_state() { return scopes; }
-
-    void merge_state(z3::expr cond, const ProgState *else_state);
-    void restore_state(ProgState *set_scopes) { scopes = *set_scopes; }
-
+    /****** SCOPES AND STATES ******/
     void push_scope();
     void pop_scope();
     P4Scope *get_current_scope();
+    void merge_state(z3::expr cond, const ProgState *else_state);
+    void restore_state(ProgState *set_scopes) { scopes = *set_scopes; }
+    ProgState clone_state();
+    ProgState fork_state();
 
+    /****** TYPES ******/
     const IR::Type *resolve_type(const IR::Type *type);
     void add_type(cstring type_name, const IR::Type *t);
     const IR::Type *get_type(cstring decl_name);
 
+    /****** VARIABLES ******/
     void update_var(cstring name, P4Z3Instance *var);
     void declare_local_var(cstring name, P4Z3Instance *var);
     void declare_var(cstring name, const IR::Declaration *decl);
@@ -77,23 +96,7 @@ class P4State {
         }
     }
 
-    void resolve_expr(const IR::Expression *expr);
-    ProgState clone_state();
-    ProgState fork_state();
-
-    Z3Int *create_int(big_int value, uint64_t width) {
-        auto val_string = Util::toString(value, 0, false);
-        auto var = new Z3Int(ctx->int_val(val_string), width);
-        add_to_allocated_vars(var);
-        return var;
-    }
-    P4Z3Instance *allocate_wrapper(z3::expr val) {
-        auto var = new Z3Wrapper(val);
-        add_to_allocated_vars(var);
-        return var;
-    }
-
-    P4Z3Instance *get_expr_result() { return expr_result; }
+    /****** EXPRESSION RESULTS ******/
     P4Z3Instance *copy_expr_result() {
         if (expr_result->is<P4Declaration>() or
             expr_result->is<ControlState>()) {
@@ -104,6 +107,10 @@ class P4State {
         return copy;
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
+    void set_expr_result(z3::expr result) {
+        z3_expr_buffer.val = result;
+        expr_result = &z3_expr_buffer;
+    }
 };
 
 z3::expr cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type);
