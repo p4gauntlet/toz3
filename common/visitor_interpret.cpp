@@ -94,7 +94,7 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
         cond = cond && sub_cond;
     }
     visit(r->expression);
-    state->return_exprs.push_back({cond, state->get_expr_result()});
+    state->return_exprs.push_back({cond, state->copy_expr_result()});
     state->get_current_scope()->set_returned(true);
 
     return false;
@@ -102,8 +102,8 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
-    auto cond = state->get_expr_result();
-    auto z3_cond = cond->to_mut<Z3Wrapper>();
+    auto cond = state->copy_expr_result();
+    auto z3_cond = cond->to<Z3Wrapper>();
     if (!z3_cond) {
         BUG("Unsupported condition type.");
     }
@@ -146,8 +146,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
             // FIXME: This is a mess that should not exist
             auto source_var = state->get_var(name->path->name);
             if (auto dst_var = source_var->to<Z3Wrapper>()) {
-                auto z3_sort = dst_var->val.get_sort();
-                mut_int->val = cast(state, val, &z3_sort);
+                mut_int->val = cast(state, val, dst_var->val.get_sort());
             } else {
                 BUG("CAST NOT SUPPORTED>>>>>>");
             }
@@ -195,7 +194,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left;
     if (dv->initializer) {
         visit(dv->initializer);
-        left = state->get_expr_result();
+        left = state->copy_expr_result();
     } else {
         left = state->gen_instance("undefined", dv->type);
     }

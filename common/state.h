@@ -113,7 +113,8 @@ class P4State {
     }
 };
 
-z3::expr cast(P4State *state, P4Z3Instance *expr, z3::sort *dest_type);
+z3::expr cast(P4State *state, P4Z3Instance *expr, z3::sort dest_type);
+z3::expr z3_bv_cast(const z3::expr *expr, z3::sort dest_type);
 z3::expr complex_cast(P4State *state, P4Z3Instance *expr,
                       P4Z3Instance *dest_type);
 z3::expr merge_z3_expr(z3::expr *cond, z3::expr *then_expr,

@@ -31,9 +31,7 @@ class Z3Visitor : public Inspector {
         return false;
     }
 
-    // bool preorder(const IR::P4Program *) override;
-
-    // /***** Statements *****/
+    /***** Statements *****/
     bool preorder(const IR::BlockStatement *b) override;
     bool preorder(const IR::AssignmentStatement *as) override;
     bool preorder(const IR::MethodCallStatement *mcs) override;
@@ -44,13 +42,13 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::ExitStatement *) override;
     bool preorder(const IR::ReturnStatement *) override;
 
-    // /***** Parser *****/
+    /***** Parser *****/
     // bool preorder(const IR::P4Parser *p) override;
     // bool preorder(const IR::ParserState *ps) override;
     // bool preorder(const IR::P4ValueSet *pvs) override;
     // bool preorder(const IR::SelectExpression *se) override;
     // bool preorder(const IR::SelectCase *se) override;
-    // /***** Methods *****/
+    /***** Methods *****/
     bool preorder(const IR::P4Control *c) override;
     bool preorder(const IR::P4Action *p4action) override;
     // bool preorder(const IR::Parameter *param) override;
@@ -60,7 +58,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Method *) override;
     bool preorder(const IR::Function *) override;
 
-    // /***** Tables *****/
+    /***** Tables *****/
     // bool preorder(const IR::P4Table *p4table) override;
     // bool preorder(const IR::Property *p) override;
     // bool preorder(const IR::ActionList *acl) override;
@@ -70,7 +68,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::KeyElement *ke) override;
     // bool preorder(const IR::ExpressionValue *ev) override;
 
-    // /***** Expressions *****/
+    /***** Expressions *****/
     bool preorder(const IR::Member *m) override;
     // bool preorder(const IR::SerEnumMember *m) override;
     bool preorder(const IR::PathExpression *p) override;
@@ -85,21 +83,20 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::BoolLiteral *bl) override;
     // bool preorder(const IR::StringLiteral *str) override;
 
-    // void visit_unary(const IR::Operation_Unary *);
-    // void visit_binary(const IR::Operation_Binary *);
-    // void visit_ternary(const IR::Operation_Ternary *);
-    // bool preorder(const IR::Neg *expr) override;
-    // bool preorder(const IR::Cmpl *expr) override;
+    /****** UNARY OPERANDS ******/
+    bool preorder(const IR::Neg *expr) override;
+    bool preorder(const IR::Cmpl *expr) override;
     bool preorder(const IR::LNot *expr) override;
-    // bool preorder(const IR::Mul *expr) override;
-    // bool preorder(const IR::Div *expr) override;
-    // bool preorder(const IR::Mod *expr) override;
-    // bool preorder(const IR::Add *expr) override;
-    // bool preorder(const IR::AddSat *expr) override;
-    // bool preorder(const IR::Sub *expr) override;
-    // bool preorder(const IR::SubSat *expr) override;
-    // bool preorder(const IR::Shl *expr) override;
-    // bool preorder(const IR::Shr *expr) override;
+    /****** BINARY OPERANDS ******/
+    bool preorder(const IR::Mul *expr) override;
+    bool preorder(const IR::Div *expr) override;
+    bool preorder(const IR::Mod *expr) override;
+    bool preorder(const IR::Add *expr) override;
+    bool preorder(const IR::AddSat *expr) override;
+    bool preorder(const IR::Sub *expr) override;
+    bool preorder(const IR::SubSat *expr) override;
+    bool preorder(const IR::Shl *expr) override;
+    bool preorder(const IR::Shr *expr) override;
     bool preorder(const IR::Equ *expr) override;
     bool preorder(const IR::Neq *expr) override;
     bool preorder(const IR::Lss *expr) override;
@@ -111,14 +108,15 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::BXor *expr) override;
     bool preorder(const IR::LAnd *expr) override;
     bool preorder(const IR::LOr *expr) override;
+    bool preorder(const IR::Concat *c) override;
+    /****** TERNARY OPERANDS ******/
     // bool preorder(const IR::Mask *) override;
     // bool preorder(const IR::Range *) override;
     bool preorder(const IR::Cast *c) override;
-    // bool preorder(const IR::Concat *c) override;
     // bool preorder(const IR::Slice *s) override;
     // bool preorder(const IR::Mux *) override;
 
-    // /***** Declarations *****/
+    /***** Declarations *****/
     bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
     bool preorder(const IR::Declaration_Variable *dv) override;

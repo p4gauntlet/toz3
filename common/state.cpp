@@ -8,18 +8,17 @@
 
 namespace TOZ3_V2 {
 
-z3::expr z3_bv_cast(const z3::expr *expr, z3::sort *dest_type) {
+z3::expr z3_bv_cast(const z3::expr *expr, z3::sort dest_type) {
     uint64_t expr_size;
-    uint64_t dest_size = dest_type->bv_size();
+    uint64_t dest_size = dest_type.bv_size();
     if (expr->is_bv()) {
         expr_size = expr->get_sort().bv_size();
     } else if (expr->is_int()) {
-        auto cast_val = z3::int2bv(dest_type->bv_size(), *expr).simplify();
-        return z3::int2bv(dest_type->bv_size(), *expr).simplify();
+        auto cast_val = z3::int2bv(dest_type.bv_size(), *expr).simplify();
+        return z3::int2bv(dest_type.bv_size(), *expr).simplify();
     } else {
         BUG("Cast to z3 bit vector type not supported.");
     }
-
     // At this point we are only dealing with expr bit vectors
 
     if (expr_size < dest_size) {
@@ -34,8 +33,8 @@ z3::expr z3_bv_cast(const z3::expr *expr, z3::sort *dest_type) {
     }
 }
 
-z3::expr cast(P4State *, P4Z3Instance *expr, z3::sort *dest_type) {
-    if (dest_type->is_bv()) {
+z3::expr cast(P4State *, P4Z3Instance *expr, z3::sort dest_type) {
+    if (dest_type.is_bv()) {
         if (auto z3_var = expr->to<Z3Wrapper>()) {
             return z3_bv_cast(&z3_var->val, dest_type);
         } else if (auto z3_var = expr->to<Z3Int>()) {
@@ -52,7 +51,7 @@ P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
                    const IR::Type *dest_type) {
     if (auto tb = dest_type->to<IR::Type_Bits>()) {
         auto dest_sort = state->get_z3_ctx()->bv_sort(tb->width_bits());
-        auto cast_val = cast(state, expr, &dest_sort);
+        auto cast_val = cast(state, expr, dest_sort);
         state->set_expr_result(cast_val);
         return state->copy_expr_result();
     } else {
