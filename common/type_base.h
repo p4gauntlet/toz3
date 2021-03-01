@@ -24,14 +24,62 @@ class P4Z3Instance {
     template <typename T> T *to_mut() { return dynamic_cast<T *>(this); }
     virtual ~P4Z3Instance() = default;
 
-    virtual z3::expr operator==(const P4Z3Instance &);
-    virtual z3::expr operator!();
-    virtual z3::expr operator!() const;
-    virtual void merge(z3::expr *, const P4Z3Instance *);
-    virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars() const;
+    /****** UNARY OPERANDS ******/
+    virtual z3::expr operator!() const {
+        P4C_UNIMPLEMENTED("! implemented for %s", to_string());
+    }
+
+    /****** BINARY OPERANDS ******/
+
+    virtual z3::expr operator==(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("== not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator!=(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("!= not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator<(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("< not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator<=(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("<= not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator>(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("> not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator>=(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED(">= not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator&(const P4Z3Instance &)const {
+        P4C_UNIMPLEMENTED("& not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator|(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("| not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator^(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("^ not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator&&(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("&& not implemented for %s.", get_static_type());
+    }
+    virtual z3::expr operator||(const P4Z3Instance &) const {
+        P4C_UNIMPLEMENTED("|| not implemented for %s.", get_static_type());
+    }
+
+    /****** CUSTOM FUNCTIONS ******/
+    virtual void merge(z3::expr *, const P4Z3Instance *) {
+        P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.",
+                          get_static_type());
+    }
+    virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars() const {
+        P4C_UNIMPLEMENTED("Get Z3 vars not implemented for %s.",
+                          get_static_type());
+    }
+    virtual P4Z3Instance *copy() const {
+        P4C_UNIMPLEMENTED("Copy not implemented for %s.", get_static_type());
+    }
+
     virtual cstring get_static_type() = 0;
     virtual cstring get_static_type() const = 0;
-    virtual P4Z3Instance *copy() const;
     virtual cstring to_string() const = 0;
 };
 

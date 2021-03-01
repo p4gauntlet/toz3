@@ -143,7 +143,7 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
 void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
         if (auto mut_int = val->to_mut<Z3Int>()) {
-            //FIXME: This is a mess that should not exist
+            // FIXME: This is a mess that should not exist
             auto source_var = state->get_var(name->path->name);
             if (auto dst_var = source_var->to<Z3Wrapper>()) {
                 auto z3_sort = dst_var->val.get_sort();

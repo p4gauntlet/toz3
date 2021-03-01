@@ -70,7 +70,7 @@ class Z3Int : public P4Z3Instance {
     int64_t width;
     Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
 
-    z3::expr operator==(const P4Z3Instance &other) override {
+    z3::expr operator==(const P4Z3Instance &other) const override {
         if (auto other_int = other.to<Z3Int>()) {
             return val == other_int->val;
         } else {
@@ -93,7 +93,7 @@ class Z3Wrapper : public P4Z3Instance {
     z3::expr val;
     Z3Wrapper(z3::expr val) : val(val){};
 
-    z3::expr operator==(const P4Z3Instance &other) override {
+    z3::expr operator==(const P4Z3Instance &other) const override {
         if (auto other_int = other.to<Z3Int>()) {
             return val == other_int->val;
         } else if (auto other_val = other.to<Z3Wrapper>()) {
@@ -103,7 +103,6 @@ class Z3Wrapper : public P4Z3Instance {
         }
     }
 
-    z3::expr operator!() override { return !val; }
     z3::expr operator!() const override { return !val; }
     void merge(z3::expr *cond, const P4Z3Instance *) override;
     Z3Wrapper *copy() const override;

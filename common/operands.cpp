@@ -43,9 +43,111 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->left);
     P4Z3Instance *left = state->copy_expr_result();
     visit(expr->right);
-    P4Z3Instance *right = state->copy_expr_result();
+    P4Z3Instance *right = state->get_expr_result();
 
     state->set_expr_result(*left == *right);
+
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::Neq *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left != *right);
+
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::Lss *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left < *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::Leq *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left <= *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::Grt *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left > *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::Geq *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left >= *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::BAnd *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left & *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::BOr *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left | *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::BXor *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left ^ *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::LAnd *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left && *right);
+
+    return false;
+}
+bool Z3Visitor::preorder(const IR::LOr *expr) {
+    visit(expr->left);
+    P4Z3Instance *left = state->copy_expr_result();
+    visit(expr->right);
+    P4Z3Instance *right = state->get_expr_result();
+
+    state->set_expr_result(*left || *right);
 
     return false;
 }
