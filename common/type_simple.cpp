@@ -42,8 +42,16 @@ z3::expr Z3Wrapper::operatorSubSat(const P4Z3Instance &) const {
 z3::expr Z3Wrapper::operator>>(const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED(">> not implemented for %s.", get_static_type());
 }
-z3::expr Z3Wrapper::operator<<(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("<< not implemented for %s.", get_static_type());
+z3::expr Z3Wrapper::operator<<(const P4Z3Instance &other) const {
+    if (auto other_int = other.to<Z3Int>()) {
+        return z3::shl(val, z3_bv_cast(&other_int->val, val.get_sort()));
+    } else if (auto other_val = other.to<Z3Wrapper>()) {
+        z3::expr res_val =
+            z3::shl(val, z3_bv_cast(&other_val->val, val.get_sort()));
+        return res_val;
+    } else {
+        BUG("Unsupported Z3Wrapper comparison.");
+    }
 }
 z3::expr Z3Wrapper::operator==(const P4Z3Instance &other) const {
     if (auto other_int = other.to<Z3Int>()) {
@@ -57,8 +65,14 @@ z3::expr Z3Wrapper::operator==(const P4Z3Instance &other) const {
 z3::expr Z3Wrapper::operator!=(const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("!= not implemented for %s.", get_static_type());
 }
-z3::expr Z3Wrapper::operator<(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("< not implemented for %s.", get_static_type());
+z3::expr Z3Wrapper::operator<(const P4Z3Instance &other) const {
+    if (auto other_int = other.to<Z3Int>()) {
+        return val < z3_bv_cast(&other_int->val, val.get_sort());
+    } else if (auto other_val = other.to<Z3Wrapper>()) {
+        return val < other_val->val;
+    } else {
+        BUG("Unsupported Z3Wrapper comparison.");
+    }
 }
 z3::expr Z3Wrapper::operator<=(const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("<= not implemented for %s.", get_static_type());
