@@ -94,7 +94,6 @@ bool Z3Visitor::preorder(const IR::Add *expr) {
     P4Z3Instance *right = state->get_expr_result();
 
     state->set_expr_result(*left + *right);
-
     return false;
 }
 

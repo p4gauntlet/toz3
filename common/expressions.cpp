@@ -16,7 +16,9 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
             state->set_expr_result(state->create_int(c->value, tb->size));
         } else {
             auto val_string = Util::toString(c->value, 0, false);
-            state->set_expr_result(state->get_z3_ctx()->bv_val(val_string, tb->size));
+            Z3Bitvector wrapper =
+                Z3Bitvector(state->get_z3_ctx()->bv_val(val_string, tb->size));
+            state->set_expr_result(wrapper);
         }
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
@@ -27,7 +29,9 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
-    state->set_expr_result(state->get_z3_ctx()->bool_val(bl->value));
+    Z3Bitvector wrapper =
+        Z3Bitvector(state->get_z3_ctx()->bool_val(bl->value));
+    state->set_expr_result(wrapper);
     return false;
 }
 
@@ -140,7 +144,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         // COLLECT
         for (auto state_name : state_names) {
             auto var = state->get_var(state_name);
-            if (auto z3_var = var->to<Z3Wrapper>()) {
+            if (auto z3_var = var->to<Z3Bitvector>()) {
                 state_vars.push_back({state_name, z3_var->val});
             } else if (auto z3_var = var->to<StructBase>()) {
                 auto z3_sub_vars = z3_var->get_z3_vars(state_name);

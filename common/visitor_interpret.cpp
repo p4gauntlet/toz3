@@ -103,7 +103,7 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
     auto cond = state->copy_expr_result();
-    auto z3_cond = cond->to<Z3Wrapper>();
+    auto z3_cond = cond->to<Z3Bitvector>();
     if (!z3_cond) {
         BUG("Unsupported condition type.");
     }
@@ -145,7 +145,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
         if (auto mut_int = val->to_mut<Z3Int>()) {
             // FIXME: This is a mess that should not exist
             auto source_var = state->get_var(name->path->name);
-            if (auto dst_var = source_var->to<Z3Wrapper>()) {
+            if (auto dst_var = source_var->to<Z3Bitvector>()) {
                 mut_int->val = cast(state, val, dst_var->val.get_sort());
             } else {
                 BUG("CAST NOT SUPPORTED>>>>>>");
@@ -190,15 +190,26 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
-    // TODO: Casting
     P4Z3Instance *left;
     if (dv->initializer) {
         visit(dv->initializer);
-        left = state->copy_expr_result();
+        left = cast(state, state->copy_expr_result(), dv->type);
     } else {
         left = state->gen_instance("undefined", dv->type);
     }
     state->declare_local_var(dv->name.name, left);
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
+    P4Z3Instance *left;
+    if (dc->initializer) {
+        visit(dc->initializer);
+        left = cast(state, state->copy_expr_result(), dc->type);
+    } else {
+        left = state->gen_instance("undefined", dc->type);
+    }
+    state->declare_local_var(dc->name.name, left);
     return false;
 }
 

@@ -72,7 +72,7 @@ P4Z3Result get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
 
 void unroll_result(P4Z3Result z3_repr_prog, std::vector<z3::expr> *result_vec) {
     for (auto result_tuple : z3_repr_prog) {
-        if (auto z3_val = result_tuple.second->to<Z3Wrapper>()) {
+        if (auto z3_val = result_tuple.second->to<Z3Bitvector>()) {
             result_vec->push_back(z3_val->val);
         } else if (auto z3_var = result_tuple.second->to<ControlState>()) {
             for (auto sub_tuple : z3_var->state_vars) {

@@ -17,7 +17,8 @@ z3::expr z3_bv_cast(const z3::expr *expr, z3::sort dest_type) {
         auto cast_val = z3::int2bv(dest_type.bv_size(), *expr).simplify();
         return z3::int2bv(dest_type.bv_size(), *expr).simplify();
     } else {
-        BUG("Cast to z3 bit vector type not supported.");
+        BUG("Casting %s to a bit vector is not supported.",
+            expr->to_string().c_str());
     }
     // At this point we are only dealing with expr bit vectors
 
@@ -35,7 +36,7 @@ z3::expr z3_bv_cast(const z3::expr *expr, z3::sort dest_type) {
 
 z3::expr cast(P4State *, P4Z3Instance *expr, z3::sort dest_type) {
     if (dest_type.is_bv()) {
-        if (auto z3_var = expr->to<Z3Wrapper>()) {
+        if (auto z3_var = expr->to<Z3Bitvector>()) {
             return z3_bv_cast(&z3_var->val, dest_type);
         } else if (auto z3_var = expr->to<Z3Int>()) {
             return z3_bv_cast(&z3_var->val, dest_type);
@@ -52,7 +53,8 @@ P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
     if (auto tb = dest_type->to<IR::Type_Bits>()) {
         auto dest_sort = state->get_z3_ctx()->bv_sort(tb->width_bits());
         auto cast_val = cast(state, expr, dest_sort);
-        state->set_expr_result(cast_val);
+        Z3Bitvector wrapper = Z3Bitvector(cast_val);
+        state->set_expr_result(wrapper);
         return state->copy_expr_result();
     } else {
         BUG("Cast to type %s not supported", dest_type->node_type_name());
@@ -76,7 +78,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (auto te = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, te);
     } else if (type->is<IR::Type_Base>()) {
-        instance = new Z3Wrapper(gen_z3_expr(name, type));
+        instance = new Z3Bitvector(gen_z3_expr(name, type));
     } else {
         BUG("Type \"%s\" not supported!.", type);
     }

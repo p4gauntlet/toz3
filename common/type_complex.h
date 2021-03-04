@@ -172,6 +172,8 @@ class ErrorInstance : public StructBase {
     get_z3_vars(cstring prefix = "") const override;
     cstring get_static_type() const override { return "ErrorInstance"; }
     cstring get_static_type() override { return "ErrorInstance"; }
+    ErrorInstance *copy() const override;
+
     cstring to_string() const override {
         cstring ret = "ErrorInstance(";
         bool first = true;

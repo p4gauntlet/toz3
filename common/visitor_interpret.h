@@ -120,7 +120,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
     bool preorder(const IR::Declaration_Variable *dv) override;
-    // bool preorder(const IR::Declaration_Constant *dv) override;
+    bool preorder(const IR::Declaration_Constant *dv) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
     void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
                             const IR::Type *t);

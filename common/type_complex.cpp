@@ -77,7 +77,7 @@ StructBase::get_z3_vars(cstring prefix) const {
             name = prefix + "." + name;
         }
         P4Z3Instance *member = member_tuple.second;
-        if (auto z3_var = member->to<Z3Wrapper>()) {
+        if (auto z3_var = member->to<Z3Bitvector>()) {
             z3_vars.push_back({name, z3_var->val});
         } else if (auto z3_var = member->to<StructBase>()) {
             auto z3_sub_vars = z3_var->get_z3_vars(name);
@@ -128,7 +128,8 @@ StructInstance *StructInstance::copy() const {
 
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
-    : StructBase(state, type, member_id), valid(state->get_z3_ctx()->bool_val(false)) {
+    : StructBase(state, type, member_id),
+      valid(state->get_z3_ctx()->bool_val(false)) {
     member_functions["setValid"] = std::bind(&HeaderInstance::setValid, this);
     member_functions["setInvalid"] =
         std::bind(&HeaderInstance::setInvalid, this);
@@ -140,9 +141,14 @@ const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
 void HeaderInstance::setValid() { valid = state->get_z3_ctx()->bool_val(true); }
 
-void HeaderInstance::setInvalid() { valid = state->get_z3_ctx()->bool_val(false); }
+void HeaderInstance::setInvalid() {
+    valid = state->get_z3_ctx()->bool_val(false);
+}
 
-void HeaderInstance::isValid() { state->set_expr_result(valid); }
+void HeaderInstance::isValid() {
+    static Z3Bitvector wrapper = Z3Bitvector(valid);
+    state->set_expr_result(wrapper);
+}
 
 void HeaderInstance::propagate_validity(z3::expr *valid_expr) {
     if (valid_expr) {
@@ -173,7 +179,7 @@ HeaderInstance::get_z3_vars(cstring prefix) const {
             name = prefix + "." + name;
         }
         P4Z3Instance *member = member_tuple.second;
-        if (auto *z3_var = member->to<Z3Wrapper>()) {
+        if (auto *z3_var = member->to<Z3Bitvector>()) {
             const IR::Type *type = member_types.at(member_tuple.first);
             z3::expr invalid_var = state->gen_z3_expr("invalid", type);
             auto valid_var = z3::ite(valid, z3_var->val, invalid_var);
@@ -224,8 +230,8 @@ EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
 std::vector<std::pair<cstring, z3::expr>>
 EnumInstance::get_z3_vars(cstring prefix) const {
     std::vector<std::pair<cstring, z3::expr>> z3_vars;
-    z3::expr z3_const =
-        state->get_z3_ctx()->constant(p4_type->name.name, state->get_z3_ctx()->bv_sort(32));
+    z3::expr z3_const = state->get_z3_ctx()->constant(
+        p4_type->name.name, state->get_z3_ctx()->bv_sort(32));
     cstring name = std::to_string(member_id);
     if (prefix.size() != 0) {
         name = prefix + "." + name;
@@ -253,10 +259,15 @@ ErrorInstance::get_z3_vars(cstring prefix) const {
     if (prefix.size() != 0) {
         name = prefix + "." + name;
     }
-    z3::expr z3_const = state->get_z3_ctx()->constant(name, state->get_z3_ctx()->bv_sort(32));
+    z3::expr z3_const =
+        state->get_z3_ctx()->constant(name, state->get_z3_ctx()->bv_sort(32));
     z3_vars.push_back({std::to_string(member_id), z3_const});
     return z3_vars;
 }
+
+ErrorInstance *ErrorInstance::copy() const {
+    return new ErrorInstance(state, p4_type, member_id);
+};
 
 ExternInstance::ExternInstance(P4State *, const IR::Type_Extern *type)
     : p4_type(type) {}

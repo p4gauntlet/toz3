@@ -27,7 +27,8 @@ class P4State {
     P4Scope main_scope;
     z3::context *ctx;
     P4Z3Instance *expr_result;
-    Z3Wrapper z3_expr_buffer;
+    Z3Bitvector z3_expr_buffer;
+    Z3Int z3_int_buffer;
     std::vector<P4Z3Instance *> allocated_vars;
     std::vector<ProgState *> cloned_states;
 
@@ -38,7 +39,8 @@ class P4State {
     std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
 
     P4State(z3::context *context)
-        : ctx(context), z3_expr_buffer(context->bool_val(false)) {
+        : ctx(context), z3_expr_buffer(context->bool_val(false)),
+          z3_int_buffer(context->bool_val(false), 0) {
         main_scope = P4Scope();
     }
     ~P4State() {
@@ -107,9 +109,29 @@ class P4State {
         return copy;
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
-    void set_expr_result(z3::expr result) {
-        z3_expr_buffer.val = result;
-        expr_result = &z3_expr_buffer;
+    void set_expr_result(Z3Result result) {
+        if (auto result_expr = boost::get<Z3Bitvector>(&result)) {
+            z3_expr_buffer = Z3Bitvector(result_expr->val);
+            expr_result = &z3_expr_buffer;
+        } else if (auto result_expr = boost::get<Z3Int>(&result)) {
+            z3_int_buffer = Z3Int(result_expr->val, result_expr->width);
+            expr_result = &z3_int_buffer;
+        } else {
+            // P4C_UNIMPLEMENTED("Storing reference not supported for %s.",
+            //                   result.get_static_type());
+        }
+    }
+    void set_expr_result(P4Z3Instance &result) {
+        if (auto result_expr = result.to<Z3Bitvector>()) {
+            z3_expr_buffer = Z3Bitvector(result_expr->val);
+            expr_result = &z3_expr_buffer;
+        } else if (auto result_expr = result.to<Z3Int>()) {
+            z3_int_buffer = Z3Int(result_expr->val, result_expr->width);
+            expr_result = &z3_int_buffer;
+        } else {
+            P4C_UNIMPLEMENTED("Storing reference not supported for %s.",
+                              result.get_static_type());
+        }
     }
 };
 
