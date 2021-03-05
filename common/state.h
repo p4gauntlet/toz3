@@ -51,7 +51,8 @@ class P4State {
     }
 
     /****** GETTERS ******/
-    ProgState get_state() { return scopes; }
+    ProgState copy_state() { return scopes; }
+    ProgState *get_state() { return &scopes; }
     z3::context *get_z3_ctx() { return ctx; }
     P4Z3Instance *get_expr_result() { return expr_result; }
 
@@ -67,6 +68,7 @@ class P4State {
     void push_scope();
     void pop_scope();
     P4Scope *get_current_scope();
+    P4Scope *get_scope_list();
     void merge_state(z3::expr cond, const ProgState *else_state);
     void restore_state(ProgState *set_scopes) { scopes = *set_scopes; }
     ProgState clone_state();

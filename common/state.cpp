@@ -224,9 +224,9 @@ void P4State::declare_local_var(cstring name, P4Z3Instance *var) {
 }
 
 const P4Declaration *P4State::get_static_decl(cstring name) {
-    for (P4Scope scope : scopes) {
-        if (scope.has_static_decl(name)) {
-            return scope.get_static_decl(name);
+    for (auto scope = scopes.begin(); scope != scopes.end(); ++scope) {
+        if (scope->has_static_decl(name)) {
+            return scope->get_static_decl(name);
         }
     }
     // also check the parent scope
@@ -238,7 +238,7 @@ const P4Declaration *P4State::get_static_decl(cstring name) {
 }
 
 const P4Declaration *P4State::find_static_decl(cstring name,
-                                                 P4Scope **owner_scope) {
+                                               P4Scope **owner_scope) {
     for (std::size_t i = 0; i < scopes.size(); ++i) {
         auto scope = &scopes.at(i);
         if (scope->has_static_decl(name)) {

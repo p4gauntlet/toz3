@@ -190,9 +190,10 @@ class ErrorInstance : public StructBase {
 
 class ExternInstance : public P4Z3Instance {
  private:
+    std::map<cstring, const IR::Method *> methods;
+
  public:
     const IR::Type_Extern *p4_type;
-    uint64_t width;
     ExternInstance(P4State *state, const IR::Type_Extern *type);
     void merge(z3::expr *, const P4Z3Instance *) override{
         // Merge is a no-op here.
@@ -203,6 +204,13 @@ class ExternInstance : public P4Z3Instance {
         cstring ret = "ExternInstance(";
         ret += ")";
         return ret;
+    }
+    const IR::Method *get_method(cstring method_name) {
+        if (methods.count(method_name)) {
+            return methods.at(method_name);
+        }
+        error("Extern %s has no method %s.", p4_type, method_name);
+        exit(1);
     }
 };
 

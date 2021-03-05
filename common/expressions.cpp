@@ -71,7 +71,21 @@ std::function<void(void)> get_method_member(Z3Visitor *visitor,
     if (auto si = complex_class->to_mut<StructBase>()) {
         return si->get_function(member->member.name);
     }
-    BUG("Method member not supported for %s.", member);
+    P4C_UNIMPLEMENTED("Method member not supported for %s.", member);
+}
+
+const IR::ParameterList *get_params(const IR::Declaration *callable) {
+    if (auto p4action = callable->to<IR::P4Action>()) {
+        return p4action->getParameters();
+    } else if (auto fun = callable->to<IR::Function>()) {
+        return fun->getParameters();
+    } else if (auto fun = callable->to<IR::Method>()) {
+        return fun->getParameters();
+    } else {
+        P4C_UNIMPLEMENTED(
+            "Callable declaration type %s of type %s not supported.", callable,
+            callable->node_type_name());
+    }
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
@@ -79,40 +93,30 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::ParameterList *params;
 
     const IR::Expression *method_type = mce->method;
-    if (auto member = method_type->to<IR::Member>()) {
-        // peek if we are working with a declaration
-        if (auto path = member->expr->to<IR::PathExpression>()) {
-            P4Scope *scope;
-            if (state->find_static_decl(path->path->name.name, &scope)) {
-                method_type = path;
-            }
-        }
-    }
 
     if (auto path_expr = method_type->to<IR::PathExpression>()) {
         cstring name = path_expr->path->name.name;
-        const P4Declaration *method_decl = state->get_static_decl(name);
-        if (auto p4action = method_decl->decl->to<IR::P4Action>()) {
-            callable = p4action;
-            params = p4action->getParameters();
-        } else if (auto fun = method_decl->decl->to<IR::Function>()) {
-            callable = fun;
-            params = fun->getParameters();
-        } else if (auto table = method_decl->decl->to<IR::P4Table>()) {
-            callable = table;
-            params = table->getApplyParameters();
-        } else {
-            BUG("Method type %s not supported.",
-                method_decl->decl->node_type_name());
-        }
+        callable = state->get_static_decl(name)->decl;
+        params = get_params(callable);
     } else if (auto member = method_type->to<IR::Member>()) {
+        visit(member->expr);
         // try to resolve the normal way and find a function pointer
-        auto method = get_method_member(this, member);
-        method();
-        return false;
+        P4Z3Instance *result = state->get_expr_result();
+        if (auto si = result->to_mut<HeaderInstance>()) {
+            // call the function directly for now
+            si->get_function(member->member.name)();
+            return false;
+        } else if (auto p4extern = result->to_mut<ExternInstance>()) {
+            callable = p4extern->get_method(member->member.name);
+            params = get_params(callable);
+        } else if (auto decl = result->to_mut<P4Declaration>()) {
+            callable = decl->decl;
+            params = get_params(callable);
+        } else {
+            P4C_UNIMPLEMENTED("Method member call %s not supported.", mce);
+        }
     } else {
-        BUG("Method reference %s not supported.",
-            mce->method->node_type_name());
+        P4C_UNIMPLEMENTED("Method call %s not supported.", mce);
     }
     std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
         resolve_args(mce->arguments, params);

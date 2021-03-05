@@ -84,6 +84,26 @@ bool Z3Visitor::preorder(const IR::Function *f) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::Method *m) {
+    auto method_name = m->getName().name;
+    auto method_type = m->type->returnType;
+    // TODO: Different types of arguments and multiple calls
+    for (auto param : *m->getParameters()) {
+        cstring param_name = param->getName().name;
+        cstring merged_param_name = method_name + "_" + param_name;
+        if (param->direction == IR::Direction::Out ||
+            param->direction == IR::Direction::InOut) {
+            auto instance = state->gen_instance(merged_param_name, param->type);
+            state->update_var(param_name, instance);
+        }
+    }
+    // Only set a return value if the method has something to return
+    if (!method_type->is<IR::Type_Void>()) {
+        state->set_expr_result(state->gen_instance(method_name, method_type));
+    }
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
@@ -111,7 +131,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     ProgState old_state = state->fork_state();
     state->get_current_scope()->push_forward_cond(&z3_cond->val);
     visit(ifs->ifTrue);
-    ProgState then_state = state->get_state();
+    ProgState then_state = state->copy_state();
     state->restore_state(&old_state);
     state->get_current_scope()->push_forward_cond(&z3_cond->val);
     visit(ifs->ifFalse);

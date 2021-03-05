@@ -269,6 +269,10 @@ ErrorInstance *ErrorInstance::copy() const {
 };
 
 ExternInstance::ExternInstance(P4State *, const IR::Type_Extern *type)
-    : p4_type(type) {}
+    : p4_type(type) {
+    for (auto method : type->methods) {
+        methods.insert({method->getName().name, method});
+    }
+}
 
 } // namespace TOZ3_V2
