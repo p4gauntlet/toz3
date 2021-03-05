@@ -12,14 +12,10 @@ namespace TOZ3_V2 {
 
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (auto tb = c->type->to<IR::Type_Bits>()) {
-        if (tb->isSigned) {
-            state->set_expr_result(state->create_int(c->value, tb->size));
-        } else {
-            auto val_string = Util::toString(c->value, 0, false);
-            Z3Bitvector wrapper =
-                Z3Bitvector(state->get_z3_ctx()->bv_val(val_string, tb->size));
-            state->set_expr_result(wrapper);
-        }
+        auto val_string = Util::toString(c->value, 0, false);
+        Z3Bitvector wrapper = Z3Bitvector(
+            state->get_z3_ctx()->bv_val(val_string, tb->size), tb->isSigned);
+        state->set_expr_result(wrapper);
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
         state->set_expr_result(state->create_int(c->value, 0));
@@ -29,8 +25,7 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
-    Z3Bitvector wrapper =
-        Z3Bitvector(state->get_z3_ctx()->bool_val(bl->value));
+    Z3Bitvector wrapper = Z3Bitvector(state->get_z3_ctx()->bool_val(bl->value));
     state->set_expr_result(wrapper);
     return false;
 }

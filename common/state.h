@@ -111,10 +111,10 @@ class P4State {
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
     void set_expr_result(Z3Result result) {
         if (auto result_expr = boost::get<Z3Bitvector>(&result)) {
-            z3_expr_buffer = Z3Bitvector(result_expr->val);
+            z3_expr_buffer = *result_expr;
             expr_result = &z3_expr_buffer;
         } else if (auto result_expr = boost::get<Z3Int>(&result)) {
-            z3_int_buffer = Z3Int(result_expr->val, result_expr->width);
+            z3_int_buffer = *result_expr;
             expr_result = &z3_int_buffer;
         } else {
             // P4C_UNIMPLEMENTED("Storing reference not supported for %s.",
@@ -123,10 +123,10 @@ class P4State {
     }
     void set_expr_result(P4Z3Instance &result) {
         if (auto result_expr = result.to<Z3Bitvector>()) {
-            z3_expr_buffer = Z3Bitvector(result_expr->val);
+            z3_expr_buffer = *result_expr;
             expr_result = &z3_expr_buffer;
         } else if (auto result_expr = result.to<Z3Int>()) {
-            z3_int_buffer = Z3Int(result_expr->val, result_expr->width);
+            z3_int_buffer = *result_expr;
             expr_result = &z3_int_buffer;
         } else {
             P4C_UNIMPLEMENTED("Storing reference not supported for %s.",

@@ -56,6 +56,23 @@ P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
         Z3Bitvector wrapper = Z3Bitvector(cast_val);
         state->set_expr_result(wrapper);
         return state->copy_expr_result();
+    } else if (dest_type->is<IR::Type_InfInt>()) {
+        // FIXME: Clean this up
+        if (auto z3_var = expr->to<Z3Bitvector>()) {
+            cstring dec_str = z3_var->val.get_decimal_string(0);
+            auto int_expr = state->get_z3_ctx()->int_val(dec_str.c_str());
+            Z3Int wrapper = Z3Int(int_expr, 0);
+            state->set_expr_result(wrapper);
+            return state->copy_expr_result();
+        } else if (auto z3_var = expr->to<Z3Int>()) {
+            cstring dec_str = z3_var->val.get_decimal_string(0);
+            auto int_expr = state->get_z3_ctx()->int_val(dec_str.c_str());
+            Z3Int wrapper = Z3Int(int_expr, 0);
+            state->set_expr_result(wrapper);
+            return state->copy_expr_result();
+        } else {
+            BUG("Cast to bit vector type not supported.");
+        }
     } else {
         BUG("Cast to type %s not supported", dest_type->node_type_name());
     }

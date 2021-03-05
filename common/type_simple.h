@@ -67,7 +67,9 @@ class P4Declaration : public P4Z3Instance {
 class Z3Bitvector : public P4Z3Instance {
  public:
     z3::expr val;
-    Z3Bitvector(z3::expr val) : val(val){};
+    bool is_signed;
+    Z3Bitvector(z3::expr val, bool is_signed = false)
+        : val(val), is_signed(is_signed){};
     ~Z3Bitvector() {}
     Z3Bitvector() : val(z3::context().int_val(0)){};
 
