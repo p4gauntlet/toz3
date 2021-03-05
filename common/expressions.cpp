@@ -18,7 +18,9 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
         state->set_expr_result(wrapper);
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
-        state->set_expr_result(state->create_int(c->value, 0));
+        auto val_string = Util::toString(c->value, 0, false);
+        auto var = Z3Int(state->get_z3_ctx()->int_val(val_string));
+        state->set_expr_result(var);
         return false;
     }
     BUG("Constant Node %s not implemented!", c->type->node_type_name());

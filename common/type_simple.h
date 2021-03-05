@@ -117,10 +117,9 @@ class Z3Bitvector : public P4Z3Instance {
 class Z3Int : public P4Z3Instance {
  public:
     z3::expr val;
-    int64_t width;
-    Z3Int(z3::expr val, int64_t width) : val(val), width(width){};
-    Z3Int(big_int int_val, int64_t width, z3::context *ctx);
-    Z3Int(int64_t int_val, int64_t width, z3::context *ctx);
+    Z3Int(z3::expr val) : val(val){};
+    Z3Int(int64_t int_val, z3::context *ctx);
+    Z3Int(big_int int_val, z3::context *ctx);
 
     Z3Int() : val(z3::context().int_val(0)){};
 
@@ -159,8 +158,7 @@ class Z3Int : public P4Z3Instance {
     cstring get_static_type() override { return "Z3Int"; }
     cstring to_string() const override {
         cstring ret = "Z3Int(";
-        return ret + val.to_string().c_str() + ", " + std::to_string(width) +
-               " )";
+        return ret + val.to_string().c_str() + " )";
     }
 };
 

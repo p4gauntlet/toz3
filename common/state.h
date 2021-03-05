@@ -40,7 +40,7 @@ class P4State {
 
     P4State(z3::context *context)
         : ctx(context), z3_expr_buffer(context->bool_val(false)),
-          z3_int_buffer(context->bool_val(false), 0) {
+          z3_int_buffer(context->bool_val(false)) {
         main_scope = P4Scope();
     }
     ~P4State() {
@@ -60,12 +60,6 @@ class P4State {
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
                                uint64_t id = 0);
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
-    Z3Int *create_int(big_int value, uint64_t width) {
-        auto val_string = Util::toString(value, 0, false);
-        auto var = new Z3Int(ctx->int_val(val_string), width);
-        add_to_allocated_vars(var);
-        return var;
-    }
     void add_to_allocated_vars(P4Z3Instance *var) {
         allocated_vars.push_back(var);
     }
