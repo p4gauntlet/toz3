@@ -18,6 +18,7 @@ class P4Scope {
 
  private:
     // maps of local values and types
+    std::map<cstring, P4Declaration> static_decls;
     std::map<cstring, P4Z3Instance *> var_map;
     std::map<cstring, const IR::Type *> var_types;
     std::map<cstring, const IR::Type *> type_map;
@@ -25,6 +26,23 @@ class P4Scope {
     std::vector<z3::expr> forward_conds;
 
  public:
+    /****** GETTERS ******/
+    std::map<cstring, const IR::Type *> *get_type_map() { return &type_map; }
+
+    /****** STATIC DECLS ******/
+    const P4Declaration *get_static_decl(cstring name) {
+        return &static_decls.at(name);
+    }
+    void declare_static_decl(cstring name, const IR::Declaration *val) {
+
+        static_decls.insert({name, P4Declaration(val)});
+    }
+    bool has_static_decl(cstring name) { return static_decls.count(name) > 0; }
+    const std::map<cstring, P4Declaration> *get_const_decl_map() const {
+        return &static_decls;
+    }
+
+    /****** VARIABLES ******/
     P4Z3Instance *get_var(cstring name) { return var_map.at(name); }
     void update_var(cstring name, P4Z3Instance *val) { var_map.at(name) = val; }
     void declare_var(cstring name, P4Z3Instance *val) {
@@ -36,6 +54,7 @@ class P4Scope {
         return &var_map;
     }
 
+    /****** TYPES ******/
     void add_type(cstring type_name, const IR::Type *t) {
         type_map[type_name] = t;
     }
@@ -54,7 +73,7 @@ class P4Scope {
         }
         return ret_type;
     }
-
+    /****** VAR_TYPES ******/
     void add_type_to_var(cstring type_name, const IR::Type *t) {
         var_types[type_name] = t;
     }
@@ -63,6 +82,7 @@ class P4Scope {
         return var_types.at(type_name);
     }
 
+    /****** RETURN MANAGEMENT ******/
     bool has_returned() { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
 
@@ -71,8 +91,6 @@ class P4Scope {
     }
     std::vector<z3::expr> get_forward_conds() { return forward_conds; }
     void pop_forward_cond() { forward_conds.pop_back(); }
-
-    std::map<cstring, const IR::Type *> *get_type_map() { return &type_map; }
 };
 
 } // namespace TOZ3_V2

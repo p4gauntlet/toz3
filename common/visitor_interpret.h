@@ -130,7 +130,6 @@ class Z3Visitor : public Inspector {
     resolve_args(const IR::Vector<IR::Argument> *args,
                  const IR::ParameterList *params);
     void set_var(const IR::Expression *target, P4Z3Instance *val);
-    std::function<void(void)> get_method_member(const IR::Member *member);
 };
 } // namespace TOZ3_V2
 

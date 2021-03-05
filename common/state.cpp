@@ -181,7 +181,11 @@ P4Z3Instance *P4State::get_var(cstring name) {
         }
     }
     // also check the parent scope
-    return main_scope.get_var(name);
+    if (main_scope.has_var(name)) {
+        return main_scope.get_var(name);
+    }
+    error("Variable %s not found in scope.", name);
+    exit(1);
 }
 
 P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
@@ -219,19 +223,48 @@ void P4State::declare_local_var(cstring name, P4Z3Instance *var) {
     }
 }
 
-void P4State::declare_var(cstring name, const IR::Declaration *decl) {
+const P4Declaration *P4State::get_static_decl(cstring name) {
+    for (P4Scope scope : scopes) {
+        if (scope.has_static_decl(name)) {
+            return scope.get_static_decl(name);
+        }
+    }
+    // also check the parent scope
+    if (main_scope.has_static_decl(name)) {
+        return main_scope.get_static_decl(name);
+    }
+    error("Static Declaration %s not found in scope.", name);
+    exit(1);
+}
+
+const P4Declaration *P4State::find_static_decl(cstring name,
+                                                 P4Scope **owner_scope) {
+    for (std::size_t i = 0; i < scopes.size(); ++i) {
+        auto scope = &scopes.at(i);
+        if (scope->has_static_decl(name)) {
+            *owner_scope = scope;
+            return scope->get_static_decl(name);
+        }
+    }
+    // also check the parent scope
+    if (main_scope.has_static_decl(name)) {
+        *owner_scope = &main_scope;
+        return main_scope.get_static_decl(name);
+    }
+    return nullptr;
+}
+
+void P4State::declare_static_decl(cstring name, const IR::Declaration *decl) {
     P4Scope *target_scope = nullptr;
-    find_var(name, &target_scope);
+    find_static_decl(name, &target_scope);
     if (target_scope) {
         FATAL_ERROR("Variable %s already exists in target scope.", name);
     } else {
-        auto decl_instance = new P4Declaration(decl);
-        add_to_allocated_vars(decl_instance);
         if (scopes.empty()) {
-            main_scope.declare_var(name, decl_instance);
+            main_scope.declare_static_decl(name, decl);
             // assume we insert into the global scope
         } else {
-            get_current_scope()->declare_var(name, decl_instance);
+            get_current_scope()->declare_static_decl(name, decl);
         }
     }
 }

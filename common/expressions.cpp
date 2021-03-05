@@ -64,25 +64,50 @@ Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
     return resolved_args;
 }
 
+std::function<void(void)> get_method_member(Z3Visitor *visitor,
+                                            const IR::Member *member) {
+    visitor->visit(member->expr);
+    P4Z3Instance *complex_class = visitor->state->get_expr_result();
+    if (auto si = complex_class->to_mut<StructBase>()) {
+        return si->get_function(member->member.name);
+    }
+    BUG("Method member not supported for %s.", member);
+}
+
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Declaration *callable;
     const IR::ParameterList *params;
 
-    if (auto path_expr = mce->method->to<IR::PathExpression>()) {
-        P4Declaration *method_decl =
-            state->get_var<P4Declaration>(path_expr->path->name.name);
+    const IR::Expression *method_type = mce->method;
+    if (auto member = method_type->to<IR::Member>()) {
+        // peek if we are working with a declaration
+        if (auto path = member->expr->to<IR::PathExpression>()) {
+            P4Scope *scope;
+            if (state->find_static_decl(path->path->name.name, &scope)) {
+                method_type = path;
+            }
+        }
+    }
+
+    if (auto path_expr = method_type->to<IR::PathExpression>()) {
+        cstring name = path_expr->path->name.name;
+        const P4Declaration *method_decl = state->get_static_decl(name);
         if (auto p4action = method_decl->decl->to<IR::P4Action>()) {
             callable = p4action;
             params = p4action->getParameters();
         } else if (auto fun = method_decl->decl->to<IR::Function>()) {
             callable = fun;
             params = fun->getParameters();
+        } else if (auto table = method_decl->decl->to<IR::P4Table>()) {
+            callable = table;
+            params = table->getApplyParameters();
         } else {
             BUG("Method type %s not supported.",
                 method_decl->decl->node_type_name());
         }
-    } else if (auto member = mce->method->to<IR::Member>()) {
-        auto method = get_method_member(member);
+    } else if (auto member = method_type->to<IR::Member>()) {
+        // try to resolve the normal way and find a function pointer
+        auto method = get_method_member(this, member);
         method();
         return false;
     } else {

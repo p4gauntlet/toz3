@@ -53,7 +53,6 @@ class P4State {
     /****** GETTERS ******/
     ProgState get_state() { return scopes; }
     z3::context *get_z3_ctx() { return ctx; }
-    P4Z3Instance *get_z3_expr_buffer() { return &z3_expr_buffer; }
     P4Z3Instance *get_expr_result() { return expr_result; }
 
     /****** ALLOCATIONS ******/
@@ -81,7 +80,6 @@ class P4State {
     /****** VARIABLES ******/
     void update_var(cstring name, P4Z3Instance *var);
     void declare_local_var(cstring name, P4Z3Instance *var);
-    void declare_var(cstring name, const IR::Declaration *decl);
     P4Z3Instance *get_var(cstring name);
     template <typename T> T *get_var(cstring name) {
         P4Z3Instance *var = get_var(name);
@@ -92,10 +90,19 @@ class P4State {
         }
     }
 
+    /****** DECLARATIONS ******/
+    void declare_static_decl(cstring name, const IR::Declaration *decl);
+    const P4Declaration *get_static_decl(cstring name);
+    // template <typename T> T *get_static_decl(cstring name) {
+    //     P4Z3Instance *var = get_static_decl(name);
+    //     return var->to_mut<T>();
+    // }
+    const P4Declaration *find_static_decl(cstring name,
+                                            P4Scope **owner_scope);
     /****** EXPRESSION RESULTS ******/
     P4Z3Instance *copy_expr_result() {
-        if (expr_result->is<P4Declaration>() or
-            expr_result->is<ControlState>()) {
+        // FIXME: This is weird...
+        if (expr_result->is<ControlState>()) {
             return expr_result;
         }
         auto copy = expr_result->copy();
@@ -111,20 +118,7 @@ class P4State {
             z3_int_buffer = *result_expr;
             expr_result = &z3_int_buffer;
         } else {
-            // P4C_UNIMPLEMENTED("Storing reference not supported for %s.",
-            //                   result.get_static_type());
-        }
-    }
-    void set_expr_result(P4Z3Instance &result) {
-        if (auto result_expr = result.to<Z3Bitvector>()) {
-            z3_expr_buffer = *result_expr;
-            expr_result = &z3_expr_buffer;
-        } else if (auto result_expr = result.to<Z3Int>()) {
-            z3_int_buffer = *result_expr;
-            expr_result = &z3_int_buffer;
-        } else {
-            P4C_UNIMPLEMENTED("Storing reference not supported for %s.",
-                              result.get_static_type());
+            P4C_UNIMPLEMENTED("Storing reference not supported");
         }
     }
 };

@@ -172,17 +172,6 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
     }
 }
 
-std::function<void(void)>
-Z3Visitor::get_method_member(const IR::Member *member) {
-    visit(member->expr);
-    P4Z3Instance *complex_class = state->get_expr_result();
-    if (auto si = complex_class->to_mut<StructBase>()) {
-        return si->get_function(member->member.name);
-    } else {
-        BUG("Method member not supported.");
-    }
-}
-
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
     set_var(as->left, state->copy_expr_result());

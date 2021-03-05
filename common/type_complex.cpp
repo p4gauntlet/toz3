@@ -89,7 +89,6 @@ StructBase::get_z3_vars(cstring prefix) const {
             const IR::Type *dest_type = member_types.at(member_tuple.first);
             auto cast_val =
                 z3::int2bv(dest_type->width_bits(), z3_var->val).simplify();
-            printf("SIMPLIFIED VAL %s", cast_val.to_string().c_str());
             z3_vars.push_back({name, cast_val});
         } else {
             BUG("Var is neither type z3::expr nor P4Z3Instance!");

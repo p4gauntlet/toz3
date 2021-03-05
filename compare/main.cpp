@@ -34,15 +34,11 @@
 namespace TOZ3_V2 {
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    TOZ3_V2::P4Z3Instance *main = state->get_var("main");
-    if (auto decl = main->to<TOZ3_V2::P4Declaration>()) {
-        if (auto main_pkg = decl->decl->to<IR::Declaration_Instance>()) {
-            return main_pkg;
-        } else {
-            BUG("Main node %s not implemented!", decl->decl->node_type_name());
-        }
+    const P4Declaration *main = state->get_static_decl("main");
+    if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
+        return main_pkg;
     } else {
-        BUG("Unsupported main declaration type.");
+        BUG("Main node %s not implemented!", main->decl->node_type_name());
     }
 }
 

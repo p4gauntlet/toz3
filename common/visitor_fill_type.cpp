@@ -67,7 +67,7 @@ bool TypeVisitor::preorder(const IR::P4Control *c) {
 
 bool TypeVisitor::preorder(const IR::Function *f) {
     // FIXME: Overloading
-    state->declare_var(f->name.name, f);
+    state->declare_static_decl(f->name.name, f);
     return false;
 }
 
@@ -77,22 +77,22 @@ bool TypeVisitor::preorder(const IR::Method *m) {
     for (auto param : m->getParameters()->parameters) {
         overloaded_name += param->node_type_name();
     }
-    state->declare_var(overloaded_name, m);
+    state->declare_static_decl(overloaded_name, m);
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::P4Action *a) {
-    state->declare_var(a->name.name, a);
+    state->declare_static_decl(a->name.name, a);
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::P4Table *t) {
-    state->declare_var(t->name.name, t);
+    state->declare_static_decl(t->name.name, t);
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
-    state->declare_var(di->name.name, di);
+    state->declare_static_decl(di->name.name, di);
     return false;
 }
 
