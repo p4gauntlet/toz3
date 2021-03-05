@@ -99,7 +99,7 @@ class P4State {
     //     P4Z3Instance *var = get_static_decl(name);
     //     return var->to_mut<T>();
     // }
-    const P4Declaration *find_static_decl(cstring name,
+    P4Declaration *find_static_decl(cstring name,
                                             P4Scope **owner_scope);
     /****** EXPRESSION RESULTS ******/
     P4Z3Instance *copy_expr_result() {

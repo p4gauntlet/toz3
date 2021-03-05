@@ -30,7 +30,7 @@ class P4Scope {
     std::map<cstring, const IR::Type *> *get_type_map() { return &type_map; }
 
     /****** STATIC DECLS ******/
-    const P4Declaration *get_static_decl(cstring name) {
+    P4Declaration *get_static_decl(cstring name) {
         return &static_decls.at(name);
     }
     void declare_static_decl(cstring name, const IR::Declaration *val) {

@@ -64,14 +64,24 @@ Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
     return resolved_args;
 }
 
-std::function<void(void)> get_method_member(Z3Visitor *visitor,
-                                            const IR::Member *member) {
-    visitor->visit(member->expr);
-    P4Z3Instance *complex_class = visitor->state->get_expr_result();
-    if (auto si = complex_class->to_mut<StructBase>()) {
-        return si->get_function(member->member.name);
+P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
+                                         const IR::Member *m) {
+    const IR::Expression *parent = m->expr;
+    if (auto member = parent->to<IR::Member>()) {
+        visitor->visit(member);
+        return visitor->state->get_expr_result();
+    } else if (auto path_expr = parent->to<IR::PathExpression>()) {
+        P4Scope *scope;
+        cstring name = path_expr->path->name.name;
+        if (auto decl = visitor->state->find_static_decl(name, &scope)) {
+            return decl;
+        } else {
+            // try to find the result in vars and fail otherwise
+            return visitor->state->get_var(name);
+        }
     }
-    P4C_UNIMPLEMENTED("Method member not supported for %s.", member);
+    P4C_UNIMPLEMENTED("Parent %s of type not implemented!", parent,
+                      parent->node_type_name());
 }
 
 const IR::ParameterList *get_params(const IR::Declaration *callable) {
@@ -79,8 +89,10 @@ const IR::ParameterList *get_params(const IR::Declaration *callable) {
         return p4action->getParameters();
     } else if (auto fun = callable->to<IR::Function>()) {
         return fun->getParameters();
-    } else if (auto fun = callable->to<IR::Method>()) {
-        return fun->getParameters();
+    } else if (auto method = callable->to<IR::Method>()) {
+        return method->getParameters();
+    } else if (auto table = callable->to<IR::P4Table>()) {
+        return table->getApplyParameters();
     } else {
         P4C_UNIMPLEMENTED(
             "Callable declaration type %s of type %s not supported.", callable,
@@ -99,9 +111,8 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         callable = state->get_static_decl(name)->decl;
         params = get_params(callable);
     } else if (auto member = method_type->to<IR::Member>()) {
-        visit(member->expr);
-        // try to resolve the normal way and find a function pointer
-        P4Z3Instance *result = state->get_expr_result();
+        // try to resolve and find a function pointer
+        P4Z3Instance *result = resolve_var_or_decl_parent(this, member);
         if (auto si = result->to_mut<HeaderInstance>()) {
             // call the function directly for now
             si->get_function(member->member.name)();
