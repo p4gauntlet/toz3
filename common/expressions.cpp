@@ -13,7 +13,7 @@ namespace TOZ3_V2 {
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (auto tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        Z3Bitvector wrapper = Z3Bitvector(
+        auto wrapper = Z3Bitvector(
             state->get_z3_ctx()->bv_val(val_string, tb->size), tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
@@ -140,7 +140,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         state->declare_local_var(param_name, arg_val);
     }
     visit(callable);
-    P4Z3Instance *expr_result = state->get_expr_result();
+    auto expr_result = state->copy_expr_result();
     std::vector<P4Z3Instance *> copy_out_vals;
     for (auto arg_tuple : copy_out_args) {
         auto source = arg_tuple.second;
@@ -151,7 +151,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
         auto target = arg_tuple.first;
-        set_var(target, copy_out_vals[idx]);
+        set_var(target, *copy_out_vals[idx]);
         idx++;
     }
     state->set_expr_result(expr_result);
@@ -197,8 +197,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     state->pop_scope();
 
     // FIXME: Figure out when and how to free this
-    P4Z3Instance *ctrl_state = new ControlState(state_vars);
-    // state->add_to_allocated(ctrl_state);
+    auto ctrl_state = new ControlState(state_vars);
     state->set_expr_result(ctrl_state);
 
     return false;

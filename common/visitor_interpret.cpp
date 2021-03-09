@@ -73,11 +73,11 @@ bool Z3Visitor::preorder(const IR::Function *f) {
         return false;
     }
     auto return_type = f->type->returnType;
-    P4Z3Instance *merged_return = cast(state, begin->second, return_type);
+    P4Z3Instance *merged_return = begin->second.cast_allocate(return_type);
     for (auto it = std::next(begin); it != end; ++it) {
         z3::expr cond = it->first;
-        P4Z3Instance *then_var = cast(state, it->second, return_type);
-        merged_return->merge(&cond, then_var);
+        auto then_var = it->second.cast_allocate(return_type);
+        merged_return->merge(cond, *then_var);
     }
     state->set_expr_result(merged_return);
     state->return_exprs.clear();
@@ -114,7 +114,7 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
         cond = cond && sub_cond;
     }
     visit(r->expression);
-    state->return_exprs.push_back({cond, state->copy_expr_result()});
+    state->return_exprs.push_back({cond, *state->copy_expr_result()});
     state->get_current_scope()->set_returned(true);
 
     return false;
@@ -141,7 +141,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     state->get_current_scope()->set_returned(old_state.back().has_returned() &&
                                              then_state.back().has_returned());
 
-    state->merge_state(z3_cond->val, &then_state);
+    state->merge_state(z3_cond->val, then_state);
     return false;
 }
 
@@ -160,33 +160,38 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
+void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance &val) {
     if (auto name = target->to<IR::PathExpression>()) {
-        if (auto mut_int = val->to_mut<Z3Int>()) {
+        if (auto mut_int = val.to_mut<Z3Int>()) {
             // FIXME: This is a mess that should not exist
             auto source_var = state->get_var(name->path->name);
             if (auto dst_var = source_var->to<Z3Bitvector>()) {
-                mut_int->val = cast(state, val, dst_var->val.get_sort());
+                auto sort = dst_var->val.get_sort();
+                auto cast_val = mut_int->cast_allocate(sort);
+                state->update_var(name->path->name, cast_val);
             } else {
                 BUG("CAST NOT SUPPORTED>>>>>>");
             }
+        } else {
+            state->update_var(name->path->name, &val);
         }
 
-        state->update_var(name->path->name, val);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
-        P4Z3Instance *complex_class = state->get_expr_result();
+        auto complex_class = state->get_expr_result();
         auto si = complex_class->to_mut<StructBase>();
         if (!si) {
             BUG("Can not cast to StructBase.");
         }
-        if (val->is<Z3Int>()) {
+        if (val.is<Z3Int>()) {
+            // We must cast Ints to avoid Z3 being slow
+            // As they are compile constants we are free to do that
             auto dst_type = si->get_member_type(member->member.name);
-            val = cast(state, val, dst_type);
+            auto cast_val = val.cast_allocate(dst_type);
+            si->update_member(member->member.name, cast_val);
+        } else {
+            si->update_member(member->member.name, &val);
         }
-        // We must cast Ints to avoid Z3 being slow
-        // As they are compile constants we are free to do that
-        si->update_member(member->member.name, val);
     } else {
         BUG("Unknown target %s!", target->node_type_name());
     }
@@ -194,7 +199,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
-    set_var(as->left, state->copy_expr_result());
+    set_var(as->left, *state->copy_expr_result());
     return false;
 }
 
@@ -202,7 +207,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left;
     if (dv->initializer) {
         visit(dv->initializer);
-        left = cast(state, state->copy_expr_result(), dv->type);
+        left = state->get_expr_result()->cast_allocate(dv->type);
     } else {
         left = state->gen_instance("undefined", dv->type);
     }
@@ -214,7 +219,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left;
     if (dc->initializer) {
         visit(dc->initializer);
-        left = cast(state, state->copy_expr_result(), dc->type);
+        left = state->get_expr_result()->cast_allocate(dc->type);
     } else {
         left = state->gen_instance("undefined", dc->type);
     }

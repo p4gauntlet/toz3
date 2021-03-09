@@ -49,9 +49,9 @@ class P4Scope {
         var_map.insert({name, val});
     }
     bool has_var(cstring name) { return var_map.count(name) > 0; }
-    std::map<cstring, P4Z3Instance *> *get_var_map() { return &var_map; }
-    const std::map<cstring, P4Z3Instance *> *get_const_var_map() const {
-        return &var_map;
+    std::map<cstring, P4Z3Instance *> *get_mut_var_map() { return &var_map; }
+    const std::map<cstring, P4Z3Instance *> &get_var_map() const {
+        return var_map;
     }
 
     /****** TYPES ******/
@@ -97,12 +97,12 @@ class P4Scope {
 
 inline std::ostream &operator<<(std::ostream &out,
                                 const TOZ3_V2::P4Scope &scope) {
-    auto var_map = scope.get_const_var_map();
-    for (auto it = var_map->begin(); it != var_map->end(); ++it) {
+    auto var_map = scope.get_var_map();
+    for (auto it = var_map.begin(); it != var_map.end(); ++it) {
         const cstring name = it->first;
-        const TOZ3_V2::P4Z3Instance *val = it->second;
-        out << name << ": " << *val;
-        if (std::next(it) != var_map->end()) {
+        auto val = it->second;
+        out << name << ": " << val;
+        if (std::next(it) != var_map.end()) {
             out << ", ";
         }
     }

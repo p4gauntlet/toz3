@@ -26,29 +26,22 @@ class P4State {
     ProgState scopes;
     P4Scope main_scope;
     z3::context *ctx;
-    P4Z3Instance *expr_result;
     Z3Bitvector z3_expr_buffer;
     Z3Int z3_int_buffer;
-    std::vector<P4Z3Instance *> allocated_vars;
-    std::vector<ProgState *> cloned_states;
+    P4Z3Instance *expr_result;
 
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
 
  public:
-    std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
+    std::vector<std::pair<z3::expr, P4Z3Instance &>> return_exprs;
 
     P4State(z3::context *context)
         : ctx(context), z3_expr_buffer(context->bool_val(false)),
           z3_int_buffer(context->bool_val(false)) {
         main_scope = P4Scope();
     }
-    ~P4State() {
-        for (auto var : allocated_vars) {
-            delete var;
-        }
-        allocated_vars.clear();
-    }
+    ~P4State() {}
 
     /****** GETTERS ******/
     ProgState copy_state() { return scopes; }
@@ -60,16 +53,13 @@ class P4State {
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
                                uint64_t id = 0);
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
-    void add_to_allocated_vars(P4Z3Instance *var) {
-        allocated_vars.push_back(var);
-    }
 
     /****** SCOPES AND STATES ******/
     void push_scope();
     void pop_scope();
     P4Scope *get_current_scope();
     P4Scope *get_scope_list();
-    void merge_state(z3::expr cond, const ProgState *else_state);
+    void merge_state(const z3::expr &cond, const ProgState &else_state);
     void restore_state(ProgState *set_scopes) { scopes = *set_scopes; }
     ProgState clone_state();
     ProgState fork_state();
@@ -99,17 +89,14 @@ class P4State {
     //     P4Z3Instance *var = get_static_decl(name);
     //     return var->to_mut<T>();
     // }
-    P4Declaration *find_static_decl(cstring name,
-                                            P4Scope **owner_scope);
+    P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
     /****** EXPRESSION RESULTS ******/
     P4Z3Instance *copy_expr_result() {
         // FIXME: This is weird...
         if (expr_result->is<ControlState>()) {
             return expr_result;
         }
-        auto copy = expr_result->copy();
-        add_to_allocated_vars(copy);
-        return copy;
+        return expr_result->copy();
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
     void set_expr_result(Z3Result result) {
@@ -124,16 +111,6 @@ class P4State {
         }
     }
 };
-
-z3::expr cast(P4State *state, P4Z3Instance *expr, z3::sort dest_type);
-z3::expr z3_bv_cast(const z3::expr *expr, z3::sort dest_type);
-z3::expr complex_cast(P4State *state, P4Z3Instance *expr,
-                      P4Z3Instance *dest_type);
-z3::expr merge_z3_expr(z3::expr *cond, z3::expr *then_expr,
-                       const P4Z3Instance *else_expr);
-
-P4Z3Instance *cast(P4State *state, P4Z3Instance *expr,
-                   const IR::Type *dest_type);
 
 } // namespace TOZ3_V2
 

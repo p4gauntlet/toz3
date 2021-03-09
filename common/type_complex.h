@@ -64,7 +64,7 @@ class StructBase : public P4Z3Instance {
     // overload = operator
     StructBase &operator=(const StructBase &other);
 
-    void merge(z3::expr *cond, const P4Z3Instance *) override;
+    void merge(const z3::expr &cond, const P4Z3Instance &) override;
 };
 
 class StructInstance : public StructBase {
@@ -109,7 +109,7 @@ class HeaderInstance : public StructBase {
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") const override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
-    void merge(z3::expr *cond, const P4Z3Instance *) override;
+    void merge(const z3::expr &cond, const P4Z3Instance &) override;
     HeaderInstance *copy() const override;
     cstring get_static_type() const override { return "HeaderInstance"; }
     cstring get_static_type() override { return "HeaderInstance"; }
@@ -195,7 +195,7 @@ class ExternInstance : public P4Z3Instance {
  public:
     const IR::Type_Extern *p4_type;
     ExternInstance(P4State *state, const IR::Type_Extern *type);
-    void merge(z3::expr *, const P4Z3Instance *) override{
+    void merge(const z3::expr &, const P4Z3Instance &) override{
         // Merge is a no-op here.
     };
     cstring get_static_type() const override { return "ExternInstance"; }

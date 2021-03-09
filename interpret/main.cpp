@@ -31,7 +31,7 @@
 #include "toz3_v2/common/visitor_interpret.h"
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    const TOZ3_V2::P4Declaration *main = state->get_static_decl("main");
+    auto main = state->get_static_decl("main");
     if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
         return main_pkg;
     } else {

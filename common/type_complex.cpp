@@ -46,7 +46,6 @@ StructBase::StructBase(const StructBase &other) : P4Z3Instance(other) {
     for (auto value_tuple : other.members) {
         cstring name = value_tuple.first;
         P4Z3Instance *member_cpy = value_tuple.second->copy();
-        state->add_to_allocated_vars(member_cpy);
         insert_member(name, member_cpy);
     }
 }
@@ -59,10 +58,9 @@ StructBase &StructBase::operator=(const StructBase &other) {
     state = other.state;
     p4_type = other.p4_type;
     member_types = other.member_types;
-    for (auto value_tuple : other.members) {
+    for (auto &value_tuple : other.members) {
         cstring name = value_tuple.first;
         P4Z3Instance *member_cpy = value_tuple.second->copy();
-        state->add_to_allocated_vars(member_cpy);
         insert_member(name, member_cpy);
     }
     return *this;
@@ -71,7 +69,7 @@ StructBase &StructBase::operator=(const StructBase &other) {
 std::vector<std::pair<cstring, z3::expr>>
 StructBase::get_z3_vars(cstring prefix) const {
     std::vector<std::pair<cstring, z3::expr>> z3_vars;
-    for (auto member_tuple : members) {
+    for (auto &member_tuple : members) {
         cstring name = member_tuple.first;
         if (prefix.size() != 0) {
             name = prefix + "." + name;
@@ -97,8 +95,8 @@ StructBase::get_z3_vars(cstring prefix) const {
     return z3_vars;
 }
 
-void StructBase::merge(z3::expr *cond, const P4Z3Instance *other) {
-    auto other_struct = other->to<StructBase>();
+void StructBase::merge(const z3::expr &cond, const P4Z3Instance &other) {
+    auto other_struct = other.to<StructBase>();
 
     if (!other_struct) {
         BUG("Unsupported merge class.");
@@ -108,7 +106,7 @@ void StructBase::merge(z3::expr *cond, const P4Z3Instance *other) {
         cstring member_name = member_tuple.first;
         P4Z3Instance *then_var = member_tuple.second;
         auto else_var = other_struct->get_const_member(member_name);
-        then_var->merge(cond, else_var);
+        then_var->merge(cond, *else_var);
     }
 }
 
@@ -123,7 +121,7 @@ void StructInstance::propagate_validity(z3::expr *valid_expr) {
 
 StructInstance *StructInstance::copy() const {
     return new StructInstance(*this);
-};
+}
 
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
@@ -167,7 +165,7 @@ void HeaderInstance::propagate_validity(z3::expr *valid_expr) {
 
 HeaderInstance *HeaderInstance::copy() const {
     return new HeaderInstance(*this);
-};
+}
 
 std::vector<std::pair<cstring, z3::expr>>
 HeaderInstance::get_z3_vars(cstring prefix) const {
@@ -203,14 +201,14 @@ HeaderInstance::get_z3_vars(cstring prefix) const {
     return z3_vars;
 }
 
-void HeaderInstance::merge(z3::expr *cond, const P4Z3Instance *other) {
-    auto other_struct = other->to<HeaderInstance>();
+void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &other) {
+    auto other_struct = other.to<HeaderInstance>();
 
     if (!other_struct) {
         BUG("Unsupported merge class.");
     }
-    StructBase::merge(cond, other_struct);
-    auto valid_merge = z3::ite(*cond, *get_valid(), *other_struct->get_valid());
+    StructBase::merge(cond, other);
+    auto valid_merge = z3::ite(cond, *get_valid(), *other_struct->get_valid());
     set_valid(&valid_merge);
 }
 
@@ -266,7 +264,7 @@ ErrorInstance::get_z3_vars(cstring prefix) const {
 
 ErrorInstance *ErrorInstance::copy() const {
     return new ErrorInstance(state, p4_type, member_id);
-};
+}
 
 ExternInstance::ExternInstance(P4State *, const IR::Type_Extern *type)
     : p4_type(type) {

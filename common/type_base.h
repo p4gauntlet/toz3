@@ -20,10 +20,13 @@ namespace TOZ3_V2 {
 
 class Z3Int;
 class Z3Bitvector;
+class StructInstance;
+class HeaderInstance;
 
-typedef boost::variant<boost::recursive_wrapper<Z3Int>,
-                       boost::recursive_wrapper<Z3Bitvector>>
-    Z3Result;
+using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
+                                boost::recursive_wrapper<Z3Bitvector>,
+                                boost::recursive_wrapper<StructInstance>,
+                                boost::recursive_wrapper<HeaderInstance>>;
 
 class P4Z3Instance {
  public:
@@ -46,7 +49,7 @@ class P4Z3Instance {
         P4C_UNIMPLEMENTED("! not implemented for %s", to_string());
     }
     /****** BINARY OPERANDS ******/
-    virtual Z3Result operator*(const P4Z3Instance &)const {
+    virtual Z3Result operator*(const P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("* not implemented for %s.", get_static_type());
     }
     virtual Z3Result operator/(const P4Z3Instance &) const {
@@ -91,7 +94,7 @@ class P4Z3Instance {
     virtual Z3Result operator>=(const P4Z3Instance &) const {
         P4C_UNIMPLEMENTED(">= not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator&(const P4Z3Instance &)const {
+    virtual Z3Result operator&(const P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("& not implemented for %s.", get_static_type());
     }
     virtual Z3Result operator|(const P4Z3Instance &) const {
@@ -106,18 +109,32 @@ class P4Z3Instance {
     virtual Z3Result operator||(const P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("|| not implemented for %s.", get_static_type());
     }
-    virtual Z3Result concat(const P4Z3Instance *) const {
+    virtual Z3Result concat(const P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
     }
+    virtual Z3Result cast(z3::sort &) const {
+        P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
+    }
+    virtual Z3Result cast(const IR::Type *) const {
+        P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
+    }
+    virtual P4Z3Instance *cast_allocate(z3::sort &) const {
+        P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",
+                          get_static_type());
+    }
+    virtual P4Z3Instance *cast_allocate(const IR::Type *) const {
+        P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",
+                          get_static_type());
+    }
     /****** TERNARY OPERANDS ******/
-    virtual Z3Result slice(uint64_t, uint64_t, P4Z3Instance *) const {
+    virtual Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
     }
     virtual Z3Result mux(const P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("mux not implemented for %s.", get_static_type());
     }
     /****** CUSTOM FUNCTIONS ******/
-    virtual void merge(z3::expr *, const P4Z3Instance *) {
+    virtual void merge(const z3::expr &, const P4Z3Instance &) {
         P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.",
                           get_static_type());
     }

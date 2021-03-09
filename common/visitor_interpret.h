@@ -129,7 +129,7 @@ class Z3Visitor : public Inspector {
     std::vector<std::pair<const IR::Expression *, cstring>>
     resolve_args(const IR::Vector<IR::Argument> *args,
                  const IR::ParameterList *params);
-    void set_var(const IR::Expression *target, P4Z3Instance *val);
+    void set_var(const IR::Expression *target, P4Z3Instance &val);
 };
 } // namespace TOZ3_V2
 
