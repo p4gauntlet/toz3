@@ -317,8 +317,8 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
 
     // visit else expression
     visit(m->e2);
-    // merge the copy we received
-    then_expr->merge(resolved_condition, *state->get_expr_result());
+    // merge the copy we received (note the NOT here)
+    then_expr->merge(!resolved_condition, *state->get_expr_result());
 
     state->merge_state(resolved_condition, then_state);
     state->set_expr_result(then_expr);

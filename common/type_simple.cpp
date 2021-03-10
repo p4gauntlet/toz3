@@ -365,10 +365,6 @@ Z3Result Z3Bitvector::slice(uint64_t, uint64_t, P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
 }
 
-Z3Result Z3Bitvector::mux(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("mux not implemented for %s.", get_static_type());
-}
-
 Z3Bitvector *Z3Bitvector::copy() const {
     return new Z3Bitvector(val, is_signed);
 }
@@ -703,10 +699,6 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
 
 Z3Result Z3Int::slice(uint64_t, uint64_t, P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
-}
-
-Z3Result Z3Int::mux(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("mux not implemented for %s.", get_static_type());
 }
 
 } // namespace TOZ3_V2

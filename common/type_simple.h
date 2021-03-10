@@ -106,10 +106,14 @@ class Z3Bitvector : public P4Z3Instance {
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/
     Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const override;
-    Z3Result mux(const P4Z3Instance &) const override;
 
     void merge(const z3::expr &cond, const P4Z3Instance &other) override;
     Z3Bitvector *copy() const override;
+    void set_undefined() override {
+        auto sort = val.get_sort();
+        auto ctx = &sort.ctx();
+        val = ctx->constant("undefined", sort);
+    }
 
     cstring get_static_type() const override { return "Z3Bitvector"; }
     cstring get_static_type() override { return "Z3Bitvector"; }
@@ -159,10 +163,15 @@ class Z3Int : public P4Z3Instance {
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/
     Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const override;
-    Z3Result mux(const P4Z3Instance &) const override;
 
     void merge(const z3::expr &cond, const P4Z3Instance &other) override;
     Z3Int *copy() const override;
+    void set_undefined() override {
+        auto sort = val.get_sort();
+        auto ctx = &sort.ctx();
+        val = ctx->constant("undefined", sort);
+    }
+
     cstring get_static_type() const override { return "Z3Int"; }
     cstring get_static_type() override { return "Z3Int"; }
     cstring to_string() const override {

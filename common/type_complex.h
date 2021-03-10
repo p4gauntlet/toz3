@@ -57,6 +57,7 @@ class StructBase : public P4Z3Instance {
         return &members;
     }
     virtual void propagate_validity(z3::expr * = nullptr) {}
+    void set_undefined() override;
 
     ~StructBase() {}
     // copy constructor
@@ -125,6 +126,11 @@ class HeaderInstance : public StructBase {
         ret += ")";
         return ret;
     }
+    ~HeaderInstance() {}
+    // copy constructor
+    HeaderInstance(const HeaderInstance &other);
+    // overload = operator
+    HeaderInstance &operator=(const HeaderInstance &other);
 };
 
 class EnumInstance : public StructBase {
@@ -213,7 +219,6 @@ class ExternInstance : public P4Z3Instance {
         exit(1);
     }
 };
-
 
 } // namespace TOZ3_V2
 

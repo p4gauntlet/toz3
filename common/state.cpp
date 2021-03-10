@@ -195,12 +195,7 @@ ProgState P4State::clone_state() {
     auto cloned_state = ProgState();
 
     for (auto &scope : scopes) {
-        auto cloned_scope = P4Scope();
-        for (auto &value_tuple : *scope.get_mut_var_map()) {
-            auto var_name = value_tuple.first;
-            auto member_cpy = value_tuple.second->copy();
-            cloned_scope.declare_var(var_name, member_cpy);
-        }
+        cloned_state.push_back(scope.clone());
     }
     return cloned_state;
 }
@@ -210,18 +205,7 @@ ProgState P4State::fork_state() {
     auto new_prog_state = ProgState();
 
     for (auto &scope : old_prog_state) {
-        auto cloned_scope = P4Scope();
-        for (auto &value_tuple : *scope.get_mut_var_map()) {
-            auto var_name = value_tuple.first;
-            auto member_cpy = value_tuple.second->copy();
-            cloned_scope.declare_var(var_name, member_cpy);
-        }
-        for (auto &value_tuple : *scope.get_const_decl_map()) {
-            auto var_name = value_tuple.first;
-            auto member_cpy = value_tuple.second;
-            cloned_scope.declare_static_decl(var_name, member_cpy.decl);
-        }
-        new_prog_state.push_back(cloned_scope);
+        new_prog_state.push_back(scope.clone());
     }
     scopes = new_prog_state;
     return old_prog_state;

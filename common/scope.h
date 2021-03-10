@@ -90,6 +90,16 @@ class P4Scope {
     }
     std::vector<z3::expr> get_forward_conds() { return forward_conds; }
     void pop_forward_cond() { forward_conds.pop_back(); }
+
+    P4Scope clone() {
+        auto new_scope = *this;
+        for (auto &value_tuple : *get_mut_var_map()) {
+            auto var_name = value_tuple.first;
+            auto member_cpy = value_tuple.second->copy();
+            new_scope.update_var(var_name, member_cpy);
+        }
+        return new_scope;
+    }
 };
 
 } // namespace TOZ3_V2

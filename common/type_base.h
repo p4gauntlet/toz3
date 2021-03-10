@@ -130,9 +130,6 @@ class P4Z3Instance {
     virtual Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
     }
-    virtual Z3Result mux(const P4Z3Instance &) const {
-        P4C_UNIMPLEMENTED("mux not implemented for %s.", get_static_type());
-    }
     /****** CUSTOM FUNCTIONS ******/
     virtual void merge(const z3::expr &, const P4Z3Instance &) {
         P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.",
@@ -144,6 +141,10 @@ class P4Z3Instance {
     }
     virtual P4Z3Instance *copy() const {
         P4C_UNIMPLEMENTED("Copy not implemented for %s.", get_static_type());
+    }
+    virtual void set_undefined() {
+        P4C_UNIMPLEMENTED("set_undefined not implemented for %s.",
+                          get_static_type());
     }
 
     virtual cstring get_static_type() = 0;
