@@ -7,6 +7,40 @@
 
 namespace TOZ3_V2 {
 
+cstring infer_name(const IR::Annotations *annots, cstring default_name) {
+    // This function is a bit of a hacky way to infer the true name of a
+    // declaration. Since there are a couple of passes that rename but add
+    // annotations we can infer the original name from the annotation.
+    // not sure if this generalizes but this is as close we can get for now
+    for (auto anno : annots->annotations) {
+        // there is an original name in the form of an annotation
+        if (anno->name.name == "name") {
+            for (auto token : anno->body) {
+                // the full name can be a bit more convoluted
+                // we only need the last bit after the dot
+                // so hack it out
+                cstring full_name = token->text;
+
+                // find the last dot
+                const char *last_dot = full_name.findlast((int)'.');
+                // there is no dot in this string, just return the full name
+                if (not last_dot) {
+                    return full_name;
+                }
+                // otherwise get the index, remove the dot
+                size_t idx = (size_t)(last_dot - full_name + 1);
+                return token->text.substr(idx);
+            }
+            // if the annotation is a member just get the root name
+            if (auto member = anno->expr.to<IR::Member>()) {
+                return member->member.name;
+            }
+        }
+    }
+
+    return default_name;
+}
+
 Visitor::profile_t Z3Visitor::init_apply(const IR::Node *node) {
     return Inspector::init_apply(node);
 }
@@ -106,14 +140,14 @@ bool Z3Visitor::preorder(const IR::Method *m) {
 
 bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     auto ctx = state->get_z3_ctx();
-    auto table_name = p4t->getName().name;
+    auto table_name = infer_name(p4t->getAnnotations(), p4t->getName().name);
     auto table_action_name = table_name + "action_idx";
     auto table_action = ctx->int_const(table_action_name.c_str());
     bool immutable = false;
-    // We first collection all the necessary properties
+    // We first collect all the necessary properties
     std::vector<const IR::KeyElement *> keys;
-    std::vector<const IR::Expression *> actions;
-    const IR::P4Action *default_action;
+    std::vector<const IR::MethodCallExpression *> actions;
+    const IR::MethodCallExpression *default_action = nullptr;
     for (auto p : p4t->properties->properties) {
         auto val = p->value;
         if (auto key = val->to<IR::Key>()) {
@@ -130,9 +164,30 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
                 }
                 if (ignore_default)
                     continue;
-                actions.push_back(act->expression);
+                if (auto method_call =
+                        act->expression->to<IR::MethodCallExpression>()) {
+                    actions.push_back(method_call);
+                } else if (auto path =
+                               act->expression->to<IR::PathExpression>()) {
+                    auto method_call = new IR::MethodCallExpression(path);
+                    actions.push_back(method_call);
+                } else {
+                    P4C_UNIMPLEMENTED("Unsupported action entry %s of type %s",
+                                      act, act->expression->node_type_name());
+                }
             }
         } else if (auto expr_val = val->to<IR::ExpressionValue>()) {
+            // resolve a default action
+            if (p->name.name == "default_action") {
+                if (auto method_call =
+                        expr_val->expression->to<IR::MethodCallExpression>()) {
+                    default_action = method_call;
+                } else {
+                    P4C_UNIMPLEMENTED(
+                        "Unsupported expression value %s of type %s", expr_val,
+                        expr_val->expression->node_type_name());
+                }
+            }
             printf("ExpressionValue property %s of type %s\n",
                    expr_val->expression->toString().c_str(),
                    expr_val->expression->node_type_name().c_str());
@@ -168,8 +223,10 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         action_states.push_back({cond, state->copy_state()});
         state->restore_state(&old_state);
     }
-    for (auto merge_tuple : action_states) {
-        state->merge_state(merge_tuple.first, merge_tuple.second);
+    visit(default_action);
+
+    for (auto it = action_states.rbegin(); it != action_states.rend(); ++it) {
+        state->merge_state(it->first, it->second);
     }
     // also check if the table is invisible to the control plane
     // this also implies that it cannot be modified

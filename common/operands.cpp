@@ -158,7 +158,7 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
     visit(expr->right);
     auto right = state->get_expr_result();
 
-    auto&& result = *left == *right;
+    auto &&result = *left == *right;
     state->set_expr_result(result);
 
     return false;
@@ -203,7 +203,7 @@ bool Z3Visitor::preorder(const IR::Grt *expr) {
     visit(expr->right);
     auto right = state->get_expr_result();
 
-    auto&& result = *left > *right;
+    auto &&result = *left > *right;
     state->set_expr_result(result);
 
     return false;
@@ -292,6 +292,37 @@ bool Z3Visitor::preorder(const IR::Cast *c) {
     auto resolved_expr = state->get_expr_result();
 
     state->set_expr_result(resolved_expr->cast(c->destType));
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::Mux *m) {
+    // resolve condition first
+    visit(m->e0);
+    auto resolved_condition =
+        state->get_expr_result<Z3Bitvector>()->val.simplify();
+    // short circuit here
+    if (resolved_condition.is_true()) {
+        visit(m->e1);
+        return false;
+    } else if (resolved_condition.is_false()) {
+        visit(m->e2);
+        return false;
+    }
+    // otherwise we need to merge
+    ProgState old_state = state->fork_state();
+    visit(m->e1);
+    auto then_expr = state->copy_expr_result();
+    ProgState then_state = state->copy_state();
+    state->restore_state(&old_state);
+
+    // visit else expression
+    visit(m->e2);
+    // merge the copy we received
+    then_expr->merge(resolved_condition, *state->get_expr_result());
+
+    state->merge_state(resolved_condition, then_state);
+    state->set_expr_result(then_expr);
+
     return false;
 }
 
