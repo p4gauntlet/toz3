@@ -104,6 +104,85 @@ bool Z3Visitor::preorder(const IR::Method *m) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::P4Table *p4t) {
+    auto ctx = state->get_z3_ctx();
+    auto table_name = p4t->getName().name;
+    auto table_action_name = table_name + "action_idx";
+    auto table_action = ctx->int_const(table_action_name.c_str());
+    bool immutable = false;
+    // We first collection all the necessary properties
+    std::vector<const IR::KeyElement *> keys;
+    std::vector<const IR::Expression *> actions;
+    const IR::P4Action *default_action;
+    for (auto p : p4t->properties->properties) {
+        auto val = p->value;
+        if (auto key = val->to<IR::Key>()) {
+            for (auto ke : key->keyElements) {
+                keys.push_back(ke);
+            }
+        } else if (auto action_list = val->to<IR::ActionList>()) {
+            for (auto act : action_list->actionList) {
+                bool ignore_default = false;
+                for (const auto *anno : act->getAnnotations()->annotations) {
+                    if (anno->name.name == "defaultonly") {
+                        ignore_default = true;
+                    }
+                }
+                if (ignore_default)
+                    continue;
+                actions.push_back(act->expression);
+            }
+        } else if (auto expr_val = val->to<IR::ExpressionValue>()) {
+            printf("ExpressionValue property %s of type %s\n",
+                   expr_val->expression->toString().c_str(),
+                   expr_val->expression->node_type_name().c_str());
+        } else {
+            printf("Unknown property %s of type %s\n", p->toString().c_str(),
+                   p->value->node_type_name().c_str());
+        }
+
+        // if the entries properties is constant it means the entries are fixed
+        // we cannot add or remove table entries
+        if (p->name.name == "entries" and p->isConstant) {
+            immutable = true;
+        }
+    }
+    z3::expr hit = ctx->bool_val(false);
+    for (std::size_t idx = 0; idx < keys.size(); ++idx) {
+        auto key = keys.at(idx);
+        visit(key->expression);
+        auto key_eval = state->get_expr_result<Z3Bitvector>();
+        cstring key_name = table_name + "_table_key_" + std::to_string(idx);
+        auto key_match =
+            ctx->bv_const(key_name.c_str(), key_eval->val.get_sort().bv_size());
+        hit = hit || (key_eval->val == key_match);
+    }
+    std::vector<std::pair<z3::expr, ProgState>> action_states;
+
+    for (std::size_t idx = 0; idx < actions.size(); ++idx) {
+        auto action = actions.at(idx);
+        auto cond = table_action == ctx->int_val(idx);
+        ProgState old_state = state->fork_state();
+        state->get_current_scope()->push_forward_cond(&cond);
+        visit(action);
+        action_states.push_back({cond, state->copy_state()});
+        state->restore_state(&old_state);
+    }
+    for (auto merge_tuple : action_states) {
+        state->merge_state(merge_tuple.first, merge_tuple.second);
+    }
+    // also check if the table is invisible to the control plane
+    // this also implies that it cannot be modified
+    auto annos = p4t->getAnnotations()->annotations;
+    if (std::any_of(annos.begin(), annos.end(), [](const IR::Annotation *anno) {
+            return anno->name.name == "hidden";
+        })) {
+        immutable = true;
+    }
+
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {

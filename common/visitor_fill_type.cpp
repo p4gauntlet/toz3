@@ -97,18 +97,29 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
-    TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
-    // TODO: Casting
-    dc->initializer->apply(resolve_expr);
-    state->declare_local_var(dc->name.name, state->get_expr_result());
+    P4Z3Instance *left;
+    if (dc->initializer) {
+        TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
+        dc->initializer->apply(resolve_expr);
+        left = state->get_expr_result()->cast_allocate(dc->type);
+    } else {
+        left = state->gen_instance("undefined", dc->type);
+    }
+    state->declare_local_var(dc->name.name, left);
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
-    TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
-    // TODO: Casting
-    dv->initializer->apply(resolve_expr);
-    state->declare_local_var(dv->name.name, state->get_expr_result());
+    P4Z3Instance *left;
+    if (dv->initializer) {
+        TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
+        dv->initializer->apply(resolve_expr);
+        left = state->get_expr_result()->cast_allocate(dv->type);
+    } else {
+        left = state->gen_instance("undefined", dv->type);
+    }
+    state->declare_local_var(dv->name.name, left);
+
     return false;
 }
 

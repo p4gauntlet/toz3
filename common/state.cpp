@@ -216,6 +216,11 @@ ProgState P4State::fork_state() {
             auto member_cpy = value_tuple.second->copy();
             cloned_scope.declare_var(var_name, member_cpy);
         }
+        for (auto &value_tuple : *scope.get_const_decl_map()) {
+            auto var_name = value_tuple.first;
+            auto member_cpy = value_tuple.second;
+            cloned_scope.declare_static_decl(var_name, member_cpy.decl);
+        }
         new_prog_state.push_back(cloned_scope);
     }
     scopes = new_prog_state;

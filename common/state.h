@@ -48,7 +48,13 @@ class P4State {
     ProgState *get_state() { return &scopes; }
     z3::context *get_z3_ctx() { return ctx; }
     P4Z3Instance *get_expr_result() { return expr_result; }
-
+    template <typename T> T *get_expr_result() {
+        if (auto cast_result = expr_result->to_mut<T>()) {
+            return cast_result;
+        } else {
+            BUG("Could not cast to type %s.", typeid(T).name());
+        }
+    }
     /****** ALLOCATIONS ******/
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
                                uint64_t id = 0);

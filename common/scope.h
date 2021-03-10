@@ -41,7 +41,6 @@ class P4Scope {
     const std::map<cstring, P4Declaration> *get_const_decl_map() const {
         return &static_decls;
     }
-
     /****** VARIABLES ******/
     P4Z3Instance *get_var(cstring name) { return var_map.at(name); }
     void update_var(cstring name, P4Z3Instance *val) { var_map.at(name) = val; }

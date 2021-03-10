@@ -59,7 +59,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Function *) override;
 
     /***** Tables *****/
-    // bool preorder(const IR::P4Table *p4table) override;
+    bool preorder(const IR::P4Table *p4table) override;
     // bool preorder(const IR::Property *p) override;
     // bool preorder(const IR::ActionList *acl) override;
     // bool preorder(const IR::Entry *e) override;
