@@ -85,8 +85,8 @@ class P4Scope {
     bool has_returned() { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
 
-    void push_forward_cond(const z3::expr *forward_cond) {
-        return forward_conds.push_back(*forward_cond);
+    void push_forward_cond(const z3::expr &forward_cond) {
+        return forward_conds.push_back(forward_cond);
     }
     std::vector<z3::expr> get_forward_conds() { return forward_conds; }
     void pop_forward_cond() { forward_conds.pop_back(); }

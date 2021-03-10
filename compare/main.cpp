@@ -131,8 +131,10 @@ int compare_progs(
         std::cout << "Result: " << ret << std::endl;
         if (ret == z3::sat) {
             error("Programs are not equal! Found validation error.\n");
-            error("Program before %s", prog_before.to_string().c_str());
-            error("Program after %s", prog_after.to_string().c_str());
+            error("Program %s before %s", prog_before_name,
+                  prog_before.to_string().c_str());
+            error("Program %s after %s", prog_after_name,
+                  prog_after.to_string().c_str());
             return EXIT_FAILURE;
         } else if (ret == z3::unknown) {
             error("Could not determine equality. Error\n");

@@ -102,6 +102,8 @@ bool Z3Visitor::preorder(const IR::Function *f) {
     state->return_exprs.clear();
     visit(f->body);
 
+    // We start with the last return expression, which is the final return.
+    // The final return may not have a condition, so this is a good fit.
     auto begin = state->return_exprs.rbegin();
     auto end = state->return_exprs.rend();
     if (begin == end) {
@@ -115,7 +117,13 @@ bool Z3Visitor::preorder(const IR::Function *f) {
         merged_return->merge(cond, *then_var);
     }
     state->set_expr_result(merged_return);
+    for (auto it = state->return_states.rbegin();
+         it != state->return_states.rend(); ++it) {
+        state->merge_state(it->first, it->second);
+    }
+
     state->return_exprs.clear();
+    state->return_states.clear();
     return false;
 }
 
@@ -188,13 +196,14 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
                         "Unsupported expression value %s of type %s", expr_val,
                         expr_val->expression->node_type_name());
                 }
+            } else {
+                warning("ExpressionValue property %s of type %s\n",
+                        expr_val->expression->toString().c_str(),
+                        expr_val->expression->node_type_name().c_str());
             }
-            printf("ExpressionValue property %s of type %s\n",
-                   expr_val->expression->toString().c_str(),
-                   expr_val->expression->node_type_name().c_str());
         } else {
-            printf("Unknown property %s of type %s\n", p->toString().c_str(),
-                   p->value->node_type_name().c_str());
+            warning("Unknown property %s of type %s\n", p->toString().c_str(),
+                    p->value->node_type_name().c_str());
         }
 
         // if the entries properties is constant it means the entries are fixed
@@ -219,7 +228,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         auto action = actions.at(idx);
         auto cond = table_action == ctx->int_val(idx);
         ProgState old_state = state->fork_state();
-        state->get_current_scope()->push_forward_cond(&cond);
+        state->get_current_scope()->push_forward_cond(cond);
         visit(action);
         action_states.push_back({cond, state->copy_state()});
         state->restore_state(&old_state);
@@ -245,13 +254,13 @@ bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     auto forward_conds = state->get_current_scope()->get_forward_conds();
-
-    z3::expr cond = state->get_z3_ctx()->bool_val(true);
+    auto cond = state->get_z3_ctx()->bool_val(true);
     for (z3::expr sub_cond : forward_conds) {
         cond = cond && sub_cond;
     }
     visit(r->expression);
     state->return_exprs.push_back({cond, *state->copy_expr_result()});
+    state->return_states.push_back({cond, state->clone_state()});
     state->get_current_scope()->set_returned(true);
 
     return false;
@@ -261,16 +270,17 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
     auto cond = state->copy_expr_result();
     auto z3_cond = cond->to<Z3Bitvector>();
-    if (!z3_cond) {
+    if (z3_cond == nullptr) {
         BUG("Unsupported condition type.");
     }
 
     ProgState old_state = state->fork_state();
-    state->get_current_scope()->push_forward_cond(&z3_cond->val);
+    state->get_current_scope()->push_forward_cond(z3_cond->val);
     visit(ifs->ifTrue);
+    state->get_current_scope()->pop_forward_cond();
     ProgState then_state = state->copy_state();
     state->restore_state(&old_state);
-    state->get_current_scope()->push_forward_cond(&z3_cond->val);
+    state->get_current_scope()->push_forward_cond(!z3_cond->val);
     visit(ifs->ifFalse);
     state->get_current_scope()->pop_forward_cond();
 

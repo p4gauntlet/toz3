@@ -35,6 +35,7 @@ class P4State {
 
  public:
     std::vector<std::pair<z3::expr, P4Z3Instance &>> return_exprs;
+    std::vector<std::pair<z3::expr, ProgState>> return_states;
 
     P4State(z3::context *context)
         : ctx(context), z3_expr_buffer(context->bool_val(false)),
