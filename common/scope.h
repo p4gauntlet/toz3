@@ -15,7 +15,6 @@
 namespace TOZ3_V2 {
 
 class P4Scope {
-
  private:
     // maps of local values and types
     std::map<cstring, P4Declaration> static_decls;
@@ -31,10 +30,13 @@ class P4Scope {
 
     /****** STATIC DECLS ******/
     P4Declaration *get_static_decl(cstring name) {
-        return &static_decls.at(name);
+        auto it = static_decls.find(name);
+        if (it != static_decls.end()) {
+            return &it->second;
+        }
+        BUG("Key %s not found in static declaration map.");
     }
     void declare_static_decl(cstring name, const IR::Declaration *val) {
-
         static_decls.insert({name, P4Declaration(val)});
     }
     bool has_static_decl(cstring name) { return static_decls.count(name) > 0; }
@@ -42,7 +44,13 @@ class P4Scope {
         return &static_decls;
     }
     /****** VARIABLES ******/
-    P4Z3Instance *get_var(cstring name) { return var_map.at(name); }
+    P4Z3Instance *get_var(cstring name) {
+        auto it = var_map.find(name);
+        if (it != var_map.end()) {
+            return it->second;
+        }
+        BUG("Key %s not found in var map.");
+    }
     void update_var(cstring name, P4Z3Instance *val) { var_map.at(name) = val; }
     void declare_var(cstring name, P4Z3Instance *val) {
         var_map.insert({name, val});
@@ -59,7 +67,11 @@ class P4Scope {
     }
 
     const IR::Type *get_type(cstring type_name) {
-        return type_map.at(type_name);
+        auto it = type_map.find(type_name);
+        if (it != type_map.end()) {
+            return it->second;
+        }
+        BUG("Key %s not found in scope type map.");
     }
 
     bool has_type(cstring name) { return type_map.count(name) > 0; }
@@ -78,7 +90,11 @@ class P4Scope {
     }
 
     const IR::Type *get_type_for_var(cstring type_name) {
-        return var_types.at(type_name);
+        auto it = var_types.find(type_name);
+        if (it != var_types.end()) {
+            return it->second;
+        }
+        BUG("Key %s not found in var type map.");
     }
 
     /****** RETURN MANAGEMENT ******/

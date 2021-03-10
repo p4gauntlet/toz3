@@ -255,7 +255,11 @@ bool Z3Visitor::preorder(const IR::BXor *expr) {
 
 bool Z3Visitor::preorder(const IR::LAnd *expr) {
     visit(expr->left);
-    auto left = state->copy_expr_result();
+    auto left = state->copy_expr_result<Z3Bitvector>();
+    if (left->val.simplify().is_false()) {
+        state->set_expr_result(*left);
+        return false;
+    }
     visit(expr->right);
     auto right = state->get_expr_result();
 
@@ -266,7 +270,11 @@ bool Z3Visitor::preorder(const IR::LAnd *expr) {
 
 bool Z3Visitor::preorder(const IR::LOr *expr) {
     visit(expr->left);
-    auto left = state->copy_expr_result();
+    auto left = state->copy_expr_result<Z3Bitvector>();
+    if (left->val.simplify().is_true()) {
+        state->set_expr_result(*left);
+        return false;
+    }
     visit(expr->right);
     auto right = state->get_expr_result();
 

@@ -673,7 +673,8 @@ Z3Result Z3Int::cast(const IR::Type *dest_type) const {
         // nothing to do, return a copy
         return *this;
     }
-    P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
+    P4C_UNIMPLEMENTED("cast_allocate not implemented for %s to type %s.",
+                      get_static_type(), dest_type->node_type_name());
 }
 P4Z3Instance *Z3Int::cast_allocate(z3::sort &dest_type) const {
     if (dest_type.is_bv()) {
@@ -691,8 +692,8 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
         // nothing to do, return a new allocation
         return new Z3Int(val);
     }
-    P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",
-                      get_static_type());
+    P4C_UNIMPLEMENTED("cast_allocate not implemented for %s to type %s.",
+                      get_static_type(), dest_type->node_type_name());
 }
 
 /****** TERNARY OPERANDS ******/

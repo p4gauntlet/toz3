@@ -98,12 +98,13 @@ class P4State {
     // }
     P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
     /****** EXPRESSION RESULTS ******/
-    P4Z3Instance *copy_expr_result() {
-        // FIXME: This is weird...
-        if (expr_result->is<ControlState>()) {
-            return expr_result;
+    P4Z3Instance *copy_expr_result() { return expr_result->copy(); }
+    template <typename T> T *copy_expr_result() {
+        auto intermediate = expr_result->copy();
+        if (auto cast_result = intermediate->to_mut<T>()) {
+            return cast_result;
         }
-        return expr_result->copy();
+        BUG("Could not cast to type %s.", typeid(T).name());
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
     void set_expr_result(Z3Result result) {

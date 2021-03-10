@@ -42,7 +42,7 @@ class TypeVisitor : public Inspector {
 
     bool preorder(const IR::Type_Extern *t) override;
     // bool preorder(const IR::Type_Method *t) override;
-    // bool preorder(const IR::Type_Typedef *t) override;
+    bool preorder(const IR::Type_Typedef *t) override;
     // bool preorder(const IR::Type_Newtype *t) override;
     // bool preorder(const IR::Type_Bits *t) override;
     // bool preorder(const IR::Type_Varbits *t) override;

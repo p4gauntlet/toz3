@@ -40,6 +40,11 @@ bool TypeVisitor::preorder(const IR::Type_Extern *t) {
     return false;
 }
 
+bool TypeVisitor::preorder(const IR::Type_Typedef *t) {
+    state->add_type(t->name.name, t->type);
+    return false;
+}
+
 bool TypeVisitor::preorder(const IR::Type_Package *t) {
     state->add_type(t->name.name, t);
     return false;

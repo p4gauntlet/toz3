@@ -275,14 +275,16 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     }
 
     ProgState old_state = state->fork_state();
+    state->push_scope();
     state->get_current_scope()->push_forward_cond(z3_cond->val);
     visit(ifs->ifTrue);
-    state->get_current_scope()->pop_forward_cond();
+    state->pop_scope();
     ProgState then_state = state->copy_state();
     state->restore_state(&old_state);
+    state->push_scope();
     state->get_current_scope()->push_forward_cond(!z3_cond->val);
     visit(ifs->ifFalse);
-    state->get_current_scope()->pop_forward_cond();
+    state->pop_scope();
 
     // If both branches have returned we set the if statement to returned
     state->get_current_scope()->set_returned(old_state.back().has_returned() &&
