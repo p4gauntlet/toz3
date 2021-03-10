@@ -104,7 +104,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Declaration *callable;
     const IR::ParameterList *params;
 
-    const IR::Expression *method_type = mce->method;
+    auto method_type = mce->method;
 
     if (auto path_expr = method_type->to<IR::PathExpression>()) {
         cstring name = path_expr->path->name.name;
@@ -136,7 +136,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     state->push_scope();
     for (auto arg_tuple : merged_args) {
         cstring param_name = arg_tuple.first;
-        P4Z3Instance *arg_val = arg_tuple.second;
+        auto arg_val = arg_tuple.second;
         state->declare_local_var(param_name, arg_val);
     }
     visit(callable);
@@ -144,14 +144,14 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     std::vector<P4Z3Instance *> copy_out_vals;
     for (auto arg_tuple : copy_out_args) {
         auto source = arg_tuple.second;
-        P4Z3Instance *val = state->get_var(source);
+        auto val = state->get_var(source);
         copy_out_vals.push_back(val);
     }
     state->pop_scope();
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
         auto target = arg_tuple.first;
-        set_var(target, *copy_out_vals[idx]);
+        set_var(target, copy_out_vals[idx]);
         idx++;
     }
     state->set_expr_result(expr_result);

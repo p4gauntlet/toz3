@@ -75,7 +75,7 @@ void unroll_result(P4Z3Result z3_repr_prog, std::vector<z3::expr> *result_vec) {
                 result_vec->push_back(sub_tuple.second);
             }
         } else {
-            BUG("Unsupported result type.");
+            P4C_UNIMPLEMENTED("Unsupported result type.");
         }
     }
 }
@@ -123,23 +123,22 @@ int compare_progs(
             "State_before", z3_vec_after.size(), &after_names.at(0),
             &z3_vec_after_sorts.at(0), after_getters);
         z3::expr prog_before = before_sort(z3_vec_before);
-        z3::expr after_before = after_sort(z3_vec_after);
+        z3::expr prog_after = after_sort(z3_vec_after);
 
-        s.add(prog_before != after_before);
+        s.add(prog_before != prog_after);
         std::cout << "Checking... " << std::endl;
         auto ret = s.check();
         std::cout << "Result: " << ret << std::endl;
-        s.pop();
-        switch (ret) {
-        case z3::unsat:
-            break;
-        case z3::sat:
+        if (ret == z3::sat) {
             error("Programs are not equal! Found validation error.\n");
+            error("Program before %s", prog_before.to_string().c_str());
+            error("Program after %s", prog_after.to_string().c_str());
             return EXIT_FAILURE;
-        case z3::unknown:
+        } else if (ret == z3::unknown) {
             error("Could not determine equality. Error\n");
             return EXIT_FAILURE;
         }
+        s.pop();
     }
     printf("Passed all checks.\n");
     return EXIT_SUCCESS;

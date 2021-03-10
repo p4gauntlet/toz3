@@ -59,10 +59,12 @@ Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
     P4Z3Result merged_vec;
     size_t arg_len = args->size();
     size_t idx = 0;
+    // TODO: Clean this up...
     for (auto param : params->parameters) {
         if (param->direction == IR::Direction::Out) {
             auto instance = state->gen_instance("undefined", param->type);
             merged_vec.insert({param->name.name, instance});
+            idx++;
             continue;
         }
         if (idx < arg_len) {
@@ -80,7 +82,6 @@ Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
 }
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
-
     TypeVisitor map_builder = TypeVisitor(state);
 
     for (const IR::Declaration *local_decl : c->controlLocals) {
@@ -296,9 +297,9 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance &val) {
+void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
-        if (auto mut_int = val.to_mut<Z3Int>()) {
+        if (auto mut_int = val->to<Z3Int>()) {
             // FIXME: This is a mess that should not exist
             auto source_var = state->get_var(name->path->name);
             if (auto dst_var = source_var->to<Z3Bitvector>()) {
@@ -309,7 +310,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance &val) {
                 BUG("CAST NOT SUPPORTED>>>>>>");
             }
         } else {
-            state->update_var(name->path->name, &val);
+            state->update_var(name->path->name, val);
         }
 
     } else if (auto member = target->to<IR::Member>()) {
@@ -319,14 +320,14 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance &val) {
         if (!si) {
             BUG("Can not cast to StructBase.");
         }
-        if (val.is<Z3Int>()) {
+        if (val->is<Z3Int>()) {
             // We must cast Ints to avoid Z3 being slow
             // As they are compile constants we are free to do that
             auto dst_type = si->get_member_type(member->member.name);
-            auto cast_val = val.cast_allocate(dst_type);
+            auto cast_val = val->cast_allocate(dst_type);
             si->update_member(member->member.name, cast_val);
         } else {
-            si->update_member(member->member.name, &val);
+            si->update_member(member->member.name, val);
         }
     } else {
         BUG("Unknown target %s!", target->node_type_name());
@@ -335,7 +336,7 @@ void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance &val) {
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
-    set_var(as->left, *state->copy_expr_result());
+    set_var(as->left, state->copy_expr_result());
     return false;
 }
 
