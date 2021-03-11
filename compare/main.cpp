@@ -98,10 +98,6 @@ int compare_progs(
                prog_after_name.c_str());
         std::vector<z3::expr> z3_repr_prog_before = z3_progs[i - 1].second;
         std::vector<z3::expr> z3_repr_prog_after = z3_progs[i].second;
-        if (z3_repr_prog_before.size() < 1) {
-            warning("Empty result, nothing to compare with!");
-            return EXIT_SKIPPED;
-        }
         z3::expr_vector z3_vec_before(*ctx);
         z3::expr_vector z3_vec_after(*ctx);
         std::vector<z3::sort> z3_vec_before_sorts;
@@ -122,12 +118,12 @@ int compare_progs(
             z3_vec_after_sorts.push_back(z3_repr_prog_after[i].get_sort());
         }
         z3::func_decl before_sort = ctx->tuple_sort(
-            "State_before", z3_vec_before.size(), &before_names.at(0),
-            &z3_vec_before_sorts.at(0), before_getters);
+            "State_before", z3_vec_before.size(), before_names.data(),
+            z3_vec_before_sorts.data(), before_getters);
 
         z3::func_decl after_sort = ctx->tuple_sort(
-            "State_before", z3_vec_after.size(), &after_names.at(0),
-            &z3_vec_after_sorts.at(0), after_getters);
+            "State_before", z3_vec_after.size(), after_names.data(),
+            z3_vec_after_sorts.data(), after_getters);
         z3::expr prog_before = before_sort(z3_vec_before);
         z3::expr prog_after = after_sort(z3_vec_after);
 

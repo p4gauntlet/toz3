@@ -220,7 +220,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
 
     for (std::size_t idx = 0; idx < actions.size(); ++idx) {
         auto action = actions.at(idx);
-        auto cond = table_action == ctx->int_val(idx);
+        auto cond = hit && (table_action == ctx->int_val(idx));
         auto old_state = state->fork_state();
         state->get_current_scope()->push_forward_cond(cond);
         visit(action);
