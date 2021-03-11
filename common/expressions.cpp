@@ -24,7 +24,8 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
         state->set_expr_result(var);
         return false;
     }
-    BUG("Constant Node %s not implemented!", c->type->node_type_name());
+    P4C_UNIMPLEMENTED("Constant Node %s not implemented!",
+                      c->type->node_type_name());
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
@@ -149,7 +150,9 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         auto val = state->get_var(source);
         copy_out_vals.push_back(val);
     }
+    auto has_exited = state->get_current_scope()->has_exited();
     state->pop_scope();
+    state->get_current_scope()->set_exit(has_exited);
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
         auto target = arg_tuple.first;
@@ -179,6 +182,13 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
 
         // VISIT THE CONTROL
         visit(resolved_type);
+
+        // Merge the exit states
+        for (auto exit_tuple : state->exit_states) {
+            state->merge_state(exit_tuple.first, exit_tuple.second);
+        }
+        // Clear the exit states
+        state->exit_states.clear();
 
         // COLLECT
         for (auto state_name : state_names) {

@@ -33,6 +33,10 @@
 
 namespace TOZ3_V2 {
 
+#define EXIT_SKIPPED 10
+#define EXIT_VALIDATION 20
+#define EXIT_UNDEFINED 30
+
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
     auto main = state->get_static_decl("main");
     if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
@@ -94,6 +98,10 @@ int compare_progs(
                prog_after_name.c_str());
         std::vector<z3::expr> z3_repr_prog_before = z3_progs[i - 1].second;
         std::vector<z3::expr> z3_repr_prog_after = z3_progs[i].second;
+        if (z3_repr_prog_before.size() < 1) {
+            warning("Empty result, nothing to compare with!");
+            return EXIT_SKIPPED;
+        }
         z3::expr_vector z3_vec_before(*ctx);
         z3::expr_vector z3_vec_after(*ctx);
         std::vector<z3::sort> z3_vec_before_sorts;
@@ -104,9 +112,6 @@ int compare_progs(
         z3::func_decl_vector after_getters(*ctx);
 
         for (size_t i = 0; i < z3_repr_prog_before.size(); ++i) {
-            // auto before_val = z3_repr_prog_before[i];
-            // auto after_val = z3_repr_prog_after[i];
-            // std::cout << "Adding " << comp << std::endl;
             cstring before_name = "before" + std::to_string(i);
             cstring after_name = "after" + std::to_string(i);
             before_names.push_back(before_name.c_str());
@@ -133,10 +138,10 @@ int compare_progs(
         if (ret == z3::sat) {
             error("Programs are not equal! Found validation error.\n");
             error("Program %s before %s", prog_before_name,
-                  prog_before.to_string().c_str());
+                  prog_before.simplify().to_string().c_str());
             error("Program %s after %s", prog_after_name,
-                  prog_after.to_string().c_str());
-            return EXIT_FAILURE;
+                  prog_after.simplify().to_string().c_str());
+            return EXIT_VALIDATION;
         } else if (ret == z3::unknown) {
             error("Could not determine equality. Error\n");
             return EXIT_FAILURE;
@@ -206,6 +211,6 @@ int main(int argc, char *const argv[]) {
         TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
         z3_progs.push_back({prog, result_vec});
     }
-    int result = TOZ3_V2::compare_progs(&ctx, z3_progs);
-    return result;
+    return TOZ3_V2::compare_progs(&ctx, z3_progs);
+    ;
 }

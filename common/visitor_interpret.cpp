@@ -104,7 +104,7 @@ bool Z3Visitor::preorder(const IR::Function *f) {
         return false;
     }
     auto return_type = f->type->returnType;
-    P4Z3Instance *merged_return = begin->second.cast_allocate(return_type);
+    auto merged_return = begin->second.cast_allocate(return_type);
     for (auto it = std::next(begin); it != end; ++it) {
         z3::expr cond = it->first;
         auto then_var = it->second.cast_allocate(return_type);
@@ -224,11 +224,14 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         auto old_state = state->fork_state();
         state->get_current_scope()->push_forward_cond(cond);
         visit(action);
-        action_states.push_back({cond, state->get_state()});
+        if (!state->get_current_scope()->has_exited()) {
+            action_states.push_back({cond, state->get_state()});
+        } else {
+            state->get_current_scope()->set_exit(false);
+        }
         state->restore_state(&old_state);
     }
     visit(default_action);
-
     for (auto it = action_states.rbegin(); it != action_states.rend(); ++it) {
         state->merge_state(it->first, it->second);
     }
@@ -247,7 +250,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
 bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
-    auto forward_conds = state->get_current_scope()->get_forward_conds();
+    auto forward_conds = state->get_forward_conds();
     auto cond = state->get_z3_ctx()->bool_val(true);
     for (z3::expr sub_cond : forward_conds) {
         cond = cond && sub_cond;
@@ -260,38 +263,64 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::ExitStatement *) {
+    auto forward_conds = state->get_forward_conds();
+    auto cond = state->get_z3_ctx()->bool_val(true);
+    for (z3::expr sub_cond : forward_conds) {
+        cond = cond && sub_cond;
+    }
+    state->exit_states.push_back({cond, state->clone_state()});
+    state->get_current_scope()->set_exit(true);
+
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
-    auto cond = state->copy_expr_result();
-    auto z3_cond = cond->to<Z3Bitvector>();
-    if (z3_cond == nullptr) {
-        BUG("Unsupported condition type.");
+    auto z3_cond = state->get_expr_result<Z3Bitvector>()->val.simplify();
+    if (z3_cond.is_true()) {
+        visit(ifs->ifTrue);
+        return false;
     }
-
+    if (z3_cond.is_false()) {
+        visit(ifs->ifFalse);
+        return false;
+    }
     auto old_state = state->fork_state();
+    ProgState then_state;
     state->push_scope();
-    state->get_current_scope()->push_forward_cond(z3_cond->val);
+    state->get_current_scope()->push_forward_cond(z3_cond);
     visit(ifs->ifTrue);
+    if (state->get_current_scope()->has_exited()) {
+        then_state = old_state;
+    } else {
+        then_state = state->get_state();
+    }
     state->pop_scope();
-    auto then_state = state->get_state();
     state->restore_state(&old_state);
     state->push_scope();
-    state->get_current_scope()->push_forward_cond(!z3_cond->val);
+    state->get_current_scope()->push_forward_cond(!z3_cond);
     visit(ifs->ifFalse);
+    if (state->get_current_scope()->has_exited()) {
+        state->restore_state(&old_state);
+    }
     state->pop_scope();
 
-    // If both branches have returned we set the if statement to returned
+    // If both branches have returned we set the if statement to returned or
+    // exited
     state->get_current_scope()->set_returned(old_state.back().has_returned() &&
                                              then_state.back().has_returned());
-
-    state->merge_state(z3_cond->val, then_state);
+    state->get_current_scope()->set_exit(old_state.back().has_exited() &&
+                                         then_state.back().has_exited());
+    state->merge_state(z3_cond, then_state);
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     for (auto c : b->components) {
         visit(c);
-        if (state->get_current_scope()->has_returned()) {
+        if (state->get_current_scope()->has_returned() or
+            state->get_current_scope()->has_exited()) {
             break;
         }
     }
@@ -370,12 +399,12 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
             //     const IR::Type *resolved_arg = state->resolve_type(arg);
             // }
         } else {
-            BUG("Specialized type %s not supported.",
-                resolved_base_type->node_type_name());
+            P4C_UNIMPLEMENTED("Specialized type %s not supported.",
+                              resolved_base_type->node_type_name());
         }
     } else {
-        BUG("Declaration Instance Type %s not supported.",
-            resolved_type->node_type_name());
+        P4C_UNIMPLEMENTED("Declaration Instance Type %s not supported.",
+                          resolved_type->node_type_name());
     }
     state->pop_scope();
     return false;

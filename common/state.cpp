@@ -231,8 +231,11 @@ void merge_var_maps(const z3::expr &cond, const VarMap &then_map,
     for (auto &then_tuple : then_map) {
         auto then_name = then_tuple.first;
         auto then_var = then_tuple.second.first;
-        auto else_var = else_map.at(then_name).first;
-        then_var->merge(cond, *else_var);
+        auto else_var = else_map.find(then_name);
+        // TODO: This check should not be necessary
+        if (else_var != else_map.end()) {
+            then_var->merge(cond, *else_var->second.first);
+        }
     }
 }
 

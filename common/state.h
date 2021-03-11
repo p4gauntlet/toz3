@@ -36,6 +36,7 @@ class P4State {
  public:
     std::vector<std::pair<z3::expr, P4Z3Instance &>> return_exprs;
     std::vector<std::pair<z3::expr, ProgState>> return_states;
+    std::vector<std::pair<z3::expr, ProgState>> exit_states;
 
     explicit P4State(z3::context *context)
         : ctx(context), z3_expr_buffer(this, context->bool_val(false)),
@@ -69,6 +70,16 @@ class P4State {
     void restore_state(ProgState *set_scopes) { scopes = *set_scopes; }
     ProgState clone_state();
     ProgState fork_state();
+
+    const std::vector<z3::expr> get_forward_conds() const {
+        std::vector<z3::expr> forward_conds;
+        for (auto &scope : scopes) {
+            auto sub_conds = scope.get_forward_conds();
+            forward_conds.insert(forward_conds.end(), sub_conds.begin(),
+                                 sub_conds.end());
+        }
+        return forward_conds;
+    }
 
     /****** TYPES ******/
     const IR::Type *resolve_type(const IR::Type *type) const;
