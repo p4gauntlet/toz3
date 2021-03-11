@@ -42,8 +42,8 @@ const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
     }
 }
 
-P4Z3Result get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
-    P4Z3Result z3_return;
+VarMap get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
+    VarMap z3_return;
 
     if (program != nullptr && ::errorCount() == 0) {
         try {
@@ -66,11 +66,12 @@ P4Z3Result get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
     return z3_return;
 }
 
-void unroll_result(P4Z3Result z3_repr_prog, std::vector<z3::expr> *result_vec) {
+void unroll_result(VarMap z3_repr_prog, std::vector<z3::expr> *result_vec) {
     for (auto result_tuple : z3_repr_prog) {
-        if (auto z3_val = result_tuple.second->to<Z3Bitvector>()) {
+        if (auto z3_val = result_tuple.second.first->to<Z3Bitvector>()) {
             result_vec->push_back(z3_val->val);
-        } else if (auto z3_var = result_tuple.second->to<ControlState>()) {
+        } else if (auto z3_var =
+                       result_tuple.second.first->to<ControlState>()) {
             for (auto sub_tuple : z3_var->state_vars) {
                 result_vec->push_back(sub_tuple.second);
             }
@@ -200,8 +201,7 @@ int main(int argc, char *const argv[]) {
     for (auto prog : prog_list) {
         options.file = prog;
         prog_parsed = P4::parseP4File(options);
-        TOZ3_V2::P4Z3Result z3_repr_prog =
-            TOZ3_V2::get_z3_repr(prog_parsed, &ctx);
+        auto z3_repr_prog = TOZ3_V2::get_z3_repr(prog_parsed, &ctx);
         std::vector<z3::expr> result_vec;
         TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
         z3_progs.push_back({prog, result_vec});

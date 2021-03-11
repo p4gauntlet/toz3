@@ -317,10 +317,10 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
         return false;
     }
     // otherwise we need to merge
-    ProgState old_state = state->fork_state();
+    auto old_state = state->fork_state();
     visit(m->e1);
     auto then_expr = state->copy_expr_result();
-    ProgState then_state = state->copy_state();
+    auto then_state = state->get_state();
     state->restore_state(&old_state);
 
     // visit else expression

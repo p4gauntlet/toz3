@@ -1,8 +1,9 @@
 #ifndef _TOZ3_COMPLEX_TYPE_H_
 #define _TOZ3_COMPLEX_TYPE_H_
 
-#include <cstdio>
 #include <z3++.h>
+
+#include <cstdio>
 
 #include <map>    // std::map
 #include <string> // std::to_string
@@ -66,6 +67,7 @@ class StructBase : public P4Z3Instance {
     StructBase &operator=(const StructBase &other);
 
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
 class StructInstance : public StructBase {
@@ -75,7 +77,6 @@ class StructInstance : public StructBase {
     StructInstance *copy() const override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
     cstring get_static_type() const override { return "StructInstance"; }
-    cstring get_static_type() override { return "StructInstance"; }
     cstring to_string() const override {
         cstring ret = "StructInstance(";
         bool first = true;
@@ -113,7 +114,6 @@ class HeaderInstance : public StructBase {
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
     HeaderInstance *copy() const override;
     cstring get_static_type() const override { return "HeaderInstance"; }
-    cstring get_static_type() override { return "HeaderInstance"; }
     cstring to_string() const override {
         cstring ret = "HeaderInstance(";
         bool first = true;
@@ -147,7 +147,6 @@ class EnumInstance : public StructBase {
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") const override;
     cstring get_static_type() const override { return "EnumInstance"; }
-    cstring get_static_type() override { return "EnumInstance"; }
     cstring to_string() const override {
         cstring ret = "EnumInstance(";
         bool first = true;
@@ -177,7 +176,6 @@ class ErrorInstance : public StructBase {
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") const override;
     cstring get_static_type() const override { return "ErrorInstance"; }
-    cstring get_static_type() override { return "ErrorInstance"; }
     ErrorInstance *copy() const override;
 
     cstring to_string() const override {
@@ -205,7 +203,6 @@ class ExternInstance : public P4Z3Instance {
         // Merge is a no-op here.
     };
     cstring get_static_type() const override { return "ExternInstance"; }
-    cstring get_static_type() override { return "ExternInstance"; }
     cstring to_string() const override {
         cstring ret = "ExternInstance(";
         ret += ")";

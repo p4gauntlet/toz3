@@ -75,7 +75,8 @@ int main(int argc, char *const argv[]) {
             auto decl_result = to_z3.get_decl_result();
             for (auto pipe_state : decl_result) {
                 cstring pipe_name = pipe_state.first;
-                auto pipe_vars = pipe_state.second->to<TOZ3_V2::ControlState>();
+                auto pipe_vars =
+                    pipe_state.second.first->to<TOZ3_V2::ControlState>();
                 if (pipe_vars) {
                     printf("Pipe %s state:\n", pipe_name.c_str());
                     for (auto tuple : pipe_vars->state_vars) {

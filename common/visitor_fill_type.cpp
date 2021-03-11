@@ -110,7 +110,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     } else {
         left = state->gen_instance("undefined", dc->type);
     }
-    state->declare_local_var(dc->name.name, left);
+    state->declare_var(dc->name.name, left, dc->type);
     return false;
 }
 
@@ -123,7 +123,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     } else {
         left = state->gen_instance("undefined", dv->type);
     }
-    state->declare_local_var(dv->name.name, left);
+    state->declare_var(dv->name.name, left, dv->type);
 
     return false;
 }

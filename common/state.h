@@ -37,17 +37,16 @@ class P4State {
     std::vector<std::pair<z3::expr, P4Z3Instance &>> return_exprs;
     std::vector<std::pair<z3::expr, ProgState>> return_states;
 
-    P4State(z3::context *context)
-        : ctx(context), z3_expr_buffer(context->bool_val(false)),
-          z3_int_buffer(context->bool_val(false)) {
+    explicit P4State(z3::context *context)
+        : ctx(context), z3_expr_buffer(this, context->bool_val(false)),
+          z3_int_buffer(this, context->bool_val(false)) {
         main_scope = P4Scope();
     }
     ~P4State() {}
 
     /****** GETTERS ******/
-    ProgState copy_state() { return scopes; }
-    ProgState *get_state() { return &scopes; }
-    z3::context *get_z3_ctx() { return ctx; }
+    ProgState get_state() { return scopes; }
+    z3::context *get_z3_ctx() const { return ctx; }
     P4Z3Instance *get_expr_result() { return expr_result; }
     template <typename T> T *get_expr_result() {
         if (auto cast_result = expr_result->to_mut<T>()) {
@@ -72,13 +71,14 @@ class P4State {
     ProgState fork_state();
 
     /****** TYPES ******/
-    const IR::Type *resolve_type(const IR::Type *type);
+    const IR::Type *resolve_type(const IR::Type *type) const;
     void add_type(cstring type_name, const IR::Type *t);
-    const IR::Type *get_type(cstring decl_name);
+    const IR::Type *get_type(cstring decl_name) const;
 
     /****** VARIABLES ******/
     void update_var(cstring name, P4Z3Instance *var);
-    void declare_local_var(cstring name, P4Z3Instance *var);
+    void declare_var(cstring name, P4Z3Instance *var,
+                     const IR::Type *decl_type);
     P4Z3Instance *get_var(cstring name);
     template <typename T> T *get_var(cstring name) {
         P4Z3Instance *var = get_var(name);
@@ -88,14 +88,14 @@ class P4State {
             BUG("Could not cast to type %s.", typeid(T).name());
         }
     }
-
+    const IR::Type *get_var_type(cstring decl_name);
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, const IR::Declaration *decl);
     const P4Declaration *get_static_decl(cstring name);
-    // template <typename T> T *get_static_decl(cstring name) {
-    //     P4Z3Instance *var = get_static_decl(name);
-    //     return var->to_mut<T>();
-    // }
+    template <typename T> T *get_static_decl(cstring name) {
+        auto decl = get_static_decl(name);
+        return decl->to_mut<T>();
+    }
     P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
     /****** EXPRESSION RESULTS ******/
     P4Z3Instance *copy_expr_result() { return expr_result->copy(); }

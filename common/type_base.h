@@ -118,10 +118,6 @@ class P4Z3Instance {
     virtual Z3Result cast(const IR::Type *) const {
         P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
     }
-    virtual P4Z3Instance *cast_allocate(z3::sort &) const {
-        P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",
-                          get_static_type());
-    }
     virtual P4Z3Instance *cast_allocate(const IR::Type *) const {
         P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",
                           get_static_type());
@@ -147,7 +143,6 @@ class P4Z3Instance {
                           get_static_type());
     }
 
-    virtual cstring get_static_type() = 0;
     virtual cstring get_static_type() const = 0;
     virtual cstring to_string() const = 0;
 };

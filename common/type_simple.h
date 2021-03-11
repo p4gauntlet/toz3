@@ -4,9 +4,10 @@
 #include <cstdio>
 #include <z3++.h>
 
-#include <map>    // std::map
-#include <string> // std::to_string
-#include <vector> // std::vector
+#include <map>     // std::map
+#include <string>  // std::to_string
+#include <utility> // std::pair
+#include <vector>  // std::vector
 
 #include "ir/ir.h"
 #include "lib/cstring.h"
@@ -21,9 +22,9 @@ class P4State;
 class ControlState : public P4Z3Instance {
  public:
     std::vector<std::pair<cstring, z3::expr>> state_vars;
-    ControlState(std::vector<std::pair<cstring, z3::expr>> state_vars)
-        : state_vars(state_vars){};
-    ControlState(){};
+    explicit ControlState(std::vector<std::pair<cstring, z3::expr>> state_vars)
+        : state_vars(state_vars) {}
+    ControlState() {}
     void merge(const z3::expr &, const P4Z3Instance &) override{
         // Merge is a no-op here.
     };
@@ -31,7 +32,6 @@ class ControlState : public P4Z3Instance {
     ControlState *copy() const override { return new ControlState(state_vars); }
 
     cstring get_static_type() const override { return "ControlState"; }
-    cstring get_static_type() override { return "ControlState"; }
     cstring to_string() const override {
         cstring ret = "ControlState(";
         bool first = true;
@@ -51,14 +51,13 @@ class P4Declaration : public P4Z3Instance {
  public:
     const IR::Declaration *decl;
     // constructor
-    P4Declaration(const IR::Declaration *decl) : decl(decl) {}
+    explicit P4Declaration(const IR::Declaration *decl) : decl(decl) {}
     // Merge is a no-op here.
     void merge(const z3::expr &, const P4Z3Instance &) override {}
     // TODO: This is a little pointless....
     P4Declaration *copy() const override { return new P4Declaration(decl); }
 
     cstring get_static_type() const override { return "P4Declaration"; }
-    cstring get_static_type() override { return "P4Declaration"; }
     cstring to_string() const override {
         cstring ret = "P4Declaration(";
         return ret + decl->toString() + ")";
@@ -66,13 +65,15 @@ class P4Declaration : public P4Z3Instance {
 };
 
 class Z3Bitvector : public P4Z3Instance {
+    const P4State *state;
+
  public:
     z3::expr val;
     bool is_signed;
-    Z3Bitvector(z3::expr val, bool is_signed = false)
-        : val(val), is_signed(is_signed){};
+    explicit Z3Bitvector(const P4State *state, z3::expr val,
+                         bool is_signed = false)
+        : state(state), val(val), is_signed(is_signed) {}
     ~Z3Bitvector() {}
-    Z3Bitvector() : val(z3::context().int_val(0)){};
 
     /****** UNARY OPERANDS ******/
     Z3Result operator-() const override;
@@ -102,7 +103,6 @@ class Z3Bitvector : public P4Z3Instance {
     Z3Result concat(const P4Z3Instance &) const override;
     Z3Result cast(z3::sort &) const override;
     Z3Result cast(const IR::Type *) const override;
-    P4Z3Instance *cast_allocate(z3::sort &) const override;
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/
     Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const override;
@@ -116,7 +116,6 @@ class Z3Bitvector : public P4Z3Instance {
     }
 
     cstring get_static_type() const override { return "Z3Bitvector"; }
-    cstring get_static_type() override { return "Z3Bitvector"; }
     cstring to_string() const override {
         cstring ret = "Z3Bitvector(";
         return ret + val.to_string().c_str() + ")";
@@ -124,13 +123,14 @@ class Z3Bitvector : public P4Z3Instance {
 };
 
 class Z3Int : public P4Z3Instance {
+    const P4State *state;
+
  public:
     z3::expr val;
-    Z3Int(z3::expr val) : val(val){};
-    Z3Int(int64_t int_val, z3::context *ctx);
-    Z3Int(big_int int_val, z3::context *ctx);
-
-    Z3Int() : val(z3::context().int_val(0)){};
+    explicit Z3Int(const P4State *state, z3::expr val)
+        : state(state), val(val) {}
+    Z3Int(const P4State *state, int64_t int_val);
+    Z3Int(const P4State *state, big_int int_val);
 
     Z3Result operator-() const override;
     Z3Result operator~() const override;
@@ -159,7 +159,6 @@ class Z3Int : public P4Z3Instance {
     Z3Result concat(const P4Z3Instance &) const override;
     Z3Result cast(z3::sort &) const override;
     Z3Result cast(const IR::Type *) const override;
-    P4Z3Instance *cast_allocate(z3::sort &) const override;
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/
     Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const override;
@@ -173,7 +172,6 @@ class Z3Int : public P4Z3Instance {
     }
 
     cstring get_static_type() const override { return "Z3Int"; }
-    cstring get_static_type() override { return "Z3Int"; }
     cstring to_string() const override {
         cstring ret = "Z3Int(";
         return ret + val.to_string().c_str() + " )";

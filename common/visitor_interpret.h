@@ -15,10 +15,10 @@ namespace TOZ3_V2 {
 class Z3Visitor : public Inspector {
  public:
     P4State *state;
-    P4Z3Result decl_result;
-    Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
+    VarMap decl_result;
+    explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
 
-    P4Z3Result get_decl_result() { return decl_result; }
+    VarMap get_decl_result() { return decl_result; }
 
  private:
     // for initialization and ending
@@ -122,13 +122,8 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dv) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
-    void fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
-                            const IR::Type *t);
-    P4Z3Result merge_args_with_params(const IR::Vector<IR::Argument> *args,
-                                      const IR::ParameterList *params);
-    std::vector<std::pair<const IR::Expression *, cstring>>
-    resolve_args(const IR::Vector<IR::Argument> *args,
-                 const IR::ParameterList *params);
+    VarMap merge_args_with_params(const IR::Vector<IR::Argument> *args,
+                                  const IR::ParameterList *params);
     void set_var(const IR::Expression *target, P4Z3Instance *val);
 };
 } // namespace TOZ3_V2

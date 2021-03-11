@@ -115,6 +115,18 @@ void StructBase::merge(const z3::expr &cond, const P4Z3Instance &other) {
     }
 }
 
+P4Z3Instance *StructBase::cast_allocate(const IR::Type *dest_type) const {
+    // There is only rudimentary casting support for Type_Structs
+    if (auto tn = dest_type->to<IR::Type_Name>()) {
+        dest_type = state->resolve_type(tn);
+    }
+    if (dest_type == p4_type) {
+        return copy();
+    }
+    P4C_UNIMPLEMENTED("Unsupported cast for type %s",
+                      dest_type->node_type_name());
+}
+
 void StructInstance::propagate_validity(z3::expr *valid_expr) {
     for (auto member_tuple : members) {
         auto member = member_tuple.second;
@@ -179,7 +191,7 @@ void HeaderInstance::setInvalid() {
 }
 
 void HeaderInstance::isValid() {
-    static Z3Bitvector wrapper = Z3Bitvector(valid);
+    static Z3Bitvector wrapper = Z3Bitvector(state, valid);
     state->set_expr_result(wrapper);
 }
 

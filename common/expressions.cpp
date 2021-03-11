@@ -13,13 +13,14 @@ namespace TOZ3_V2 {
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (auto tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        auto wrapper = Z3Bitvector(
-            state->get_z3_ctx()->bv_val(val_string, tb->size), tb->isSigned);
+        auto expr = state->get_z3_ctx()->bv_val(val_string, tb->size);
+        auto wrapper = Z3Bitvector(state, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
     } else if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        auto var = Z3Int(state->get_z3_ctx()->int_val(val_string));
+        auto expr = state->get_z3_ctx()->int_val(val_string);
+        auto var = Z3Int(state, expr);
         state->set_expr_result(var);
         return false;
     }
@@ -27,7 +28,8 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
-    Z3Bitvector wrapper = Z3Bitvector(state->get_z3_ctx()->bool_val(bl->value));
+    auto expr = state->get_z3_ctx()->bool_val(bl->value);
+    Z3Bitvector wrapper = Z3Bitvector(state, expr);
     state->set_expr_result(wrapper);
     return false;
 }
@@ -38,8 +40,8 @@ bool Z3Visitor::preorder(const IR::PathExpression *p) {
 }
 
 std::vector<std::pair<const IR::Expression *, cstring>>
-Z3Visitor::resolve_args(const IR::Vector<IR::Argument> *args,
-                        const IR::ParameterList *params) {
+resolve_args(const IR::Vector<IR::Argument> *args,
+             const IR::ParameterList *params) {
     std::vector<std::pair<const IR::Expression *, cstring>> resolved_args;
 
     size_t arg_len = args->size();
@@ -112,7 +114,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         params = get_params(callable);
     } else if (auto member = method_type->to<IR::Member>()) {
         // try to resolve and find a function pointer
-        P4Z3Instance *result = resolve_var_or_decl_parent(this, member);
+        auto result = resolve_var_or_decl_parent(this, member);
         if (auto si = result->to_mut<HeaderInstance>()) {
             // call the function directly for now
             si->get_function(member->member.name)();
@@ -131,13 +133,13 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     }
     std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
         resolve_args(mce->arguments, params);
-    P4Z3Result merged_args = merge_args_with_params(mce->arguments, params);
+    auto merged_args = merge_args_with_params(mce->arguments, params);
 
     state->push_scope();
     for (auto arg_tuple : merged_args) {
         cstring param_name = arg_tuple.first;
         auto arg_val = arg_tuple.second;
-        state->declare_local_var(param_name, arg_val);
+        state->declare_var(param_name, arg_val.first, arg_val.second);
     }
     visit(callable);
     auto expr_result = state->copy_expr_result();
@@ -167,11 +169,11 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         // INITIALIZE
         for (auto param : *c->getApplyParameters()) {
             auto par_type = state->resolve_type(param->type);
-            P4Z3Instance *var = state->gen_instance(param->name.name, par_type);
+            auto var = state->gen_instance(param->name.name, par_type);
             if (auto z3_var = var->to_mut<StructBase>()) {
                 z3_var->propagate_validity();
             }
-            state->declare_local_var(param->name.name, var);
+            state->declare_var(param->name.name, var, par_type);
             state_names.push_back(param->name.name);
         }
 
@@ -196,7 +198,6 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     }
     state->pop_scope();
 
-    // FIXME: Figure out when and how to free this
     auto ctrl_state = new ControlState(state_vars);
     state->set_expr_result(ctrl_state);
 

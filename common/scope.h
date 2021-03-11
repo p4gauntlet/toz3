@@ -14,12 +14,13 @@
 
 namespace TOZ3_V2 {
 
+using VarMap = std::map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
+
 class P4Scope {
  private:
     // maps of local values and types
     std::map<cstring, P4Declaration> static_decls;
-    std::map<cstring, P4Z3Instance *> var_map;
-    std::map<cstring, const IR::Type *> var_types;
+    VarMap var_map;
     std::map<cstring, const IR::Type *> type_map;
     bool is_returned = false;
     std::vector<z3::expr> forward_conds;
@@ -40,33 +41,40 @@ class P4Scope {
         static_decls.insert({name, P4Declaration(val)});
     }
     bool has_static_decl(cstring name) { return static_decls.count(name) > 0; }
-    const std::map<cstring, P4Declaration> *get_const_decl_map() const {
+    const std::map<cstring, P4Declaration> *get_decl_map() const {
         return &static_decls;
     }
     /****** VARIABLES ******/
     P4Z3Instance *get_var(cstring name) {
         auto it = var_map.find(name);
         if (it != var_map.end()) {
-            return it->second;
+            return it->second.first;
         }
         BUG("Key %s not found in var map.");
     }
-    void update_var(cstring name, P4Z3Instance *val) { var_map.at(name) = val; }
-    void declare_var(cstring name, P4Z3Instance *val) {
-        var_map.insert({name, val});
+    const IR::Type *get_var_type(cstring name) {
+        auto it = var_map.find(name);
+        if (it != var_map.end()) {
+            return it->second.second;
+        }
+        BUG("Key %s not found in var map.");
+    }
+    void update_var(cstring name, P4Z3Instance *val) {
+        var_map.at(name).first = val;
+    }
+    void declare_var(cstring name, P4Z3Instance *val,
+                     const IR::Type *decl_type) {
+        var_map.insert({name, {val, decl_type}});
     }
     bool has_var(cstring name) { return var_map.count(name) > 0; }
-    std::map<cstring, P4Z3Instance *> *get_mut_var_map() { return &var_map; }
-    const std::map<cstring, P4Z3Instance *> &get_var_map() const {
-        return var_map;
-    }
+    const VarMap &get_var_map() const { return var_map; }
 
     /****** TYPES ******/
     void add_type(cstring type_name, const IR::Type *t) {
         type_map[type_name] = t;
     }
 
-    const IR::Type *get_type(cstring type_name) {
+    const IR::Type *get_type(cstring type_name) const {
         auto it = type_map.find(type_name);
         if (it != type_map.end()) {
             return it->second;
@@ -74,7 +82,7 @@ class P4Scope {
         BUG("Key %s not found in scope type map.");
     }
 
-    bool has_type(cstring name) { return type_map.count(name) > 0; }
+    bool has_type(cstring name) const { return type_map.count(name) > 0; }
 
     const IR::Type *resolve_type(const IR::Type *type) {
         const IR::Type *ret_type = type;
@@ -84,19 +92,6 @@ class P4Scope {
         }
         return ret_type;
     }
-    /****** VAR_TYPES ******/
-    void add_type_to_var(cstring type_name, const IR::Type *t) {
-        var_types[type_name] = t;
-    }
-
-    const IR::Type *get_type_for_var(cstring type_name) {
-        auto it = var_types.find(type_name);
-        if (it != var_types.end()) {
-            return it->second;
-        }
-        BUG("Key %s not found in var type map.");
-    }
-
     /****** RETURN MANAGEMENT ******/
     bool has_returned() { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
@@ -109,9 +104,9 @@ class P4Scope {
 
     P4Scope clone() {
         auto new_scope = *this;
-        for (auto &value_tuple : *get_mut_var_map()) {
+        for (auto &value_tuple : get_var_map()) {
             auto var_name = value_tuple.first;
-            auto member_cpy = value_tuple.second->copy();
+            auto member_cpy = value_tuple.second.first->copy();
             new_scope.update_var(var_name, member_cpy);
         }
         return new_scope;
@@ -126,7 +121,7 @@ inline std::ostream &operator<<(std::ostream &out,
     for (auto it = var_map.begin(); it != var_map.end(); ++it) {
         const cstring name = it->first;
         auto val = it->second;
-        out << name << ": " << val;
+        out << name << ": " << val.first;
         if (std::next(it) != var_map.end()) {
             out << ", ";
         }

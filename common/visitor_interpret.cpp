@@ -47,33 +47,27 @@ Visitor::profile_t Z3Visitor::init_apply(const IR::Node *node) {
 
 void Z3Visitor::end_apply(const IR::Node *) {}
 
-void Z3Visitor::fill_with_z3_sorts(std::vector<const IR::Node *> *sorts,
-                                   const IR::Type *t) {
-    t = state->resolve_type(t);
-    sorts->push_back(t);
-}
-
-P4Z3Result
-Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
-                                  const IR::ParameterList *params) {
-    P4Z3Result merged_vec;
+VarMap Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
+                                         const IR::ParameterList *params) {
+    VarMap merged_vec;
     size_t arg_len = args->size();
     size_t idx = 0;
     // TODO: Clean this up...
     for (auto param : params->parameters) {
         if (param->direction == IR::Direction::Out) {
             auto instance = state->gen_instance("undefined", param->type);
-            merged_vec.insert({param->name.name, instance});
+            merged_vec.insert({param->name.name, {instance, param->type}});
             idx++;
             continue;
         }
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
             visit(arg->expression);
-            merged_vec.insert({param->name.name, state->copy_expr_result()});
+            merged_vec.insert(
+                {param->name.name, {state->copy_expr_result(), param->type}});
         } else {
             auto arg_expr = state->gen_instance(param->name.name, param->type);
-            merged_vec.insert({param->name.name, arg_expr});
+            merged_vec.insert({param->name.name, {arg_expr, param->type}});
         }
         idx++;
     }
@@ -227,10 +221,10 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     for (std::size_t idx = 0; idx < actions.size(); ++idx) {
         auto action = actions.at(idx);
         auto cond = table_action == ctx->int_val(idx);
-        ProgState old_state = state->fork_state();
+        auto old_state = state->fork_state();
         state->get_current_scope()->push_forward_cond(cond);
         visit(action);
-        action_states.push_back({cond, state->copy_state()});
+        action_states.push_back({cond, state->get_state()});
         state->restore_state(&old_state);
     }
     visit(default_action);
@@ -274,12 +268,12 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
         BUG("Unsupported condition type.");
     }
 
-    ProgState old_state = state->fork_state();
+    auto old_state = state->fork_state();
     state->push_scope();
     state->get_current_scope()->push_forward_cond(z3_cond->val);
     visit(ifs->ifTrue);
     state->pop_scope();
-    ProgState then_state = state->copy_state();
+    auto then_state = state->get_state();
     state->restore_state(&old_state);
     state->push_scope();
     state->get_current_scope()->push_forward_cond(!z3_cond->val);
@@ -311,44 +305,25 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
 
 void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
-        if (auto mut_int = val->to<Z3Int>()) {
-            // FIXME: This is a mess that should not exist
-            auto source_var = state->get_var(name->path->name);
-            if (auto dst_var = source_var->to<Z3Bitvector>()) {
-                auto sort = dst_var->val.get_sort();
-                auto cast_val = mut_int->cast_allocate(sort);
-                state->update_var(name->path->name, cast_val);
-            } else {
-                BUG("CAST NOT SUPPORTED>>>>>>");
-            }
-        } else {
-            state->update_var(name->path->name, val);
-        }
-
+        auto dest_type = state->get_var_type(name->path->name.name);
+        auto cast_val = val->cast_allocate(dest_type);
+        state->update_var(name->path->name, cast_val);
     } else if (auto member = target->to<IR::Member>()) {
         visit(member->expr);
         auto complex_class = state->get_expr_result();
         auto si = complex_class->to_mut<StructBase>();
-        if (!si) {
-            BUG("Can not cast to StructBase.");
-        }
-        if (val->is<Z3Int>()) {
-            // We must cast Ints to avoid Z3 being slow
-            // As they are compile constants we are free to do that
-            auto dst_type = si->get_member_type(member->member.name);
-            auto cast_val = val->cast_allocate(dst_type);
-            si->update_member(member->member.name, cast_val);
-        } else {
-            si->update_member(member->member.name, val);
-        }
+        CHECK_NULL(si);
+        auto dest_type = si->get_member_type(member->member.name);
+        auto cast_val = val->cast_allocate(dest_type);
+        si->update_member(member->member.name, cast_val);
     } else {
-        BUG("Unknown target %s!", target->node_type_name());
+        P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
     }
 }
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     visit(as->right);
-    set_var(as->left, state->copy_expr_result());
+    set_var(as->left, state->get_expr_result());
     return false;
 }
 
@@ -360,7 +335,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     } else {
         left = state->gen_instance("undefined", dv->type);
     }
-    state->declare_local_var(dv->name.name, left);
+    state->declare_var(dv->name.name, left, dv->type);
     return false;
 }
 
@@ -372,7 +347,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     } else {
         left = state->gen_instance("undefined", dc->type);
     }
-    state->declare_local_var(dc->name.name, left);
+    state->declare_var(dc->name.name, left, dc->type);
     return false;
 }
 
