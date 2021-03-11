@@ -24,7 +24,7 @@ class P4Scope {
     VarMap var_map;
     std::map<cstring, const IR::Type *> type_map;
     bool is_returned = false;
-    bool is_exited = false;
+
     std::vector<z3::expr> forward_conds;
 
  public:
@@ -97,8 +97,6 @@ class P4Scope {
     /****** RETURN AND EXIT MANAGEMENT ******/
     bool has_returned() { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
-    bool has_exited() { return is_exited; }
-    void set_exit(bool exit_state) { is_exited = exit_state; }
 
     void push_forward_cond(const z3::expr &forward_cond) {
         return forward_conds.push_back(forward_cond);

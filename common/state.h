@@ -29,6 +29,7 @@ class P4State {
     Z3Bitvector z3_expr_buffer;
     Z3Int z3_int_buffer;
     P4Z3Instance *expr_result;
+    bool is_exited = false;
 
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
@@ -37,6 +38,8 @@ class P4State {
     std::vector<std::pair<z3::expr, P4Z3Instance &>> return_exprs;
     std::vector<std::pair<z3::expr, ProgState>> return_states;
     std::vector<std::pair<z3::expr, ProgState>> exit_states;
+    bool has_exited() { return is_exited; }
+    void set_exit(bool exit_state) { is_exited = exit_state; }
 
     explicit P4State(z3::context *context)
         : ctx(context), z3_expr_buffer(this, context->bool_val(false)),

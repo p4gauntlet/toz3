@@ -150,9 +150,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         auto val = state->get_var(source);
         copy_out_vals.push_back(val);
     }
-    auto has_exited = state->get_current_scope()->has_exited();
     state->pop_scope();
-    state->get_current_scope()->set_exit(has_exited);
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
         auto target = arg_tuple.first;

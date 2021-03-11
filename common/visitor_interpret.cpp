@@ -218,20 +218,27 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     }
     std::vector<std::pair<z3::expr, ProgState>> action_states;
 
+    bool has_exited = true;
     for (std::size_t idx = 0; idx < actions.size(); ++idx) {
         auto action = actions.at(idx);
         auto cond = hit && (table_action == ctx->int_val(idx));
-        auto old_state = state->fork_state();
         state->get_current_scope()->push_forward_cond(cond);
         visit(action);
-        if (!state->get_current_scope()->has_exited()) {
+        auto old_state = state->fork_state();
+        auto call_has_exited = state->has_exited();
+        if (!call_has_exited) {
             action_states.push_back({cond, state->get_state()});
-        } else {
-            state->get_current_scope()->set_exit(false);
         }
+        has_exited = has_exited && call_has_exited;
+        state->set_exit(false);
         state->restore_state(&old_state);
     }
+    auto old_state = state->fork_state();
     visit(default_action);
+    if (state->has_exited()) {
+        state->restore_state(&old_state);
+    }
+    state->set_exit(state->has_exited() && has_exited);
     for (auto it = action_states.rbegin(); it != action_states.rend(); ++it) {
         state->merge_state(it->first, it->second);
     }
@@ -270,7 +277,7 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
         cond = cond && sub_cond;
     }
     state->exit_states.push_back({cond, state->clone_state()});
-    state->get_current_scope()->set_exit(true);
+    state->set_exit(true);
 
     return false;
 }
@@ -291,17 +298,20 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     state->push_scope();
     state->get_current_scope()->push_forward_cond(z3_cond);
     visit(ifs->ifTrue);
-    if (state->get_current_scope()->has_exited()) {
+    auto then_has_exited = state->has_exited();
+    if (then_has_exited) {
         then_state = old_state;
     } else {
         then_state = state->get_state();
     }
     state->pop_scope();
-    state->restore_state(&old_state);
+
+    state->fork_state();
     state->push_scope();
     state->get_current_scope()->push_forward_cond(!z3_cond);
     visit(ifs->ifFalse);
-    if (state->get_current_scope()->has_exited()) {
+    auto else_has_exited = state->has_exited();
+    if (else_has_exited) {
         state->restore_state(&old_state);
     }
     state->pop_scope();
@@ -310,8 +320,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     // exited
     state->get_current_scope()->set_returned(old_state.back().has_returned() &&
                                              then_state.back().has_returned());
-    state->get_current_scope()->set_exit(old_state.back().has_exited() &&
-                                         then_state.back().has_exited());
+    state->set_exit(then_has_exited && else_has_exited);
     state->merge_state(z3_cond, then_state);
     return false;
 }
@@ -319,8 +328,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     for (auto c : b->components) {
         visit(c);
-        if (state->get_current_scope()->has_returned() or
-            state->get_current_scope()->has_exited()) {
+        if (state->get_current_scope()->has_returned() or state->has_exited()) {
             break;
         }
     }
