@@ -71,6 +71,26 @@ void StructBase::set_undefined() {
     }
 }
 
+void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
+    size_t idx = 0;
+    for (auto member_tuple = members.begin(); member_tuple != members.end();
+         ++member_tuple) {
+        auto member_name = member_tuple->first;
+        auto target_val = member_tuple->second;
+        auto input_val = input_list.at(idx);
+        if (auto sub_list = input_val->to<ListInstance>()) {
+            if (auto sub_target = target_val->to_mut<StructBase>()) {
+                sub_target->set_list(sub_list->get_val_list());
+            } else {
+                BUG("Unsupported set list class.");
+            }
+        } else {
+            update_member(member_name, input_val);
+        }
+        idx++;
+    }
+}
+
 std::vector<std::pair<cstring, z3::expr>>
 StructBase::get_z3_vars(cstring prefix) const {
     std::vector<std::pair<cstring, z3::expr>> z3_vars;
@@ -87,8 +107,8 @@ StructBase::get_z3_vars(cstring prefix) const {
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = member->to<Z3Int>()) {
-            // We receive an int that we need to cast towards the member type
-            // Ints must be compile constants so we can resolve them
+            // We receive an int that we need to cast towards the member
+            // type Ints must be compile constants so we can resolve them
             const IR::Type *dest_type = member_types.at(member_tuple.first);
             auto cast_val =
                 z3::int2bv(dest_type->width_bits(), z3_var->val).simplify();
@@ -183,11 +203,15 @@ HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
 void HeaderInstance::set_valid(z3::expr *valid_val) { valid = *valid_val; }
 const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
-void HeaderInstance::setValid() { valid = state->get_z3_ctx()->bool_val(true); }
+void HeaderInstance::setValid() {
+    valid = state->get_z3_ctx()->bool_val(true);
+    propagate_validity(&valid);
+}
 
 void HeaderInstance::setInvalid() {
-    set_undefined();
     valid = state->get_z3_ctx()->bool_val(false);
+    propagate_validity(&valid);
+    set_undefined();
 }
 
 void HeaderInstance::isValid() {
@@ -234,7 +258,8 @@ HeaderInstance::get_z3_vars(cstring prefix) const {
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (auto z3_var = member->to<Z3Int>()) {
-            // We receive an int that we need to cast towards the member type
+            // We receive an int that we need to cast towards the member
+            // type
             auto dest_type = member_types.at(member_tuple.first);
             auto cast_val =
                 z3::int2bv(dest_type->width_bits(), z3_var->val).simplify();
@@ -257,6 +282,10 @@ void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &other) {
     StructBase::merge(cond, other);
     auto valid_merge = z3::ite(cond, *get_valid(), *other_struct->get_valid());
     set_valid(&valid_merge);
+}
+void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
+    StructBase::set_list(input_list);
+    setValid();
 }
 
 EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
@@ -318,6 +347,17 @@ ExternInstance::ExternInstance(P4State *, const IR::Type_Extern *type)
     for (auto method : type->methods) {
         methods.insert({method->getName().name, method});
     }
+}
+
+P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
+    auto instance = state->gen_instance("list", dest_type);
+    auto struct_instance = instance->to_mut<StructBase>();
+    if (struct_instance == nullptr) {
+        BUG("Unsupported type %s for ListInstance.",
+            dest_type->node_type_name());
+    }
+
+    return struct_instance;
 }
 
 } // namespace TOZ3_V2

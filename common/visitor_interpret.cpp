@@ -293,33 +293,36 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
         visit(ifs->ifFalse);
         return false;
     }
-    auto old_state = state->fork_state();
-    ProgState then_state;
+    auto saved_state = state->clone_state();
     state->push_scope();
     state->get_current_scope()->push_forward_cond(z3_cond);
     visit(ifs->ifTrue);
+    state->pop_scope();
     auto then_has_exited = state->has_exited();
+    ProgState then_state;
     if (then_has_exited) {
-        then_state = old_state;
+        then_state = saved_state;
     } else {
         then_state = state->get_state();
     }
-    state->pop_scope();
+    state->set_exit(false);
 
-    state->fork_state();
+    state->restore_state(&saved_state);
+    auto old_state = state->fork_state();
     state->push_scope();
     state->get_current_scope()->push_forward_cond(!z3_cond);
     visit(ifs->ifFalse);
+    state->pop_scope();
     auto else_has_exited = state->has_exited();
     if (else_has_exited) {
         state->restore_state(&old_state);
     }
-    state->pop_scope();
 
     // If both branches have returned we set the if statement to returned or
     // exited
-    state->get_current_scope()->set_returned(old_state.back().has_returned() &&
-                                             then_state.back().has_returned());
+    state->get_current_scope()->set_returned(
+        state->get_current_scope()->has_returned() &&
+        then_state.back().has_returned());
     state->set_exit(then_has_exited && else_has_exited);
     state->merge_state(z3_cond, then_state);
     return false;

@@ -240,7 +240,7 @@ void merge_var_maps(const z3::expr &cond, const VarMap &then_map,
 }
 
 void P4State::merge_state(const z3::expr &cond, const ProgState &else_state) {
-    for (size_t i = 1; i < scopes.size(); ++i) {
+    for (size_t i = 0; i < scopes.size(); ++i) {
         auto then_scope = &scopes[i];
         auto else_scope = &else_state.at(i);
         merge_var_maps(cond, then_scope->get_var_map(),

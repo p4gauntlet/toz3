@@ -74,7 +74,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::PathExpression *p) override;
     bool preorder(const IR::Constant *c) override;
     // bool preorder(const IR::DefaultExpression *) override;
-    // bool preorder(const IR::ListExpression *le) override;
+    bool preorder(const IR::ListExpression *le) override;
     // bool preorder(const IR::TypeNameExpression *) override;
     // bool preorder(const IR::NamedExpression *ne) override;
     // bool preorder(const IR::StructExpression *sie) override;

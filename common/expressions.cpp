@@ -35,6 +35,16 @@ bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::ListExpression *le) {
+    std::vector<P4Z3Instance *> members;
+    for (auto component : le->components) {
+        visit(component);
+        members.push_back(state->copy_expr_result());
+    }
+    state->set_expr_result(new ListInstance(state, members, le->type));
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::PathExpression *p) {
     state->set_expr_result(state->get_var(p->path->name));
     return false;

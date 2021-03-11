@@ -19,7 +19,7 @@ namespace TOZ3_V2 {
 class StructBase : public P4Z3Instance {
  protected:
     P4State *state;
-    std::map<cstring, P4Z3Instance *> members;
+    ordered_map<cstring, P4Z3Instance *> members;
     std::map<cstring, std::function<void()>> member_functions;
     std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
@@ -53,12 +53,14 @@ class StructBase : public P4Z3Instance {
     void insert_member(cstring name, P4Z3Instance *val) {
         members.insert({name, val});
     }
-    std::map<cstring, P4Z3Instance *> *get_member_map() { return &members; }
-    const std::map<cstring, P4Z3Instance *> *get_immutable_member_map() const {
+    ordered_map<cstring, P4Z3Instance *> *get_member_map() { return &members; }
+    const ordered_map<cstring, P4Z3Instance *> *
+    get_immutable_member_map() const {
         return &members;
     }
     virtual void propagate_validity(z3::expr * = nullptr) {}
     void set_undefined() override;
+    virtual void set_list(std::vector<P4Z3Instance *>);
 
     ~StructBase() {}
     // copy constructor
@@ -112,6 +114,8 @@ class HeaderInstance : public StructBase {
     get_z3_vars(cstring prefix = "") const override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
+    void set_list(std::vector<P4Z3Instance *>) override;
+
     HeaderInstance *copy() const override;
     cstring get_static_type() const override { return "HeaderInstance"; }
     cstring to_string() const override {
@@ -215,6 +219,27 @@ class ExternInstance : public P4Z3Instance {
         error("Extern %s has no method %s.", p4_type, method_name);
         exit(1);
     }
+};
+
+class ListInstance : public P4Z3Instance {
+ private:
+    P4State *state;
+    std::vector<P4Z3Instance *> val_list;
+
+ public:
+    const IR::Type *p4_type;
+    ListInstance(P4State *state, std::vector<P4Z3Instance *> val_list,
+                 const IR::Type *type)
+        : state(state), val_list(val_list), p4_type(type) {}
+
+    cstring get_static_type() const override { return "ListInstance"; }
+    cstring to_string() const override {
+        cstring ret = "ListInstance(";
+        ret += ")";
+        return ret;
+    }
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
+    std::vector<P4Z3Instance *> get_val_list() const { return val_list; }
 };
 
 } // namespace TOZ3_V2
