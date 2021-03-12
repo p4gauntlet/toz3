@@ -50,24 +50,6 @@ class ControlState : public P4Z3Instance {
     }
 };
 
-class P4Declaration : public P4Z3Instance {
-    // A wrapper class for declarations
- public:
-    const IR::Declaration *decl;
-    // constructor
-    explicit P4Declaration(const IR::Declaration *decl) : decl(decl) {}
-    // Merge is a no-op here.
-    void merge(const z3::expr &, const P4Z3Instance &) override {}
-    // TODO: This is a little pointless....
-    P4Declaration *copy() const override { return new P4Declaration(decl); }
-
-    cstring get_static_type() const override { return "P4Declaration"; }
-    cstring to_string() const override {
-        cstring ret = "P4Declaration(";
-        return ret + decl->toString() + ")";
-    }
-};
-
 class Z3Bitvector : public P4Z3Instance {
     const P4State *state;
 

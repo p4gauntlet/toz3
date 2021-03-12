@@ -119,7 +119,7 @@ P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
             return visitor->state->get_var(name);
         }
     }
-    P4C_UNIMPLEMENTED("Parent %s of type not implemented!", parent,
+    P4C_UNIMPLEMENTED("Parent %s of type %s not implemented!", parent,
                       parent->node_type_name());
 }
 
@@ -156,6 +156,14 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             // call the function directly for now
             si->get_function(member->member.name)();
             return false;
+        } else if (auto p4t = result->to_mut<P4TableInstance>()) {
+            // call the function directly for now
+            // FIXME: This ignores arguments...
+            p4t->get_function(member->member.name)();
+            auto thing = state->copy_expr_result<P4TableInstance>();
+            visit(thing->decl);
+            state->set_expr_result(thing);
+            return false;
         } else if (auto p4extern = result->to_mut<ExternInstance>()) {
             callable = p4extern->get_method(member->member.name);
             params = get_params(callable);
@@ -163,7 +171,8 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             callable = decl->decl;
             params = get_params(callable);
         } else {
-            P4C_UNIMPLEMENTED("Method member call %s not supported.", mce);
+            P4C_UNIMPLEMENTED("Method member call %s of type %s not supported.",
+                              result->to_string(), result->get_static_type());
         }
     } else {
         P4C_UNIMPLEMENTED("Method call %s not supported.", mce);

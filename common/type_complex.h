@@ -233,6 +233,67 @@ class ListInstance : public P4Z3Instance {
     ListInstance *copy() const override;
 };
 
+class P4Declaration : public P4Z3Instance {
+    // A wrapper class for declarations
+ protected:
+    ordered_map<cstring, P4Z3Instance *> members;
+
+ public:
+    const IR::Declaration *decl;
+    // constructor
+    explicit P4Declaration(const IR::Declaration *decl) : decl(decl) {}
+    // Merge is a no-op here.
+    void merge(const z3::expr &, const P4Z3Instance &) override {}
+    // TODO: This is a little pointless....
+    P4Declaration *copy() const override { return new P4Declaration(decl); }
+    // some declarations have members we need to access...
+    virtual P4Z3Instance *get_member(cstring) const {
+        BUG("Base declaration has no members.");
+    }
+
+    cstring get_static_type() const override { return "P4Declaration"; }
+    cstring to_string() const override {
+        cstring ret = "P4Declaration(";
+        return ret + decl->toString() + ")";
+    }
+};
+
+class P4TableInstance : public P4Declaration {
+ private:
+    P4State *state;
+    std::map<cstring, std::function<void()>> member_functions;
+
+    // A wrapper class for table declarations
+ public:
+    // constructor
+    explicit P4TableInstance(P4State *state, const IR::Declaration *decl)
+        : P4Declaration(decl), state(state) {
+        members.insert({"action_run", this});
+        members.insert({"apply", this});
+        member_functions["apply"] = std::bind(&P4TableInstance::apply, this);
+    }
+    // Merge is a no-op here.
+    void merge(const z3::expr &, const P4Z3Instance &) override {}
+    // TODO: This is a little pointless....
+    P4TableInstance *copy() const override {
+        return new P4TableInstance(state, decl);
+    }
+
+    P4Z3Instance *get_member(cstring name) const override {
+        return members.at(name);
+    }
+    std::function<void()> get_function(cstring name) {
+        return member_functions.at(name);
+    }
+    void apply();
+
+    cstring get_static_type() const override { return "P4TableInstance"; }
+    cstring to_string() const override {
+        cstring ret = "P4TableInstance(";
+        return ret + decl->toString() + ")";
+    }
+};
+
 } // namespace TOZ3_V2
 
 #endif // _TOZ3_COMPLEX_TYPE_H_

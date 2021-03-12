@@ -293,7 +293,7 @@ void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
 EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
                            uint64_t ext_member_id)
     : p4_type(type) {
-    //FIXME: Enums should not be a struct base, actually
+    // FIXME: Enums should not be a struct base, actually
     width = 32;
     state = p4_state;
     member_id = ext_member_id;
@@ -321,7 +321,7 @@ EnumInstance::get_z3_vars(cstring prefix) const {
 ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
                              uint64_t ext_member_id)
     : p4_type(type) {
-    //FIXME: Enums should not be a struct base, actually
+    // FIXME: Enums should not be a struct base, actually
     width = 32;
     state = p4_state;
     member_id = ext_member_id;
@@ -377,5 +377,7 @@ ListInstance *ListInstance::copy() const {
     // so cloning is not needed here
     return new ListInstance(state, val_list, p4_type);
 }
+
+void P4TableInstance::apply() { state->set_expr_result(this); }
 
 } // namespace TOZ3_V2

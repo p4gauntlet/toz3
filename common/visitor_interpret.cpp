@@ -186,6 +186,9 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
                 if (auto method_call =
                         expr_val->expression->to<IR::MethodCallExpression>()) {
                     default_action = method_call;
+                } else if (auto path =
+                               expr_val->expression->to<IR::PathExpression>()) {
+                    default_action = new IR::MethodCallExpression(path);
                 } else {
                     P4C_UNIMPLEMENTED(
                         "Unsupported expression value %s of type %s", expr_val,
@@ -223,9 +226,9 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     for (std::size_t idx = 0; idx < actions.size(); ++idx) {
         auto action = actions.at(idx);
         auto cond = hit && (table_action == ctx->int_val(idx));
+        auto old_state = state->fork_state();
         state->get_current_scope()->push_forward_cond(cond);
         visit(action);
-        auto old_state = state->fork_state();
         auto call_has_exited = state->has_exited();
         if (!call_has_exited) {
             action_states.push_back({cond, state->get_state()});
@@ -234,7 +237,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         state->set_exit(false);
         state->restore_state(&old_state);
     }
-    auto old_state = state->fork_state();
+    auto old_state = state->clone_state();
     visit(default_action);
     if (state->has_exited()) {
         state->restore_state(&old_state);
@@ -279,6 +282,57 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     }
     state->exit_states.push_back({cond, state->clone_state()});
     state->set_exit(true);
+
+    return false;
+}
+
+P4Z3Instance *resolve_var_or_decl_parent_v1(Z3Visitor *visitor,
+                                            const IR::Member *m) {
+    const IR::Expression *parent = m->expr;
+    if (auto member = parent->to<IR::Member>()) {
+        return resolve_var_or_decl_parent_v1(visitor, member);
+    } else if (auto path_expr = parent->to<IR::PathExpression>()) {
+        P4Scope *scope;
+        cstring name = path_expr->path->name.name;
+        if (auto decl = visitor->state->find_static_decl(name, &scope)) {
+            return decl->get_member(m->member.name);
+        } else {
+            // try to find the result in vars and fail otherwise
+            return visitor->state->get_var(name);
+        }
+    } else if (auto method = parent->to<IR::MethodCallExpression>()) {
+        visitor->visit(method);
+        return visitor->state->get_expr_result();
+    }
+    P4C_UNIMPLEMENTED("Parent %s of type not %s implemented!", parent,
+                      parent->node_type_name());
+}
+
+void handle_table_match(Z3Visitor *visitor, const IR::Declaration *decl,
+                        const IR::Vector<IR::SwitchCase> &cases) {
+    if (auto table = decl->to<IR::P4Table>()) {
+    } else {
+        P4C_UNIMPLEMENTED("Declaration type %s of type %s not supported.", decl,
+                          decl->node_type_name());
+    }
+}
+
+bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
+    auto switch_expr = ss->expression;
+    P4Z3Instance *result;
+    if (auto member = switch_expr->to<IR::Member>()) {
+        result = resolve_var_or_decl_parent_v1(this, member);
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.",
+                          switch_expr, switch_expr->node_type_name());
+    }
+
+    if (auto decl = result->to_mut<P4TableInstance>()) {
+        handle_table_match(this, decl->decl, ss->cases);
+        return false;
+    }
+    P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.", result,
+                      result->get_static_type());
 
     return false;
 }

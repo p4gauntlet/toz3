@@ -20,7 +20,7 @@ using VarMap = std::map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
 class P4Scope {
  private:
     // maps of local values and types
-    std::map<cstring, P4Declaration> static_decls;
+    std::map<cstring, P4Declaration *> static_decls;
     VarMap var_map;
     std::map<cstring, const IR::Type *> type_map;
     bool is_returned = false;
@@ -35,15 +35,15 @@ class P4Scope {
     P4Declaration *get_static_decl(cstring name) {
         auto it = static_decls.find(name);
         if (it != static_decls.end()) {
-            return &it->second;
+            return it->second;
         }
-        BUG("Key %s not found in static declaration map.");
+        BUG("Key %s not found in static declaration map.", name);
     }
-    void declare_static_decl(cstring name, const IR::Declaration *val) {
-        static_decls.insert({name, P4Declaration(val)});
+    void declare_static_decl(cstring name, P4Declaration *val) {
+        static_decls.insert({name, val});
     }
     bool has_static_decl(cstring name) { return static_decls.count(name) > 0; }
-    const std::map<cstring, P4Declaration> *get_decl_map() const {
+    const std::map<cstring, P4Declaration *> *get_decl_map() const {
         return &static_decls;
     }
     /****** VARIABLES ******/
@@ -52,14 +52,14 @@ class P4Scope {
         if (it != var_map.end()) {
             return it->second.first;
         }
-        BUG("Key %s not found in var map.");
+        BUG("Key %s not found in var map.", name);
     }
     const IR::Type *get_var_type(cstring name) {
         auto it = var_map.find(name);
         if (it != var_map.end()) {
             return it->second.second;
         }
-        BUG("Key %s not found in var map.");
+        BUG("Key %s not found in var map.", name);
     }
     void update_var(cstring name, P4Z3Instance *val) {
         var_map.at(name).first = val;
@@ -123,7 +123,7 @@ inline std::ostream &operator<<(std::ostream &out,
     for (auto it = var_map.begin(); it != var_map.end(); ++it) {
         const cstring name = it->first;
         auto val = it->second;
-        out << name << ": " << val.first;
+        out << name << ": " << *val.first;
         if (std::next(it) != var_map.end()) {
             out << ", ";
         }

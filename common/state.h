@@ -49,7 +49,7 @@ class P4State {
     ~P4State() {}
 
     /****** GETTERS ******/
-    ProgState get_state() { return scopes; }
+    ProgState get_state() const { return scopes; }
     z3::context *get_z3_ctx() const { return ctx; }
     P4Z3Instance *get_expr_result() { return expr_result; }
     template <typename T> T *get_expr_result() {
@@ -104,7 +104,7 @@ class P4State {
     }
     const IR::Type *get_var_type(cstring decl_name);
     /****** DECLARATIONS ******/
-    void declare_static_decl(cstring name, const IR::Declaration *decl);
+    void declare_static_decl(cstring name, P4Declaration *val);
     const P4Declaration *get_static_decl(cstring name);
     template <typename T> T *get_static_decl(cstring name) {
         auto decl = get_static_decl(name);
@@ -135,5 +135,14 @@ class P4State {
 };
 
 } // namespace TOZ3_V2
+
+inline std::ostream &operator<<(std::ostream &out,
+                                const TOZ3_V2::P4State &state) {
+    auto var_map = state.get_state();
+    for (auto it = var_map.begin(); it != var_map.end(); ++it) {
+        out << *it << " ";
+    }
+    return out;
+}
 
 #endif // _TOZ3_STATE_H_

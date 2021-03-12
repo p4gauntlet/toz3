@@ -175,7 +175,8 @@ const P4Declaration *P4State::get_static_decl(cstring name) {
     exit(1);
 }
 
-P4Declaration *P4State::find_static_decl(cstring name, P4Scope **owner_scope) {
+P4Declaration *P4State::find_static_decl(cstring name,
+                                               P4Scope **owner_scope) {
     for (std::size_t i = 0; i < scopes.size(); ++i) {
         auto scope = &scopes.at(i);
         if (scope->has_static_decl(name)) {
@@ -191,7 +192,7 @@ P4Declaration *P4State::find_static_decl(cstring name, P4Scope **owner_scope) {
     return nullptr;
 }
 
-void P4State::declare_static_decl(cstring name, const IR::Declaration *decl) {
+void P4State::declare_static_decl(cstring name, P4Declaration *decl) {
     P4Scope *target_scope = nullptr;
     find_static_decl(name, &target_scope);
     if (target_scope) {
