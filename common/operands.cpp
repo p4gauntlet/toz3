@@ -19,7 +19,8 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     } else if (auto name = parent->to<IR::PathExpression>()) {
         complex_class = state->get_var(name->path->name);
     } else {
-        BUG("Parent Type  %s not implemented!", parent->node_type_name());
+        P4C_UNIMPLEMENTED("Parent Type  %s not implemented!",
+                          parent->node_type_name());
     }
     if (auto si = complex_class->to_mut<StructBase>()) {
         state->set_expr_result(si->get_member(m->member.name));
@@ -290,7 +291,6 @@ bool Z3Visitor::preorder(const IR::Concat *expr) {
     auto right = state->get_expr_result();
 
     state->set_expr_result(left->concat(*right));
-
     return false;
 }
 
@@ -299,7 +299,7 @@ bool Z3Visitor::preorder(const IR::Cast *c) {
     visit(c->expr);
     auto resolved_expr = state->get_expr_result();
 
-    state->set_expr_result(resolved_expr->cast(c->destType));
+    state->set_expr_result(resolved_expr->cast_allocate(c->destType));
     return false;
 }
 

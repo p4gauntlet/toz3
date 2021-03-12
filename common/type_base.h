@@ -22,6 +22,7 @@ class Z3Int;
 class Z3Bitvector;
 class StructInstance;
 class HeaderInstance;
+class ListInstance;
 
 using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<Z3Bitvector>,

@@ -63,6 +63,7 @@ VarMap Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
             visit(arg->expression);
+            // TODO: Cast here
             merged_vec.insert(
                 {param->name.name, {state->copy_expr_result(), param->type}});
         } else {

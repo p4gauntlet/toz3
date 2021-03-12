@@ -85,7 +85,9 @@ void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
                 BUG("Unsupported set list class.");
             }
         } else {
-            update_member(member_name, input_val);
+            auto member_type = get_member_type(member_name);
+            auto cast_val = input_val->cast_allocate(member_type);
+            update_member(member_name, cast_val);
         }
         idx++;
     }
@@ -288,10 +290,13 @@ void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
     setValid();
 }
 
-EnumInstance::EnumInstance(P4State *state, const IR::Type_Enum *type,
-                           uint64_t member_id)
-    : state(state), member_id(member_id), p4_type(type) {
+EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
+                           uint64_t ext_member_id)
+    : p4_type(type) {
+    //FIXME: Enums should not be a struct base, actually
     width = 32;
+    state = p4_state;
+    member_id = ext_member_id;
     const auto member_type = new IR::Type_Bits(32, false);
     for (auto member : type->members) {
         cstring name = member->name.name;
@@ -313,10 +318,13 @@ EnumInstance::get_z3_vars(cstring prefix) const {
     return z3_vars;
 }
 
-ErrorInstance::ErrorInstance(P4State *state, const IR::Type_Error *type,
-                             uint64_t member_id)
-    : state(state), member_id(member_id), p4_type(type) {
+ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
+                             uint64_t ext_member_id)
+    : p4_type(type) {
+    //FIXME: Enums should not be a struct base, actually
     width = 32;
+    state = p4_state;
+    member_id = ext_member_id;
     auto member_type = new IR::Type_Bits(32, false);
     for (auto member : type->members) {
         cstring name = member->name.name;
@@ -356,8 +364,18 @@ P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
         BUG("Unsupported type %s for ListInstance.",
             dest_type->node_type_name());
     }
-
+    struct_instance->set_list(val_list);
     return struct_instance;
+}
+
+ListInstance *ListInstance::copy() const {
+    // std::vector<P4Z3Instance *> val_list_copy;
+    // for (auto val : val_list) {
+    //     val_list_copy.push_back(val->copy());
+    // }
+    // we perform a copy any time we assign a list instance
+    // so cloning is not needed here
+    return new ListInstance(state, val_list, p4_type);
 }
 
 } // namespace TOZ3_V2

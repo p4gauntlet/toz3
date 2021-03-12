@@ -44,6 +44,10 @@ class ControlState : public P4Z3Instance {
         ret += ")";
         return ret;
     }
+    P4Z3Instance *cast_allocate(const IR::Type *) const override {
+        // TODO: This should not be necessary.
+        return new ControlState(state_vars);
+    }
 };
 
 class P4Declaration : public P4Z3Instance {

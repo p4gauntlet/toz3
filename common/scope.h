@@ -81,7 +81,7 @@ class P4Scope {
         if (it != type_map.end()) {
             return it->second;
         }
-        BUG("Key %s not found in scope type map.");
+        BUG("Key %s not found in scope type map.", type_name);
     }
 
     bool has_type(cstring name) const { return type_map.count(name) > 0; }

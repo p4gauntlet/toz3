@@ -35,6 +35,11 @@ bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
+    // TODO: Figure out what the implications of a name are here...
+    visit(ne->expression);
+    return false;
+}
 bool Z3Visitor::preorder(const IR::ListExpression *le) {
     std::vector<P4Z3Instance *> members;
     for (auto component : le->components) {
@@ -42,6 +47,27 @@ bool Z3Visitor::preorder(const IR::ListExpression *le) {
         members.push_back(state->copy_expr_result());
     }
     state->set_expr_result(new ListInstance(state, members, le->type));
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::StructExpression *se) {
+    std::vector<P4Z3Instance *> members;
+    for (auto component : se->components) {
+        visit(component);
+        members.push_back(state->copy_expr_result());
+    }
+    // TODO: Not sure what the deal with Type_Unknown is here
+    if (se->type && !se->type->is<IR::Type_Unknown>()) {
+        auto instance = state->gen_instance("undefined", se->type);
+        if (auto struct_instance = instance->to_mut<StructBase>()) {
+            struct_instance->set_list(members);
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported StructExpression class %s", se);
+        }
+        state->set_expr_result(instance);
+    } else {
+        state->set_expr_result(new ListInstance(state, members, se->type));
+    }
     return false;
 }
 

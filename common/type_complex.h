@@ -140,11 +140,6 @@ class HeaderInstance : public StructBase {
 class EnumInstance : public StructBase {
     using StructBase::StructBase;
 
- private:
-    P4State *state;
-    uint64_t member_id;
-    uint64_t width;
-
  public:
     const IR::Type_Enum *p4_type;
     EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
@@ -167,11 +162,6 @@ class EnumInstance : public StructBase {
 
 class ErrorInstance : public StructBase {
     using StructBase::StructBase;
-
- private:
-    P4State *state;
-    uint64_t member_id;
-    uint64_t width;
 
  public:
     const IR::Type_Error *p4_type;
@@ -240,6 +230,7 @@ class ListInstance : public P4Z3Instance {
     }
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     std::vector<P4Z3Instance *> get_val_list() const { return val_list; }
+    ListInstance *copy() const override;
 };
 
 } // namespace TOZ3_V2
