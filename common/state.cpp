@@ -24,6 +24,8 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         instance = new ErrorInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, te);
+    } else if (type->is<IR::Type_Void>()) {
+        instance = new VoidResult();
     } else if (type->is<IR::Type_Base>()) {
         instance = new Z3Bitvector(this, gen_z3_expr(name, type));
     } else {
@@ -175,8 +177,7 @@ const P4Declaration *P4State::get_static_decl(cstring name) {
     exit(1);
 }
 
-P4Declaration *P4State::find_static_decl(cstring name,
-                                               P4Scope **owner_scope) {
+P4Declaration *P4State::find_static_decl(cstring name, P4Scope **owner_scope) {
     for (std::size_t i = 0; i < scopes.size(); ++i) {
         auto scope = &scopes.at(i);
         if (scope->has_static_decl(name)) {
@@ -216,15 +217,41 @@ ProgState P4State::clone_state() {
     return cloned_state;
 }
 
-ProgState P4State::fork_state() {
-    auto old_prog_state = scopes;
-    auto new_prog_state = ProgState();
-
-    for (auto &scope : old_prog_state) {
-        new_prog_state.push_back(scope.clone());
+VarMap P4State::clone_vars() const {
+    VarMap cloned_vars;
+    // this also implicitly shadows
+    for (auto &scope : scopes) {
+        auto sub_vars = scope.clone_vars();
+        cloned_vars.insert(sub_vars.begin(), sub_vars.end());
     }
-    scopes = new_prog_state;
-    return old_prog_state;
+    return cloned_vars;
+}
+
+VarMap P4State::get_vars() const {
+    VarMap concat_map;
+    // this also implicitly shadows
+    for (auto &scope : scopes) {
+        auto sub_vars = scope.get_var_map();
+        concat_map.insert(sub_vars.begin(), sub_vars.end());
+    }
+    return concat_map;
+}
+
+void P4State::restore_vars(const VarMap &input_map) {
+    // this also implicitly shadows
+    for (auto &map_tuple : input_map) {
+        update_var(map_tuple.first, map_tuple.second.first);
+    }
+}
+
+void P4State::merge_vars(const z3::expr &cond, const VarMap &then_map) {
+    // this also implicitly shadows
+    for (auto &map_tuple : get_vars()) {
+        auto else_name = map_tuple.first;
+        auto instance = map_tuple.second.first;
+        auto then_instance = then_map.at(else_name);
+        instance->merge(cond, *then_instance.first);
+    }
 }
 
 void merge_var_maps(const z3::expr &cond, const VarMap &then_map,

@@ -18,8 +18,6 @@
 
 namespace TOZ3_V2 {
 
-typedef std::vector<P4Scope> ProgState;
-
 class P4State {
 
  private:
@@ -34,10 +32,10 @@ class P4State {
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
 
+    z3::expr exit_cond = ctx->bool_val(true);
+
  public:
-    std::vector<std::pair<z3::expr, P4Z3Instance &>> return_exprs;
-    std::vector<std::pair<z3::expr, ProgState>> return_states;
-    std::vector<std::pair<z3::expr, ProgState>> exit_states;
+    std::vector<std::pair<z3::expr, VarMap>> exit_states;
     bool has_exited() { return is_exited; }
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
@@ -70,9 +68,29 @@ class P4State {
     P4Scope *get_current_scope();
     P4Scope *get_scope_list();
     void merge_state(const z3::expr &cond, const ProgState &else_state);
-    void restore_state(ProgState *set_scopes) { scopes = *set_scopes; }
+    void restore_state(const ProgState &set_scopes) { scopes = set_scopes; }
     ProgState clone_state();
-    ProgState fork_state();
+    VarMap get_vars() const;
+    VarMap clone_vars() const;
+    void restore_vars(const VarMap &input_map);
+    void merge_vars(const z3::expr &cond, const VarMap &other);
+
+    void set_copy_out_args(
+        const std::vector<std::pair<const IR::Expression *, cstring>>
+            &out_args) {
+        auto scope = get_current_scope();
+        scope->set_copy_out_args(out_args);
+    }
+    std::vector<std::pair<const IR::Expression *, cstring>>
+    get_copy_out_args() {
+        auto scope = get_current_scope();
+        return scope->get_copy_out_args();
+    }
+    const z3::expr get_exit_cond() { return exit_cond; }
+
+    void set_exit_cond(const z3::expr &forward_cond) {
+        exit_cond = forward_cond;
+    }
 
     const std::vector<z3::expr> get_forward_conds() const {
         std::vector<z3::expr> forward_conds;
@@ -82,6 +100,38 @@ class P4State {
                                  sub_conds.end());
         }
         return forward_conds;
+    }
+    void push_forward_cond(const z3::expr &forward_cond) {
+        auto scope = get_current_scope();
+        scope->push_forward_cond(forward_cond);
+    }
+    void pop_forward_cond() {
+        auto scope = get_current_scope();
+        scope->pop_forward_cond();
+    }
+    bool has_returned() {
+        auto scope = get_current_scope();
+        return scope->has_returned();
+    }
+    void set_returned(bool return_state) {
+        auto scope = get_current_scope();
+        scope->set_returned(return_state);
+    }
+    void push_return_expr(const z3::expr &cond, P4Z3Instance *return_expr) {
+        auto scope = get_current_scope();
+        return scope->push_return_expr(cond, return_expr);
+    }
+    std::vector<std::pair<z3::expr, P4Z3Instance *>> get_return_exprs() {
+        auto scope = get_current_scope();
+        return scope->get_return_exprs();
+    }
+    void push_return_state(const z3::expr &cond, const VarMap &state) {
+        auto scope = get_current_scope();
+        return scope->push_return_state(cond, state);
+    }
+    std::vector<std::pair<z3::expr, VarMap>> get_return_states() {
+        auto scope = get_current_scope();
+        return scope->get_return_states();
     }
 
     /****** TYPES ******/

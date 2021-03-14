@@ -20,7 +20,6 @@ class StructBase : public P4Z3Instance {
  protected:
     P4State *state;
     ordered_map<cstring, P4Z3Instance *> members;
-    std::map<cstring, std::function<void()>> member_functions;
     std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
     uint64_t width;
@@ -38,13 +37,9 @@ class StructBase : public P4Z3Instance {
     const P4Z3Instance *get_const_member(cstring name) const {
         return members.at(name);
     }
-    P4Z3Instance *get_member(cstring name) { return members.at(name); }
+    P4Z3Instance *get_member(cstring name) override { return members.at(name); }
     const IR::Type *get_member_type(cstring name) {
         return member_types.at(name);
-    }
-
-    std::function<void()> get_function(cstring name) {
-        return member_functions.at(name);
     }
 
     void update_member(cstring name, P4Z3Instance *val) {
@@ -97,24 +92,29 @@ class HeaderInstance : public StructBase {
     using StructBase::StructBase;
 
  private:
+    std::map<cstring, FunctionWrapper *> member_functions;
     z3::expr valid;
 
  public:
     HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
 
-    void set_valid(z3::expr *valid_val);
+    void set_valid(const z3::expr &valid_val);
 
     const z3::expr *get_valid() const;
 
-    void setValid();
-    void setInvalid();
-    void isValid();
+    void setValid(Visitor *);
+    void setInvalid(Visitor *);
+    void isValid(Visitor *);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "") const override;
     void propagate_validity(z3::expr *valid_expr = nullptr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
     void set_list(std::vector<P4Z3Instance *>) override;
+
+    P4Z3Instance *get_function(cstring name) override {
+        return member_functions.at(name);
+    }
 
     HeaderInstance *copy() const override;
     cstring get_static_type() const override { return "HeaderInstance"; }
@@ -186,31 +186,6 @@ class ErrorInstance : public StructBase {
     }
 }; // namespace TOZ3_V2
 
-class ExternInstance : public P4Z3Instance {
- private:
-    std::map<cstring, const IR::Method *> methods;
-
- public:
-    const IR::Type_Extern *p4_type;
-    ExternInstance(P4State *state, const IR::Type_Extern *type);
-    void merge(const z3::expr &, const P4Z3Instance &) override{
-        // Merge is a no-op here.
-    };
-    cstring get_static_type() const override { return "ExternInstance"; }
-    cstring to_string() const override {
-        cstring ret = "ExternInstance(";
-        ret += ")";
-        return ret;
-    }
-    const IR::Method *get_method(cstring method_name) {
-        if (methods.count(method_name)) {
-            return methods.at(method_name);
-        }
-        error("Extern %s has no method %s.", p4_type, method_name);
-        exit(1);
-    }
-};
-
 class ListInstance : public P4Z3Instance {
  private:
     P4State *state;
@@ -246,10 +221,6 @@ class P4Declaration : public P4Z3Instance {
     void merge(const z3::expr &, const P4Z3Instance &) override {}
     // TODO: This is a little pointless....
     P4Declaration *copy() const override { return new P4Declaration(decl); }
-    // some declarations have members we need to access...
-    virtual P4Z3Instance *get_member(cstring) const {
-        BUG("Base declaration has no members.");
-    }
 
     cstring get_static_type() const override { return "P4Declaration"; }
     cstring to_string() const override {
@@ -261,36 +232,63 @@ class P4Declaration : public P4Z3Instance {
 class P4TableInstance : public P4Declaration {
  private:
     P4State *state;
-    std::map<cstring, std::function<void()>> member_functions;
-
+    std::map<cstring, FunctionWrapper *> member_functions;
     // A wrapper class for table declarations
  public:
+    cstring table_name;
+    const z3::expr hit;
+    std::vector<const IR::KeyElement *> keys;
+    std::vector<const IR::MethodCallExpression *> actions;
+    bool immutable;
     // constructor
-    explicit P4TableInstance(P4State *state, const IR::Declaration *decl)
-        : P4Declaration(decl), state(state) {
-        members.insert({"action_run", this});
-        members.insert({"apply", this});
-        member_functions["apply"] = std::bind(&P4TableInstance::apply, this);
-    }
+    explicit P4TableInstance(P4State *state, const IR::Declaration *decl);
+    explicit P4TableInstance(
+        P4State *state, const IR::Declaration *decl, cstring table_name,
+        const z3::expr hit, std::vector<const IR::KeyElement *> keys,
+        std::vector<const IR::MethodCallExpression *> actions, bool immutable);
     // Merge is a no-op here.
     void merge(const z3::expr &, const P4Z3Instance &) override {}
     // TODO: This is a little pointless....
     P4TableInstance *copy() const override {
-        return new P4TableInstance(state, decl);
+        return new P4TableInstance(state, decl, table_name, hit, keys, actions,
+                                   immutable);
     }
 
-    P4Z3Instance *get_member(cstring name) const override {
-        return members.at(name);
-    }
-    std::function<void()> get_function(cstring name) {
+    P4Z3Instance *get_member(cstring name) override { return members.at(name); }
+    P4Z3Instance *get_function(cstring name) override {
         return member_functions.at(name);
     }
-    void apply();
+    void apply(Visitor *);
 
     cstring get_static_type() const override { return "P4TableInstance"; }
     cstring to_string() const override {
         cstring ret = "P4TableInstance(";
         return ret + decl->toString() + ")";
+    }
+};
+
+class ExternInstance : public P4Z3Instance {
+ private:
+    std::map<cstring, P4Declaration *> methods;
+
+ public:
+    const IR::Type_Extern *p4_type;
+    ExternInstance(P4State *state, const IR::Type_Extern *type);
+    void merge(const z3::expr &, const P4Z3Instance &) override{
+        // Merge is a no-op here.
+    };
+    cstring get_static_type() const override { return "ExternInstance"; }
+    cstring to_string() const override {
+        cstring ret = "ExternInstance(";
+        ret += ")";
+        return ret;
+    }
+    P4Z3Instance *get_function(cstring method_name) override {
+        if (methods.count(method_name)) {
+            return methods.at(method_name);
+        }
+        error("Extern %s has no method %s.", p4_type, method_name);
+        exit(1);
     }
 };
 

@@ -19,6 +19,53 @@ namespace TOZ3_V2 {
 // Forward declare state
 class P4State;
 
+class VoidResult : public P4Z3Instance {
+ public:
+    VoidResult() {}
+    void merge(const z3::expr &, const P4Z3Instance &) override{
+        // Merge is a no-op here.
+    };
+    // TODO: This is a little pointless....
+    VoidResult *copy() const override { return new VoidResult(); }
+
+    cstring get_static_type() const override { return "VoidResult"; }
+    cstring to_string() const override {
+        cstring ret = "VoidResult(";
+        ret += ")";
+        return ret;
+    }
+    P4Z3Instance *cast_allocate(const IR::Type *) const override {
+        // TODO: This should not be necessary.
+        return new VoidResult();
+    }
+};
+
+class FunctionWrapper : public P4Z3Instance {
+ private:
+ public:
+    Z3P4FunctionCall function_call;
+    explicit FunctionWrapper(Z3P4FunctionCall function_call)
+        : function_call(function_call) {}
+    void merge(const z3::expr &, const P4Z3Instance &) override{
+        // Merge is a no-op here.
+    };
+    // TODO: This is a little pointless....
+    FunctionWrapper *copy() const override {
+        return new FunctionWrapper(function_call);
+    }
+
+    cstring get_static_type() const override { return "FunctionWrapper"; }
+    cstring to_string() const override {
+        cstring ret = "FunctionWrapper(";
+        ret += ")";
+        return ret;
+    }
+    P4Z3Instance *cast_allocate(const IR::Type *) const override {
+        // TODO: This should not be necessary.
+        return new FunctionWrapper(function_call);
+    }
+};
+
 class ControlState : public P4Z3Instance {
  public:
     std::vector<std::pair<cstring, z3::expr>> state_vars;

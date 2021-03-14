@@ -25,7 +25,10 @@ class P4Scope {
     std::map<cstring, const IR::Type *> type_map;
     bool is_returned = false;
 
+    std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
+    std::vector<std::pair<z3::expr, VarMap>> return_states;
     std::vector<z3::expr> forward_conds;
+    std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args;
 
  public:
     /****** GETTERS ******/
@@ -95,6 +98,15 @@ class P4Scope {
         return ret_type;
     }
     /****** RETURN AND EXIT MANAGEMENT ******/
+    void set_copy_out_args(
+        const std::vector<std::pair<const IR::Expression *, cstring>>
+            &input_args) {
+        copy_out_args = input_args;
+    }
+    std::vector<std::pair<const IR::Expression *, cstring>>
+    get_copy_out_args() {
+        return copy_out_args;
+    }
     bool has_returned() { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
 
@@ -103,6 +115,21 @@ class P4Scope {
     }
     std::vector<z3::expr> get_forward_conds() const { return forward_conds; }
     void pop_forward_cond() { forward_conds.pop_back(); }
+
+    void push_return_expr(const z3::expr &cond, P4Z3Instance *return_expr) {
+        return return_exprs.push_back({cond, return_expr});
+    }
+    std::vector<std::pair<z3::expr, P4Z3Instance *>> get_return_exprs() const {
+        return return_exprs;
+    }
+    void push_return_state(const z3::expr &cond, const VarMap &state) {
+        return return_states.push_back({cond, state});
+    }
+    std::vector<std::pair<z3::expr, VarMap>> get_return_states() const {
+        return return_states;
+    }
+    void clear_return_states() { return_states.clear(); }
+    void clear_return_exprs() { return_exprs.clear(); }
 
     P4Scope clone() {
         auto new_scope = *this;
@@ -113,7 +140,18 @@ class P4Scope {
         }
         return new_scope;
     }
+    VarMap clone_vars() const {
+        VarMap cloned_map;
+        for (auto &value_tuple : get_var_map()) {
+            auto var_name = value_tuple.first;
+            auto member_cpy = value_tuple.second.first->copy();
+            auto member_type = value_tuple.second.second;
+            cloned_map.insert({var_name, {member_cpy, member_type}});
+        }
+        return cloned_map;
+    }
 };
+typedef std::vector<P4Scope> ProgState;
 
 } // namespace TOZ3_V2
 

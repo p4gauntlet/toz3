@@ -29,6 +29,8 @@ using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<StructInstance>,
                                 boost::recursive_wrapper<HeaderInstance>>;
 
+using Z3P4FunctionCall = std::function<void(Visitor *)>;
+
 class P4Z3Instance {
  public:
     P4Z3Instance() {}
@@ -141,6 +143,14 @@ class P4Z3Instance {
     }
     virtual void set_undefined() {
         P4C_UNIMPLEMENTED("set_undefined not implemented for %s.",
+                          get_static_type());
+    }
+    virtual P4Z3Instance *get_member(cstring) {
+        P4C_UNIMPLEMENTED("get_member not implemented for %s.",
+                          get_static_type());
+    }
+    virtual P4Z3Instance *get_function(cstring) {
+        P4C_UNIMPLEMENTED("get_function not implemented for %s.",
                           get_static_type());
     }
 

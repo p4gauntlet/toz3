@@ -106,21 +106,27 @@ resolve_args(const IR::Vector<IR::Argument> *args,
 P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
                                          const IR::Member *m) {
     const IR::Expression *parent = m->expr;
+    P4Z3Instance *complex_type;
     if (auto member = parent->to<IR::Member>()) {
         visitor->visit(member);
-        return visitor->state->get_expr_result();
+        complex_type = visitor->state->get_expr_result();
     } else if (auto path_expr = parent->to<IR::PathExpression>()) {
         P4Scope *scope;
         cstring name = path_expr->path->name.name;
         if (auto decl = visitor->state->find_static_decl(name, &scope)) {
-            return decl;
+            complex_type = decl;
         } else {
             // try to find the result in vars and fail otherwise
-            return visitor->state->get_var(name);
+            complex_type = visitor->state->get_var(name);
         }
+    } else if (auto method = parent->to<IR::MethodCallExpression>()) {
+        visitor->visit(method);
+        complex_type = visitor->state->get_expr_result();
+    } else {
+        P4C_UNIMPLEMENTED("Parent %s of type %s not implemented!", parent,
+                          parent->node_type_name());
     }
-    P4C_UNIMPLEMENTED("Parent %s of type %s not implemented!", parent,
-                      parent->node_type_name());
+    return complex_type->get_function(m->member.name);
 }
 
 const IR::ParameterList *get_params(const IR::Declaration *callable) {
@@ -144,39 +150,28 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::ParameterList *params;
 
     auto method_type = mce->method;
-
     if (auto path_expr = method_type->to<IR::PathExpression>()) {
-        cstring name = path_expr->path->name.name;
-        callable = state->get_static_decl(name)->decl;
-        params = get_params(callable);
+        callable = state->get_static_decl(path_expr->path->name.name)->decl;
     } else if (auto member = method_type->to<IR::Member>()) {
         // try to resolve and find a function pointer
-        auto result = resolve_var_or_decl_parent(this, member);
-        if (auto si = result->to_mut<HeaderInstance>()) {
+        auto resolved_call = resolve_var_or_decl_parent(this, member);
+        if (auto function = resolved_call->to<FunctionWrapper>()) {
             // call the function directly for now
-            si->get_function(member->member.name)();
-            return false;
-        } else if (auto p4t = result->to_mut<P4TableInstance>()) {
-            // call the function directly for now
-            // FIXME: This ignores arguments...
-            p4t->get_function(member->member.name)();
-            auto thing = state->copy_expr_result<P4TableInstance>();
-            visit(thing->decl);
-            state->set_expr_result(thing);
-            return false;
-        } else if (auto p4extern = result->to_mut<ExternInstance>()) {
-            callable = p4extern->get_method(member->member.name);
-            params = get_params(callable);
-        } else if (auto decl = result->to_mut<P4Declaration>()) {
+            function->function_call(this);
+            resolved_call = state->get_expr_result();
+        }
+        if (auto decl = resolved_call->to<P4Declaration>()) {
             callable = decl->decl;
-            params = get_params(callable);
         } else {
-            P4C_UNIMPLEMENTED("Method member call %s of type %s not supported.",
-                              result->to_string(), result->get_static_type());
+            // FIXME: Do some proper checking here.
+            return false;
         }
     } else {
         P4C_UNIMPLEMENTED("Method call %s not supported.", mce);
     }
+    // at this point, we assume we are dealing with a Declaration
+    params = get_params(callable);
+
     std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
         resolve_args(mce->arguments, params);
     auto merged_args = merge_args_with_params(mce->arguments, params);
@@ -187,8 +182,16 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         auto arg_val = arg_tuple.second;
         state->declare_var(param_name, arg_val.first, arg_val.second);
     }
+    state->set_copy_out_args(copy_out_args);
     visit(callable);
     auto expr_result = state->copy_expr_result();
+
+    // merge all the state of the different return points
+    auto return_states = state->get_return_states();
+    for (auto it = return_states.rbegin(); it != return_states.rend(); ++it) {
+        state->merge_vars(it->first, it->second);
+    }
+
     std::vector<P4Z3Instance *> copy_out_vals;
     for (auto arg_tuple : copy_out_args) {
         auto source = arg_tuple.second;
@@ -202,6 +205,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         set_var(target, copy_out_vals[idx]);
         idx++;
     }
+
     state->set_expr_result(expr_result);
     return false;
 }
@@ -223,12 +227,46 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
             state_names.push_back(param->name.name);
         }
 
-        // VISIT THE CONTROL
+        // at this point, we assume we are dealing with a Declaration
+        auto params = c->getApplyParameters();
+
+        std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
+            resolve_args(cce->arguments, params);
+        auto merged_args = merge_args_with_params(cce->arguments, params);
+
+        state->push_scope();
+        for (auto arg_tuple : merged_args) {
+            cstring param_name = arg_tuple.first;
+            auto arg_val = arg_tuple.second;
+            state->declare_var(param_name, arg_val.first, arg_val.second);
+        }
+        state->set_copy_out_args(copy_out_args);
         visit(resolved_type);
+
+        // merge all the state of the different return points
+        auto return_states = state->get_return_states();
+        for (auto it = return_states.rbegin(); it != return_states.rend();
+             ++it) {
+            state->merge_vars(it->first, it->second);
+        }
+
+        std::vector<P4Z3Instance *> copy_out_vals;
+        for (auto arg_tuple : copy_out_args) {
+            auto source = arg_tuple.second;
+            auto val = state->get_var(source);
+            copy_out_vals.push_back(val);
+        }
+        state->pop_scope();
+        size_t idx = 0;
+        for (auto arg_tuple : copy_out_args) {
+            auto target = arg_tuple.first;
+            set_var(target, copy_out_vals[idx]);
+            idx++;
+        }
 
         // Merge the exit states
         for (auto exit_tuple : state->exit_states) {
-            state->merge_state(exit_tuple.first, exit_tuple.second);
+            state->merge_vars(exit_tuple.first, exit_tuple.second);
         }
         // Clear the exit states
         state->exit_states.clear();

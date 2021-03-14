@@ -166,18 +166,22 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
     : StructBase(state, type, member_id),
       valid(state->get_z3_ctx()->bool_val(false)) {
-    member_functions["setValid"] = std::bind(&HeaderInstance::setValid, this);
+    member_functions["setValid"] =
+        new FunctionWrapper([this](Visitor *visitor) { setValid(visitor); });
     member_functions["setInvalid"] =
-        std::bind(&HeaderInstance::setInvalid, this);
-    member_functions["isValid"] = std::bind(&HeaderInstance::isValid, this);
+        new FunctionWrapper([this](Visitor *visitor) { setInvalid(visitor); });
+    member_functions["isValid"] =
+        new FunctionWrapper([this](Visitor *visitor) { isValid(visitor); });
 }
 
 HeaderInstance::HeaderInstance(const HeaderInstance &other)
     : StructBase(other), valid(other.valid) {
-    member_functions["setValid"] = std::bind(&HeaderInstance::setValid, this);
+    member_functions["setValid"] =
+        new FunctionWrapper([this](Visitor *visitor) { setValid(visitor); });
     member_functions["setInvalid"] =
-        std::bind(&HeaderInstance::setInvalid, this);
-    member_functions["isValid"] = std::bind(&HeaderInstance::isValid, this);
+        new FunctionWrapper([this](Visitor *visitor) { setInvalid(visitor); });
+    member_functions["isValid"] =
+        new FunctionWrapper([this](Visitor *visitor) { isValid(visitor); });
 }
 
 HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
@@ -195,28 +199,32 @@ HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
         auto member_cpy = value_tuple.second->copy();
         insert_member(name, member_cpy);
     }
-    member_functions["setValid"] = std::bind(&HeaderInstance::setValid, this);
+    member_functions["setValid"] =
+        new FunctionWrapper([this](Visitor *visitor) { setValid(visitor); });
     member_functions["setInvalid"] =
-        std::bind(&HeaderInstance::setInvalid, this);
-    member_functions["isValid"] = std::bind(&HeaderInstance::isValid, this);
+        new FunctionWrapper([this](Visitor *visitor) { setInvalid(visitor); });
+    member_functions["isValid"] =
+        new FunctionWrapper([this](Visitor *visitor) { isValid(visitor); });
     return *this;
 }
 
-void HeaderInstance::set_valid(z3::expr *valid_val) { valid = *valid_val; }
+void HeaderInstance::set_valid(const z3::expr &valid_val) { valid = valid_val; }
 const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
-void HeaderInstance::setValid() {
-    valid = state->get_z3_ctx()->bool_val(true);
+void HeaderInstance::setValid(Visitor *) {
+    set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
+    state->set_expr_result(new VoidResult());
 }
 
-void HeaderInstance::setInvalid() {
+void HeaderInstance::setInvalid(Visitor *) {
     valid = state->get_z3_ctx()->bool_val(false);
     propagate_validity(&valid);
     set_undefined();
+    state->set_expr_result(new VoidResult());
 }
 
-void HeaderInstance::isValid() {
+void HeaderInstance::isValid(Visitor *) {
     static Z3Bitvector wrapper = Z3Bitvector(state, valid);
     state->set_expr_result(wrapper);
 }
@@ -283,11 +291,12 @@ void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &other) {
     }
     StructBase::merge(cond, other);
     auto valid_merge = z3::ite(cond, *get_valid(), *other_struct->get_valid());
-    set_valid(&valid_merge);
+    set_valid(valid_merge);
 }
 void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
     StructBase::set_list(input_list);
-    setValid();
+    set_valid(state->get_z3_ctx()->bool_val(true));
+    propagate_validity(&valid);
 }
 
 EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
@@ -353,7 +362,7 @@ ErrorInstance *ErrorInstance::copy() const {
 ExternInstance::ExternInstance(P4State *, const IR::Type_Extern *type)
     : p4_type(type) {
     for (auto method : type->methods) {
-        methods.insert({method->getName().name, method});
+        methods.insert({method->getName().name, new P4Declaration(method)});
     }
 }
 
@@ -378,6 +387,25 @@ ListInstance *ListInstance::copy() const {
     return new ListInstance(state, val_list, p4_type);
 }
 
-void P4TableInstance::apply() { state->set_expr_result(this); }
+P4TableInstance::P4TableInstance(P4State *state, const IR::Declaration *decl)
+    : P4Declaration(decl), state(state),
+      hit(state->get_z3_ctx()->bool_val(false)) {
+    members.insert({"action_run", this});
+    member_functions["apply"] =
+        new FunctionWrapper([this](Visitor *visitor) { apply(visitor); });
+}
+P4TableInstance::P4TableInstance(
+    P4State *state, const IR::Declaration *decl, cstring table_name,
+    const z3::expr hit, std::vector<const IR::KeyElement *> keys,
+    std::vector<const IR::MethodCallExpression *> actions, bool immutable)
+    : P4Declaration(decl), state(state), table_name(table_name), hit(hit),
+      keys(keys), actions(actions), immutable(immutable) {
+    members.insert({"action_run", this});
+    members.insert({"hit", new Z3Bitvector(state, hit)});
+    member_functions["apply"] =
+        new FunctionWrapper([this](Visitor *visitor) { apply(visitor); });
+}
+
+void P4TableInstance::apply(Visitor *) { state->set_expr_result(this); }
 
 } // namespace TOZ3_V2

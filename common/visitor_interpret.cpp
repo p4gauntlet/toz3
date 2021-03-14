@@ -68,6 +68,9 @@ VarMap Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
                 {param->name.name, {state->copy_expr_result(), param->type}});
         } else {
             auto arg_expr = state->gen_instance(param->name.name, param->type);
+            if (auto complex_arg = arg_expr->to_mut<StructBase>()) {
+                complex_arg->propagate_validity();
+            }
             merged_vec.insert({param->name.name, {arg_expr, param->type}});
         }
         idx++;
@@ -90,35 +93,31 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
 
 bool Z3Visitor::preorder(const IR::P4Action *a) {
     visit(a->body);
+    state->set_expr_result(new VoidResult());
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::Function *f) {
-    state->return_exprs.clear();
     visit(f->body);
 
     // We start with the last return expression, which is the final return.
     // The final return may not have a condition, so this is a good fit.
-    auto begin = state->return_exprs.rbegin();
-    auto end = state->return_exprs.rend();
-    if (begin == end) {
-        return false;
+    auto return_exprs = state->get_return_exprs();
+    auto begin = return_exprs.rbegin();
+    auto end = return_exprs.rend();
+    if (begin != end) {
+        auto return_type = f->type->returnType;
+        auto merged_return = begin->second->cast_allocate(return_type);
+        for (auto it = std::next(begin); it != end; ++it) {
+            z3::expr cond = it->first;
+            auto then_var = it->second->cast_allocate(return_type);
+            merged_return->merge(cond, *then_var);
+        }
+        state->set_expr_result(merged_return);
+    } else {
+        // if there are no return expression return a void result
+        state->set_expr_result(new VoidResult());
     }
-    auto return_type = f->type->returnType;
-    auto merged_return = begin->second.cast_allocate(return_type);
-    for (auto it = std::next(begin); it != end; ++it) {
-        z3::expr cond = it->first;
-        auto then_var = it->second.cast_allocate(return_type);
-        merged_return->merge(cond, *then_var);
-    }
-    state->set_expr_result(merged_return);
-    for (auto it = state->return_states.rbegin();
-         it != state->return_states.rend(); ++it) {
-        state->merge_state(it->first, it->second);
-    }
-
-    state->return_exprs.clear();
-    state->return_states.clear();
     return false;
 }
 
@@ -135,10 +134,7 @@ bool Z3Visitor::preorder(const IR::Method *m) {
             state->update_var(param_name, instance);
         }
     }
-    // Only set a return value if the method has something to return
-    if (!method_type->is<IR::Type_Void>()) {
-        state->set_expr_result(state->gen_instance(method_name, method_type));
-    }
+    state->set_expr_result(state->gen_instance(method_name, method_type));
     return false;
 }
 
@@ -220,31 +216,37 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
             ctx->bv_const(key_name.c_str(), key_eval->val.get_sort().bv_size());
         hit = hit || (key_eval->val == key_match);
     }
-    std::vector<std::pair<z3::expr, ProgState>> action_states;
+
+    std::vector<std::pair<z3::expr, VarMap>> action_vars;
 
     bool has_exited = true;
+    z3::expr matches = ctx->bool_val(false);
     for (std::size_t idx = 0; idx < actions.size(); ++idx) {
         auto action = actions.at(idx);
         auto cond = hit && (table_action == ctx->int_val(idx));
-        auto old_state = state->fork_state();
-        state->get_current_scope()->push_forward_cond(cond);
+        auto old_vars = state->clone_vars();
+        state->push_forward_cond(cond);
         visit(action);
+        state->pop_forward_cond();
         auto call_has_exited = state->has_exited();
         if (!call_has_exited) {
-            action_states.push_back({cond, state->get_state()});
+            action_vars.push_back({cond, state->get_vars()});
         }
         has_exited = has_exited && call_has_exited;
         state->set_exit(false);
-        state->restore_state(&old_state);
+        state->restore_vars(old_vars);
+        matches = matches || cond;
     }
-    auto old_state = state->clone_state();
+    auto old_vars = state->clone_vars();
+    state->push_forward_cond(!matches);
     visit(default_action);
+    state->pop_forward_cond();
     if (state->has_exited()) {
-        state->restore_state(&old_state);
+        state->restore_vars(old_vars);
     }
     state->set_exit(state->has_exited() && has_exited);
-    for (auto it = action_states.rbegin(); it != action_states.rend(); ++it) {
-        state->merge_state(it->first, it->second);
+    for (auto it = action_vars.rbegin(); it != action_vars.rend(); ++it) {
+        state->merge_vars(it->first, it->second);
     }
     // also check if the table is invisible to the control plane
     // this also implies that it cannot be modified
@@ -254,7 +256,8 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         })) {
         immutable = true;
     }
-
+    state->set_expr_result(new P4TableInstance(state, p4t, table_name, hit,
+                                               keys, actions, immutable));
     return false;
 }
 
@@ -266,10 +269,15 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     for (z3::expr sub_cond : forward_conds) {
         cond = cond && sub_cond;
     }
-    visit(r->expression);
-    state->return_exprs.push_back({cond, *state->copy_expr_result()});
-    state->return_states.push_back({cond, state->clone_state()});
-    state->get_current_scope()->set_returned(true);
+    auto exit_cond = state->get_exit_cond();
+    // if we do not even return do not bother with collecting results
+    if (r->expression) {
+        visit(r->expression);
+        state->push_return_expr(cond && exit_cond, state->copy_expr_result());
+    }
+    state->push_return_state(cond && exit_cond, state->clone_vars());
+    state->set_exit_cond(exit_cond && !cond);
+    state->set_returned(true);
 
     return false;
 }
@@ -280,59 +288,113 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     for (z3::expr sub_cond : forward_conds) {
         cond = cond && sub_cond;
     }
-    state->exit_states.push_back({cond, state->clone_state()});
+    auto exit_cond = state->get_exit_cond();
+
+    auto scopes = state->get_state();
+    auto old_state = state->clone_state();
+    for (auto scope = scopes.rbegin(); scope != scopes.rend(); ++scope) {
+        auto copy_out_args = scope->get_copy_out_args();
+        for (auto arg_tuple : copy_out_args) {
+            auto target = arg_tuple.first;
+            auto out_val = state->get_var(arg_tuple.second);
+            state->pop_scope();
+            set_var(target, out_val);
+        }
+    }
+    auto exit_vars = state->clone_vars();
+    state->restore_state(old_state);
+    state->exit_states.push_back({exit_cond && cond, exit_vars});
+    state->set_exit_cond(exit_cond && !cond);
     state->set_exit(true);
 
     return false;
 }
 
-P4Z3Instance *resolve_var_or_decl_parent_v1(Z3Visitor *visitor,
-                                            const IR::Member *m) {
-    const IR::Expression *parent = m->expr;
-    if (auto member = parent->to<IR::Member>()) {
-        return resolve_var_or_decl_parent_v1(visitor, member);
-    } else if (auto path_expr = parent->to<IR::PathExpression>()) {
-        P4Scope *scope;
-        cstring name = path_expr->path->name.name;
-        if (auto decl = visitor->state->find_static_decl(name, &scope)) {
-            return decl->get_member(m->member.name);
-        } else {
-            // try to find the result in vars and fail otherwise
-            return visitor->state->get_var(name);
-        }
-    } else if (auto method = parent->to<IR::MethodCallExpression>()) {
-        visitor->visit(method);
-        return visitor->state->get_expr_result();
-    }
-    P4C_UNIMPLEMENTED("Parent %s of type not %s implemented!", parent,
-                      parent->node_type_name());
-}
-
-void handle_table_match(Z3Visitor *visitor, const IR::Declaration *decl,
+void handle_table_match(P4State *state, Z3Visitor *visitor,
+                        const P4TableInstance *table,
                         const IR::Vector<IR::SwitchCase> &cases) {
-    if (auto table = decl->to<IR::P4Table>()) {
+    auto ctx = state->get_z3_ctx();
+    auto table_action_name = table->table_name + "action_idx";
+    auto action_taken = ctx->int_const(table_action_name.c_str());
+    std::map<cstring, int> action_mapping;
+    size_t idx = 0;
+    for (auto action : table->actions) {
+        auto method_expr = action->method;
+        auto path = method_expr->to<IR::PathExpression>();
+        CHECK_NULL(path);
+        action_mapping[path->path->name.name] = idx;
+        idx++;
+    }
+    std::vector<std::pair<z3::expr, VarMap>> case_states;
+    const IR::SwitchCase *default_case = nullptr;
+    // now actually map all the statements together
+    bool has_exited = true;
+    bool has_returned = true;
+    bool fall_through = ctx->bool_val(false);
+    z3::expr matches = ctx->bool_val(false);
+    for (auto switch_case : cases) {
+        if (auto label = switch_case->label->to<IR::PathExpression>()) {
+            auto mapped_idx = action_mapping[label->path->name.name];
+            auto cond = action_taken == mapped_idx;
+            if (!switch_case->statement) {
+                fall_through = fall_through || cond;
+                continue;
+            }
+            fall_through = ctx->bool_val(false);
+            auto old_vars = state->clone_vars();
+            state->push_forward_cond(cond);
+            visitor->visit(switch_case->statement);
+            state->pop_forward_cond();
+            auto call_has_exited = state->has_exited();
+            auto stmt_has_returned = state->has_returned();
+            if (!(call_has_exited or stmt_has_returned)) {
+                case_states.push_back({cond, state->get_vars()});
+            }
+            has_exited = has_exited && call_has_exited;
+            has_returned = has_returned && stmt_has_returned;
+            state->set_exit(false);
+            state->set_returned(false);
+            state->restore_vars(old_vars);
+            matches = matches || cond;
+        } else if (switch_case->label->is<IR::DefaultExpression>()) {
+            default_case = switch_case;
+        } else {
+            P4C_UNIMPLEMENTED("Case expression %s of type %s not supported.",
+                              switch_case->label,
+                              switch_case->label->node_type_name());
+        }
+    }
+    if (default_case) {
+        auto old_vars = state->clone_vars();
+        state->push_forward_cond(!matches);
+        visitor->visit(default_case->statement);
+        state->pop_forward_cond();
+        auto call_has_exited = state->has_exited();
+        auto stmt_has_returned = state->has_returned();
+        if (call_has_exited or stmt_has_returned) {
+            state->restore_vars(old_vars);
+        }
+        has_exited = has_exited && call_has_exited;
+        has_returned = has_returned && stmt_has_returned;
     } else {
-        P4C_UNIMPLEMENTED("Declaration type %s of type %s not supported.", decl,
-                          decl->node_type_name());
+        // the empty default switch neither exits nor returns
+        has_exited = false;
+        has_returned = false;
+    }
+    state->set_exit(has_exited);
+    state->set_returned(has_returned);
+
+    for (auto it = case_states.rbegin(); it != case_states.rend(); ++it) {
+        state->merge_vars(it->first, it->second);
     }
 }
 
 bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
-    auto switch_expr = ss->expression;
-    P4Z3Instance *result;
-    if (auto member = switch_expr->to<IR::Member>()) {
-        result = resolve_var_or_decl_parent_v1(this, member);
-    } else {
-        P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.",
-                          switch_expr, switch_expr->node_type_name());
-    }
-
-    if (auto decl = result->to_mut<P4TableInstance>()) {
-        handle_table_match(this, decl->decl, ss->cases);
-        return false;
-    }
-    P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.", result,
-                      result->get_static_type());
+    visit(ss->expression);
+    auto table = state->copy_expr_result<P4TableInstance>();
+    handle_table_match(state, this, table, ss->cases);
+    // P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.", result,
+    //                   result->get_static_type());
 
     return false;
 }
@@ -348,45 +410,44 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
         visit(ifs->ifFalse);
         return false;
     }
-    auto saved_state = state->clone_state();
-    state->push_scope();
-    state->get_current_scope()->push_forward_cond(z3_cond);
+    auto old_vars = state->clone_vars();
+    state->push_forward_cond(z3_cond);
     visit(ifs->ifTrue);
-    state->pop_scope();
+    state->pop_forward_cond();
     auto then_has_exited = state->has_exited();
-    ProgState then_state;
-    if (then_has_exited) {
-        then_state = saved_state;
+    auto then_has_returned = state->has_returned();
+    VarMap then_vars;
+    if (then_has_exited or then_has_returned) {
+        then_vars = old_vars;
     } else {
-        then_state = state->get_state();
+        then_vars = state->clone_vars();
     }
     state->set_exit(false);
+    state->set_returned(false);
 
-    state->restore_state(&saved_state);
-    auto old_state = state->fork_state();
-    state->push_scope();
-    state->get_current_scope()->push_forward_cond(!z3_cond);
+    state->restore_vars(old_vars);
+    auto old_state = state->clone_vars();
+    state->push_forward_cond(!z3_cond);
     visit(ifs->ifFalse);
-    state->pop_scope();
+    state->pop_forward_cond();
     auto else_has_exited = state->has_exited();
-    if (else_has_exited) {
-        state->restore_state(&old_state);
+    auto else_has_returned = state->has_returned();
+    if (else_has_exited or else_has_returned) {
+        state->restore_vars(old_state);
     }
 
     // If both branches have returned we set the if statement to returned or
     // exited
-    state->get_current_scope()->set_returned(
-        state->get_current_scope()->has_returned() &&
-        then_state.back().has_returned());
     state->set_exit(then_has_exited && else_has_exited);
-    state->merge_state(z3_cond, then_state);
+    state->set_returned(then_has_returned && else_has_returned);
+    state->merge_vars(z3_cond, then_vars);
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     for (auto c : b->components) {
         visit(c);
-        if (state->get_current_scope()->has_returned() or state->has_exited()) {
+        if (state->has_returned() or state->has_exited()) {
             break;
         }
     }
@@ -448,7 +509,6 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
 
-    state->push_scope();
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
     if (auto pkt_type = resolved_type->to<IR::Type_Package>()) {
@@ -472,7 +532,6 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
         P4C_UNIMPLEMENTED("Declaration Instance Type %s not supported.",
                           resolved_type->node_type_name());
     }
-    state->pop_scope();
     return false;
 }
 
