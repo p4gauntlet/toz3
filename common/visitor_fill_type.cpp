@@ -104,7 +104,6 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left;
     if (dc->initializer) {
-        TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
         dc->initializer->apply(resolve_expr);
         left = state->get_expr_result()->cast_allocate(dc->type);
     } else {
@@ -117,7 +116,6 @@ bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
 bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left;
     if (dv->initializer) {
-        TOZ3_V2::Z3Visitor resolve_expr = Z3Visitor(state);
         dv->initializer->apply(resolve_expr);
         left = state->get_expr_result()->cast_allocate(dv->type);
     } else {

@@ -155,7 +155,7 @@ class P4State {
     P4Z3Instance *copy_expr_result() const { return expr_result->copy(); }
     template <typename T> T *copy_expr_result() const {
         auto intermediate = expr_result->copy();
-        if (auto cast_result = intermediate->to<T>()) {
+        if (auto cast_result = intermediate->to_mut<T>()) {
             return cast_result;
         }
         BUG("Could not cast to type %s.", typeid(T).name());

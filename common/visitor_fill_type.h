@@ -7,14 +7,17 @@
 #include <vector>
 
 #include "ir/ir.h"
-#include "state.h"
+#include "visitor_interpret.h"
 
 namespace TOZ3_V2 {
 
 class TypeVisitor : public Inspector {
  public:
     P4State *state;
-    TypeVisitor(P4State *state) : state(state) { visitDagOnce = false; }
+    Z3Visitor resolve_expr;
+    TypeVisitor(P4State *state) : state(state), resolve_expr(Z3Visitor(state)) {
+        visitDagOnce = false;
+    }
 
     // for initialization and ending
     Visitor::profile_t init_apply(const IR::Node *node) override;
