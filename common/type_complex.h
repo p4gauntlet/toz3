@@ -37,7 +37,9 @@ class StructBase : public P4Z3Instance {
     const P4Z3Instance *get_const_member(cstring name) const {
         return members.at(name);
     }
-    P4Z3Instance *get_member(cstring name) override { return members.at(name); }
+    P4Z3Instance *get_member(cstring name) const override {
+        return members.at(name);
+    }
     const IR::Type *get_member_type(cstring name) {
         return member_types.at(name);
     }
@@ -112,7 +114,7 @@ class HeaderInstance : public StructBase {
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
     void set_list(std::vector<P4Z3Instance *>) override;
 
-    P4Z3Instance *get_function(cstring name) override {
+    P4Z3Instance *get_function(cstring name) const override {
         return member_functions.at(name);
     }
 
@@ -254,8 +256,10 @@ class P4TableInstance : public P4Declaration {
                                    immutable);
     }
 
-    P4Z3Instance *get_member(cstring name) override { return members.at(name); }
-    P4Z3Instance *get_function(cstring name) override {
+    P4Z3Instance *get_member(cstring name) const override {
+        return members.at(name);
+    }
+    P4Z3Instance *get_function(cstring name) const override {
         return member_functions.at(name);
     }
     void apply(Visitor *);
@@ -283,7 +287,7 @@ class ExternInstance : public P4Z3Instance {
         ret += ")";
         return ret;
     }
-    P4Z3Instance *get_function(cstring method_name) override {
+    P4Z3Instance *get_function(cstring method_name) const override {
         if (methods.count(method_name)) {
             return methods.at(method_name);
         }

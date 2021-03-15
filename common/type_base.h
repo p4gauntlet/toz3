@@ -20,15 +20,29 @@ namespace TOZ3_V2 {
 
 class Z3Int;
 class Z3Bitvector;
+class VoidResult;
 class StructInstance;
 class HeaderInstance;
+class EnumInstance;
+class ErrorInstance;
 class ListInstance;
+class ExternInstance;
+class P4TableInstance;
+class FunctionWrapper;
+class P4Declaration;
 
 using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<Z3Bitvector>,
+                                boost::recursive_wrapper<VoidResult>,
                                 boost::recursive_wrapper<StructInstance>,
-                                boost::recursive_wrapper<HeaderInstance>>;
-
+                                boost::recursive_wrapper<HeaderInstance>,
+                                boost::recursive_wrapper<EnumInstance>,
+                                boost::recursive_wrapper<ErrorInstance>,
+                                boost::recursive_wrapper<ListInstance>,
+                                boost::recursive_wrapper<P4TableInstance>,
+                                boost::recursive_wrapper<FunctionWrapper>,
+                                boost::recursive_wrapper<P4Declaration>,
+                                boost::recursive_wrapper<ExternInstance>>;
 using Z3P4FunctionCall = std::function<void(Visitor *)>;
 
 class P4Z3Instance {
@@ -145,26 +159,23 @@ class P4Z3Instance {
         P4C_UNIMPLEMENTED("set_undefined not implemented for %s.",
                           get_static_type());
     }
-    virtual P4Z3Instance *get_member(cstring) {
+    virtual P4Z3Instance *get_member(cstring) const {
         P4C_UNIMPLEMENTED("get_member not implemented for %s.",
                           get_static_type());
     }
-    virtual P4Z3Instance *get_function(cstring) {
+    virtual P4Z3Instance *get_function(cstring) const {
         P4C_UNIMPLEMENTED("get_function not implemented for %s.",
                           get_static_type());
     }
 
     virtual cstring get_static_type() const = 0;
     virtual cstring to_string() const = 0;
+    friend inline std::ostream &operator<<(std::ostream &out,
+                                           const TOZ3_V2::P4Z3Instance &type) {
+        return out << type.to_string();
+    }
 };
 
-typedef std::map<cstring, P4Z3Instance *> P4Z3Result;
-
 } // namespace TOZ3_V2
-
-inline std::ostream &operator<<(std::ostream &out,
-                                const TOZ3_V2::P4Z3Instance &type) {
-    return out << type.to_string();
-}
 
 #endif // _TOZ3_BASE_TYPE_H_

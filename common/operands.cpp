@@ -11,7 +11,7 @@
 namespace TOZ3_V2 {
 
 bool Z3Visitor::preorder(const IR::Member *m) {
-    P4Z3Instance *complex_class;
+    const P4Z3Instance *complex_class;
     if (auto member = m->expr->to<IR::Member>()) {
         visit(member);
         complex_class = state->get_expr_result();

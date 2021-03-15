@@ -459,19 +459,32 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-void Z3Visitor::set_var(const IR::Expression *target, P4Z3Instance *val) {
+StructBase *resolve_reference(Z3Visitor *visitor, const IR::Expression *expr) {
+    P4Z3Instance *complex_class;
+    if (auto member = expr->to<IR::Member>()) {
+        auto parent = resolve_reference(visitor, member->expr);
+        complex_class = parent->get_member(member->member.name);
+    } else if (auto name = expr->to<IR::PathExpression>()) {
+        complex_class = visitor->state->get_var(name->path->name);
+    } else {
+        P4C_UNIMPLEMENTED("Parent Type  %s not implemented!",
+                          expr->node_type_name());
+    }
+
+    return complex_class->to_mut<StructBase>();
+}
+
+void Z3Visitor::set_var(const IR::Expression *target, const P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
         auto dest_type = state->get_var_type(name->path->name.name);
         auto cast_val = val->cast_allocate(dest_type);
         state->update_var(name->path->name, cast_val);
     } else if (auto member = target->to<IR::Member>()) {
-        visit(member->expr);
-        auto complex_class = state->get_expr_result();
-        auto si = complex_class->to_mut<StructBase>();
-        CHECK_NULL(si);
-        auto dest_type = si->get_member_type(member->member.name);
+        auto complex_class = resolve_reference(this, member->expr);
+        CHECK_NULL(complex_class);
+        auto dest_type = complex_class->get_member_type(member->member.name);
         auto cast_val = val->cast_allocate(dest_type);
-        si->update_member(member->member.name, cast_val);
+        complex_class->update_member(member->member.name, cast_val);
     } else {
         P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
     }

@@ -103,10 +103,10 @@ resolve_args(const IR::Vector<IR::Argument> *args,
     return resolved_args;
 }
 
-P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
-                                         const IR::Member *m) {
+const P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
+                                               const IR::Member *m) {
     const IR::Expression *parent = m->expr;
-    P4Z3Instance *complex_type;
+    const P4Z3Instance *complex_type;
     if (auto member = parent->to<IR::Member>()) {
         visitor->visit(member);
         complex_type = visitor->state->get_expr_result();

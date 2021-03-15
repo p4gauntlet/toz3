@@ -19,7 +19,6 @@
 namespace TOZ3_V2 {
 
 class P4State {
-
  private:
     ProgState scopes;
     P4Scope main_scope;
@@ -31,8 +30,9 @@ class P4State {
 
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
-
     z3::expr exit_cond = ctx->bool_val(true);
+    P4Scope *get_mut_current_scope() { return &scopes.back(); }
+    const P4Scope &get_current_scope() const { return scopes.back(); }
 
  public:
     std::vector<std::pair<z3::expr, VarMap>> exit_states;
@@ -49,27 +49,25 @@ class P4State {
     /****** GETTERS ******/
     ProgState get_state() const { return scopes; }
     z3::context *get_z3_ctx() const { return ctx; }
-    P4Z3Instance *get_expr_result() { return expr_result; }
-    template <typename T> T *get_expr_result() {
-        if (auto cast_result = expr_result->to_mut<T>()) {
+    const P4Z3Instance *get_expr_result() const { return expr_result; }
+    template <typename T> const T *get_expr_result() const {
+        if (auto cast_result = expr_result->to<T>()) {
             return cast_result;
         } else {
             BUG("Could not cast to type %s.", typeid(T).name());
         }
     }
     /****** ALLOCATIONS ******/
+    z3::expr gen_z3_expr(cstring name, const IR::Type *type);
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
                                uint64_t id = 0);
-    z3::expr gen_z3_expr(cstring name, const IR::Type *type);
 
     /****** SCOPES AND STATES ******/
     void push_scope();
     void pop_scope();
-    P4Scope *get_current_scope();
-    P4Scope *get_scope_list();
     void merge_state(const z3::expr &cond, const ProgState &else_state);
     void restore_state(const ProgState &set_scopes) { scopes = set_scopes; }
-    ProgState clone_state();
+    ProgState clone_state() const;
     VarMap get_vars() const;
     VarMap clone_vars() const;
     void restore_vars(const VarMap &input_map);
@@ -78,13 +76,13 @@ class P4State {
     void set_copy_out_args(
         const std::vector<std::pair<const IR::Expression *, cstring>>
             &out_args) {
-        auto scope = get_current_scope();
+        auto scope = get_mut_current_scope();
         scope->set_copy_out_args(out_args);
     }
     std::vector<std::pair<const IR::Expression *, cstring>>
-    get_copy_out_args() {
+    get_copy_out_args() const {
         auto scope = get_current_scope();
-        return scope->get_copy_out_args();
+        return scope.get_copy_out_args();
     }
     const z3::expr get_exit_cond() { return exit_cond; }
 
@@ -102,36 +100,36 @@ class P4State {
         return forward_conds;
     }
     void push_forward_cond(const z3::expr &forward_cond) {
-        auto scope = get_current_scope();
+        auto scope = get_mut_current_scope();
         scope->push_forward_cond(forward_cond);
     }
     void pop_forward_cond() {
-        auto scope = get_current_scope();
+        auto scope = get_mut_current_scope();
         scope->pop_forward_cond();
     }
-    bool has_returned() {
+    bool has_returned() const {
         auto scope = get_current_scope();
-        return scope->has_returned();
+        return scope.has_returned();
     }
     void set_returned(bool return_state) {
-        auto scope = get_current_scope();
+        auto scope = get_mut_current_scope();
         scope->set_returned(return_state);
     }
     void push_return_expr(const z3::expr &cond, P4Z3Instance *return_expr) {
-        auto scope = get_current_scope();
+        auto scope = get_mut_current_scope();
         return scope->push_return_expr(cond, return_expr);
     }
     std::vector<std::pair<z3::expr, P4Z3Instance *>> get_return_exprs() {
-        auto scope = get_current_scope();
+        auto scope = get_mut_current_scope();
         return scope->get_return_exprs();
     }
     void push_return_state(const z3::expr &cond, const VarMap &state) {
-        auto scope = get_current_scope();
+        auto scope = get_mut_current_scope();
         return scope->push_return_state(cond, state);
     }
-    std::vector<std::pair<z3::expr, VarMap>> get_return_states() {
+    std::vector<std::pair<z3::expr, VarMap>> get_return_states() const {
         auto scope = get_current_scope();
-        return scope->get_return_states();
+        return scope.get_return_states();
     }
 
     /****** TYPES ******/
@@ -143,29 +141,21 @@ class P4State {
     void update_var(cstring name, P4Z3Instance *var);
     void declare_var(cstring name, P4Z3Instance *var,
                      const IR::Type *decl_type);
-    P4Z3Instance *get_var(cstring name);
-    template <typename T> T *get_var(cstring name) {
-        P4Z3Instance *var = get_var(name);
-        if (auto cast_var = var->to_mut<T>()) {
-            return cast_var;
-        } else {
-            BUG("Could not cast to type %s.", typeid(T).name());
-        }
-    }
-    const IR::Type *get_var_type(cstring decl_name);
+    P4Z3Instance *get_var(cstring name) const ;
+    const IR::Type *get_var_type(cstring decl_name) const;
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *val);
-    const P4Declaration *get_static_decl(cstring name);
-    template <typename T> T *get_static_decl(cstring name) {
+    const P4Declaration *get_static_decl(cstring name) const;
+    template <typename T> T *get_static_decl(cstring name) const {
         auto decl = get_static_decl(name);
         return decl->to_mut<T>();
     }
     P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
     /****** EXPRESSION RESULTS ******/
-    P4Z3Instance *copy_expr_result() { return expr_result->copy(); }
-    template <typename T> T *copy_expr_result() {
+    P4Z3Instance *copy_expr_result() const { return expr_result->copy(); }
+    template <typename T> T *copy_expr_result() const {
         auto intermediate = expr_result->copy();
-        if (auto cast_result = intermediate->to_mut<T>()) {
+        if (auto cast_result = intermediate->to<T>()) {
             return cast_result;
         }
         BUG("Could not cast to type %s.", typeid(T).name());
@@ -182,17 +172,16 @@ class P4State {
             P4C_UNIMPLEMENTED("Storing reference not supported");
         }
     }
+    friend inline std::ostream &operator<<(std::ostream &out,
+                                           const TOZ3_V2::P4State &state) {
+        auto var_map = state.get_state();
+        for (auto it = var_map.begin(); it != var_map.end(); ++it) {
+            out << *it << " ";
+        }
+        return out;
+    }
 };
 
 } // namespace TOZ3_V2
-
-inline std::ostream &operator<<(std::ostream &out,
-                                const TOZ3_V2::P4State &state) {
-    auto var_map = state.get_state();
-    for (auto it = var_map.begin(); it != var_map.end(); ++it) {
-        out << *it << " ";
-    }
-    return out;
-}
 
 #endif // _TOZ3_STATE_H_

@@ -31,11 +31,8 @@ class P4Scope {
     std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args;
 
  public:
-    /****** GETTERS ******/
-    std::map<cstring, const IR::Type *> *get_type_map() { return &type_map; }
-
     /****** STATIC DECLS ******/
-    P4Declaration *get_static_decl(cstring name) {
+    P4Declaration *get_static_decl(cstring name) const {
         auto it = static_decls.find(name);
         if (it != static_decls.end()) {
             return it->second;
@@ -45,19 +42,21 @@ class P4Scope {
     void declare_static_decl(cstring name, P4Declaration *val) {
         static_decls.insert({name, val});
     }
-    bool has_static_decl(cstring name) { return static_decls.count(name) > 0; }
+    bool has_static_decl(cstring name) const {
+        return static_decls.count(name) > 0;
+    }
     const std::map<cstring, P4Declaration *> *get_decl_map() const {
         return &static_decls;
     }
     /****** VARIABLES ******/
-    P4Z3Instance *get_var(cstring name) {
+    P4Z3Instance *get_var(cstring name) const {
         auto it = var_map.find(name);
         if (it != var_map.end()) {
             return it->second.first;
         }
         BUG("Key %s not found in var map.", name);
     }
-    const IR::Type *get_var_type(cstring name) {
+    const IR::Type *get_var_type(cstring name) const {
         auto it = var_map.find(name);
         if (it != var_map.end()) {
             return it->second.second;
@@ -71,7 +70,7 @@ class P4Scope {
                      const IR::Type *decl_type) {
         var_map.insert({name, {val, decl_type}});
     }
-    bool has_var(cstring name) { return var_map.count(name) > 0; }
+    bool has_var(cstring name) const { return var_map.count(name) > 0; }
     const VarMap &get_var_map() const { return var_map; }
 
     /****** TYPES ******/
@@ -107,7 +106,7 @@ class P4Scope {
     get_copy_out_args() {
         return copy_out_args;
     }
-    bool has_returned() { return is_returned; }
+    bool has_returned() const { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
 
     void push_forward_cond(const z3::expr &forward_cond) {
@@ -131,7 +130,7 @@ class P4Scope {
     void clear_return_states() { return_states.clear(); }
     void clear_return_exprs() { return_exprs.clear(); }
 
-    P4Scope clone() {
+    P4Scope clone() const {
         auto new_scope = *this;
         for (auto &value_tuple : get_var_map()) {
             auto var_name = value_tuple.first;
@@ -150,23 +149,22 @@ class P4Scope {
         }
         return cloned_map;
     }
+    friend inline std::ostream &operator<<(std::ostream &out,
+                                           const TOZ3_V2::P4Scope &scope) {
+        auto var_map = scope.get_var_map();
+        for (auto it = var_map.begin(); it != var_map.end(); ++it) {
+            const cstring name = it->first;
+            auto val = it->second;
+            out << name << ": " << *val.first;
+            if (std::next(it) != var_map.end()) {
+                out << ", ";
+            }
+        }
+        return out;
+    }
 };
 typedef std::vector<P4Scope> ProgState;
 
 } // namespace TOZ3_V2
-
-inline std::ostream &operator<<(std::ostream &out,
-                                const TOZ3_V2::P4Scope &scope) {
-    auto var_map = scope.get_var_map();
-    for (auto it = var_map.begin(); it != var_map.end(); ++it) {
-        const cstring name = it->first;
-        auto val = it->second;
-        out << name << ": " << *val.first;
-        if (std::next(it) != var_map.end()) {
-            out << ", ";
-        }
-    }
-    return out;
-}
 
 #endif // _TOZ3_CONTEXT_H_

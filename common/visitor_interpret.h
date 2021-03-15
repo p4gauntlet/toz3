@@ -124,7 +124,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Declaration_MatchKind *) override;
     VarMap merge_args_with_params(const IR::Vector<IR::Argument> *args,
                                   const IR::ParameterList *params);
-    void set_var(const IR::Expression *target, P4Z3Instance *val);
+    void set_var(const IR::Expression *target, const P4Z3Instance *val);
 };
 } // namespace TOZ3_V2
 

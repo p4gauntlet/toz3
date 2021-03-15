@@ -8,6 +8,17 @@
 
 namespace TOZ3_V2 {
 
+z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
+    if (auto tbi = type->to<IR::Type_Bits>()) {
+        return ctx->bv_const(name, tbi->width_bits());
+    } else if (auto tvb = type->to<IR::Type_Varbits>()) {
+        return ctx->bv_const(name, tvb->width_bits());
+    } else if (type->is<IR::Type_Boolean>()) {
+        return ctx->bool_const(name);
+    }
+    BUG("Type \"%s\" not supported for Z3 expressions!.", type);
+}
+
 P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
                                     uint64_t id) {
     P4Z3Instance *instance;
@@ -34,33 +45,21 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     return instance;
 }
 
-z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
-    if (auto tbi = type->to<IR::Type_Bits>()) {
-        return ctx->bv_const(name, tbi->width_bits());
-    } else if (auto tvb = type->to<IR::Type_Varbits>()) {
-        return ctx->bv_const(name, tvb->width_bits());
-    } else if (type->is<IR::Type_Boolean>()) {
-        return ctx->bool_const(name);
-    }
-    BUG("Type \"%s\" not supported for Z3 expressions!.", type);
-}
-
 void P4State::push_scope() { scopes.push_back(P4Scope()); }
 
 void P4State::pop_scope() { scopes.pop_back(); }
-P4Scope *P4State::get_current_scope() { return &scopes.back(); }
 
 void P4State::add_type(cstring type_name, const IR::Type *t) {
     P4Scope *target_scope = nullptr;
     find_type(type_name, &target_scope);
     if (target_scope) {
-        FATAL_ERROR("Variable %s already exists in target scope.", type_name);
+        FATAL_ERROR("Type %s already exists in target scope.", type_name);
     } else {
         if (scopes.empty()) {
             main_scope.add_type(type_name, t);
             // assume we insert into the global scope
         } else {
-            get_current_scope()->add_type(type_name, t);
+            get_mut_current_scope()->add_type(type_name, t);
         }
     }
 }
@@ -99,7 +98,7 @@ const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
     return nullptr;
 }
 
-P4Z3Instance *P4State::get_var(cstring name) {
+P4Z3Instance *P4State::get_var(cstring name) const {
     for (auto &scope : scopes) {
         if (scope.has_var(name)) {
             return scope.get_var(name);
@@ -113,7 +112,7 @@ P4Z3Instance *P4State::get_var(cstring name) {
     exit(1);
 }
 
-const IR::Type *P4State::get_var_type(cstring name) {
+const IR::Type *P4State::get_var_type(cstring name) const {
     for (auto &scope : scopes) {
         if (scope.has_var(name)) {
             return scope.get_var_type(name);
@@ -159,11 +158,11 @@ void P4State::declare_var(cstring name, P4Z3Instance *var,
         // assume we insert into the global scope
         main_scope.declare_var(name, var, decl_type);
     } else {
-        get_current_scope()->declare_var(name, var, decl_type);
+        get_mut_current_scope()->declare_var(name, var, decl_type);
     }
 }
 
-const P4Declaration *P4State::get_static_decl(cstring name) {
+const P4Declaration *P4State::get_static_decl(cstring name) const {
     for (auto scope = scopes.begin(); scope != scopes.end(); ++scope) {
         if (scope->has_static_decl(name)) {
             return scope->get_static_decl(name);
@@ -197,18 +196,17 @@ void P4State::declare_static_decl(cstring name, P4Declaration *decl) {
     P4Scope *target_scope = nullptr;
     find_static_decl(name, &target_scope);
     if (target_scope) {
-        FATAL_ERROR("Variable %s already exists in target scope.", name);
+        warning("Declaration %s shadows existing declaration.", decl->decl);
+    }
+    if (scopes.empty()) {
+        main_scope.declare_static_decl(name, decl);
+        // assume we insert into the global scope
     } else {
-        if (scopes.empty()) {
-            main_scope.declare_static_decl(name, decl);
-            // assume we insert into the global scope
-        } else {
-            get_current_scope()->declare_static_decl(name, decl);
-        }
+        get_mut_current_scope()->declare_static_decl(name, decl);
     }
 }
 
-ProgState P4State::clone_state() {
+ProgState P4State::clone_state() const {
     auto cloned_state = ProgState();
 
     for (auto &scope : scopes) {
@@ -249,8 +247,12 @@ void P4State::merge_vars(const z3::expr &cond, const VarMap &then_map) {
     for (auto &map_tuple : get_vars()) {
         auto else_name = map_tuple.first;
         auto instance = map_tuple.second.first;
-        auto then_instance = then_map.at(else_name);
-        instance->merge(cond, *then_instance.first);
+        // TODO: This check should not be necessary
+        // Find a cleaner way using scopes
+        auto then_instance = then_map.find(else_name);
+        if (then_instance != then_map.end()) {
+            instance->merge(cond, *then_instance->second.first);
+        }
     }
 }
 
@@ -259,8 +261,9 @@ void merge_var_maps(const z3::expr &cond, const VarMap &then_map,
     for (auto &then_tuple : then_map) {
         auto then_name = then_tuple.first;
         auto then_var = then_tuple.second.first;
-        auto else_var = else_map.find(then_name);
         // TODO: This check should not be necessary
+        // Find a cleaner way using scopes
+        auto else_var = else_map.find(then_name);
         if (else_var != else_map.end()) {
             then_var->merge(cond, *else_var->second.first);
         }
