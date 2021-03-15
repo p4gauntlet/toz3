@@ -6,11 +6,15 @@
 
 #include "lib/exceptions.h"
 
-#include "visitor_interpret.h"
+#include "expressions.h"
 
 namespace TOZ3_V2 {
 
-bool Z3Visitor::preorder(const IR::Constant *c) {
+Visitor::profile_t ExpressionResolver::init_apply(const IR::Node *) {
+    return Inspector::init_apply(nullptr);
+}
+
+bool ExpressionResolver::preorder(const IR::Constant *c) {
     if (auto tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->bv_val(val_string, tb->size);
@@ -28,19 +32,19 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
                       c->type->node_type_name());
 }
 
-bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
+bool ExpressionResolver::preorder(const IR::BoolLiteral *bl) {
     auto expr = state->get_z3_ctx()->bool_val(bl->value);
     Z3Bitvector wrapper = Z3Bitvector(state, expr);
     state->set_expr_result(wrapper);
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
+bool ExpressionResolver::preorder(const IR::NamedExpression *ne) {
     // TODO: Figure out what the implications of a name are here...
     visit(ne->expression);
     return false;
 }
-bool Z3Visitor::preorder(const IR::ListExpression *le) {
+bool ExpressionResolver::preorder(const IR::ListExpression *le) {
     std::vector<P4Z3Instance *> members;
     for (auto component : le->components) {
         visit(component);
@@ -50,7 +54,7 @@ bool Z3Visitor::preorder(const IR::ListExpression *le) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::StructExpression *se) {
+bool ExpressionResolver::preorder(const IR::StructExpression *se) {
     std::vector<P4Z3Instance *> members;
     for (auto component : se->components) {
         visit(component);
@@ -71,7 +75,7 @@ bool Z3Visitor::preorder(const IR::StructExpression *se) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::PathExpression *p) {
+bool ExpressionResolver::preorder(const IR::PathExpression *p) {
     state->set_expr_result(state->get_var(p->path->name));
     return false;
 }
@@ -103,7 +107,7 @@ resolve_args(const IR::Vector<IR::Argument> *args,
     return resolved_args;
 }
 
-const P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
+const P4Z3Instance *resolve_var_or_decl_parent(ExpressionResolver *visitor,
                                                const IR::Member *m) {
     const IR::Expression *parent = m->expr;
     const P4Z3Instance *complex_type;
@@ -145,10 +149,9 @@ const IR::ParameterList *get_params(const IR::Declaration *callable) {
     }
 }
 
-bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
+bool ExpressionResolver::preorder(const IR::MethodCallExpression *mce) {
     const IR::Declaration *callable;
     const IR::ParameterList *params;
-
     auto method_type = mce->method;
     if (auto path_expr = method_type->to<IR::PathExpression>()) {
         callable = state->get_static_decl(path_expr->path->name.name)->decl;
@@ -174,7 +177,9 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
     std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
         resolve_args(mce->arguments, params);
-    auto merged_args = merge_args_with_params(mce->arguments, params);
+    printf("SDASDaSDasd\n");
+    auto merged_args = merge_args_with_params(this, mce->arguments, params);
+    printf("SDASDaSDasd21312312312312\n");
 
     state->push_scope();
     for (auto arg_tuple : merged_args) {
@@ -183,7 +188,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         state->declare_var(param_name, arg_val.first, arg_val.second);
     }
     state->set_copy_out_args(copy_out_args);
-    visit(callable);
+    stmt_resolver->visit(callable);
     auto expr_result = state->copy_expr_result();
 
     // merge all the state of the different return points
@@ -202,7 +207,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
         auto target = arg_tuple.first;
-        set_var(target, copy_out_vals[idx]);
+        set_var(state, target, copy_out_vals[idx]);
         idx++;
     }
 
@@ -210,7 +215,8 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
+bool ExpressionResolver::preorder(const IR::ConstructorCallExpression *cce) {
+
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     std::vector<std::pair<cstring, z3::expr>> state_vars;
     state->push_scope();
@@ -232,7 +238,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
 
         std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
             resolve_args(cce->arguments, params);
-        auto merged_args = merge_args_with_params(cce->arguments, params);
+        auto merged_args = merge_args_with_params(this, cce->arguments, params);
 
         state->push_scope();
         for (auto arg_tuple : merged_args) {
@@ -241,7 +247,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
             state->declare_var(param_name, arg_val.first, arg_val.second);
         }
         state->set_copy_out_args(copy_out_args);
-        visit(resolved_type);
+        stmt_resolver->visit(resolved_type);
 
         // merge all the state of the different return points
         auto return_states = state->get_return_states();
@@ -260,7 +266,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         size_t idx = 0;
         for (auto arg_tuple : copy_out_args) {
             auto target = arg_tuple.first;
-            set_var(target, copy_out_vals[idx]);
+            set_var(state, target, copy_out_vals[idx]);
             idx++;
         }
 
@@ -293,6 +299,73 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     state->set_expr_result(ctrl_state);
 
     return false;
+}
+
+VarMap merge_args_with_params(ExpressionResolver *expr_resolver,
+                              const IR::Vector<IR::Argument> *args,
+                              const IR::ParameterList *params) {
+    VarMap merged_vec;
+    auto state = expr_resolver->state;
+    size_t arg_len = args->size();
+    size_t idx = 0;
+    // TODO: Clean this up...
+    for (auto param : params->parameters) {
+        if (param->direction == IR::Direction::Out) {
+            auto instance = state->gen_instance("undefined", param->type);
+            merged_vec.insert({param->name.name, {instance, param->type}});
+            idx++;
+            continue;
+        }
+        if (idx < arg_len) {
+            const IR::Argument *arg = args->at(idx);
+            expr_resolver->visit(arg->expression);
+            // TODO: Cast here
+            merged_vec.insert(
+                {param->name.name, {state->copy_expr_result(), param->type}});
+        } else {
+            auto arg_expr = state->gen_instance(param->name.name, param->type);
+            if (auto complex_arg = arg_expr->to_mut<StructBase>()) {
+                complex_arg->propagate_validity();
+            }
+            merged_vec.insert({param->name.name, {arg_expr, param->type}});
+        }
+        idx++;
+    }
+
+    return merged_vec;
+}
+
+StructBase *resolve_reference(const P4State *state,
+                              const IR::Expression *expr) {
+    P4Z3Instance *complex_class;
+    if (auto member = expr->to<IR::Member>()) {
+        auto parent = resolve_reference(state, member->expr);
+        complex_class = parent->get_member(member->member.name);
+    } else if (auto name = expr->to<IR::PathExpression>()) {
+        complex_class = state->get_var(name->path->name);
+    } else {
+        P4C_UNIMPLEMENTED("Parent Type  %s not implemented!",
+                          expr->node_type_name());
+    }
+
+    return complex_class->to_mut<StructBase>();
+}
+
+void set_var(P4State *state, const IR::Expression *target,
+             const P4Z3Instance *val) {
+    if (auto name = target->to<IR::PathExpression>()) {
+        auto dest_type = state->get_var_type(name->path->name.name);
+        auto cast_val = val->cast_allocate(dest_type);
+        state->update_var(name->path->name, cast_val);
+    } else if (auto member = target->to<IR::Member>()) {
+        auto complex_class = resolve_reference(state, member->expr);
+        CHECK_NULL(complex_class);
+        auto dest_type = complex_class->get_member_type(member->member.name);
+        auto cast_val = val->cast_allocate(dest_type);
+        complex_class->update_member(member->member.name, cast_val);
+    } else {
+        P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
+    }
 }
 
 } // namespace TOZ3_V2

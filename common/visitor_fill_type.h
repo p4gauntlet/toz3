@@ -6,16 +6,17 @@
 #include <map>
 #include <vector>
 
+#include "expressions.h"
 #include "ir/ir.h"
-#include "visitor_interpret.h"
 
 namespace TOZ3_V2 {
 
 class TypeVisitor : public Inspector {
  public:
     P4State *state;
-    Z3Visitor resolve_expr;
-    TypeVisitor(P4State *state) : state(state), resolve_expr(Z3Visitor(state)) {
+    ExpressionResolver resolve_expr;
+    TypeVisitor(P4State *state)
+        : state(state), resolve_expr(ExpressionResolver(state, this)) {
         visitDagOnce = false;
     }
 

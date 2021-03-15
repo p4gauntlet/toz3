@@ -7,18 +7,13 @@
 #include <utility>
 #include <vector>
 
+#include "expressions.h"
 #include "ir/ir.h"
 #include "state.h"
 
 namespace TOZ3_V2 {
 
 class Z3Visitor : public Inspector {
- public:
-    P4State *state;
-    VarMap decl_result;
-    explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
-
-    VarMap get_decl_result() { return decl_result; }
 
  private:
     // for initialization and ending
@@ -68,63 +63,23 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::KeyElement *ke) override;
     // bool preorder(const IR::ExpressionValue *ev) override;
 
-    /***** Expressions *****/
-    bool preorder(const IR::Member *m) override;
-    // bool preorder(const IR::SerEnumMember *m) override;
-    bool preorder(const IR::PathExpression *p) override;
-    bool preorder(const IR::Constant *c) override;
-    // bool preorder(const IR::DefaultExpression *) override;
-    bool preorder(const IR::ListExpression *le) override;
-    // bool preorder(const IR::TypeNameExpression *) override;
-    bool preorder(const IR::NamedExpression *ne) override;
-    bool preorder(const IR::StructExpression *se) override;
-    bool preorder(const IR::ConstructorCallExpression *) override;
-    bool preorder(const IR::MethodCallExpression *mce) override;
-    bool preorder(const IR::BoolLiteral *bl) override;
-    // bool preorder(const IR::StringLiteral *str) override;
-
-    /****** UNARY OPERANDS ******/
-    bool preorder(const IR::Neg *expr) override;
-    bool preorder(const IR::Cmpl *expr) override;
-    bool preorder(const IR::LNot *expr) override;
-    /****** BINARY OPERANDS ******/
-    bool preorder(const IR::Mul *expr) override;
-    bool preorder(const IR::Div *expr) override;
-    bool preorder(const IR::Mod *expr) override;
-    bool preorder(const IR::Add *expr) override;
-    bool preorder(const IR::AddSat *expr) override;
-    bool preorder(const IR::Sub *expr) override;
-    bool preorder(const IR::SubSat *expr) override;
-    bool preorder(const IR::Shl *expr) override;
-    bool preorder(const IR::Shr *expr) override;
-    bool preorder(const IR::Equ *expr) override;
-    bool preorder(const IR::Neq *expr) override;
-    bool preorder(const IR::Lss *expr) override;
-    bool preorder(const IR::Leq *expr) override;
-    bool preorder(const IR::Grt *expr) override;
-    bool preorder(const IR::Geq *expr) override;
-    bool preorder(const IR::BAnd *expr) override;
-    bool preorder(const IR::BOr *expr) override;
-    bool preorder(const IR::BXor *expr) override;
-    bool preorder(const IR::LAnd *expr) override;
-    bool preorder(const IR::LOr *expr) override;
-    bool preorder(const IR::Concat *c) override;
-    /****** TERNARY OPERANDS ******/
-    // bool preorder(const IR::Mask *) override;
-    // bool preorder(const IR::Range *) override;
-    bool preorder(const IR::Cast *c) override;
-    // bool preorder(const IR::Slice *s) override;
-    bool preorder(const IR::Mux *) override;
-
     /***** Declarations *****/
     bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dv) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
-    VarMap merge_args_with_params(const IR::Vector<IR::Argument> *args,
-                                  const IR::ParameterList *params);
-    void set_var(const IR::Expression *target, const P4Z3Instance *val);
+
+ public:
+    P4State *state;
+    VarMap decl_result;
+    ExpressionResolver expr_resolver;
+    explicit Z3Visitor(P4State *state)
+        : state(state), expr_resolver(ExpressionResolver(state, this)) {
+        visitDagOnce = false;
+    }
+
+    VarMap get_decl_result() { return decl_result; }
 };
 } // namespace TOZ3_V2
 

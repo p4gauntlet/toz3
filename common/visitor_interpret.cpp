@@ -42,48 +42,16 @@ cstring infer_name(const IR::Annotations *annots, cstring default_name) {
 }
 
 Visitor::profile_t Z3Visitor::init_apply(const IR::Node *node) {
-    return Inspector::init_apply(node);
+    return Inspector::init_apply(nullptr);
 }
 
 void Z3Visitor::end_apply(const IR::Node *) {}
-
-VarMap Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
-                                         const IR::ParameterList *params) {
-    VarMap merged_vec;
-    size_t arg_len = args->size();
-    size_t idx = 0;
-    // TODO: Clean this up...
-    for (auto param : params->parameters) {
-        if (param->direction == IR::Direction::Out) {
-            auto instance = state->gen_instance("undefined", param->type);
-            merged_vec.insert({param->name.name, {instance, param->type}});
-            idx++;
-            continue;
-        }
-        if (idx < arg_len) {
-            const IR::Argument *arg = args->at(idx);
-            visit(arg->expression);
-            // TODO: Cast here
-            merged_vec.insert(
-                {param->name.name, {state->copy_expr_result(), param->type}});
-        } else {
-            auto arg_expr = state->gen_instance(param->name.name, param->type);
-            if (auto complex_arg = arg_expr->to_mut<StructBase>()) {
-                complex_arg->propagate_validity();
-            }
-            merged_vec.insert({param->name.name, {arg_expr, param->type}});
-        }
-        idx++;
-    }
-
-    return merged_vec;
-}
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
     TypeVisitor map_builder = TypeVisitor(state);
 
     for (const IR::Declaration *local_decl : c->controlLocals) {
-        local_decl->apply(map_builder);
+        local_decl->apply_visitor_preorder(map_builder);
     }
 
     // DO SOMETHING
@@ -209,7 +177,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     z3::expr hit = ctx->bool_val(false);
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
         auto key = keys.at(idx);
-        visit(key->expression);
+        (key->expression)->apply_visitor_preorder(expr_resolver);
         auto key_eval = state->get_expr_result<Z3Bitvector>();
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
         auto key_match =
@@ -272,7 +240,7 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     auto exit_cond = state->get_exit_cond();
     // if we do not even return do not bother with collecting results
     if (r->expression) {
-        visit(r->expression);
+        (r->expression)->apply_visitor_preorder(expr_resolver);
         state->push_return_expr(cond && exit_cond, state->copy_expr_result());
     }
     state->push_return_state(cond && exit_cond, state->clone_vars());
@@ -298,7 +266,7 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
             auto target = arg_tuple.first;
             auto out_val = state->get_var(arg_tuple.second);
             state->pop_scope();
-            set_var(target, out_val);
+            set_var(state, target, out_val);
         }
     }
     auto exit_vars = state->clone_vars();
@@ -390,7 +358,7 @@ void handle_table_match(P4State *state, Z3Visitor *visitor,
 }
 
 bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
-    visit(ss->expression);
+    (ss->expression)->apply_visitor_preorder(expr_resolver);
     auto table = state->copy_expr_result<P4TableInstance>();
     handle_table_match(state, this, table, ss->cases);
     // P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.", result,
@@ -400,7 +368,7 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
 }
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
-    visit(ifs->condition);
+    (ifs->condition)->apply_visitor_preorder(expr_resolver);
     auto z3_cond = state->get_expr_result<Z3Bitvector>()->val.simplify();
     if (z3_cond.is_true()) {
         visit(ifs->ifTrue);
@@ -459,47 +427,16 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     return false;
 }
 
-StructBase *resolve_reference(Z3Visitor *visitor, const IR::Expression *expr) {
-    P4Z3Instance *complex_class;
-    if (auto member = expr->to<IR::Member>()) {
-        auto parent = resolve_reference(visitor, member->expr);
-        complex_class = parent->get_member(member->member.name);
-    } else if (auto name = expr->to<IR::PathExpression>()) {
-        complex_class = visitor->state->get_var(name->path->name);
-    } else {
-        P4C_UNIMPLEMENTED("Parent Type  %s not implemented!",
-                          expr->node_type_name());
-    }
-
-    return complex_class->to_mut<StructBase>();
-}
-
-void Z3Visitor::set_var(const IR::Expression *target, const P4Z3Instance *val) {
-    if (auto name = target->to<IR::PathExpression>()) {
-        auto dest_type = state->get_var_type(name->path->name.name);
-        auto cast_val = val->cast_allocate(dest_type);
-        state->update_var(name->path->name, cast_val);
-    } else if (auto member = target->to<IR::Member>()) {
-        auto complex_class = resolve_reference(this, member->expr);
-        CHECK_NULL(complex_class);
-        auto dest_type = complex_class->get_member_type(member->member.name);
-        auto cast_val = val->cast_allocate(dest_type);
-        complex_class->update_member(member->member.name, cast_val);
-    } else {
-        P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
-    }
-}
-
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
-    visit(as->right);
-    set_var(as->left, state->get_expr_result());
+    as->right->apply_visitor_preorder(expr_resolver);
+    set_var(state, as->left, state->get_expr_result());
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left;
     if (dv->initializer) {
-        visit(dv->initializer);
+        dv->initializer->apply_visitor_preorder(expr_resolver);
         left = state->get_expr_result()->cast_allocate(dv->type);
     } else {
         left = state->gen_instance("undefined", dv->type);
@@ -511,7 +448,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
 bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left;
     if (dc->initializer) {
-        visit(dc->initializer);
+        dc->initializer->apply_visitor_preorder(expr_resolver);
         left = state->get_expr_result()->cast_allocate(dc->type);
     } else {
         left = state->gen_instance("undefined", dc->type);
@@ -521,17 +458,15 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
-
     const IR::Type *resolved_type = state->resolve_type(di->type);
-
     if (auto pkt_type = resolved_type->to<IR::Type_Package>()) {
-        decl_result =
-            merge_args_with_params(di->arguments, pkt_type->getParameters());
+        decl_result = merge_args_with_params(&expr_resolver, di->arguments,
+                                             pkt_type->getParameters());
     } else if (auto spec_type = resolved_type->to<IR::Type_Specialized>()) {
         const IR::Type *resolved_base_type =
             state->resolve_type(spec_type->baseType);
         if (auto pkt_type = resolved_base_type->to<IR::Type_Package>()) {
-            decl_result = merge_args_with_params(di->arguments,
+            decl_result = merge_args_with_params(&expr_resolver, di->arguments,
                                                  pkt_type->getParameters());
             // FIXME: Figure out what do here
             // for (auto arg : *spec_type->arguments) {

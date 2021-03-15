@@ -104,7 +104,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left;
     if (dc->initializer) {
-        dc->initializer->apply(resolve_expr);
+        dc->initializer->apply_visitor_preorder(resolve_expr);
         left = state->get_expr_result()->cast_allocate(dc->type);
     } else {
         left = state->gen_instance("undefined", dc->type);
@@ -116,7 +116,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
 bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left;
     if (dv->initializer) {
-        dv->initializer->apply(resolve_expr);
+        dv->initializer->apply_visitor_preorder(resolve_expr);
         left = state->get_expr_result()->cast_allocate(dv->type);
     } else {
         left = state->gen_instance("undefined", dv->type);
