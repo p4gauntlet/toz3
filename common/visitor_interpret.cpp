@@ -91,6 +91,11 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::P4Parser *) {
+    // TODO: Implement
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::P4Action *a) {
     visit(a->body);
     state->set_expr_result(new VoidResult());
@@ -520,31 +525,124 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
-
-    const IR::Type *resolved_type = state->resolve_type(di->type);
-
-    if (auto pkt_type = resolved_type->to<IR::Type_Package>()) {
-        decl_result =
-            merge_args_with_params(di->arguments, pkt_type->getParameters());
-    } else if (auto spec_type = resolved_type->to<IR::Type_Specialized>()) {
-        const IR::Type *resolved_base_type =
-            state->resolve_type(spec_type->baseType);
-        if (auto pkt_type = resolved_base_type->to<IR::Type_Package>()) {
-            decl_result = merge_args_with_params(di->arguments,
-                                                 pkt_type->getParameters());
-            // FIXME: Figure out what do here
-            // for (auto arg : *spec_type->arguments) {
-            //     const IR::Type *resolved_arg = state->resolve_type(arg);
-            // }
-        } else {
-            P4C_UNIMPLEMENTED("Specialized type %s not supported.",
-                              resolved_base_type->node_type_name());
-        }
+const IR::ParameterList *get_params(const IR::Type *callable_type) {
+    if (auto control = callable_type->to<IR::P4Control>()) {
+        return control->getApplyParameters();
+    } else if (auto parser = callable_type->to<IR::P4Parser>()) {
+        return parser->getApplyParameters();
+    } else if (auto package = callable_type->to<IR::Type_Package>()) {
+        return package->getParameters();
     } else {
-        P4C_UNIMPLEMENTED("Declaration Instance Type %s not supported.",
-                          resolved_type->node_type_name());
+        P4C_UNIMPLEMENTED(
+            "Callable declaration type %s of type %s not supported.",
+            callable_type, callable_type->node_type_name());
     }
+}
+
+P4Z3Instance *run_arch_block(Z3Visitor *visitor,
+                             const IR::ConstructorCallExpression *cce) {
+    auto state = visitor->state;
+    state->push_scope();
+
+    const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
+    const IR::ParameterList *params;
+    if (auto c = resolved_type->to<IR::P4Control>()) {
+        params = c->getApplyParameters();
+    } else if (auto p = resolved_type->to<IR::P4Parser>()) {
+        params = p->getApplyParameters();
+    } else {
+        P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
+                          resolved_type, resolved_type->node_type_name());
+    }
+    std::vector<std::pair<cstring, z3::expr>> state_vars;
+    std::vector<cstring> state_names;
+
+    // INITIALIZE
+    for (auto param : *params) {
+        auto par_type = state->resolve_type(param->type);
+        auto var = state->gen_instance(param->name.name, par_type);
+        if (auto z3_var = var->to_mut<StructBase>()) {
+            z3_var->propagate_validity();
+        }
+        state->declare_var(param->name.name, var, par_type);
+        state_names.push_back(param->name.name);
+    }
+    visitor->visit(cce);
+
+    // Merge the exit states
+    for (auto exit_tuple : state->exit_states) {
+        state->merge_vars(exit_tuple.first, exit_tuple.second);
+    }
+    // Clear the exit states
+    state->exit_states.clear();
+
+    // COLLECT
+    for (auto state_name : state_names) {
+        auto var = state->get_var(state_name);
+        if (auto z3_var = var->to<Z3Bitvector>()) {
+            state_vars.push_back({state_name, z3_var->val});
+        } else if (auto z3_var = var->to<StructBase>()) {
+            auto z3_sub_vars = z3_var->get_z3_vars(state_name);
+            state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
+                              z3_sub_vars.end());
+        } else if (var->to<ExternInstance>()) {
+            printf("Skipping extern...\n");
+        } else {
+            BUG("Var is neither type z3::expr nor P4Z3Instance!");
+        }
+    }
+    state->pop_scope();
+
+    return new ControlState(state_vars);
+}
+
+VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
+                    const IR::ParameterList *params) {
+    VarMap merged_vec;
+    size_t arg_len = args->size();
+    size_t idx = 0;
+    for (auto param : params->parameters) {
+        if (idx < arg_len) {
+            const IR::Argument *arg = args->at(idx);
+            if (auto cce =
+                    arg->expression->to<IR::ConstructorCallExpression>()) {
+                auto state_result = run_arch_block(visitor, cce);
+                merged_vec.insert(
+                    {param->name.name, {state_result, param->type}});
+            } else {
+                P4C_UNIMPLEMENTED("Unsupported main argument %s",
+                                  arg->expression);
+            }
+        } else {
+            BUG("Mismatch between arguments %s and parameters %s", *args,
+                *params);
+        }
+        idx++;
+    }
+
+    return merged_vec;
+}
+
+bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
+    const IR::Type *resolved_type = state->resolve_type(di->type);
+    state->push_scope();
+
+    if (auto spec_type = resolved_type->to<IR::Type_Specialized>()) {
+        // FIXME: Figure out what do here
+        // for (auto arg : *spec_type->arguments) {
+        //     const IR::Type *resolved_arg = state->resolve_type(arg);
+        // }
+        resolved_type = state->resolve_type(spec_type->baseType);
+    }
+    const IR::ParameterList *params = get_params(resolved_type);
+
+    if (di->getName().name == "main") {
+        main_result = create_state(this, di->arguments, params);
+    } else {
+        merge_args_with_params(di->arguments, params);
+    }
+
+    state->pop_scope();
     return false;
 }
 

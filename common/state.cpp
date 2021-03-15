@@ -34,7 +34,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (auto te = type->to<IR::Type_Error>()) {
         instance = new ErrorInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Extern>()) {
-        instance = new ExternInstance(this, te);
+        instance = new ExternInstance(te);
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
     } else if (type->is<IR::Type_Base>()) {

@@ -12,13 +12,14 @@
 
 namespace TOZ3_V2 {
 
+
 class Z3Visitor : public Inspector {
  public:
     P4State *state;
-    VarMap decl_result;
+    VarMap main_result;
     explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
 
-    VarMap get_decl_result() { return decl_result; }
+    VarMap get_main_result() { return main_result; }
 
  private:
     // for initialization and ending
@@ -43,7 +44,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::ReturnStatement *) override;
 
     /***** Parser *****/
-    // bool preorder(const IR::P4Parser *p) override;
+    bool preorder(const IR::P4Parser *p) override;
     // bool preorder(const IR::ParserState *ps) override;
     // bool preorder(const IR::P4ValueSet *pvs) override;
     // bool preorder(const IR::SelectExpression *se) override;

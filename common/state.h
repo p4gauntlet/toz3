@@ -29,7 +29,6 @@ class P4State {
     bool is_exited = false;
 
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
-    P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
     z3::expr exit_cond = ctx->bool_val(true);
     P4Scope *get_mut_current_scope() { return &scopes.back(); }
     const P4Scope &get_current_scope() const { return scopes.back(); }
@@ -138,6 +137,7 @@ class P4State {
     const IR::Type *get_type(cstring decl_name) const;
 
     /****** VARIABLES ******/
+    P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
     void update_var(cstring name, P4Z3Instance *var);
     void declare_var(cstring name, P4Z3Instance *var,
                      const IR::Type *decl_type);

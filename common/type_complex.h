@@ -277,7 +277,7 @@ class ExternInstance : public P4Z3Instance {
 
  public:
     const IR::Type_Extern *p4_type;
-    ExternInstance(P4State *state, const IR::Type_Extern *type);
+    explicit ExternInstance(const IR::Type_Extern *type);
     void merge(const z3::expr &, const P4Z3Instance &) override{
         // Merge is a no-op here.
     };
@@ -293,6 +293,10 @@ class ExternInstance : public P4Z3Instance {
         }
         error("Extern %s has no method %s.", p4_type, method_name);
         exit(1);
+    }
+    // TODO: This is a little pointless....
+    ExternInstance *copy() const override {
+        return new ExternInstance(p4_type);
     }
 };
 

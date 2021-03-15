@@ -72,7 +72,7 @@ int main(int argc, char *const argv[]) {
             program->apply(map_builder);
             auto decl = get_main_decl(&state);
             decl->apply(to_z3);
-            auto decl_result = to_z3.get_decl_result();
+            auto decl_result = to_z3.get_main_result();
             for (auto pipe_state : decl_result) {
                 cstring pipe_name = pipe_state.first;
                 auto pipe_vars =

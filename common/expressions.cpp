@@ -139,9 +139,8 @@ const IR::ParameterList *get_params(const IR::Declaration *callable) {
     } else if (auto table = callable->to<IR::P4Table>()) {
         return table->getApplyParameters();
     } else {
-        P4C_UNIMPLEMENTED(
-            "Callable declaration type %s of type %s not supported.", callable,
-            callable->node_type_name());
+        P4C_UNIMPLEMENTED("Callable declaration %s of type %s not supported.",
+                          callable, callable->node_type_name());
     }
 }
 
@@ -212,85 +211,49 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
-    std::vector<std::pair<cstring, z3::expr>> state_vars;
-    state->push_scope();
+    const IR::ParameterList *params;
     if (auto c = resolved_type->to<IR::P4Control>()) {
-        std::vector<cstring> state_names;
-        // INITIALIZE
-        for (auto param : *c->getApplyParameters()) {
-            auto par_type = state->resolve_type(param->type);
-            auto var = state->gen_instance(param->name.name, par_type);
-            if (auto z3_var = var->to_mut<StructBase>()) {
-                z3_var->propagate_validity();
-            }
-            state->declare_var(param->name.name, var, par_type);
-            state_names.push_back(param->name.name);
-        }
+        params = c->getApplyParameters();
+    } else if (auto p = resolved_type->to<IR::P4Parser>()) {
+        params = p->getApplyParameters();
+    } else {
+        P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
+                          resolved_type, resolved_type->node_type_name());
+    }
 
-        // at this point, we assume we are dealing with a Declaration
-        auto params = c->getApplyParameters();
+    // at this point, we assume we are dealing with a Declaration
+    std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
+        resolve_args(cce->arguments, params);
+    auto merged_args = merge_args_with_params(cce->arguments, params);
 
-        std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
-            resolve_args(cce->arguments, params);
-        auto merged_args = merge_args_with_params(cce->arguments, params);
+    state->push_scope();
+    for (auto arg_tuple : merged_args) {
+        cstring param_name = arg_tuple.first;
+        auto arg_val = arg_tuple.second;
+        state->declare_var(param_name, arg_val.first, arg_val.second);
+    }
+    state->set_copy_out_args(copy_out_args);
+    visit(resolved_type);
 
-        state->push_scope();
-        for (auto arg_tuple : merged_args) {
-            cstring param_name = arg_tuple.first;
-            auto arg_val = arg_tuple.second;
-            state->declare_var(param_name, arg_val.first, arg_val.second);
-        }
-        state->set_copy_out_args(copy_out_args);
-        visit(resolved_type);
+    // merge all the state of the different return points
+    auto return_states = state->get_return_states();
+    for (auto it = return_states.rbegin(); it != return_states.rend(); ++it) {
+        state->merge_vars(it->first, it->second);
+    }
 
-        // merge all the state of the different return points
-        auto return_states = state->get_return_states();
-        for (auto it = return_states.rbegin(); it != return_states.rend();
-             ++it) {
-            state->merge_vars(it->first, it->second);
-        }
-
-        std::vector<P4Z3Instance *> copy_out_vals;
-        for (auto arg_tuple : copy_out_args) {
-            auto source = arg_tuple.second;
-            auto val = state->get_var(source);
-            copy_out_vals.push_back(val);
-        }
-        state->pop_scope();
-        size_t idx = 0;
-        for (auto arg_tuple : copy_out_args) {
-            auto target = arg_tuple.first;
-            set_var(target, copy_out_vals[idx]);
-            idx++;
-        }
-
-        // Merge the exit states
-        for (auto exit_tuple : state->exit_states) {
-            state->merge_vars(exit_tuple.first, exit_tuple.second);
-        }
-        // Clear the exit states
-        state->exit_states.clear();
-
-        // COLLECT
-        for (auto state_name : state_names) {
-            auto var = state->get_var(state_name);
-            if (auto z3_var = var->to<Z3Bitvector>()) {
-                state_vars.push_back({state_name, z3_var->val});
-            } else if (auto z3_var = var->to<StructBase>()) {
-                auto z3_sub_vars = z3_var->get_z3_vars(state_name);
-                state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
-                                  z3_sub_vars.end());
-            } else if (var->to<ExternInstance>()) {
-                printf("Skipping extern...\n");
-            } else {
-                BUG("Var is neither type z3::expr nor P4Z3Instance!");
-            }
-        }
+    std::vector<P4Z3Instance *> copy_out_vals;
+    for (auto arg_tuple : copy_out_args) {
+        auto source = arg_tuple.second;
+        auto val = state->get_var(source);
+        copy_out_vals.push_back(val);
     }
     state->pop_scope();
-
-    auto ctrl_state = new ControlState(state_vars);
-    state->set_expr_result(ctrl_state);
+    size_t idx = 0;
+    for (auto arg_tuple : copy_out_args) {
+        auto target = arg_tuple.first;
+        set_var(target, copy_out_vals[idx]);
+        idx++;
+    }
 
     return false;
 }
