@@ -97,7 +97,29 @@ bool TypeVisitor::preorder(const IR::P4Table *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
-    state->declare_static_decl(di->name.name, new P4Declaration(di));
+    auto instance_name = di->getName().name;
+    const IR::Type *resolved_type = state->resolve_type(di->type);
+
+    if (auto spec_type = resolved_type->to<IR::Type_Specialized>()) {
+        // FIXME: Figure out what do here
+        // for (auto arg : *spec_type->arguments) {
+        //     const IR::Type *resolved_arg = state->resolve_type(arg);
+        // }
+        resolved_type = state->resolve_type(spec_type->baseType);
+    }
+
+    if (instance_name == "main") {
+        state->declare_static_decl(instance_name, new P4Declaration(di));
+    } else {
+        if (auto instance_decl = resolved_type->to<IR::Type_Declaration>()) {
+            state->declare_var(instance_name,
+                               new DeclarationInstance(state, instance_decl),
+                               resolved_type);
+        } else {
+            P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
+                              resolved_type, resolved_type->node_type_name());
+        }
+    }
     return false;
 }
 

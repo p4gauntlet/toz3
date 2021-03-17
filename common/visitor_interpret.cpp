@@ -7,77 +7,11 @@
 
 namespace TOZ3_V2 {
 
-cstring infer_name(const IR::Annotations *annots, cstring default_name) {
-    // This function is a bit of a hacky way to infer the true name of a
-    // declaration. Since there are a couple of passes that rename but add
-    // annotations we can infer the original name from the annotation.
-    // not sure if this generalizes but this is as close we can get for now
-    for (auto anno : annots->annotations) {
-        // there is an original name in the form of an annotation
-        if (anno->name.name == "name") {
-            for (auto token : anno->body) {
-                // the full name can be a bit more convoluted
-                // we only need the last bit after the dot
-                // so hack it out
-                cstring full_name = token->text;
-
-                // find the last dot
-                const char *last_dot = full_name.findlast((int)'.');
-                // there is no dot in this string, just return the full name
-                if (not last_dot) {
-                    return full_name;
-                }
-                // otherwise get the index, remove the dot
-                size_t idx = (size_t)(last_dot - full_name + 1);
-                return token->text.substr(idx);
-            }
-            // if the annotation is a member just get the root name
-            if (auto member = anno->expr.to<IR::Member>()) {
-                return member->member.name;
-            }
-        }
-    }
-
-    return default_name;
-}
-
 Visitor::profile_t Z3Visitor::init_apply(const IR::Node *node) {
     return Inspector::init_apply(node);
 }
 
 void Z3Visitor::end_apply(const IR::Node *) {}
-
-VarMap Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
-                                         const IR::ParameterList *params) {
-    VarMap merged_vec;
-    size_t arg_len = args->size();
-    size_t idx = 0;
-    // TODO: Clean this up...
-    for (auto param : params->parameters) {
-        if (param->direction == IR::Direction::Out) {
-            auto instance = state->gen_instance("undefined", param->type);
-            merged_vec.insert({param->name.name, {instance, param->type}});
-            idx++;
-            continue;
-        }
-        if (idx < arg_len) {
-            const IR::Argument *arg = args->at(idx);
-            visit(arg->expression);
-            // TODO: Cast here
-            merged_vec.insert(
-                {param->name.name, {state->copy_expr_result(), param->type}});
-        } else {
-            auto arg_expr = state->gen_instance(param->name.name, param->type);
-            if (auto complex_arg = arg_expr->to_mut<StructBase>()) {
-                complex_arg->propagate_validity();
-            }
-            merged_vec.insert({param->name.name, {arg_expr, param->type}});
-        }
-        idx++;
-    }
-
-    return merged_vec;
-}
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
     TypeVisitor map_builder = TypeVisitor(state);
@@ -297,13 +231,26 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
 
     auto scopes = state->get_state();
     auto old_state = state->clone_state();
-    for (auto scope = scopes.rbegin(); scope != scopes.rend(); ++scope) {
+    // Note the lack of leq in the i > 1 comparison.
+    // We do not want to pop the last two scopes
+    // FIXME: There has to be a cleaner way here...
+    // Ideally we should track the input/output variables
+    for (int i = scopes.size() - 1; i > 1; --i) {
+        auto scope = &scopes.at(i);
         auto copy_out_args = scope->get_copy_out_args();
+        std::vector<P4Z3Instance *> copy_out_vals;
+        for (auto arg_tuple : copy_out_args) {
+            auto source = arg_tuple.second;
+            auto val = state->get_var(source);
+            copy_out_vals.push_back(val);
+        }
+
+        state->pop_scope();
+        size_t idx = 0;
         for (auto arg_tuple : copy_out_args) {
             auto target = arg_tuple.first;
-            auto out_val = state->get_var(arg_tuple.second);
-            state->pop_scope();
-            set_var(target, out_val);
+            set_var(target, copy_out_vals[idx]);
+            idx++;
         }
     }
     auto exit_vars = state->clone_vars();
@@ -558,16 +505,21 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
     std::vector<cstring> state_names;
 
     // INITIALIZE
+    IR::Vector<IR::Argument> synthesized_args;
     for (auto param : *params) {
         auto par_type = state->resolve_type(param->type);
         auto var = state->gen_instance(param->name.name, par_type);
-        if (auto z3_var = var->to_mut<StructBase>()) {
+        if (auto z3_var = var->to_mut<StructInstance>()) {
             z3_var->propagate_validity();
         }
         state->declare_var(param->name.name, var, par_type);
         state_names.push_back(param->name.name);
+        auto arg = new IR::Argument(new IR::PathExpression(param->name.name));
+        synthesized_args.push_back(arg);
     }
-    visitor->visit(cce);
+    const auto new_cce = new IR::ConstructorCallExpression(cce->constructedType,
+                                                           &synthesized_args);
+    visitor->visit(new_cce);
 
     // Merge the exit states
     for (auto exit_tuple : state->exit_states) {
@@ -591,6 +543,7 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
             BUG("Var is neither type z3::expr nor P4Z3Instance!");
         }
     }
+
     state->pop_scope();
 
     return new ControlState(state_vars);
@@ -624,8 +577,8 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
+    auto instance_name = di->getName().name;
     const IR::Type *resolved_type = state->resolve_type(di->type);
-    state->push_scope();
 
     if (auto spec_type = resolved_type->to<IR::Type_Specialized>()) {
         // FIXME: Figure out what do here
@@ -636,13 +589,20 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     }
     const IR::ParameterList *params = get_params(resolved_type);
 
-    if (di->getName().name == "main") {
+    if (instance_name == "main") {
         main_result = create_state(this, di->arguments, params);
     } else {
         merge_args_with_params(di->arguments, params);
+        if (auto instance_decl = resolved_type->to<IR::Type_Declaration>()) {
+            state->declare_var(instance_name,
+                               new DeclarationInstance(state, instance_decl),
+                               resolved_type);
+        } else {
+            P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
+                              resolved_type, resolved_type->node_type_name());
+        }
     }
 
-    state->pop_scope();
     return false;
 }
 

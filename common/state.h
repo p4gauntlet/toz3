@@ -18,10 +18,12 @@
 
 namespace TOZ3_V2 {
 
+cstring infer_name(const IR::Annotations *annots, cstring default_name);
+
 class P4State {
  private:
     ProgState scopes;
-    P4Scope main_scope;
+    P4Scope main_scope = P4Scope();
     z3::context *ctx;
     Z3Bitvector z3_expr_buffer;
     Z3Int z3_int_buffer;
@@ -31,18 +33,16 @@ class P4State {
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
     z3::expr exit_cond = ctx->bool_val(true);
     P4Scope *get_mut_current_scope() { return &scopes.back(); }
-    const P4Scope &get_current_scope() const { return scopes.back(); }
 
  public:
+    const P4Scope &get_current_scope() const { return scopes.back(); }
     std::vector<std::pair<z3::expr, VarMap>> exit_states;
     bool has_exited() { return is_exited; }
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
     explicit P4State(z3::context *context)
         : ctx(context), z3_expr_buffer(this, context->bool_val(false)),
-          z3_int_buffer(this, context->bool_val(false)) {
-        main_scope = P4Scope();
-    }
+          z3_int_buffer(this, context->bool_val(false)) {}
     ~P4State() {}
 
     /****** GETTERS ******/
@@ -141,7 +141,7 @@ class P4State {
     void update_var(cstring name, P4Z3Instance *var);
     void declare_var(cstring name, P4Z3Instance *var,
                      const IR::Type *decl_type);
-    P4Z3Instance *get_var(cstring name) const ;
+    P4Z3Instance *get_var(cstring name) const;
     const IR::Type *get_var_type(cstring decl_name) const;
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *val);
@@ -175,8 +175,11 @@ class P4State {
     friend inline std::ostream &operator<<(std::ostream &out,
                                            const TOZ3_V2::P4State &state) {
         auto var_map = state.get_state();
+        size_t idx = 0;
+        // out << "STATIC SCOPE: " << main_scope << "\n";
         for (auto it = var_map.begin(); it != var_map.end(); ++it) {
-            out << *it << " ";
+            out << "SCOPE: " << idx << ": " << *it << "\n";
+            idx++;
         }
         return out;
     }

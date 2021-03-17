@@ -12,7 +12,6 @@
 
 namespace TOZ3_V2 {
 
-
 class Z3Visitor : public Inspector {
  public:
     P4State *state;
@@ -126,6 +125,9 @@ class Z3Visitor : public Inspector {
     VarMap merge_args_with_params(const IR::Vector<IR::Argument> *args,
                                   const IR::ParameterList *params);
     void set_var(const IR::Expression *target, const P4Z3Instance *val);
+    void handle_methodcall(const IR::Node *callable,
+                           const IR::ParameterList *params,
+                           const IR::Vector<IR::Argument> *arguments);
 };
 } // namespace TOZ3_V2
 

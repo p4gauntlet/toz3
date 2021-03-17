@@ -8,6 +8,39 @@
 
 namespace TOZ3_V2 {
 
+cstring infer_name(const IR::Annotations *annots, cstring default_name) {
+    // This function is a bit of a hacky way to infer the true name of a
+    // declaration. Since there are a couple of passes that rename but add
+    // annotations we can infer the original name from the annotation.
+    // not sure if this generalizes but this is as close we can get for now
+    for (auto anno : annots->annotations) {
+        // there is an original name in the form of an annotation
+        if (anno->name.name == "name") {
+            for (auto token : anno->body) {
+                // the full name can be a bit more convoluted
+                // we only need the last bit after the dot
+                // so hack it out
+                cstring full_name = token->text;
+                // find the last dot
+                const char *last_dot = full_name.findlast((int)'.');
+                // there is no dot in this string, just return the full name
+                if (not last_dot) {
+                    return full_name;
+                }
+                // otherwise get the index, remove the dot
+                size_t idx = (size_t)(last_dot - full_name + 1);
+                return token->text.substr(idx);
+            }
+            // if the annotation is a member just get the root name
+            if (auto member = anno->expr.to<IR::Member>()) {
+                return member->member.name;
+            }
+        }
+    }
+
+    return default_name;
+}
+
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (auto tbi = type->to<IR::Type_Bits>()) {
         return ctx->bv_const(name, tbi->width_bits());
@@ -65,7 +98,7 @@ void P4State::add_type(cstring type_name, const IR::Type *t) {
 }
 
 const IR::Type *P4State::get_type(cstring type_name) const {
-    for (auto &scope : scopes) {
+    for (auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_type(type_name)) {
             return scope.get_type(type_name);
         }
@@ -83,7 +116,7 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) const {
 }
 
 const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
-    for (std::size_t i = 0; i < scopes.size(); ++i) {
+    for (int i = scopes.size() - 1; i >= 0; --i) {
         auto scope = &scopes.at(i);
         if (scope->has_type(type_name)) {
             *owner_scope = scope;
@@ -99,7 +132,7 @@ const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
 }
 
 P4Z3Instance *P4State::get_var(cstring name) const {
-    for (auto &scope : scopes) {
+    for (auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_var(name)) {
             return scope.get_var(name);
         }
@@ -113,7 +146,7 @@ P4Z3Instance *P4State::get_var(cstring name) const {
 }
 
 const IR::Type *P4State::get_var_type(cstring name) const {
-    for (auto &scope : scopes) {
+    for (auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_var(name)) {
             return scope.get_var_type(name);
         }
@@ -127,7 +160,7 @@ const IR::Type *P4State::get_var_type(cstring name) const {
 }
 
 P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
-    for (std::size_t i = 0; i < scopes.size(); ++i) {
+    for (int i = scopes.size() - 1; i >= 0; --i) {
         auto scope = &scopes.at(i);
         if (scope->has_var(name)) {
             *owner_scope = scope;
@@ -163,9 +196,9 @@ void P4State::declare_var(cstring name, P4Z3Instance *var,
 }
 
 const P4Declaration *P4State::get_static_decl(cstring name) const {
-    for (auto scope = scopes.begin(); scope != scopes.end(); ++scope) {
-        if (scope->has_static_decl(name)) {
-            return scope->get_static_decl(name);
+    for (auto &scope : boost::adaptors::reverse(scopes)) {
+        if (scope.has_static_decl(name)) {
+            return scope.get_static_decl(name);
         }
     }
     // also check the parent scope
@@ -177,7 +210,7 @@ const P4Declaration *P4State::get_static_decl(cstring name) const {
 }
 
 P4Declaration *P4State::find_static_decl(cstring name, P4Scope **owner_scope) {
-    for (std::size_t i = 0; i < scopes.size(); ++i) {
+    for (int i = scopes.size() - 1; i >= 0; --i) {
         auto scope = &scopes.at(i);
         if (scope->has_static_decl(name)) {
             *owner_scope = scope;
@@ -218,7 +251,7 @@ ProgState P4State::clone_state() const {
 VarMap P4State::clone_vars() const {
     VarMap cloned_vars;
     // this also implicitly shadows
-    for (auto &scope : scopes) {
+    for (auto &scope :  boost::adaptors::reverse(scopes)) {
         auto sub_vars = scope.clone_vars();
         cloned_vars.insert(sub_vars.begin(), sub_vars.end());
     }
@@ -228,7 +261,7 @@ VarMap P4State::clone_vars() const {
 VarMap P4State::get_vars() const {
     VarMap concat_map;
     // this also implicitly shadows
-    for (auto &scope : scopes) {
+    for (auto &scope :  boost::adaptors::reverse(scopes)) {
         auto sub_vars = scope.get_var_map();
         concat_map.insert(sub_vars.begin(), sub_vars.end());
     }
@@ -236,14 +269,12 @@ VarMap P4State::get_vars() const {
 }
 
 void P4State::restore_vars(const VarMap &input_map) {
-    // this also implicitly shadows
     for (auto &map_tuple : input_map) {
         update_var(map_tuple.first, map_tuple.second.first);
     }
 }
 
 void P4State::merge_vars(const z3::expr &cond, const VarMap &then_map) {
-    // this also implicitly shadows
     for (auto &map_tuple : get_vars()) {
         auto else_name = map_tuple.first;
         auto instance = map_tuple.second.first;

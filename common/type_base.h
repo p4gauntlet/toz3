@@ -13,6 +13,7 @@
 #include "lib/cstring.h"
 
 #define BOOST_VARIANT_USE_RELAXED_GET_BY_DEFAULT
+#include <boost/range/adaptor/reversed.hpp>
 #include <boost/variant.hpp>
 #include <boost/variant/get.hpp>
 
@@ -148,8 +149,9 @@ class P4Z3Instance {
         P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.",
                           get_static_type());
     }
-    virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars() const {
-        P4C_UNIMPLEMENTED("Get Z3 vars not implemented for %s.",
+    virtual std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring = "", const z3::expr * = nullptr) const {
+        P4C_UNIMPLEMENTED("get_z3_vars not implemented for %s.",
                           get_static_type());
     }
     virtual P4Z3Instance *copy() const {

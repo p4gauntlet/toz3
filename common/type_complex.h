@@ -29,19 +29,30 @@ class StructBase : public P4Z3Instance {
     StructBase(P4State *state, const IR::Type_StructLike *type,
                uint64_t member_id);
     StructBase() {}
-    virtual std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "") const;
 
     uint64_t get_width() { return width; }
 
     const P4Z3Instance *get_const_member(cstring name) const {
-        return members.at(name);
+        auto it = members.find(name);
+        if (it != members.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in member map.", name);
     }
     P4Z3Instance *get_member(cstring name) const override {
-        return members.at(name);
+        auto it = members.find(name);
+        if (it != members.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in member map.", name);
     }
     const IR::Type *get_member_type(cstring name) {
-        return member_types.at(name);
+        auto it = member_types.find(name);
+        if (it != member_types.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in member type map of %s.", name,
+            get_static_type());
     }
 
     void update_member(cstring name, P4Z3Instance *val) {
@@ -55,7 +66,6 @@ class StructBase : public P4Z3Instance {
     get_immutable_member_map() const {
         return &members;
     }
-    virtual void propagate_validity(z3::expr * = nullptr) {}
     void set_undefined() override;
     virtual void set_list(std::vector<P4Z3Instance *>);
 
@@ -72,9 +82,19 @@ class StructBase : public P4Z3Instance {
 class StructInstance : public StructBase {
     using StructBase::StructBase;
 
+ protected:
+    z3::expr valid;
+
  public:
+    StructInstance(P4State *state, const IR::Type_StructLike *type,
+                   uint64_t member_id);
     StructInstance *copy() const override;
-    void propagate_validity(z3::expr *valid_expr = nullptr) override;
+    void set_valid(const z3::expr &valid_val);
+    const z3::expr *get_valid() const;
+    virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
+    std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring prefix = "",
+                const z3::expr *valid_expr = nullptr) const override;
     cstring get_static_type() const override { return "StructInstance"; }
     cstring to_string() const override {
         cstring ret = "StructInstance(";
@@ -88,29 +108,26 @@ class StructInstance : public StructBase {
         ret += ")";
         return ret;
     }
+    ~StructInstance() {}
+    // copy constructor
+    StructInstance(const StructInstance &other);
+    // overload = operator
+    StructInstance &operator=(const StructInstance &other);
 };
 
-class HeaderInstance : public StructBase {
-    using StructBase::StructBase;
+class HeaderInstance : public StructInstance {
+    using StructInstance::StructInstance;
 
  private:
     std::map<cstring, FunctionWrapper *> member_functions;
-    z3::expr valid;
 
  public:
     HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
-
-    void set_valid(const z3::expr &valid_val);
-
-    const z3::expr *get_valid() const;
-
     void setValid(Visitor *);
     void setInvalid(Visitor *);
     void isValid(Visitor *);
-    std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "") const override;
-    void propagate_validity(z3::expr *valid_expr = nullptr) override;
+    void propagate_validity(const z3::expr *valid_expr = nullptr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
     void set_list(std::vector<P4Z3Instance *>) override;
 
@@ -146,7 +163,8 @@ class EnumInstance : public StructBase {
     const IR::Type_Enum *p4_type;
     EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "") const override;
+    get_z3_vars(cstring prefix = "",
+                const z3::expr *valid_expr = nullptr) const override;
     cstring get_static_type() const override { return "EnumInstance"; }
     cstring to_string() const override {
         cstring ret = "EnumInstance(";
@@ -170,7 +188,8 @@ class ErrorInstance : public StructBase {
     ErrorInstance(P4State *state, const IR::Type_Error *type,
                   uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "") const override;
+    get_z3_vars(cstring prefix = "",
+                const z3::expr *valid_expr = nullptr) const override;
     cstring get_static_type() const override { return "ErrorInstance"; }
     ErrorInstance *copy() const override;
 
@@ -267,6 +286,47 @@ class P4TableInstance : public P4Declaration {
     cstring get_static_type() const override { return "P4TableInstance"; }
     cstring to_string() const override {
         cstring ret = "P4TableInstance(";
+        return ret + decl->toString() + ")";
+    }
+};
+
+class DeclarationInstance : public P4Z3Instance {
+ private:
+    P4State *state;
+    std::map<cstring, FunctionWrapper *> member_functions;
+    ordered_map<cstring, P4Z3Instance *> members;
+    // A wrapper class for table declarations
+ public:
+    const IR::Type_Declaration *decl;
+    // constructor
+    explicit DeclarationInstance(P4State *state,
+                                 const IR::Type_Declaration *decl);
+    // Merge is a no-op here.
+    void merge(const z3::expr &, const P4Z3Instance &) override {}
+    // TODO: This is a little pointless....
+    DeclarationInstance *copy() const override {
+        return new DeclarationInstance(state, decl);
+    }
+
+    P4Z3Instance *get_member(cstring name) const override {
+        auto it = members.find(name);
+        if (it != members.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in member map.", name);
+    }
+    P4Z3Instance *get_function(cstring name) const override {
+        auto it = member_functions.find(name);
+        if (it != member_functions.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in function map.", name);
+    }
+    void apply(Visitor *);
+
+    cstring get_static_type() const override { return "DeclarationInstance"; }
+    cstring to_string() const override {
+        cstring ret = "DeclarationInstance(";
         return ret + decl->toString() + ")";
     }
 };
