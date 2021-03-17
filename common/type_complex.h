@@ -342,10 +342,11 @@ class DeclarationInstance : public P4Z3Instance {
 class ExternInstance : public P4Z3Instance {
  private:
     std::map<cstring, P4Declaration *> methods;
+    P4State *state;
+    const IR::Type_Extern *p4_type;
 
  public:
-    const IR::Type_Extern *p4_type;
-    explicit ExternInstance(const IR::Type_Extern *type);
+    explicit ExternInstance(P4State *state, const IR::Type_Extern *type);
     void merge(const z3::expr &, const P4Z3Instance &) override{
         // Merge is a no-op here.
     };
@@ -364,7 +365,7 @@ class ExternInstance : public P4Z3Instance {
     }
     // TODO: This is a little pointless....
     ExternInstance *copy() const override {
-        return new ExternInstance(p4_type);
+        return new ExternInstance(state, p4_type);
     }
 };
 

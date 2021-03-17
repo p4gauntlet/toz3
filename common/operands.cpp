@@ -11,21 +11,9 @@
 namespace TOZ3_V2 {
 
 bool Z3Visitor::preorder(const IR::Member *m) {
-    const P4Z3Instance *complex_class;
-    if (auto member = m->expr->to<IR::Member>()) {
-        visit(member);
-        complex_class = state->get_expr_result();
-    } else if (auto name = m->expr->to<IR::PathExpression>()) {
-        complex_class = state->get_var(name->path->name);
-    } else if (auto method = m->expr->to<IR::MethodCallExpression>()) {
-        visit(method);
-        complex_class = state->get_expr_result();
-    } else {
-        P4C_UNIMPLEMENTED("Parent Type  %s not implemented!",
-                          m->expr->node_type_name());
-    }
+    visit(m->expr);
+    auto complex_class = state->get_expr_result();
     state->set_expr_result(complex_class->get_member(m->member.name));
-
     return false;
 }
 

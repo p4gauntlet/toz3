@@ -77,21 +77,16 @@ bool Z3Visitor::preorder(const IR::Method *m) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::P4Table *p4t) {
-    auto ctx = state->get_z3_ctx();
-    auto table_name = infer_name(p4t->getAnnotations(), p4t->getName().name);
-    auto table_action_name = table_name + "action_idx";
-    auto table_action = ctx->int_const(table_action_name.c_str());
-    bool immutable = false;
-    // We first collect all the necessary properties
-    std::vector<const IR::KeyElement *> keys;
-    std::vector<const IR::MethodCallExpression *> actions;
-    const IR::MethodCallExpression *default_action = nullptr;
+void process_table_properties(
+    const IR::P4Table *p4t, std::vector<const IR::KeyElement *> *keys,
+    std::vector<const IR::MethodCallExpression *> *actions,
+    const IR::MethodCallExpression **default_action, bool *immutable) {
+
     for (auto p : p4t->properties->properties) {
         auto val = p->value;
         if (auto key = val->to<IR::Key>()) {
             for (auto ke : key->keyElements) {
-                keys.push_back(ke);
+                keys->push_back(ke);
             }
         } else if (auto action_list = val->to<IR::ActionList>()) {
             for (auto act : action_list->actionList) {
@@ -105,11 +100,10 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
                     continue;
                 if (auto method_call =
                         act->expression->to<IR::MethodCallExpression>()) {
-                    actions.push_back(method_call);
-                } else if (auto path =
-                               act->expression->to<IR::PathExpression>()) {
-                    auto method_call = new IR::MethodCallExpression(path);
-                    actions.push_back(method_call);
+                    actions->push_back(method_call);
+                } else if (act->expression->is<IR::PathExpression>()) {
+                    actions->push_back(
+                        new IR::MethodCallExpression(act->expression));
                 } else {
                     P4C_UNIMPLEMENTED("Unsupported action entry %s of type %s",
                                       act, act->expression->node_type_name());
@@ -120,10 +114,10 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
             if (p->name.name == "default_action") {
                 if (auto method_call =
                         expr_val->expression->to<IR::MethodCallExpression>()) {
-                    default_action = method_call;
-                } else if (auto path =
-                               expr_val->expression->to<IR::PathExpression>()) {
-                    default_action = new IR::MethodCallExpression(path);
+                    *default_action = method_call;
+                } else if (expr_val->expression->is<IR::PathExpression>()) {
+                    *default_action =
+                        new IR::MethodCallExpression(expr_val->expression);
                 } else {
                     P4C_UNIMPLEMENTED(
                         "Unsupported expression value %s of type %s", expr_val,
@@ -142,22 +136,88 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         // if the entries properties is constant it means the entries are fixed
         // we cannot add or remove table entries
         if (p->name.name == "entries" and p->isConstant) {
-            immutable = true;
+            *immutable = true;
         }
     }
+}
+
+z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
+                           const std::vector<const IR::KeyElement *> &keys) {
+    auto state = visitor->state;
+    auto ctx = state->get_z3_ctx();
     z3::expr hit = ctx->bool_val(false);
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
         auto key = keys.at(idx);
-        visit(key->expression);
+        visitor->visit(key->expression);
         auto key_eval = state->get_expr_result<Z3Bitvector>();
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
         auto key_match =
             ctx->bv_const(key_name.c_str(), key_eval->val.get_sort().bv_size());
         hit = hit || (key_eval->val == key_match);
     }
+    return hit;
+}
+
+void handle_table_action(Z3Visitor *visitor, cstring table_name,
+                         const IR::MethodCallExpression *act) {
+    auto state = visitor->state;
+    const IR::Expression *call_name;
+    IR::Vector<IR::Argument> ctrl_args;
+    const IR::ParameterList *method_params;
+
+    if (auto path = act->method->to<IR::PathExpression>()) {
+        call_name = path;
+        cstring identifier_path =
+            path->path->name + std::to_string(act->arguments->size());
+        auto action_decl = state->get_static_decl(identifier_path);
+        if (auto action = action_decl->decl->to<IR::P4Action>()) {
+            method_params = action->getParameters();
+        } else {
+            BUG("Unexpected action call %s of type %s in table.",
+                action_decl->decl, action_decl->decl->node_type_name());
+        }
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported action %s of type %s", act,
+                          act->method->node_type_name());
+    }
+    for (auto &arg : *act->arguments) {
+        ctrl_args.push_back(arg);
+    }
+    // At this stage, we synthesize control plane arguments
+    auto args_len = act->arguments->size();
+    for (size_t idx = 0; idx < method_params->size(); ++idx) {
+        auto param = method_params->getParameter(idx);
+        if (args_len <= idx) {
+            cstring arg_name =
+                table_name + call_name->toString() + std::to_string(idx);
+            auto ctrl_arg = state->gen_instance(arg_name, param->type);
+            // TODO: This is a bug waiting to happen. How to handle fresh
+            // arguments and their source?
+            state->declare_var(arg_name, ctrl_arg, param->type);
+            ctrl_args.push_back(
+                new IR::Argument(new IR::PathExpression(arg_name)));
+        }
+    }
+    const auto action_with_ctrl_args =
+        new IR::MethodCallExpression(call_name, &ctrl_args);
+    visitor->visit(action_with_ctrl_args);
+}
+
+bool Z3Visitor::preorder(const IR::P4Table *p4t) {
+    auto ctx = state->get_z3_ctx();
+    auto table_name = infer_name(p4t->getAnnotations(), p4t->getName().name);
+    auto table_action_name = table_name + "action_idx";
+    auto table_action = ctx->int_const(table_action_name.c_str());
+    bool immutable = false;
+    // We first collect all the necessary properties
+    std::vector<const IR::KeyElement *> keys;
+    std::vector<const IR::MethodCallExpression *> actions;
+    const IR::MethodCallExpression *default_action = nullptr;
+    process_table_properties(p4t, &keys, &actions, &default_action, &immutable);
+
+    z3::expr hit = compute_table_hit(this, table_name, keys);
 
     std::vector<std::pair<z3::expr, VarMap>> action_vars;
-
     bool has_exited = true;
     z3::expr matches = ctx->bool_val(false);
     for (std::size_t idx = 0; idx < actions.size(); ++idx) {
@@ -165,7 +225,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         auto cond = hit && (table_action == ctx->int_val(idx));
         auto old_vars = state->clone_vars();
         state->push_forward_cond(cond);
-        visit(action);
+        handle_table_action(this, table_name, action);
         state->pop_forward_cond();
         auto call_has_exited = state->has_exited();
         if (!call_has_exited) {
@@ -176,14 +236,18 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         state->restore_vars(old_vars);
         matches = matches || cond;
     }
-    auto old_vars = state->clone_vars();
-    state->push_forward_cond(!matches);
-    visit(default_action);
-    state->pop_forward_cond();
-    if (state->has_exited()) {
-        state->restore_vars(old_vars);
+
+    if (default_action) {
+        auto old_vars = state->clone_vars();
+        state->push_forward_cond(!matches);
+        handle_table_action(this, table_name, default_action);
+        state->pop_forward_cond();
+        if (state->has_exited()) {
+            state->restore_vars(old_vars);
+        }
     }
-    state->set_exit(state->has_exited() && has_exited);
+    state->set_exit(has_exited && state->has_exited());
+
     for (auto it = action_vars.rbegin(); it != action_vars.rend(); ++it) {
         state->merge_vars(it->first, it->second);
     }

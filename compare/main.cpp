@@ -42,7 +42,8 @@ const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
     if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
         return main_pkg;
     } else {
-        BUG("Main node %s not implemented!", main->decl->node_type_name());
+        P4C_UNIMPLEMENTED("Main node %s not implemented!",
+                          main->decl->node_type_name());
     }
 }
 

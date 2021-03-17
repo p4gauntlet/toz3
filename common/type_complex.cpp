@@ -367,7 +367,8 @@ ErrorInstance *ErrorInstance::copy() const {
     return new ErrorInstance(state, p4_type, member_id);
 }
 
-ExternInstance::ExternInstance(const IR::Type_Extern *type) : p4_type(type) {
+ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *type)
+    : state(state), p4_type(type) {
     for (auto method : type->methods) {
         auto method_identifier =
             method->getName().name +

@@ -26,7 +26,9 @@ bool TypeVisitor::preorder(const IR::Type_StructLike *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_Enum *t) {
+    // FIXME: Enums are really nasty because we also need to access them
     state->add_type(t->name.name, t);
+    state->declare_var(t->name.name, new EnumInstance(state, t, 0), t);
     return false;
 }
 
@@ -37,6 +39,8 @@ bool TypeVisitor::preorder(const IR::Type_Error *t) {
 
 bool TypeVisitor::preorder(const IR::Type_Extern *t) {
     state->add_type(t->name.name, t);
+    // state->declare_var(t->name.name, new ExternInstance(state, t), t);
+
     return false;
 }
 
@@ -97,12 +101,25 @@ bool TypeVisitor::preorder(const IR::Method *m) {
 bool TypeVisitor::preorder(const IR::P4Action *a) {
     // FIXME: Overloading uses num of parameters, it should use types
     cstring overloaded_name = a->getName().name;
-    auto num_params = a->getParameters()->parameters.size();
-    // for (auto param : f->getParameters()->parameters) {
-    //     overloaded_name += param->node_type_name();
-    // }
-    overloaded_name += std::to_string(num_params);
-    state->declare_static_decl(overloaded_name, new P4Declaration(a));
+    auto num_params = 0;
+    auto num_optional_params = 0;
+    for (auto param : a->getParameters()->parameters) {
+        if (param->direction == IR::Direction::None) {
+            num_optional_params += 1;
+        } else {
+            num_params += 1;
+        }
+    }
+    auto decl = new P4Declaration(a);
+    auto name_basic = overloaded_name + std::to_string(num_params);
+    state->declare_static_decl(name_basic, decl);
+    // The IR has bizarre side effects when storing pointers in a map
+    // FIXME: Think about how to simplify this, maybe use their vector
+    if (num_optional_params != 0) {
+        auto name_opt =
+            overloaded_name + std::to_string(num_params + num_optional_params);
+        state->declare_static_decl(name_opt, decl);
+    }
     return false;
 }
 

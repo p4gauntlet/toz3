@@ -67,7 +67,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (auto te = type->to<IR::Type_Error>()) {
         instance = new ErrorInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Extern>()) {
-        instance = new ExternInstance(te);
+        instance = new ExternInstance(this, te);
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
     } else if (type->is<IR::Type_Base>()) {
@@ -251,7 +251,7 @@ ProgState P4State::clone_state() const {
 VarMap P4State::clone_vars() const {
     VarMap cloned_vars;
     // this also implicitly shadows
-    for (auto &scope :  boost::adaptors::reverse(scopes)) {
+    for (auto &scope : boost::adaptors::reverse(scopes)) {
         auto sub_vars = scope.clone_vars();
         cloned_vars.insert(sub_vars.begin(), sub_vars.end());
     }
@@ -261,7 +261,7 @@ VarMap P4State::clone_vars() const {
 VarMap P4State::get_vars() const {
     VarMap concat_map;
     // this also implicitly shadows
-    for (auto &scope :  boost::adaptors::reverse(scopes)) {
+    for (auto &scope : boost::adaptors::reverse(scopes)) {
         auto sub_vars = scope.get_var_map();
         concat_map.insert(sub_vars.begin(), sub_vars.end());
     }

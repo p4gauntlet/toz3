@@ -76,6 +76,11 @@ bool Z3Visitor::preorder(const IR::PathExpression *p) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::TypeNameExpression *t) {
+    state->set_expr_result(state->get_var(t->typeName->path->name));
+    return false;
+}
+
 std::vector<std::pair<const IR::Expression *, cstring>>
 resolve_args(const IR::Vector<IR::Argument> *args,
              const IR::ParameterList *params) {
