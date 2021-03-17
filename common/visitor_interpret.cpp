@@ -7,11 +7,6 @@
 
 namespace TOZ3_V2 {
 
-Visitor::profile_t Z3Visitor::init_apply(const IR::Node *node) {
-    return Inspector::init_apply(node);
-}
-
-void Z3Visitor::end_apply(const IR::Node *) {}
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
     TypeVisitor map_builder = TypeVisitor(state);

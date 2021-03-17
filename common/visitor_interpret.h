@@ -21,10 +21,6 @@ class Z3Visitor : public Inspector {
     VarMap get_main_result() { return main_result; }
 
  private:
-    // for initialization and ending
-    Visitor::profile_t init_apply(const IR::Node *node) override;
-    void end_apply(const IR::Node *node) override;
-
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
         FATAL_ERROR("IR Node %s not implemented!", expr->node_type_name());

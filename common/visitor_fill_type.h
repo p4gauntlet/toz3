@@ -19,10 +19,6 @@ class TypeVisitor : public Inspector {
         visitDagOnce = false;
     }
 
-    // for initialization and ending
-    Visitor::profile_t init_apply(const IR::Node *node) override;
-    void end_apply(const IR::Node *node) override;
-
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
         FATAL_ERROR("TypeVisitor: IR Node %s not implemented!",

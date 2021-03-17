@@ -52,8 +52,6 @@ VarMap get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
 
     if (program != nullptr && ::errorCount() == 0) {
         try {
-            P4::P4COptionPragmaParser optionsPragmaParser;
-            program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
             // convert the P4 program to Z3
             P4State state(ctx);
             TypeVisitor map_builder = TypeVisitor(&state);

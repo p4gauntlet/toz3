@@ -7,11 +7,6 @@
 
 namespace TOZ3_V2 {
 
-Visitor::profile_t TypeVisitor::init_apply(const IR::Node *node) {
-    return Inspector::init_apply(node);
-}
-
-void TypeVisitor::end_apply(const IR::Node *) {}
 bool TypeVisitor::preorder(const IR::P4Program *p) {
     // Start to visit the actual AST objects
     for (auto o : p->objects) {
