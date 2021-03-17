@@ -276,10 +276,18 @@ class P4TableInstance : public P4Declaration {
     }
 
     P4Z3Instance *get_member(cstring name) const override {
-        return members.at(name);
+        auto it = members.find(name);
+        if (it != members.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in member map.", name);
     }
     P4Z3Instance *get_function(cstring name) const override {
-        return member_functions.at(name);
+        auto it = member_functions.find(name);
+        if (it != member_functions.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in function map.", name);
     }
     void apply(Visitor *);
 

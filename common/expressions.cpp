@@ -137,7 +137,8 @@ VarMap Z3Visitor::merge_args_with_params(const IR::Vector<IR::Argument> *args,
 }
 
 const P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
-                                               const IR::Member *m) {
+                                               const IR::Member *m,
+                                               int num_args) {
     const IR::Expression *parent = m->expr;
     const P4Z3Instance *complex_type;
     if (auto member = parent->to<IR::Member>()) {
@@ -159,7 +160,9 @@ const P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
         P4C_UNIMPLEMENTED("Parent %s of type %s not implemented!", parent,
                           parent->node_type_name());
     }
-    return complex_type->get_function(m->member.name);
+    // FIXME: This is a very rough version of overloading...
+    auto member_identifier = m->member.name + std::to_string(num_args);
+    return complex_type->get_function(member_identifier);
 }
 
 const IR::ParameterList *get_params(const IR::Node *callable) {
@@ -224,13 +227,18 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Node *callable;
     const IR::ParameterList *params;
     auto arguments = mce->arguments;
+    auto arg_size = arguments->size();
 
     auto method_type = mce->method;
     if (auto path_expr = method_type->to<IR::PathExpression>()) {
-        callable = state->get_static_decl(path_expr->path->name.name)->decl;
+        // FIXME: This is a very rough version of overloading...
+        auto path_identifier =
+            path_expr->path->name.name + std::to_string(arg_size);
+        callable = state->get_static_decl(path_identifier)->decl;
     } else if (auto member = method_type->to<IR::Member>()) {
         // try to resolve and find a function pointer
-        auto resolved_call = resolve_var_or_decl_parent(this, member);
+
+        auto resolved_call = resolve_var_or_decl_parent(this, member, arg_size);
         if (auto function = resolved_call->to<FunctionWrapper>()) {
             // call the function directly for now
             function->function_call(this);
@@ -252,7 +260,6 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     params = get_params(callable);
 
     handle_methodcall(callable, params, arguments);
-
     return false;
 }
 

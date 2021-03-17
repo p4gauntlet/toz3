@@ -211,21 +211,21 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
     : StructInstance(state, type, member_id) {
     valid = state->get_z3_ctx()->bool_val(false);
-    member_functions["setValid"] =
+    member_functions["setValid0"] =
         new FunctionWrapper([this](Visitor *visitor) { setValid(visitor); });
-    member_functions["setInvalid"] =
+    member_functions["setInvalid0"] =
         new FunctionWrapper([this](Visitor *visitor) { setInvalid(visitor); });
-    member_functions["isValid"] =
+    member_functions["isValid0"] =
         new FunctionWrapper([this](Visitor *visitor) { isValid(visitor); });
 }
 
 HeaderInstance::HeaderInstance(const HeaderInstance &other)
     : StructInstance(other) {
-    member_functions["setValid"] =
+    member_functions["setValid0"] =
         new FunctionWrapper([this](Visitor *visitor) { setValid(visitor); });
-    member_functions["setInvalid"] =
+    member_functions["setInvalid0"] =
         new FunctionWrapper([this](Visitor *visitor) { setInvalid(visitor); });
-    member_functions["isValid"] =
+    member_functions["isValid0"] =
         new FunctionWrapper([this](Visitor *visitor) { isValid(visitor); });
 }
 
@@ -244,11 +244,11 @@ HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
         auto member_cpy = value_tuple.second->copy();
         insert_member(name, member_cpy);
     }
-    member_functions["setValid"] =
+    member_functions["setValid0"] =
         new FunctionWrapper([this](Visitor *visitor) { setValid(visitor); });
-    member_functions["setInvalid"] =
+    member_functions["setInvalid0"] =
         new FunctionWrapper([this](Visitor *visitor) { setInvalid(visitor); });
-    member_functions["isValid"] =
+    member_functions["isValid0"] =
         new FunctionWrapper([this](Visitor *visitor) { isValid(visitor); });
     return *this;
 }
@@ -369,7 +369,10 @@ ErrorInstance *ErrorInstance::copy() const {
 
 ExternInstance::ExternInstance(const IR::Type_Extern *type) : p4_type(type) {
     for (auto method : type->methods) {
-        methods.insert({method->getName().name, new P4Declaration(method)});
+        auto method_identifier =
+            method->getName().name +
+            std::to_string(method->getParameters()->size());
+        methods.insert({method_identifier, new P4Declaration(method)});
     }
 }
 
@@ -398,7 +401,11 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::Declaration *decl)
     : P4Declaration(decl), state(state),
       hit(state->get_z3_ctx()->bool_val(false)) {
     members.insert({"action_run", this});
-    member_functions["apply"] =
+    cstring apply_str = "apply";
+    if (auto table = decl->to<IR::P4Table>()) {
+        apply_str += std::to_string(table->getApplyParameters()->size());
+    }
+    member_functions[apply_str] =
         new FunctionWrapper([this](Visitor *visitor) { apply(visitor); });
 }
 P4TableInstance::P4TableInstance(
@@ -409,7 +416,11 @@ P4TableInstance::P4TableInstance(
       keys(keys), actions(actions), immutable(immutable) {
     members.insert({"action_run", this});
     members.insert({"hit", new Z3Bitvector(state, hit)});
-    member_functions["apply"] =
+    cstring apply_str = "apply";
+    if (auto table = decl->to<IR::P4Table>()) {
+        apply_str += std::to_string(table->getApplyParameters()->size());
+    }
+    member_functions[apply_str] =
         new FunctionWrapper([this](Visitor *visitor) { apply(visitor); });
 }
 
@@ -418,7 +429,13 @@ void P4TableInstance::apply(Visitor *) { state->set_expr_result(this); }
 DeclarationInstance::DeclarationInstance(P4State *state,
                                          const IR::Type_Declaration *decl)
     : state(state), decl(decl) {
-    member_functions["apply"] =
+    cstring apply_str = "apply";
+    if (auto ctrl = decl->to<IR::P4Control>()) {
+        apply_str += std::to_string(ctrl->getApplyParameters()->size());
+    } else if (auto ctrl = decl->to<IR::P4Parser>()) {
+        apply_str += std::to_string(ctrl->getApplyParameters()->size());
+    }
+    member_functions[apply_str] =
         new FunctionWrapper([this](Visitor *visitor) { apply(visitor); });
 }
 

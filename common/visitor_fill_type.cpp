@@ -71,23 +71,38 @@ bool TypeVisitor::preorder(const IR::P4Control *c) {
 }
 
 bool TypeVisitor::preorder(const IR::Function *f) {
-    // FIXME: Overloading
-    state->declare_static_decl(f->name.name, new P4Declaration(f));
+    // FIXME: Overloading uses num of parameters, it should use types
+    cstring overloaded_name = f->getName().name;
+    auto num_params = f->getParameters()->parameters.size();
+    // for (auto param : f->getParameters()->parameters) {
+    //     overloaded_name += param->node_type_name();
+    // }
+    overloaded_name += std::to_string(num_params);
+    state->declare_static_decl(overloaded_name, new P4Declaration(f));
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Method *m) {
-    // FIXME: Overloading
-    cstring overloaded_name = m->name.name;
-    for (auto param : m->getParameters()->parameters) {
-        overloaded_name += param->node_type_name();
-    }
+    // FIXME: Overloading uses num of parameters, it should use types
+    cstring overloaded_name = m->getName().name;
+    auto num_params = m->getParameters()->parameters.size();
+    // for (auto param : f->getParameters()->parameters) {
+    //     overloaded_name += param->node_type_name();
+    // }
+    overloaded_name += std::to_string(num_params);
     state->declare_static_decl(overloaded_name, new P4Declaration(m));
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::P4Action *a) {
-    state->declare_static_decl(a->name.name, new P4Declaration(a));
+    // FIXME: Overloading uses num of parameters, it should use types
+    cstring overloaded_name = a->getName().name;
+    auto num_params = a->getParameters()->parameters.size();
+    // for (auto param : f->getParameters()->parameters) {
+    //     overloaded_name += param->node_type_name();
+    // }
+    overloaded_name += std::to_string(num_params);
+    state->declare_static_decl(overloaded_name, new P4Declaration(a));
     return false;
 }
 
