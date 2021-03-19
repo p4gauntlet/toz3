@@ -7,7 +7,6 @@
 
 namespace TOZ3_V2 {
 
-
 bool Z3Visitor::preorder(const IR::P4Control *c) {
     TypeVisitor map_builder = TypeVisitor(state);
 
@@ -485,6 +484,31 @@ StructBase *resolve_reference(Z3Visitor *visitor, const IR::Expression *expr) {
     return complex_class->to_mut<StructBase>();
 }
 
+z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
+                       const z3::expr &hi, const z3::expr &lo) {
+    auto ctx = &lval.get_sort().ctx();
+    auto lval_max = lval.get_sort().bv_size() - 1ull;
+    auto lval_min = 0ull;
+    auto hi_int = hi.get_numeral_uint64();
+    auto lo_int = lo.get_numeral_uint64();
+    if (hi_int == lval_max && lo_int == lval_min) {
+        return rval;
+    }
+    z3::expr_vector assemble(*ctx);
+    if (hi_int < lval_max) {
+        assemble.push_back(lval.extract(lval_max, hi_int + 1));
+    }
+    // auto middle_size = ctx->bv_sort(hi_int + 1 - lo_int);
+    // auto cast_val = pure_bv_cast(rval, middle_size);
+    assemble.push_back(rval);
+
+    if (lo_int > lval_min) {
+        assemble.push_back(lval.extract(lo_int - 1, lval_min));
+    }
+
+    return z3::concat(assemble);
+}
+
 void Z3Visitor::set_var(const IR::Expression *target, const P4Z3Instance *val) {
     if (auto name = target->to<IR::PathExpression>()) {
         auto dest_type = state->get_var_type(name->path->name.name);
@@ -496,6 +520,54 @@ void Z3Visitor::set_var(const IR::Expression *target, const P4Z3Instance *val) {
         auto dest_type = complex_class->get_member_type(member->member.name);
         auto cast_val = val->cast_allocate(dest_type);
         complex_class->update_member(member->member.name, cast_val);
+    } else if (auto sl = target->to<IR::Slice>()) {
+        const z3::expr *lval = nullptr;
+        const z3::expr *rval = nullptr;
+        const z3::expr *hi = nullptr;
+        const z3::expr *lo = nullptr;
+        bool is_signed = false;
+        // FIXME: A little snag in the way we return values...
+        val = val->copy();
+        if (auto z3_bitvec = val->to<Z3Bitvector>()) {
+            rval = &z3_bitvec->val;
+            is_signed = z3_bitvec->is_signed;
+        } else if (auto z3_int = val->to<Z3Int>()) {
+            rval = &z3_int->val;
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.",
+                              val->get_static_type());
+        }
+        visit(sl->e0);
+        auto lval_expr = state->copy_expr_result();
+        if (auto z3_bitvec = lval_expr->to<Z3Bitvector>()) {
+            lval = &z3_bitvec->val;
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.",
+                              val->get_static_type());
+        }
+        visit(sl->e1);
+        auto hi_expr = state->copy_expr_result();
+        if (auto z3_bitvec = hi_expr->to<Z3Bitvector>()) {
+            hi = &z3_bitvec->val;
+        } else if (auto z3_int = hi_expr->to<Z3Int>()) {
+            hi = &z3_int->val;
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported hi of type %s for slice.",
+                              val->get_static_type());
+        }
+        visit(sl->e2);
+        auto lo_expr = state->get_expr_result();
+        if (auto z3_bitvec = lo_expr->to<Z3Bitvector>()) {
+            lo = &z3_bitvec->val;
+        } else if (auto z3_int = lo_expr->to<Z3Int>()) {
+            lo = &z3_int->val;
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported lo of type %s for slice.",
+                              val->get_static_type());
+        }
+        auto slice_expr = compute_slice(*lval, *rval, *hi, *lo).simplify();
+        // What to do about repeated evaluation?
+        set_var(sl->e0, new Z3Bitvector(state, slice_expr, is_signed));
     } else {
         P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
     }

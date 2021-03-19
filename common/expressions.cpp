@@ -40,6 +40,7 @@ bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
     visit(ne->expression);
     return false;
 }
+
 bool Z3Visitor::preorder(const IR::ListExpression *le) {
     std::vector<P4Z3Instance *> members;
     for (auto component : le->components) {

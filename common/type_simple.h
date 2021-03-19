@@ -19,6 +19,9 @@ namespace TOZ3_V2 {
 // Forward declare state
 class P4State;
 
+z3::expr pure_bv_cast(const z3::expr &expr, z3::sort dest_type);
+
+
 class VoidResult : public P4Z3Instance {
  public:
     VoidResult() {}
@@ -122,23 +125,23 @@ class Z3Bitvector : public P4Z3Instance {
     Z3Result operatorSubSat(const P4Z3Instance &other) const override;
     Z3Result operator>>(const P4Z3Instance &other) const override;
     Z3Result operator<<(const P4Z3Instance &other) const override;
-    Z3Result operator==(const P4Z3Instance &other) const override;
-    Z3Result operator!=(const P4Z3Instance &other) const override;
-    Z3Result operator<(const P4Z3Instance &other) const override;
-    Z3Result operator<=(const P4Z3Instance &other) const override;
-    Z3Result operator>(const P4Z3Instance &other) const override;
-    Z3Result operator>=(const P4Z3Instance &other) const override;
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
+    z3::expr operator<(const P4Z3Instance &other) const override;
+    z3::expr operator<=(const P4Z3Instance &other) const override;
+    z3::expr operator>(const P4Z3Instance &other) const override;
+    z3::expr operator>=(const P4Z3Instance &other) const override;
+    z3::expr operator&&(const P4Z3Instance &other) const override;
+    z3::expr operator||(const P4Z3Instance &other) const override;
     Z3Result operator&(const P4Z3Instance &other) const override;
     Z3Result operator|(const P4Z3Instance &other) const override;
     Z3Result operator^(const P4Z3Instance &other) const override;
-    Z3Result operator&&(const P4Z3Instance &other) const override;
-    Z3Result operator||(const P4Z3Instance &other) const override;
     Z3Result concat(const P4Z3Instance &) const override;
     Z3Result cast(z3::sort &) const override;
     Z3Result cast(const IR::Type *) const override;
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/
-    Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const override;
+    Z3Result slice(const P4Z3Instance &, const P4Z3Instance &) const override;
 
     void merge(const z3::expr &cond, const P4Z3Instance &other) override;
     Z3Bitvector *copy() const override;
@@ -178,23 +181,23 @@ class Z3Int : public P4Z3Instance {
     Z3Result operatorSubSat(const P4Z3Instance &other) const override;
     Z3Result operator>>(const P4Z3Instance &other) const override;
     Z3Result operator<<(const P4Z3Instance &other) const override;
-    Z3Result operator==(const P4Z3Instance &other) const override;
-    Z3Result operator!=(const P4Z3Instance &other) const override;
-    Z3Result operator<(const P4Z3Instance &other) const override;
-    Z3Result operator<=(const P4Z3Instance &other) const override;
-    Z3Result operator>(const P4Z3Instance &other) const override;
-    Z3Result operator>=(const P4Z3Instance &other) const override;
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
+    z3::expr operator<(const P4Z3Instance &other) const override;
+    z3::expr operator<=(const P4Z3Instance &other) const override;
+    z3::expr operator>(const P4Z3Instance &other) const override;
+    z3::expr operator>=(const P4Z3Instance &other) const override;
+    z3::expr operator&&(const P4Z3Instance &other) const override;
+    z3::expr operator||(const P4Z3Instance &other) const override;
     Z3Result operator&(const P4Z3Instance &other) const override;
     Z3Result operator|(const P4Z3Instance &other) const override;
     Z3Result operator^(const P4Z3Instance &other) const override;
-    Z3Result operator&&(const P4Z3Instance &other) const override;
-    Z3Result operator||(const P4Z3Instance &other) const override;
     Z3Result concat(const P4Z3Instance &) const override;
     Z3Result cast(z3::sort &) const override;
     Z3Result cast(const IR::Type *) const override;
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/
-    Z3Result slice(uint64_t, uint64_t, P4Z3Instance &) const override;
+    Z3Result slice(const P4Z3Instance &, const P4Z3Instance &) const override;
 
     void merge(const z3::expr &cond, const P4Z3Instance &other) override;
     Z3Int *copy() const override;

@@ -61,7 +61,9 @@ class StructBase : public P4Z3Instance {
     void insert_member(cstring name, P4Z3Instance *val) {
         members.insert({name, val});
     }
-    ordered_map<cstring, P4Z3Instance *> *get_member_map() { return &members; }
+    const ordered_map<cstring, P4Z3Instance *> *get_member_map() const {
+        return &members;
+    }
     const ordered_map<cstring, P4Z3Instance *> *
     get_immutable_member_map() const {
         return &members;
@@ -154,6 +156,8 @@ class HeaderInstance : public StructInstance {
     HeaderInstance(const HeaderInstance &other);
     // overload = operator
     HeaderInstance &operator=(const HeaderInstance &other);
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
 };
 
 class EnumInstance : public StructBase {

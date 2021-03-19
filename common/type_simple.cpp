@@ -77,14 +77,12 @@ Z3Result Z3Bitvector::operator!() const {
 /****** BINARY OPERANDS ******/
 
 Z3Result Z3Bitvector::operator*(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "*");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "*");
     return Z3Bitvector(state, val * other_expr, is_signed);
 }
 
 Z3Result Z3Bitvector::operator/(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "/");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "/");
     if (is_signed) {
         return Z3Bitvector(state, val / other_expr, is_signed);
     } else {
@@ -93,14 +91,12 @@ Z3Result Z3Bitvector::operator/(const P4Z3Instance &other) const {
 }
 
 Z3Result Z3Bitvector::operator%(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "%");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "%");
     return Z3Bitvector(state, z3::urem(val, other_expr), is_signed);
 }
 
 Z3Result Z3Bitvector::operator+(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "+");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "+");
     return Z3Bitvector(state, val + other_expr, is_signed);
 }
 
@@ -122,8 +118,7 @@ Z3Result Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
 }
 
 Z3Result Z3Bitvector::operator-(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "!=");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "!=");
     return Z3Bitvector(state, val - other_expr, is_signed);
 }
 
@@ -210,86 +205,75 @@ Z3Result Z3Bitvector::operator<<(const P4Z3Instance &other) const {
     return Z3Bitvector(state, pure_bv_cast(shift_result, this_sort), is_signed);
 }
 
-Z3Result Z3Bitvector::operator==(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "==");
-    return Z3Bitvector(state, val == other_expr, is_signed);
+z3::expr Z3Bitvector::operator==(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "==");
+    return val == other_expr;
 }
 
-Z3Result Z3Bitvector::operator!=(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "!=");
-    return Z3Bitvector(state, val != other_expr, is_signed);
+z3::expr Z3Bitvector::operator!=(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "!=");
+    return val != other_expr;
 }
 
-Z3Result Z3Bitvector::operator<(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "<");
+z3::expr Z3Bitvector::operator<(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "<");
     if (is_signed) {
-        return Z3Bitvector(state, val < other_expr, is_signed);
+        return val < other_expr;
     } else {
-        return Z3Bitvector(state, z3::ult(val, other_expr), is_signed);
+        return z3::ult(val, other_expr);
     }
 }
 
-Z3Result Z3Bitvector::operator<=(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "<=");
+z3::expr Z3Bitvector::operator<=(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "<=");
     if (is_signed) {
-        return Z3Bitvector(state, val <= other_expr, is_signed);
+        return val <= other_expr;
     } else {
-        return Z3Bitvector(state, z3::ule(val, other_expr), is_signed);
+        return z3::ule(val, other_expr);
     }
 }
 
-Z3Result Z3Bitvector::operator>(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, ">");
+z3::expr Z3Bitvector::operator>(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, ">");
     if (is_signed) {
-        return Z3Bitvector(state, val > other_expr, is_signed);
+        return val > other_expr;
     } else {
-        return Z3Bitvector(state, z3::ugt(val, other_expr), is_signed);
+        return z3::ugt(val, other_expr);
     }
 }
 
-Z3Result Z3Bitvector::operator>=(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, ">=");
+z3::expr Z3Bitvector::operator>=(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, ">=");
     if (is_signed) {
-        return Z3Bitvector(state, val >= other_expr, is_signed);
+        return val >= other_expr;
     } else {
-        return Z3Bitvector(state, z3::uge(val, other_expr), is_signed);
+        return z3::uge(val, other_expr);
     }
+}
+
+z3::expr Z3Bitvector::operator&&(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "&&");
+    return val && other_expr;
+}
+
+z3::expr Z3Bitvector::operator||(const P4Z3Instance &other) const {
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "||");
+    return val || other_expr;
 }
 
 Z3Result Z3Bitvector::operator&(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "&");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "&");
     return Z3Bitvector(state, val & other_expr, is_signed);
 }
 
 Z3Result Z3Bitvector::operator|(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "|");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|");
     return Z3Bitvector(state, val | other_expr, is_signed);
 }
 
 Z3Result Z3Bitvector::operator^(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "^");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "^");
     return Z3Bitvector(state, val ^ other_expr, is_signed);
-}
-
-Z3Result Z3Bitvector::operator&&(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "&&");
-    return Z3Bitvector(state, val && other_expr, is_signed);
-}
-
-Z3Result Z3Bitvector::operator||(const P4Z3Instance &other) const {
-    const z3::expr other_expr =
-        align_bitvectors(&other, val.get_sort(), false, "||");
-    return Z3Bitvector(state, val || other_expr, is_signed);
 }
 
 Z3Result Z3Bitvector::concat(const P4Z3Instance &other) const {
@@ -380,8 +364,29 @@ P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
 
 /****** TERNARY OPERANDS ******/
 
-Z3Result Z3Bitvector::slice(uint64_t, uint64_t, P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
+Z3Result Z3Bitvector::slice(const P4Z3Instance &hi,
+                            const P4Z3Instance &lo) const {
+    const z3::expr *hi_expr = nullptr;
+    const z3::expr *lo_expr = nullptr;
+    if (auto hi_var = hi.to<Z3Bitvector>()) {
+        hi_expr = &hi_var->val;
+    } else if (auto hi_var = hi.to<Z3Int>()) {
+        hi_expr = &hi_var->val;
+    }
+    if (auto lo_var = lo.to<Z3Bitvector>()) {
+        lo_expr = &lo_var->val;
+    } else if (auto lo_var = lo.to<Z3Int>()) {
+        lo_expr = &lo_var->val;
+    }
+    if (hi_expr && lo_expr) {
+        auto hi_int = hi_expr->get_numeral_uint64();
+        auto lo_int = lo_expr->get_numeral_uint64();
+        return Z3Bitvector(state, val.extract(hi_int, lo_int).simplify(),
+                           is_signed);
+    }
+    P4C_UNIMPLEMENTED("slice for hi %s and lo %s not implemented for %s.",
+                      hi.get_static_type(), lo.get_static_type(),
+                      get_static_type());
 }
 
 Z3Bitvector *Z3Bitvector::copy() const {
@@ -536,7 +541,7 @@ Z3Result Z3Int::operator<<(const P4Z3Instance &other) const {
     P4C_UNIMPLEMENTED("<< not implemented for %s.", other.get_static_type());
 }
 
-Z3Result Z3Int::operator==(const P4Z3Instance &other) const {
+z3::expr Z3Int::operator==(const P4Z3Instance &other) const {
     const z3::expr *this_expr;
     const z3::expr *other_expr;
 
@@ -551,10 +556,10 @@ Z3Result Z3Int::operator==(const P4Z3Instance &other) const {
         P4C_UNIMPLEMENTED("== not implemented for %s.",
                           other.get_static_type());
     }
-    return Z3Bitvector(state, *this_expr == *other_expr);
+    return *this_expr == *other_expr;
 }
 
-Z3Result Z3Int::operator!=(const P4Z3Instance &other) const {
+z3::expr Z3Int::operator!=(const P4Z3Instance &other) const {
     const z3::expr *this_expr;
     const z3::expr *other_expr;
 
@@ -569,10 +574,10 @@ Z3Result Z3Int::operator!=(const P4Z3Instance &other) const {
         P4C_UNIMPLEMENTED("!= not implemented for %s.",
                           other.get_static_type());
     }
-    return Z3Bitvector(state, *this_expr != *other_expr);
+    return *this_expr != *other_expr;
 }
 
-Z3Result Z3Int::operator<(const P4Z3Instance &other) const {
+z3::expr Z3Int::operator<(const P4Z3Instance &other) const {
     const z3::expr *this_expr;
     const z3::expr *other_expr;
 
@@ -586,10 +591,10 @@ Z3Result Z3Int::operator<(const P4Z3Instance &other) const {
     } else {
         P4C_UNIMPLEMENTED("< not implemented for %s.", other.get_static_type());
     }
-    return Z3Bitvector(state, *this_expr < *other_expr);
+    return *this_expr < *other_expr;
 }
 
-Z3Result Z3Int::operator<=(const P4Z3Instance &other) const {
+z3::expr Z3Int::operator<=(const P4Z3Instance &other) const {
     const z3::expr *this_expr;
     const z3::expr *other_expr;
 
@@ -604,10 +609,10 @@ Z3Result Z3Int::operator<=(const P4Z3Instance &other) const {
         P4C_UNIMPLEMENTED("<= not implemented for %s.",
                           other.get_static_type());
     }
-    return Z3Bitvector(state, *this_expr <= *other_expr);
+    return *this_expr <= *other_expr;
 }
 
-Z3Result Z3Int::operator>(const P4Z3Instance &other) const {
+z3::expr Z3Int::operator>(const P4Z3Instance &other) const {
     const z3::expr *this_expr;
     const z3::expr *other_expr;
 
@@ -621,10 +626,10 @@ Z3Result Z3Int::operator>(const P4Z3Instance &other) const {
     } else {
         P4C_UNIMPLEMENTED("> not implemented for %s.", other.get_static_type());
     }
-    return Z3Bitvector(state, *this_expr > *other_expr);
+    return *this_expr > *other_expr;
 }
 
-Z3Result Z3Int::operator>=(const P4Z3Instance &other) const {
+z3::expr Z3Int::operator>=(const P4Z3Instance &other) const {
     const z3::expr *this_expr;
     const z3::expr *other_expr;
 
@@ -639,7 +644,15 @@ Z3Result Z3Int::operator>=(const P4Z3Instance &other) const {
         P4C_UNIMPLEMENTED(">= not implemented for %s.",
                           other.get_static_type());
     }
-    return Z3Bitvector(state, *this_expr >= *other_expr);
+    return *this_expr >= *other_expr;
+}
+
+z3::expr Z3Int::operator&&(const P4Z3Instance &) const {
+    P4C_UNIMPLEMENTED("&& not implemented for %s.", get_static_type());
+}
+
+z3::expr Z3Int::operator||(const P4Z3Instance &) const {
+    P4C_UNIMPLEMENTED("|| not implemented for %s.", get_static_type());
 }
 
 Z3Result Z3Int::operator&(const P4Z3Instance &) const {
@@ -663,17 +676,10 @@ Z3Result Z3Int::operator^(const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("^ not implemented for %s.", get_static_type());
 }
 
-Z3Result Z3Int::operator&&(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("&& not implemented for %s.", get_static_type());
-}
-
-Z3Result Z3Int::operator||(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("|| not implemented for %s.", get_static_type());
-}
-
 Z3Result Z3Int::concat(const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
 }
+
 Z3Result Z3Int::cast(z3::sort &dest_type) const {
     if (dest_type.is_bv()) {
         return Z3Bitvector(state, pure_bv_cast(val, dest_type));
@@ -681,6 +687,7 @@ Z3Result Z3Int::cast(z3::sort &dest_type) const {
     }
     P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
 }
+
 Z3Result Z3Int::cast(const IR::Type *dest_type) const {
     if (auto tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
@@ -715,7 +722,7 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
 
 /****** TERNARY OPERANDS ******/
 
-Z3Result Z3Int::slice(uint64_t, uint64_t, P4Z3Instance &) const {
+Z3Result Z3Int::slice(const P4Z3Instance &, const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
 }
 

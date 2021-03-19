@@ -253,6 +253,28 @@ HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
     return *this;
 }
 
+z3::expr HeaderInstance::operator==(const P4Z3Instance &other) const {
+    auto is_eq = state->get_z3_ctx()->bool_val(true);
+    if (auto other_hdr = other.to<HeaderInstance>()) {
+        auto other_is_valid = other_hdr->get_valid();
+        for (auto member_tuple : members) {
+            auto member_name = member_tuple.first;
+            auto member_val = member_tuple.second;
+            auto other_val = other.get_member(member_name);
+            is_eq = is_eq && *member_val == *other_val;
+        }
+        auto both_invalid = !(valid || *other_is_valid);
+        auto both_valid_and_eq = is_eq && valid && other_is_valid;
+        return both_invalid || (both_valid_and_eq);
+    }
+    P4C_UNIMPLEMENTED("Comparing a header to %s is not supported.",
+                      other.get_static_type());
+}
+
+z3::expr HeaderInstance::operator!=(const P4Z3Instance &other) const {
+    return !(*this == other);
+}
+
 void HeaderInstance::setValid(Visitor *) {
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
