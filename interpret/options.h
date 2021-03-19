@@ -8,7 +8,7 @@
 
 namespace TOZ3_V2 {
 
-class toz3Options : public CompilerOptions {
+class toz3Options : public ParserOptions {
  public:
     toz3Options();
 };

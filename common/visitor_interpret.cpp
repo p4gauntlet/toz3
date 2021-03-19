@@ -153,7 +153,8 @@ z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
 }
 
 void handle_table_action(Z3Visitor *visitor, cstring table_name,
-                         const IR::MethodCallExpression *act) {
+                         const IR::MethodCallExpression *act,
+                         cstring action_label) {
     auto state = visitor->state;
     const IR::Expression *call_name;
     IR::Vector<IR::Argument> ctrl_args;
@@ -182,8 +183,7 @@ void handle_table_action(Z3Visitor *visitor, cstring table_name,
     for (size_t idx = 0; idx < method_params->size(); ++idx) {
         auto param = method_params->getParameter(idx);
         if (args_len <= idx) {
-            cstring arg_name =
-                table_name + call_name->toString() + std::to_string(idx);
+            cstring arg_name = table_name + action_label + std::to_string(idx);
             auto ctrl_arg = state->gen_instance(arg_name, param->type);
             // TODO: This is a bug waiting to happen. How to handle fresh
             // arguments and their source?
@@ -214,12 +214,12 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     std::vector<std::pair<z3::expr, VarMap>> action_vars;
     bool has_exited = true;
     z3::expr matches = ctx->bool_val(false);
-    for (std::size_t idx = 0; idx < actions.size(); ++idx) {
+    for (size_t idx = 0; idx < actions.size(); ++idx) {
         auto action = actions.at(idx);
         auto cond = hit && (table_action == ctx->int_val(idx));
         auto old_vars = state->clone_vars();
         state->push_forward_cond(cond);
-        handle_table_action(this, table_name, action);
+        handle_table_action(this, table_name, action, std::to_string(idx));
         state->pop_forward_cond();
         auto call_has_exited = state->has_exited();
         if (!call_has_exited) {
@@ -234,7 +234,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     if (default_action) {
         auto old_vars = state->clone_vars();
         state->push_forward_cond(!matches);
-        handle_table_action(this, table_name, default_action);
+        handle_table_action(this, table_name, default_action, "default");
         state->pop_forward_cond();
         if (state->has_exited()) {
             state->restore_vars(old_vars);
