@@ -392,10 +392,24 @@ ErrorInstance *ErrorInstance::copy() const {
 ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *type)
     : state(state), p4_type(type) {
     for (auto method : type->methods) {
-        auto method_identifier =
-            method->getName().name +
-            std::to_string(method->getParameters()->size());
-        methods.insert({method_identifier, new P4Declaration(method)});
+        // FIXME: Overloading uses num of parameters, it should use types
+        cstring overloaded_name = method->getName().name;
+        auto num_params = 0;
+        auto num_optional_params = 0;
+        for (auto param : method->getParameters()->parameters) {
+            if (param->isOptional()) {
+                num_optional_params += 1;
+            } else {
+                num_params += 1;
+            }
+        }
+        auto decl = new P4Declaration(method);
+        for (auto idx = 0; idx <= num_optional_params; ++idx) {
+            // The IR has bizarre side effects when storing pointers in a map
+            // FIXME: Think about how to simplify this, maybe use their vector
+            cstring name = overloaded_name + std::to_string(num_params + idx);
+            methods.insert({name, decl});
+        }
     }
 }
 

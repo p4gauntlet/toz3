@@ -58,6 +58,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     if (auto tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
     }
+    // FIXME: Split this up to not muddle things.
     if (auto ts = type->to<IR::Type_Struct>()) {
         instance = new StructInstance(this, ts, id);
     } else if (auto te = type->to<IR::Type_Header>()) {
@@ -68,12 +69,17 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         instance = new ErrorInstance(this, te, id);
     } else if (auto te = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, te);
+    } else if (auto te = type->to<IR::P4Control>()) {
+        instance = new DeclarationInstance(this, te);
+    } else if (auto te = type->to<IR::P4Parser>()) {
+        instance = new DeclarationInstance(this, te);
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
     } else if (type->is<IR::Type_Base>()) {
         instance = new Z3Bitvector(this, gen_z3_expr(name, type));
     } else {
-        BUG("Type \"%s\" not supported!.", type);
+        P4C_UNIMPLEMENTED("Instance generation for type \"%s\" not supported!.",
+                          type->node_type_name());
     }
     return instance;
 }

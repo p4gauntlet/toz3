@@ -84,12 +84,22 @@ bool TypeVisitor::preorder(const IR::Function *f) {
 bool TypeVisitor::preorder(const IR::Method *m) {
     // FIXME: Overloading uses num of parameters, it should use types
     cstring overloaded_name = m->getName().name;
-    auto num_params = m->getParameters()->parameters.size();
-    // for (auto param : f->getParameters()->parameters) {
-    //     overloaded_name += param->node_type_name();
-    // }
-    overloaded_name += std::to_string(num_params);
-    state->declare_static_decl(overloaded_name, new P4Declaration(m));
+    auto num_params = 0;
+    auto num_optional_params = 0;
+    for (auto param : m->getParameters()->parameters) {
+        if (param->isOptional()) {
+            num_optional_params += 1;
+        } else {
+            num_params += 1;
+        }
+    }
+    auto decl = new P4Declaration(m);
+    for (auto idx = 0; idx <= num_optional_params; ++idx) {
+        // The IR has bizarre side effects when storing pointers in a map
+        // FIXME: Think about how to simplify this, maybe use their vector
+        auto name = overloaded_name + std::to_string(num_params + idx);
+        state->declare_static_decl(name, decl);
+    }
     return false;
 }
 
@@ -106,12 +116,12 @@ bool TypeVisitor::preorder(const IR::P4Action *a) {
         }
     }
     auto decl = new P4Declaration(a);
-    auto name_basic = overloaded_name + std::to_string(num_params);
+    cstring name_basic = overloaded_name + std::to_string(num_params);
     state->declare_static_decl(name_basic, decl);
     // The IR has bizarre side effects when storing pointers in a map
     // FIXME: Think about how to simplify this, maybe use their vector
     if (num_optional_params != 0) {
-        auto name_opt =
+        cstring name_opt =
             overloaded_name + std::to_string(num_params + num_optional_params);
         state->declare_static_decl(name_opt, decl);
     }
@@ -134,22 +144,16 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
         // }
         resolved_type = state->resolve_type(spec_type->baseType);
     }
-
     if (instance_name == "main") {
+        // Do not execute main here just yet.
         state->declare_static_decl(instance_name, new P4Declaration(di));
     } else {
-        if (auto instance_decl = resolved_type->to<IR::Type_Declaration>()) {
-            state->declare_var(instance_name,
-                               new DeclarationInstance(state, instance_decl),
-                               resolved_type);
-        } else {
-            P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
-                              resolved_type, resolved_type->node_type_name());
-        }
+        auto instance = state->gen_instance(instance_name, resolved_type);
+        state->declare_var(instance_name, instance, resolved_type);
     }
     return false;
 }
-
+// new DeclarationInstance(state, instance_decl)
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left;
     if (dc->initializer) {
