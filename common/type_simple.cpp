@@ -60,6 +60,9 @@ Z3Bitvector
 ============================================================================
 */
 
+Z3Bitvector::Z3Bitvector(const P4State *state)
+    : state(state), val(state->get_z3_ctx()->bv_val(0, 32)) {}
+
 /****** UNARY OPERANDS ******/
 
 Z3Result Z3Bitvector::operator-() const {
@@ -411,10 +414,14 @@ Z3INT
 */
 
 Z3Int::Z3Int(const P4State *state, big_int int_val)
-    : val(state->get_z3_ctx()->int_val(Util::toString(int_val, 0, false))) {}
+    : state(state),
+      val(state->get_z3_ctx()->int_val(Util::toString(int_val, 0, false))) {}
 
 Z3Int::Z3Int(const P4State *state, int64_t int_val)
-    : val(state->get_z3_ctx()->int_val(int_val)) {}
+    : state(state), val(state->get_z3_ctx()->int_val(int_val)) {}
+
+Z3Int::Z3Int(const P4State *state)
+    : state(state), val(state->get_z3_ctx()->int_val(0)) {}
 
 Z3Int *Z3Int::copy() const { return new Z3Int(state, val); }
 

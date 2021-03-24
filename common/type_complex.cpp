@@ -7,34 +7,9 @@
 
 namespace TOZ3_V2 {
 
-StructBase::StructBase(P4State *state, const IR::Type_StructLike *type,
-                       uint64_t member_id)
+StructBase::StructBase(P4State *state, const IR::Type *type, uint64_t member_id)
     : state(state), member_id(member_id), p4_type(type) {
     width = 0;
-    auto flat_id = member_id;
-
-    for (auto field : type->fields) {
-        cstring name = cstring(std::to_string(flat_id));
-        const IR::Type *resolved_type = state->resolve_type(field->type);
-        auto member_var = state->gen_instance(name, resolved_type, flat_id);
-        if (auto si = member_var->to_mut<StructBase>()) {
-            width += si->get_width();
-            flat_id += si->get_member_map()->size();
-        } else if (auto tbi = resolved_type->to<IR::Type_Bits>()) {
-            width += tbi->width_bits();
-            flat_id++;
-        } else if (auto tvb = resolved_type->to<IR::Type_Varbits>()) {
-            width += tvb->width_bits();
-            flat_id++;
-        } else if (resolved_type->is<IR::Type_Boolean>()) {
-            width++;
-            flat_id++;
-        } else {
-            BUG("Type \"%s\" not supported!.", field->type);
-        }
-        insert_member(field->name.name, member_var);
-        member_types.insert({field->name.name, resolved_type});
-    }
 }
 
 StructBase::StructBase(const StructBase &other) : P4Z3Instance(other) {
@@ -123,7 +98,31 @@ P4Z3Instance *StructBase::cast_allocate(const IR::Type *dest_type) const {
 StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
     : StructBase(state, type, member_id),
-      valid(state->get_z3_ctx()->bool_val(true)) {}
+      valid(state->get_z3_ctx()->bool_val(true)) {
+    auto flat_id = member_id;
+    for (auto field : type->fields) {
+        cstring name = cstring(std::to_string(flat_id));
+        const IR::Type *resolved_type = state->resolve_type(field->type);
+        auto member_var = state->gen_instance(name, resolved_type, flat_id);
+        if (auto si = member_var->to_mut<StructBase>()) {
+            width += si->get_width();
+            flat_id += si->get_member_map()->size();
+        } else if (auto tbi = resolved_type->to<IR::Type_Bits>()) {
+            width += tbi->width_bits();
+            flat_id++;
+        } else if (auto tvb = resolved_type->to<IR::Type_Varbits>()) {
+            width += tvb->width_bits();
+            flat_id++;
+        } else if (resolved_type->is<IR::Type_Boolean>()) {
+            width++;
+            flat_id++;
+        } else {
+            P4C_UNIMPLEMENTED("Type \"%s\" not supported!.", field->type);
+        }
+        insert_member(field->name.name, member_var);
+        member_types.insert({field->name.name, resolved_type});
+    }
+}
 
 StructInstance *StructInstance::copy() const {
     return new StructInstance(*this);
@@ -141,11 +140,9 @@ void StructInstance::propagate_validity(const z3::expr *valid_expr) {
     }
 }
 
-void StructInstance::set_valid(const z3::expr &valid_val) { valid = valid_val; }
-const z3::expr *StructInstance::get_valid() const { return &valid; }
-
 std::vector<std::pair<cstring, z3::expr>>
 StructInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
+    // TODO: Clean this up and split it
     const z3::expr *tmp_valid;
     if (this->is<HeaderInstance>() && valid_expr == nullptr) {
         valid_expr = &valid;
@@ -207,7 +204,7 @@ StructInstance &StructInstance::operator=(const StructInstance &other) {
     return *this;
 }
 
-HeaderInstance::HeaderInstance(P4State *state, const IR::Type_StructLike *type,
+HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type,
                                uint64_t member_id)
     : StructInstance(state, type, member_id) {
     valid = state->get_z3_ctx()->bool_val(false);
@@ -275,6 +272,9 @@ z3::expr HeaderInstance::operator!=(const P4Z3Instance &other) const {
     return !(*this == other);
 }
 
+void HeaderInstance::set_valid(const z3::expr &valid_val) { valid = valid_val; }
+const z3::expr *HeaderInstance::get_valid() const { return &valid; }
+
 void HeaderInstance::setValid(Visitor *) {
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
@@ -317,7 +317,7 @@ void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &other) {
     auto other_struct = other.to<HeaderInstance>();
 
     if (!other_struct) {
-        BUG("Unsupported merge class.");
+        P4C_UNIMPLEMENTED("Unsupported merge class.");
     }
     StructBase::merge(cond, other);
     auto valid_merge = z3::ite(cond, *get_valid(), *other_struct->get_valid());
@@ -329,9 +329,171 @@ void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
     propagate_validity(&valid);
 }
 
+StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
+                             uint64_t member_id)
+    : StructBase(state, type, member_id), nextIndex(Z3Int(state, 0)),
+      lastIndex(Z3Int(state, 0)), size(Z3Int(state, type->getSize())) {
+    auto flat_id = member_id;
+    const IR::Type *resolved_type = state->resolve_type(type->elementType);
+    auto stack_size = type->getSize();
+    for (size_t idx = 0; idx < stack_size; ++idx) {
+        cstring name = cstring(std::to_string(flat_id));
+        cstring member_name = std::to_string(idx);
+        auto member_var = state->gen_instance(name, resolved_type, flat_id);
+        if (auto si = member_var->to_mut<StructBase>()) {
+            width += si->get_width();
+            flat_id += si->get_member_map()->size();
+        } else {
+            P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
+                              member_var->get_static_type());
+        }
+        insert_member(member_name, member_var);
+        member_types.insert({member_name, resolved_type});
+    }
+    member_functions["push_front1"] =
+        new FunctionWrapper([this](Visitor *visitor) { push_front(visitor); });
+    member_functions["pop_front1"] =
+        new FunctionWrapper([this](Visitor *visitor) { pop_front(visitor); });
+}
+
+StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
+
+StackInstance::StackInstance(const StackInstance &other)
+    : StructBase(other), nextIndex(other.nextIndex), lastIndex(other.lastIndex),
+      size(other.size) {
+    member_functions["push_front1"] =
+        new FunctionWrapper([this](Visitor *visitor) { push_front(visitor); });
+    member_functions["pop_front1"] =
+        new FunctionWrapper([this](Visitor *visitor) { pop_front(visitor); });
+}
+
+StackInstance &StackInstance::operator=(const StackInstance &other) {
+    // TODO: Clean this up and call super functions
+    if (this == &other) {
+        return *this;
+    }
+    width = other.width;
+    state = other.state;
+    p4_type = other.p4_type;
+    member_types = other.member_types;
+    for (auto value_tuple : other.members) {
+        cstring name = value_tuple.first;
+        auto member_cpy = value_tuple.second->copy();
+        insert_member(name, member_cpy);
+    }
+    member_functions["push_front1"] =
+        new FunctionWrapper([this](Visitor *visitor) { push_front(visitor); });
+    member_functions["pop_front1"] =
+        new FunctionWrapper([this](Visitor *visitor) { pop_front(visitor); });
+    return *this;
+}
+
+P4Z3Instance *StackInstance::get_member(cstring name) const {
+    if (name == "size") {
+        return &this->size;
+    }
+    if (name == "nextIndex") {
+        return &this->nextIndex;
+    }
+    if (name == "nextIndex") {
+        return &this->lastIndex;
+    }
+    return StructBase::get_member(name);
+}
+
+P4Z3Instance *StackInstance::get_member(const P4Z3Instance *index) const {
+    if (auto z3_expr = index->to<Z3Bitvector>()) {
+        auto val = z3_expr->val.simplify();
+        std::string val_str;
+        if (val.is_numeral(val_str, 0)) {
+            return get_member(val_str);
+        } else {
+            P4C_UNIMPLEMENTED("Z3 expression index  %s of type %s not "
+                              "implemented for stacks.",
+                              val.to_string().c_str(),
+                              val.get_sort().to_string());
+        }
+    } else if (auto z3_int = index->to<Z3Int>()) {
+        // Integers are compile time constant
+        // This means we are able to retrieve the concrete value
+        auto val = z3_int->val.simplify();
+        return get_member(val.get_decimal_string(0));
+    } else {
+        P4C_UNIMPLEMENTED("Index of type %s not implemented for stacks.",
+                          index->get_static_type());
+    }
+}
+
+void StackInstance::update_member(const P4Z3Instance *index,
+                                  P4Z3Instance *rval) {
+    if (auto z3_expr = index->to<Z3Bitvector>()) {
+        auto val = z3_expr->val.simplify();
+        std::string val_str;
+        if (val.is_numeral(val_str, 0)) {
+            StructBase::update_member(val_str, rval);
+        } else {
+            P4C_UNIMPLEMENTED("Z3 expression index  %s of type %s not "
+                              "implemented for stacks.",
+                              val.to_string().c_str(),
+                              val.get_sort().to_string());
+        }
+    } else if (auto z3_int = index->to<Z3Int>()) {
+        // Integers are compile time constant
+        // This means we are able to retrieve the concrete value
+        auto val = z3_int->val.simplify();
+        StructBase::update_member(val.get_decimal_string(0), rval);
+    } else {
+        P4C_UNIMPLEMENTED(
+            "Setting with an index of type %s not implemented for stacks.",
+            index->get_static_type());
+    }
+}
+
+void StackInstance::push_front(Visitor *) {
+    // TODO: Implement
+    auto type_stack = p4_type->to<IR::Type_Stack>();
+    CHECK_NULL(type_stack);
+
+    auto size = type_stack->getSize();
+    for (size_t i = 0; i < size; ++i) {
+    }
+    P4C_UNIMPLEMENTED("push_front not implemented");
+}
+void StackInstance::pop_front(Visitor *) {
+    // TODO: Implement
+    auto type_stack = p4_type->to<IR::Type_Stack>();
+    CHECK_NULL(type_stack);
+
+    auto size = type_stack->getSize();
+    for (size_t i = 0; i < size; ++i) {
+    }
+    P4C_UNIMPLEMENTED("pop_front not implemented");
+}
+
+std::vector<std::pair<cstring, z3::expr>>
+StackInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
+    // TODO: Clean this up and split it
+    std::vector<std::pair<cstring, z3::expr>> z3_vars;
+    for (auto member_tuple : members) {
+        cstring name = member_tuple.first;
+        if (prefix.size() != 0) {
+            name = prefix + "." + name;
+        }
+        auto member = member_tuple.second;
+        if (auto z3_var = member->to<HeaderInstance>()) {
+            auto z3_sub_vars = z3_var->get_z3_vars(name, valid_expr);
+            z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
+                           z3_sub_vars.end());
+        } else {
+            BUG("Var is neither type z3::expr nor HeaderInstance!");
+        }
+    }
+    return z3_vars;
+}
+
 EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
                            uint64_t ext_member_id)
-    : p4_type(type) {
+    : StructBase(p4_state, type, ext_member_id), p4_type(type) {
     // FIXME: Enums should not be a struct base, actually
     width = 32;
     state = p4_state;
@@ -359,7 +521,7 @@ EnumInstance::get_z3_vars(cstring prefix, const z3::expr *) const {
 
 ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
                              uint64_t ext_member_id)
-    : p4_type(type) {
+    : StructBase(p4_state, type, ext_member_id), p4_type(type) {
     // FIXME: Enums should not be a struct base, actually
     width = 32;
     state = p4_state;
@@ -417,8 +579,8 @@ P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
     auto instance = state->gen_instance("list", dest_type);
     auto struct_instance = instance->to_mut<StructBase>();
     if (struct_instance == nullptr) {
-        BUG("Unsupported type %s for ListInstance.",
-            dest_type->node_type_name());
+        P4C_UNIMPLEMENTED("Unsupported type %s for ListInstance.",
+                          dest_type->node_type_name());
     }
     struct_instance->set_list(val_list);
     return struct_instance;

@@ -25,28 +25,26 @@ class StructBase : public P4Z3Instance {
     uint64_t width;
 
  public:
-    const IR::Type_StructLike *p4_type;
-    StructBase(P4State *state, const IR::Type_StructLike *type,
-               uint64_t member_id);
-    StructBase() {}
+    const IR::Type *p4_type;
+    StructBase(P4State *state, const IR::Type *type, uint64_t member_id);
 
     uint64_t get_width() { return width; }
 
-    const P4Z3Instance *get_const_member(cstring name) const {
+    const P4Z3Instance *get_const_member(const cstring name) const {
         auto it = members.find(name);
         if (it != members.end()) {
             return it->second;
         }
         BUG("Name %s not found in member map.", name);
     }
-    P4Z3Instance *get_member(cstring name) const override {
+    P4Z3Instance *get_member(const cstring name) const override {
         auto it = members.find(name);
         if (it != members.end()) {
             return it->second;
         }
         BUG("Name %s not found in member map.", name);
     }
-    const IR::Type *get_member_type(cstring name) {
+    const IR::Type *get_member_type(cstring name) const {
         auto it = member_types.find(name);
         if (it != member_types.end()) {
             return it->second;
@@ -91,8 +89,6 @@ class StructInstance : public StructBase {
     StructInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
     StructInstance *copy() const override;
-    void set_valid(const z3::expr &valid_val);
-    const z3::expr *get_valid() const;
     virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
@@ -124,8 +120,10 @@ class HeaderInstance : public StructInstance {
     std::map<cstring, FunctionWrapper *> member_functions;
 
  public:
-    HeaderInstance(P4State *state, const IR::Type_StructLike *type,
+    HeaderInstance(P4State *state, const IR::Type_Header *type,
                    uint64_t member_id);
+    void set_valid(const z3::expr &valid_val);
+    const z3::expr *get_valid() const;
     void setValid(Visitor *);
     void setInvalid(Visitor *);
     void isValid(Visitor *);
@@ -134,10 +132,13 @@ class HeaderInstance : public StructInstance {
     void set_list(std::vector<P4Z3Instance *>) override;
 
     P4Z3Instance *get_function(cstring name) const override {
-        return member_functions.at(name);
+        auto it = member_functions.find(name);
+        if (it != member_functions.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in function map.", name);
     }
 
-    HeaderInstance *copy() const override;
     cstring get_static_type() const override { return "HeaderInstance"; }
     cstring to_string() const override {
         cstring ret = "HeaderInstance(";
@@ -153,11 +154,62 @@ class HeaderInstance : public StructInstance {
     }
     ~HeaderInstance() {}
     // copy constructor
+    HeaderInstance *copy() const override;
     HeaderInstance(const HeaderInstance &other);
     // overload = operator
     HeaderInstance &operator=(const HeaderInstance &other);
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
+};
+
+class StackInstance : public StructBase {
+ private:
+    std::map<cstring, FunctionWrapper *> member_functions;
+    mutable Z3Int nextIndex;
+    mutable Z3Int lastIndex;
+    mutable Z3Int size;
+
+ public:
+    explicit StackInstance(P4State *state, const IR::Type_Stack *type,
+                           uint64_t member_id);
+
+    P4Z3Instance *get_function(cstring name) const override {
+        auto it = member_functions.find(name);
+        if (it != member_functions.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in function map.", name);
+    }
+
+    P4Z3Instance *get_member(const P4Z3Instance *index) const;
+    P4Z3Instance *get_member(cstring name) const override;
+    void update_member(const P4Z3Instance *index, P4Z3Instance *val);
+    std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring prefix = "",
+                const z3::expr *valid_expr = nullptr) const override;
+    cstring get_static_type() const override { return "StackInstance"; }
+    cstring to_string() const override {
+        cstring ret = "StackInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first)
+                ret += ", ";
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
+
+    void push_front(Visitor *);
+    void pop_front(Visitor *);
+
+    // copy constructor
+    StackInstance *copy() const override;
+    StackInstance(const StackInstance &other);
+    // overload = operator
+    StackInstance &operator=(const StackInstance &other);
+    ~StackInstance() {}
 };
 
 class EnumInstance : public StructBase {

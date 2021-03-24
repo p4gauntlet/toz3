@@ -21,7 +21,6 @@ class P4State;
 
 z3::expr pure_bv_cast(const z3::expr &expr, z3::sort dest_type);
 
-
 class VoidResult : public P4Z3Instance {
  public:
     VoidResult() {}
@@ -109,6 +108,7 @@ class Z3Bitvector : public P4Z3Instance {
     explicit Z3Bitvector(const P4State *state, z3::expr val,
                          bool is_signed = false)
         : state(state), val(val), is_signed(is_signed) {}
+    explicit Z3Bitvector(const P4State *state);
     ~Z3Bitvector() {}
 
     /****** UNARY OPERANDS ******/
@@ -167,6 +167,7 @@ class Z3Int : public P4Z3Instance {
         : state(state), val(val) {}
     Z3Int(const P4State *state, int64_t int_val);
     Z3Int(const P4State *state, big_int int_val);
+    explicit Z3Int(const P4State *state);
 
     Z3Result operator-() const override;
     Z3Result operator~() const override;
@@ -210,7 +211,7 @@ class Z3Int : public P4Z3Instance {
     cstring get_static_type() const override { return "Z3Int"; }
     cstring to_string() const override {
         cstring ret = "Z3Int(";
-        return ret + val.to_string().c_str() + " )";
+        return ret + val.to_string().c_str() + ")";
     }
 };
 

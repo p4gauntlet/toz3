@@ -17,6 +17,15 @@ bool Z3Visitor::preorder(const IR::Member *m) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::ArrayIndex *a) {
+    visit(a->right);
+    auto index = state->copy_expr_result();
+    visit(a->left);
+    auto stack_class = state->get_expr_result<StackInstance>();
+    state->set_expr_result(stack_class->get_member(index));
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::Neg *expr) {
     visit(expr->expr);
     auto instance = state->get_expr_result();

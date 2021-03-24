@@ -59,20 +59,22 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         type = resolve_type(tn);
     }
     // FIXME: Split this up to not muddle things.
-    if (auto ts = type->to<IR::Type_Struct>()) {
-        instance = new StructInstance(this, ts, id);
-    } else if (auto te = type->to<IR::Type_Header>()) {
-        instance = new HeaderInstance(this, te, id);
-    } else if (auto te = type->to<IR::Type_Enum>()) {
-        instance = new EnumInstance(this, te, id);
-    } else if (auto te = type->to<IR::Type_Error>()) {
-        instance = new ErrorInstance(this, te, id);
-    } else if (auto te = type->to<IR::Type_Extern>()) {
-        instance = new ExternInstance(this, te);
-    } else if (auto te = type->to<IR::P4Control>()) {
-        instance = new DeclarationInstance(this, te);
-    } else if (auto te = type->to<IR::P4Parser>()) {
-        instance = new DeclarationInstance(this, te);
+    if (auto t = type->to<IR::Type_Struct>()) {
+        instance = new StructInstance(this, t, id);
+    } else if (auto t = type->to<IR::Type_Header>()) {
+        instance = new HeaderInstance(this, t, id);
+    } else if (auto t = type->to<IR::Type_Enum>()) {
+        instance = new EnumInstance(this, t, id);
+    } else if (auto t = type->to<IR::Type_Error>()) {
+        instance = new ErrorInstance(this, t, id);
+    } else if (auto t = type->to<IR::Type_Stack>()) {
+        instance = new StackInstance(this, t, id);
+    } else if (auto t = type->to<IR::Type_Extern>()) {
+        instance = new ExternInstance(this, t);
+    } else if (auto t = type->to<IR::P4Control>()) {
+        instance = new DeclarationInstance(this, t);
+    } else if (auto t = type->to<IR::P4Parser>()) {
+        instance = new DeclarationInstance(this, t);
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
     } else if (type->is<IR::Type_Base>()) {
