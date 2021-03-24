@@ -124,9 +124,9 @@ class HeaderInstance : public StructInstance {
                    uint64_t member_id);
     void set_valid(const z3::expr &valid_val);
     const z3::expr *get_valid() const;
-    void setValid(Visitor *);
-    void setInvalid(Visitor *);
-    void isValid(Visitor *);
+    void setValid(Visitor *, const IR::Vector<IR::Argument> *);
+    void setInvalid(Visitor *, const IR::Vector<IR::Argument> *);
+    void isValid(Visitor *, const IR::Vector<IR::Argument> *);
     void propagate_validity(const z3::expr *valid_expr = nullptr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
     void set_list(std::vector<P4Z3Instance *>) override;
@@ -201,8 +201,8 @@ class StackInstance : public StructBase {
         return ret;
     }
 
-    void push_front(Visitor *);
-    void pop_front(Visitor *);
+    void push_front(Visitor *, const IR::Vector<IR::Argument> *);
+    void pop_front(Visitor *, const IR::Vector<IR::Argument> *);
 
     // copy constructor
     StackInstance *copy() const override;
@@ -345,7 +345,7 @@ class P4TableInstance : public P4Declaration {
         }
         BUG("Name %s not found in function map.", name);
     }
-    void apply(Visitor *);
+    void apply(Visitor *, const IR::Vector<IR::Argument> *);
 
     cstring get_static_type() const override { return "P4TableInstance"; }
     cstring to_string() const override {
@@ -386,7 +386,7 @@ class DeclarationInstance : public P4Z3Instance {
         }
         BUG("Name %s not found in function map.", name);
     }
-    void apply(Visitor *);
+    void apply(Visitor *, const IR::Vector<IR::Argument> *);
 
     cstring get_static_type() const override { return "DeclarationInstance"; }
     cstring to_string() const override {

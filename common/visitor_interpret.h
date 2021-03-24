@@ -120,12 +120,6 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dv) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
-    VarMap merge_args_with_params(const IR::Vector<IR::Argument> *args,
-                                  const IR::ParameterList *params);
-    void set_var(const IR::Expression *target, P4Z3Instance *val);
-    void handle_methodcall(const IR::Node *callable,
-                           const IR::ParameterList *params,
-                           const IR::Vector<IR::Argument> *arguments);
 };
 } // namespace TOZ3_V2
 

@@ -61,17 +61,13 @@ class P4State {
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
                                uint64_t id = 0);
 
-    /****** SCOPES AND STATES ******/
-    void push_scope();
-    void pop_scope();
-    void merge_state(const z3::expr &cond, const ProgState &else_state);
-    void restore_state(const ProgState &set_scopes) { scopes = set_scopes; }
-    ProgState clone_state() const;
-    VarMap get_vars() const;
-    VarMap clone_vars() const;
-    void restore_vars(const VarMap &input_map);
-    void merge_vars(const z3::expr &cond, const VarMap &other);
-
+    /****** COPY-IN/COPY-OUT ******/
+    VarMap merge_args_with_params(Visitor *visitor,
+                                  const IR::Vector<IR::Argument> *args,
+                                  const IR::ParameterList *params);
+    void copy_in(Visitor *visitor, const IR::ParameterList *params,
+                 const IR::Vector<IR::Argument> *arguments);
+    void copy_out(Visitor *visitor);
     void set_copy_out_args(
         const std::vector<std::pair<const IR::Expression *, cstring>>
             &out_args) {
@@ -83,6 +79,17 @@ class P4State {
         auto scope = get_current_scope();
         return scope.get_copy_out_args();
     }
+    /****** SCOPES AND STATES ******/
+    void push_scope();
+    void pop_scope();
+    void merge_state(const z3::expr &cond, const ProgState &else_state);
+    void restore_state(const ProgState &set_scopes) { scopes = set_scopes; }
+    ProgState clone_state() const;
+    VarMap get_vars() const;
+    VarMap clone_vars() const;
+    void restore_vars(const VarMap &input_map);
+    void merge_vars(const z3::expr &cond, const VarMap &other);
+
     const z3::expr get_exit_cond() { return exit_cond; }
 
     void set_exit_cond(const z3::expr &forward_cond) {
@@ -143,6 +150,8 @@ class P4State {
                      const IR::Type *decl_type);
     P4Z3Instance *get_var(cstring name) const;
     const IR::Type *get_var_type(cstring decl_name) const;
+    void set_var(Visitor *visitor, const IR::Expression *target,
+                 P4Z3Instance *rval);
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *val);
     const P4Declaration *get_static_decl(cstring name) const;

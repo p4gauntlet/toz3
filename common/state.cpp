@@ -41,6 +41,231 @@ cstring infer_name(const IR::Annotations *annots, cstring default_name) {
     return default_name;
 }
 
+z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
+                       const z3::expr &hi, const z3::expr &lo) {
+    auto ctx = &lval.get_sort().ctx();
+    auto lval_max = lval.get_sort().bv_size() - 1ull;
+    auto lval_min = 0ull;
+    auto hi_int = hi.get_numeral_uint64();
+    auto lo_int = lo.get_numeral_uint64();
+    if (hi_int == lval_max && lo_int == lval_min) {
+        return rval;
+    }
+    z3::expr_vector assemble(*ctx);
+    if (hi_int < lval_max) {
+        assemble.push_back(lval.extract(lval_max, hi_int + 1));
+    }
+    // auto middle_size = ctx->bv_sort(hi_int + 1 - lo_int);
+    // auto cast_val = pure_bv_cast(rval, middle_size);
+    assemble.push_back(rval);
+
+    if (lo_int > lval_min) {
+        assemble.push_back(lval.extract(lo_int - 1, lval_min));
+    }
+
+    return z3::concat(assemble);
+}
+
+Z3Bitvector *produce_slice(P4State *state, Visitor *visitor,
+                           const IR::Slice *sl, const P4Z3Instance *val) {
+    // FIXME: What to do about repeated evaluation?
+    const z3::expr *lval = nullptr;
+    const z3::expr *rval = nullptr;
+    const z3::expr *hi = nullptr;
+    const z3::expr *lo = nullptr;
+    bool is_signed = false;
+    // FIXME: A little snag in the way we return values...
+    val = val->copy();
+    if (auto z3_bitvec = val->to<Z3Bitvector>()) {
+        rval = &z3_bitvec->val;
+        is_signed = z3_bitvec->is_signed;
+    } else if (auto z3_int = val->to<Z3Int>()) {
+        rval = &z3_int->val;
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.",
+                          val->get_static_type());
+    }
+    visitor->visit(sl->e0);
+    auto lval_expr = state->copy_expr_result();
+    if (auto z3_bitvec = lval_expr->to<Z3Bitvector>()) {
+        lval = &z3_bitvec->val;
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.",
+                          val->get_static_type());
+    }
+    visitor->visit(sl->e1);
+    auto hi_expr = state->copy_expr_result();
+    if (auto z3_bitvec = hi_expr->to<Z3Bitvector>()) {
+        hi = &z3_bitvec->val;
+    } else if (auto z3_int = hi_expr->to<Z3Int>()) {
+        hi = &z3_int->val;
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported hi of type %s for slice.",
+                          val->get_static_type());
+    }
+    visitor->visit(sl->e2);
+    auto lo_expr = state->get_expr_result();
+    if (auto z3_bitvec = lo_expr->to<Z3Bitvector>()) {
+        lo = &z3_bitvec->val;
+    } else if (auto z3_int = lo_expr->to<Z3Int>()) {
+        lo = &z3_int->val;
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported lo of type %s for slice.",
+                          val->get_static_type());
+    }
+    auto slice_expr = compute_slice(*lval, *rval, *hi, *lo).simplify();
+    return new Z3Bitvector(state, slice_expr, is_signed);
+}
+
+StructBase *resolve_reference(P4State *state, Visitor *visitor,
+                              const IR::Expression *expr) {
+    // We actually get a reference here, not a copy!
+    P4Z3Instance *complex_class;
+    if (auto member = expr->to<IR::Member>()) {
+        auto parent = resolve_reference(state, visitor, member->expr);
+        complex_class = parent->get_member(member->member.name);
+    } else if (auto name = expr->to<IR::PathExpression>()) {
+        complex_class = state->get_var(name->path->name);
+    } else if (auto a = expr->to<IR::ArrayIndex>()) {
+        visitor->visit(a->right);
+        auto index = state->copy_expr_result();
+        auto parent = resolve_reference(state, visitor, a->left);
+        complex_class = parent->to_mut<StackInstance>()->get_member(index);
+    } else {
+        P4C_UNIMPLEMENTED("Parent Type %s not implemented!",
+                          expr->node_type_name());
+    }
+
+    return complex_class->to_mut<StructBase>();
+}
+
+void P4State::set_var(Visitor *visitor, const IR::Expression *target,
+                      P4Z3Instance *rval) {
+    if (auto name = target->to<IR::PathExpression>()) {
+        auto dest_type = get_var_type(name->path->name.name);
+        auto cast_val = rval->cast_allocate(dest_type);
+        update_var(name->path->name, cast_val);
+    } else if (auto member = target->to<IR::Member>()) {
+        auto complex_class = resolve_reference(this, visitor, member->expr);
+        CHECK_NULL(complex_class);
+        auto dest_type = complex_class->get_member_type(member->member.name);
+        auto cast_val = rval->cast_allocate(dest_type);
+        complex_class->update_member(member->member.name, cast_val);
+    } else if (auto sl = target->to<IR::Slice>()) {
+        set_var(visitor, sl->e0, produce_slice(this, visitor, sl, rval));
+    } else if (auto a = target->to<IR::ArrayIndex>()) {
+        visitor->visit(a->right);
+        auto index = copy_expr_result();
+        auto complex_class = resolve_reference(this, visitor, a->left);
+        CHECK_NULL(complex_class);
+        auto stack_class = complex_class->to_mut<StackInstance>();
+        stack_class->update_member(index, rval);
+    } else {
+        P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
+    }
+}
+
+VarMap P4State::merge_args_with_params(Visitor *visitor,
+                                       const IR::Vector<IR::Argument> *args,
+                                       const IR::ParameterList *params) {
+    VarMap merged_vec;
+    size_t arg_len = args->size();
+    size_t idx = 0;
+    // TODO: Clean this up...
+    for (auto param : params->parameters) {
+        if (param->direction == IR::Direction::Out) {
+            auto instance = gen_instance("undefined", param->type);
+            merged_vec.insert({param->name.name, {instance, param->type}});
+            idx++;
+            continue;
+        }
+        if (idx < arg_len) {
+            const IR::Argument *arg = args->at(idx);
+            visitor->visit(arg->expression);
+            // TODO: Cast here
+            merged_vec.insert(
+                {param->name.name, {copy_expr_result(), param->type}});
+        } else {
+            auto arg_expr = gen_instance(param->name.name, param->type);
+            if (auto complex_arg = arg_expr->to_mut<StructInstance>()) {
+                complex_arg->propagate_validity();
+            }
+            merged_vec.insert({param->name.name, {arg_expr, param->type}});
+        }
+        idx++;
+    }
+
+    return merged_vec;
+}
+
+std::vector<std::pair<const IR::Expression *, cstring>>
+resolve_args(const IR::Vector<IR::Argument> *args,
+             const IR::ParameterList *params) {
+    std::vector<std::pair<const IR::Expression *, cstring>> resolved_args;
+
+    size_t arg_len = args->size();
+    size_t idx = 0;
+    for (auto param : params->parameters) {
+        auto direction = param->direction;
+        if (direction == IR::Direction::In ||
+            direction == IR::Direction::None) {
+            idx++;
+            continue;
+        }
+        if (idx < arg_len) {
+            const IR::Argument *arg = args->at(idx);
+            if (arg->to<IR::Member>()) {
+                // TODO: Index
+                resolved_args.push_back({arg->expression, param->name.name});
+            } else {
+                resolved_args.push_back({arg->expression, param->name.name});
+            }
+        }
+        idx++;
+    }
+    return resolved_args;
+}
+
+void P4State::copy_in(Visitor *visitor, const IR::ParameterList *params,
+                      const IR::Vector<IR::Argument> *arguments) {
+    // at this point, we assume we are dealing with a Declaration
+    std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
+        resolve_args(arguments, params);
+    auto merged_args = merge_args_with_params(visitor, arguments, params);
+
+    push_scope();
+    for (auto arg_tuple : merged_args) {
+        cstring param_name = arg_tuple.first;
+        auto arg_val = arg_tuple.second;
+        declare_var(param_name, arg_val.first, arg_val.second);
+    }
+    set_copy_out_args(copy_out_args);
+}
+
+void P4State::copy_out(Visitor *visitor) {
+    auto copy_out_args = get_copy_out_args();
+    // merge all the state of the different return points
+    auto return_states = get_return_states();
+    for (auto it = return_states.rbegin(); it != return_states.rend(); ++it) {
+        merge_vars(it->first, it->second);
+    }
+
+    std::vector<P4Z3Instance *> copy_out_vals;
+    for (auto arg_tuple : copy_out_args) {
+        auto source = arg_tuple.second;
+        auto val = get_var(source);
+        copy_out_vals.push_back(val);
+    }
+
+    pop_scope();
+    size_t idx = 0;
+    for (auto arg_tuple : copy_out_args) {
+        auto target = arg_tuple.first;
+        set_var(visitor, target, copy_out_vals[idx]);
+        idx++;
+    }
+}
+
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (auto tbi = type->to<IR::Type_Bits>()) {
         return ctx->bv_const(name, tbi->width_bits());

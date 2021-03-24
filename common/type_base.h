@@ -44,7 +44,8 @@ using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<FunctionWrapper>,
                                 boost::recursive_wrapper<P4Declaration>,
                                 boost::recursive_wrapper<ExternInstance>>;
-using Z3P4FunctionCall = std::function<void(Visitor *)>;
+using Z3P4FunctionCall =
+    std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
 
 class P4Z3Instance {
  public:
@@ -141,7 +142,7 @@ class P4Z3Instance {
                           get_static_type());
     }
     /****** TERNARY OPERANDS ******/
-    virtual Z3Result slice(const P4Z3Instance &, const P4Z3Instance&) const {
+    virtual Z3Result slice(const P4Z3Instance &, const P4Z3Instance &) const {
         P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
     }
     /****** CUSTOM FUNCTIONS ******/
