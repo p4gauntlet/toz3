@@ -23,6 +23,7 @@ class StructBase : public P4Z3Instance {
     std::map<cstring, const IR::Type *> member_types;
     uint64_t member_id;
     uint64_t width;
+    z3::expr valid;
 
  public:
     const IR::Type *p4_type;
@@ -67,6 +68,7 @@ class StructBase : public P4Z3Instance {
         return &members;
     }
     void set_undefined() override;
+    virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
     virtual void set_list(std::vector<P4Z3Instance *>);
 
     ~StructBase() {}
@@ -82,14 +84,11 @@ class StructBase : public P4Z3Instance {
 class StructInstance : public StructBase {
     using StructBase::StructBase;
 
- protected:
-    z3::expr valid;
 
  public:
     StructInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
     StructInstance *copy() const override;
-    virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
                 const z3::expr *valid_expr = nullptr) const override;

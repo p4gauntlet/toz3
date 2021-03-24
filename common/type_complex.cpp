@@ -8,13 +8,16 @@
 namespace TOZ3_V2 {
 
 StructBase::StructBase(P4State *state, const IR::Type *type, uint64_t member_id)
-    : state(state), member_id(member_id), p4_type(type) {
+    : state(state), member_id(member_id),
+      valid(state->get_z3_ctx()->bool_val(true)), p4_type(type) {
     width = 0;
 }
 
-StructBase::StructBase(const StructBase &other) : P4Z3Instance(other) {
+StructBase::StructBase(const StructBase &other)
+    : P4Z3Instance(other), valid(other.valid) {
     width = other.width;
     state = other.state;
+    valid = other.valid;
     p4_type = other.p4_type;
     member_types = other.member_types;
     for (auto value_tuple : other.members) {
@@ -95,10 +98,21 @@ P4Z3Instance *StructBase::cast_allocate(const IR::Type *dest_type) const {
                       p4_type->node_type_name(), dest_type->node_type_name());
 }
 
+void StructBase::propagate_validity(const z3::expr *valid_expr) {
+    if (valid_expr) {
+        valid = *valid_expr;
+    }
+    for (auto member_tuple : members) {
+        auto member = member_tuple.second;
+        if (auto z3_var = member->to_mut<StructBase>()) {
+            z3_var->propagate_validity(valid_expr);
+        }
+    }
+}
+
 StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
                                uint64_t member_id)
-    : StructBase(state, type, member_id),
-      valid(state->get_z3_ctx()->bool_val(true)) {
+    : StructBase(state, type, member_id) {
     auto flat_id = member_id;
     for (auto field : type->fields) {
         cstring name = cstring(std::to_string(flat_id));
@@ -126,18 +140,6 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
 
 StructInstance *StructInstance::copy() const {
     return new StructInstance(*this);
-}
-
-void StructInstance::propagate_validity(const z3::expr *valid_expr) {
-    if (valid_expr) {
-        valid = *valid_expr;
-    }
-    for (auto member_tuple : members) {
-        auto member = member_tuple.second;
-        if (auto z3_var = member->to_mut<StructInstance>()) {
-            z3_var->propagate_validity(valid_expr);
-        }
-    }
 }
 
 std::vector<std::pair<cstring, z3::expr>>
@@ -185,7 +187,7 @@ StructInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
 }
 
 StructInstance::StructInstance(const StructInstance &other)
-    : StructBase(other), valid(other.valid) {}
+    : StructBase(other) {}
 
 StructInstance &StructInstance::operator=(const StructInstance &other) {
     if (this == &other) {
