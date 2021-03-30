@@ -67,15 +67,12 @@ class P4State {
                                   const IR::ParameterList *params);
     void copy_in(Visitor *visitor, const IR::ParameterList *params,
                  const IR::Vector<IR::Argument> *arguments);
-    void copy_out(Visitor *visitor);
-    void set_copy_out_args(
-        const std::vector<std::pair<const IR::Expression *, cstring>>
-            &out_args) {
+    void copy_out();
+    void set_copy_out_args(CopyArgs &out_args) {
         auto scope = get_mut_current_scope();
         scope->set_copy_out_args(out_args);
     }
-    std::vector<std::pair<const IR::Expression *, cstring>>
-    get_copy_out_args() const {
+    CopyArgs get_copy_out_args() const {
         auto scope = get_current_scope();
         return scope.get_copy_out_args();
     }
@@ -152,6 +149,8 @@ class P4State {
     const IR::Type *get_var_type(cstring decl_name) const;
     void set_var(Visitor *visitor, const IR::Expression *target,
                  P4Z3Instance *rval);
+    void set_var(MemberStruct *member_struct, P4Z3Instance *rval);
+
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *val);
     const P4Declaration *get_static_decl(cstring name) const;

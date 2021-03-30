@@ -3,6 +3,7 @@
 #include <complex>
 #include <cstdio>
 #include <ostream>
+#include <string>
 
 #include "lib/exceptions.h"
 
@@ -117,29 +118,176 @@ Z3Bitvector *produce_slice(P4State *state, Visitor *visitor,
     return new Z3Bitvector(state, slice_expr, is_signed);
 }
 
-StructBase *resolve_reference(P4State *state, Visitor *visitor,
-                              const IR::Expression *expr) {
-    // We actually get a reference here, not a copy!
-    P4Z3Instance *complex_class;
-    if (auto member = expr->to<IR::Member>()) {
-        auto parent = resolve_reference(state, visitor, member->expr);
-        complex_class = parent->get_member(member->member.name);
-    } else if (auto name = expr->to<IR::PathExpression>()) {
-        complex_class = state->get_var(name->path->name);
-    } else if (auto a = expr->to<IR::ArrayIndex>()) {
-        visitor->visit(a->right);
-        auto index = state->copy_expr_result();
-        auto parent = resolve_reference(state, visitor, a->left);
-        complex_class = parent->to_mut<StackInstance>()->get_member(index);
-    } else {
-        P4C_UNIMPLEMENTED("Parent Type %s not implemented!",
-                          expr->node_type_name());
-    }
+MemberStruct get_member_struct(P4State *state, Visitor *visitor,
+                               const IR::Expression *target) {
+    MemberStruct member_struct;
+    auto tmp_target = target;
 
-    return complex_class->to_mut<StructBase>();
+    bool is_first = true;
+    while (true) {
+        if (auto member = tmp_target->to<IR::Member>()) {
+            tmp_target = member->expr;
+            if (is_first) {
+                member_struct.target_member = member->member.name;
+                is_first = false;
+            } else {
+                member_struct.mid_members.push(member->member.name);
+            }
+        } else if (auto a = tmp_target->to<IR::ArrayIndex>()) {
+            tmp_target = a->left;
+            visitor->visit(a->right);
+            auto index = state->get_expr_result();
+            const z3::expr *expr;
+            if (auto z3_expr = index->to<Z3Bitvector>()) {
+                expr = &z3_expr->val;
+            } else if (auto z3_int = index->to<Z3Int>()) {
+                expr = &z3_int->val;
+            } else {
+                P4C_UNIMPLEMENTED("Setting with an index of type %s not "
+                                  "implemented for stacks.",
+                                  index->get_static_type());
+            }
+            if (is_first) {
+                is_first = false;
+                member_struct.target_member = expr->simplify();
+            } else {
+                member_struct.mid_members.push(expr->simplify());
+            }
+            member_struct.has_stack = true;
+        } else if (auto path = tmp_target->to<IR::PathExpression>()) {
+            member_struct.main_member = path->path->name.name;
+            break;
+        } else {
+            P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
+        }
+    }
+    return member_struct;
 }
 
-using StringOrExpr = boost::variant<cstring, z3::expr>;
+void set_stack(P4State *state, MemberStruct *member_struct,
+               P4Z3Instance *rval) {
+    std::vector<std::pair<z3::expr, P4Z3Instance *>> parent_pairs;
+    std::vector<std::pair<int, z3::expr>> permutation_pairs;
+    auto tmp_parent_pairs = parent_pairs;
+    parent_pairs.push_back({state->get_z3_ctx()->bool_val(true),
+                            state->get_var(member_struct->main_member)});
+
+    // Collect all the headers that need to be set
+    while (!member_struct->mid_members.empty()) {
+        auto it = member_struct->mid_members.top();
+        member_struct->mid_members.pop();
+        if (auto name = boost::get<cstring>(&it)) {
+            for (auto &parent_pair : parent_pairs) {
+                auto parent_cond = parent_pair.first;
+                auto parent_class = parent_pair.second;
+                tmp_parent_pairs.push_back(
+                    {parent_cond, parent_class->get_member(*name)});
+            }
+            parent_pairs = tmp_parent_pairs;
+            tmp_parent_pairs.clear();
+        } else if (auto expr = boost::get<z3::expr>(&it)) {
+            for (auto &parent_pair : parent_pairs) {
+                auto parent_cond = parent_pair.first;
+                auto parent_class = parent_pair.second;
+                std::string val_str;
+                if (expr->is_numeral(val_str, 0)) {
+                    tmp_parent_pairs.push_back(
+                        {parent_cond, parent_class->get_member(val_str)});
+                } else {
+                    auto stack_class = parent_class->to_mut<StackInstance>();
+                    BUG_CHECK(stack_class, "Expected Stack, got %s",
+                              stack_class->get_static_type());
+                    auto size = stack_class->get_int_size();
+                    for (size_t idx = 0; idx < size; ++idx) {
+                        auto z3_int =
+                            state->get_z3_ctx()->num_val(idx, expr->get_sort());
+                        tmp_parent_pairs.push_back(
+                            {parent_cond && *expr == z3_int,
+                             parent_class->get_member(std::to_string(idx))});
+                    }
+                }
+            }
+            parent_pairs = tmp_parent_pairs;
+            tmp_parent_pairs.clear();
+        } else {
+            P4C_UNIMPLEMENTED("Member type not implemented.");
+        }
+    }
+
+    // Set the variable
+    if (auto name = boost::get<cstring>(&member_struct->target_member)) {
+        for (auto &parent_pair : parent_pairs) {
+            auto parent_cond = parent_pair.first;
+            auto parent_class = parent_pair.second;
+            auto complex_class = parent_class->to_mut<StructBase>();
+            CHECK_NULL(complex_class);
+            auto orig_val = complex_class->get_member(*name);
+            auto dest_type = complex_class->get_member_type(*name);
+            auto cast_val = rval->cast_allocate(dest_type);
+            cast_val->merge(!parent_cond, *orig_val);
+            complex_class->update_member(*name, cast_val);
+        }
+    } else if (auto expr =
+                   boost::get<z3::expr>(&member_struct->target_member)) {
+        std::string val_str;
+        for (auto &parent_pair : parent_pairs) {
+            auto parent_cond = parent_pair.first;
+            auto parent_class = parent_pair.second;
+            auto complex_class = parent_class->to_mut<StructBase>();
+            CHECK_NULL(complex_class);
+            if (expr->is_numeral(val_str, 0)) {
+                auto orig_val = complex_class->get_member(*name);
+                auto dest_type = complex_class->get_member_type(val_str);
+                auto cast_val = rval->cast_allocate(dest_type);
+                cast_val->merge(!parent_cond, *orig_val);
+                complex_class->update_member(val_str, cast_val);
+            } else {
+                auto stack_class = parent_class->to_mut<StackInstance>();
+                BUG_CHECK(stack_class, "Expected Stack, got %s",
+                          stack_class->get_static_type());
+                auto size = stack_class->get_int_size();
+                for (size_t idx = 0; idx < size; ++idx) {
+                    cstring member_name = std::to_string(idx);
+                    auto orig_val = complex_class->get_member(member_name);
+                    auto dest_type =
+                        complex_class->get_member_type(member_name);
+                    auto cast_val = rval->cast_allocate(dest_type);
+                    auto z3_int =
+                        state->get_z3_ctx()->num_val(idx, expr->get_sort());
+                    cast_val->merge(!(parent_cond && *expr == z3_int),
+                                    *orig_val);
+                    complex_class->update_member(member_name, cast_val);
+                }
+            }
+        }
+    } else {
+        P4C_UNIMPLEMENTED("Member type not implemented.");
+    }
+}
+
+void P4State::set_var(MemberStruct *member_struct, P4Z3Instance *rval) {
+    // If we are dealing with a stack, start with a complicated procedure
+    // We need to do this to resolve symbolic indices
+    if (member_struct->has_stack) {
+        set_stack(this, member_struct, rval);
+        return;
+    }
+
+    // This is the default mode where we only have strings for a member.
+    auto parent_class = get_var(member_struct->main_member);
+    while (!member_struct->mid_members.empty()) {
+        auto it = member_struct->mid_members.top();
+        member_struct->mid_members.pop();
+        auto name = boost::get<cstring>(it);
+        parent_class = parent_class->get_member(name);
+    }
+    auto name = boost::get<cstring>(member_struct->target_member);
+    auto complex_class = parent_class->to_mut<StructBase>();
+    CHECK_NULL(complex_class);
+    auto dest_type = complex_class->get_member_type(name);
+    auto cast_val = rval->cast_allocate(dest_type);
+    complex_class->update_member(name, cast_val);
+}
 
 void P4State::set_var(Visitor *visitor, const IR::Expression *target,
                       P4Z3Instance *rval) {
@@ -153,143 +301,10 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
         set_var(visitor, sl->e0, produce_slice(this, visitor, sl, rval));
         return;
     }
-    auto tmp_target = target;
-    std::vector<StringOrExpr> resolve_list;
-    StringOrExpr var_to_set;
-    cstring main_member;
-    bool has_stack = false;
-
-    if (auto member = tmp_target->to<IR::Member>()) {
-        tmp_target = member->expr;
-        var_to_set = member->member.name;
-    } else if (auto a = tmp_target->to<IR::ArrayIndex>()) {
-        tmp_target = a->left;
-        visitor->visit(a->right);
-        auto index = get_expr_result();
-        if (auto z3_expr = index->to<Z3Bitvector>()) {
-            var_to_set = z3_expr->val.simplify();
-        } else if (auto z3_int = index->to<Z3Int>()) {
-            var_to_set = z3_int->val.simplify();
-        } else {
-            P4C_UNIMPLEMENTED("Setting with an index of type %s not "
-                              "implemented for stacks.",
-                              index->get_static_type());
-        }
-        has_stack = true;
-    }
-    while (true) {
-        if (auto member = tmp_target->to<IR::Member>()) {
-            tmp_target = member->expr;
-            resolve_list.push_back(member->member.name);
-        } else if (auto a = tmp_target->to<IR::ArrayIndex>()) {
-            tmp_target = a->left;
-            visitor->visit(a->right);
-            auto index = get_expr_result();
-            if (auto z3_expr = index->to<Z3Bitvector>()) {
-                resolve_list.push_back(z3_expr->val.simplify());
-            } else if (auto z3_int = index->to<Z3Int>()) {
-                resolve_list.push_back(z3_int->val.simplify());
-            } else {
-                P4C_UNIMPLEMENTED("Setting with an index of type %s not "
-                                  "implemented for stacks.",
-                                  index->get_static_type());
-            }
-            has_stack = true;
-        } else if (auto path = tmp_target->to<IR::PathExpression>()) {
-            main_member = path->path->name.name;
-            break;
-        } else {
-            P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
-        }
-    }
+    auto member_struct = get_member_struct(this, visitor, target);
     // Collection phase done
     // Now begins the setting phase...
-    if (has_stack) {
-        std::vector<P4Z3Instance *> parent_classes;
-        std::vector<std::pair<int, z3::expr>> permutation_pairs;
-        auto tmp_parent_classes = parent_classes;
-        parent_classes.push_back(get_var(main_member));
-
-        // Collect all the headers that need to be set
-        for (auto it = resolve_list.rbegin(); it != resolve_list.rend(); ++it) {
-            if (auto name = boost::get<cstring>(&*it)) {
-                for (auto &parent_class : parent_classes) {
-                    tmp_parent_classes.push_back(
-                        parent_class->get_member(*name));
-                }
-                parent_classes = tmp_parent_classes;
-                tmp_parent_classes.clear();
-            } else if (auto expr = boost::get<z3::expr>(&*it)) {
-                for (auto &parent_class : parent_classes) {
-                    std::string val_str;
-                    if (expr->is_numeral(val_str, 0)) {
-                        tmp_parent_classes.push_back(
-                            parent_class->get_member(val_str));
-                    } else {
-                        auto stack_class = parent_class->to_mut<StructBase>();
-                        BUG_CHECK(stack_class, "Expected Stack, got %s",
-                                  stack_class->get_static_type());
-                        auto type_stack =
-                            stack_class->p4_type->to<IR::Type_Stack>();
-                        CHECK_NULL(type_stack);
-
-                        auto size = type_stack->getSize();
-                        for (size_t idx = 0; idx < size; ++idx) {
-                            tmp_parent_classes.push_back(
-                                parent_class->get_member(std::to_string(idx)));
-                            permutation_pairs.push_back({size, *expr});
-                        }
-                    }
-                }
-                parent_classes = tmp_parent_classes;
-                tmp_parent_classes.clear();
-            } else {
-                P4C_UNIMPLEMENTED("Member type not implemented.");
-            }
-        }
-        // Set the variable
-        if (auto name = boost::get<cstring>(&var_to_set)) {
-            for (auto &parent_class : parent_classes) {
-                auto complex_class = parent_class->to_mut<StructBase>();
-                CHECK_NULL(complex_class);
-                auto dest_type = complex_class->get_member_type(*name);
-                auto cast_val = rval->cast_allocate(dest_type);
-                complex_class->update_member(*name, cast_val);
-            }
-        } else if (auto expr = boost::get<z3::expr>(&var_to_set)) {
-            std::string val_str;
-            for (auto &parent_class : parent_classes) {
-                auto complex_class = parent_class->to_mut<StructBase>();
-                CHECK_NULL(complex_class);
-                if (expr->is_numeral(val_str, 0)) {
-                    auto dest_type = complex_class->get_member_type(val_str);
-                    auto cast_val = rval->cast_allocate(dest_type);
-                    complex_class->update_member(val_str, cast_val);
-                } else {
-                    P4C_UNIMPLEMENTED("Z3 expression index  %s of type %s not "
-                                      "implemented for stacks.",
-                                      expr->to_string().c_str(),
-                                      expr->get_sort().to_string());
-                }
-            }
-        } else {
-            P4C_UNIMPLEMENTED("Member type not implemented.");
-        }
-        return;
-    }
-
-    // This is the default mode where we only have strings for a member.
-    auto parent_class = get_var(main_member);
-    for (auto it = resolve_list.rbegin(); it != resolve_list.rend(); ++it) {
-        auto name = boost::get<cstring>(*it);
-        parent_class = parent_class->get_member(name);
-    }
-    auto name = boost::get<cstring>(var_to_set);
-    auto complex_class = parent_class->to_mut<StructBase>();
-    CHECK_NULL(complex_class);
-    auto dest_type = complex_class->get_member_type(name);
-    auto cast_val = rval->cast_allocate(dest_type);
-    complex_class->update_member(name, cast_val);
+    set_var(&member_struct, rval);
 }
 
 VarMap P4State::merge_args_with_params(Visitor *visitor,
@@ -325,10 +340,10 @@ VarMap P4State::merge_args_with_params(Visitor *visitor,
     return merged_vec;
 }
 
-std::vector<std::pair<const IR::Expression *, cstring>>
-resolve_args(const IR::Vector<IR::Argument> *args,
-             const IR::ParameterList *params) {
-    std::vector<std::pair<const IR::Expression *, cstring>> resolved_args;
+CopyArgs resolve_args(P4State *state, Visitor *visitor,
+                      const IR::Vector<IR::Argument> *args,
+                      const IR::ParameterList *params) {
+    CopyArgs resolved_args;
 
     size_t arg_len = args->size();
     size_t idx = 0;
@@ -341,12 +356,8 @@ resolve_args(const IR::Vector<IR::Argument> *args,
         }
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
-            if (arg->to<IR::Member>()) {
-                // TODO: Index
-                resolved_args.push_back({arg->expression, param->name.name});
-            } else {
-                resolved_args.push_back({arg->expression, param->name.name});
-            }
+            auto member_struct =
+                get_member_struct(state, visitor, arg->expression);
         }
         idx++;
     }
@@ -356,8 +367,7 @@ resolve_args(const IR::Vector<IR::Argument> *args,
 void P4State::copy_in(Visitor *visitor, const IR::ParameterList *params,
                       const IR::Vector<IR::Argument> *arguments) {
     // at this point, we assume we are dealing with a Declaration
-    std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args =
-        resolve_args(arguments, params);
+    auto copy_out_args = resolve_args(this, visitor, arguments, params);
     auto merged_args = merge_args_with_params(visitor, arguments, params);
 
     push_scope();
@@ -369,7 +379,7 @@ void P4State::copy_in(Visitor *visitor, const IR::ParameterList *params,
     set_copy_out_args(copy_out_args);
 }
 
-void P4State::copy_out(Visitor *visitor) {
+void P4State::copy_out() {
     auto copy_out_args = get_copy_out_args();
     // merge all the state of the different return points
     auto return_states = get_return_states();
@@ -387,8 +397,8 @@ void P4State::copy_out(Visitor *visitor) {
     pop_scope();
     size_t idx = 0;
     for (auto arg_tuple : copy_out_args) {
-        auto target = arg_tuple.first;
-        set_var(visitor, target, copy_out_vals[idx]);
+        auto target = &arg_tuple.first;
+        set_var(target, copy_out_vals[idx]);
         idx++;
     }
 }

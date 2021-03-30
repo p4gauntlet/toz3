@@ -28,7 +28,7 @@ class P4Scope {
     std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
     std::vector<std::pair<z3::expr, VarMap>> return_states;
     std::vector<z3::expr> forward_conds;
-    std::vector<std::pair<const IR::Expression *, cstring>> copy_out_args;
+    CopyArgs copy_out_args;
 
  public:
     /****** STATIC DECLS ******/
@@ -97,15 +97,10 @@ class P4Scope {
         return ret_type;
     }
     /****** RETURN AND EXIT MANAGEMENT ******/
-    void set_copy_out_args(
-        const std::vector<std::pair<const IR::Expression *, cstring>>
-            &input_args) {
+    void set_copy_out_args(const CopyArgs &input_args) {
         copy_out_args = input_args;
     }
-    std::vector<std::pair<const IR::Expression *, cstring>>
-    get_copy_out_args() {
-        return copy_out_args;
-    }
+    CopyArgs get_copy_out_args() { return copy_out_args; }
     bool has_returned() const { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
 

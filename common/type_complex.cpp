@@ -352,12 +352,12 @@ void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
 StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
                              uint64_t member_id)
     : StructBase(state, type, member_id), nextIndex(Z3Int(state, 0)),
-      lastIndex(Z3Int(state, 0)), size(Z3Int(state, type->getSize())) {
+      lastIndex(Z3Int(state, 0)), size(Z3Int(state, type->getSize())),
+      int_size(type->getSize()), elem_type(type->elementType) {
     auto flat_id = member_id;
     const IR::Type *resolved_type = state->resolve_type(type->elementType);
-    auto stack_size = type->getSize();
-    for (size_t idx = 0; idx < stack_size; ++idx) {
-        cstring name = cstring(std::to_string(flat_id));
+    for (size_t idx = 0; idx < int_size; ++idx) {
+        cstring name = std::to_string(flat_id);
         cstring member_name = std::to_string(idx);
         auto member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto si = member_var->to_mut<StructBase>()) {
@@ -384,7 +384,7 @@ StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
 
 StackInstance::StackInstance(const StackInstance &other)
     : StructBase(other), nextIndex(other.nextIndex), lastIndex(other.lastIndex),
-      size(other.size) {
+      size(other.size), int_size(other.int_size), elem_type(other.elem_type) {
     member_functions["push_front1"] = new FunctionWrapper(
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             push_front(visitor, args);
@@ -409,6 +409,11 @@ StackInstance &StackInstance::operator=(const StackInstance &other) {
         auto member_cpy = value_tuple.second->copy();
         insert_member(name, member_cpy);
     }
+    nextIndex = other.nextIndex;
+    lastIndex = other.lastIndex;
+    size = other.size;
+    int_size = other.int_size;
+    elem_type = other.elem_type;
     member_functions["push_front1"] = new FunctionWrapper(
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             push_front(visitor, args);
@@ -440,10 +445,16 @@ P4Z3Instance *StackInstance::get_member(const P4Z3Instance *index) const {
         if (val.is_numeral(val_str, 0)) {
             return get_member(val_str);
         } else {
-            P4C_UNIMPLEMENTED("Z3 expression index  %s of type %s not "
-                              "implemented for stacks.",
-                              val.to_string().c_str(),
-                              val.get_sort().to_string());
+            // We create a new header that we return
+            // This header is the merge of all the sub headers of this stack
+            auto base_hdr = state->gen_instance("undefined", elem_type);
+            for (size_t idx = 0; idx < int_size; ++idx) {
+                cstring member_name = std::to_string(idx);
+                auto hdr = get_member(member_name);
+                auto z3_int = state->get_z3_ctx()->num_val(idx, val.get_sort());
+                base_hdr->merge(val == z3_int, *hdr);
+            }
+            return base_hdr;
         }
     } else if (auto z3_int = index->to<Z3Int>()) {
         // Integers are compile time constant
@@ -482,22 +493,13 @@ void StackInstance::update_member(const P4Z3Instance *index,
 }
 
 void StackInstance::push_front(Visitor *, const IR::Vector<IR::Argument> *) {
-    // TODO: Implement
-    auto type_stack = p4_type->to<IR::Type_Stack>();
-    CHECK_NULL(type_stack);
 
-    auto size = type_stack->getSize();
-    for (size_t i = 0; i < size; ++i) {
+    for (size_t i = 0; i < int_size; ++i) {
     }
     P4C_UNIMPLEMENTED("push_front not implemented");
 }
 void StackInstance::pop_front(Visitor *, const IR::Vector<IR::Argument> *) {
-    // TODO: Implement
-    auto type_stack = p4_type->to<IR::Type_Stack>();
-    CHECK_NULL(type_stack);
-
-    auto size = type_stack->getSize();
-    for (size_t i = 0; i < size; ++i) {
+    for (size_t i = 0; i < int_size; ++i) {
     }
     P4C_UNIMPLEMENTED("pop_front not implemented");
 }
@@ -666,7 +668,7 @@ void P4TableInstance::apply(Visitor *visitor,
     auto params = table_decl->getApplyParameters();
     state->copy_in(visitor, params, args);
     visitor->visit(decl);
-    state->copy_out(visitor);
+    state->copy_out();
 }
 
 DeclarationInstance::DeclarationInstance(P4State *state,
@@ -695,7 +697,7 @@ void DeclarationInstance::apply(Visitor *visitor,
     CHECK_NULL(params);
     state->copy_in(visitor, params, args);
     visitor->visit(decl);
-    state->copy_out(visitor);
+    state->copy_out();
 }
 
 } // namespace TOZ3_V2

@@ -84,7 +84,6 @@ class StructBase : public P4Z3Instance {
 class StructInstance : public StructBase {
     using StructBase::StructBase;
 
-
  public:
     StructInstance(P4State *state, const IR::Type_StructLike *type,
                    uint64_t member_id);
@@ -167,6 +166,8 @@ class StackInstance : public StructBase {
     mutable Z3Int nextIndex;
     mutable Z3Int lastIndex;
     mutable Z3Int size;
+    size_t int_size;
+    const IR::Type *elem_type;
 
  public:
     explicit StackInstance(P4State *state, const IR::Type_Stack *type,
@@ -199,7 +200,7 @@ class StackInstance : public StructBase {
         ret += ")";
         return ret;
     }
-
+    size_t get_int_size() const { return int_size; }
     void push_front(Visitor *, const IR::Vector<IR::Argument> *);
     void pop_front(Visitor *, const IR::Vector<IR::Argument> *);
 

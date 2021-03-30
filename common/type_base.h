@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include <map>     // std::map
+#include <stack>   // std::stack
 #include <utility> // std::pair
 #include <vector>  // std::vector
 
@@ -46,6 +47,15 @@ using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<ExternInstance>>;
 using Z3P4FunctionCall =
     std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
+
+using StringOrExpr = boost::variant<cstring, z3::expr>;
+struct MemberStruct {
+    cstring main_member;
+    std::stack<StringOrExpr> mid_members;
+    StringOrExpr target_member;
+    bool has_stack = false;
+};
+using CopyArgs = std::vector<std::pair<MemberStruct, cstring>>;
 
 class P4Z3Instance {
  public:

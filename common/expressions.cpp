@@ -158,7 +158,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
     state->copy_in(this, params, arguments);
     visit(callable);
-    state->copy_out(this);
+    state->copy_out();
     return false;
 }
 
@@ -176,7 +176,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     }
     state->copy_in(this, params, arguments);
     visit(resolved_type);
-    state->copy_out(this);
+    state->copy_out();
     return false;
 }
 
