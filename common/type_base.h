@@ -50,10 +50,11 @@ using Z3P4FunctionCall =
 
 using StringOrExpr = boost::variant<cstring, z3::expr>;
 struct MemberStruct {
-    cstring main_member;
+    cstring main_member = nullptr;
     std::stack<StringOrExpr> mid_members;
-    StringOrExpr target_member;
+    StringOrExpr target_member = nullptr;
     bool has_stack = false;
+    bool is_flat = false;
 };
 using CopyArgs = std::vector<std::pair<MemberStruct, cstring>>;
 

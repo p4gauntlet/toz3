@@ -470,9 +470,7 @@ bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
 }
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
-    visit(as->right);
-    // TODO: We should avoid copying here
-    state->set_var(this, as->left, state->copy_expr_result());
+    state->set_var(this, as->left, as->right);
     return false;
 }
 

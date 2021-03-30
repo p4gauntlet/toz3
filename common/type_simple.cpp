@@ -662,8 +662,16 @@ z3::expr Z3Int::operator||(const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("|| not implemented for %s.", get_static_type());
 }
 
-Z3Result Z3Int::operator&(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("& not implemented for %s.", get_static_type());
+Z3Result Z3Int::operator&(const P4Z3Instance &other) const {
+    if (auto other_int = other.to<Z3Int>()) {
+        // FIXME: Support big_int
+        uint64_t result = val & other_int->val;
+        return Z3Int(state, result);
+    } else if (auto other_val = other.to<Z3Bitvector>()) {
+        auto cast_val = pure_bv_cast(val, other_val->val.get_sort());
+        return Z3Bitvector(state, cast_val & other_val->val);
+    }
+    P4C_UNIMPLEMENTED("| not implemented for %s.", other.get_static_type());
 }
 
 Z3Result Z3Int::operator|(const P4Z3Instance &other) const {
@@ -671,7 +679,6 @@ Z3Result Z3Int::operator|(const P4Z3Instance &other) const {
         // FIXME: Support big_int
         uint64_t result = val | other_int->val;
         return Z3Int(state, result);
-
     } else if (auto other_val = other.to<Z3Bitvector>()) {
         auto cast_val = pure_bv_cast(val, other_val->val.get_sort());
         return Z3Bitvector(state, cast_val | other_val->val);
@@ -679,8 +686,16 @@ Z3Result Z3Int::operator|(const P4Z3Instance &other) const {
     P4C_UNIMPLEMENTED("| not implemented for %s.", other.get_static_type());
 }
 
-Z3Result Z3Int::operator^(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("^ not implemented for %s.", get_static_type());
+Z3Result Z3Int::operator^(const P4Z3Instance &other) const {
+    if (auto other_int = other.to<Z3Int>()) {
+        // FIXME: Support big_int
+        uint64_t result = val | other_int->val;
+        return Z3Int(state, result);
+    } else if (auto other_val = other.to<Z3Bitvector>()) {
+        auto cast_val = pure_bv_cast(val, other_val->val.get_sort());
+        return Z3Bitvector(state, cast_val ^ other_val->val);
+    }
+    P4C_UNIMPLEMENTED("^ not implemented for %s.", other.get_static_type());
 }
 
 Z3Result Z3Int::concat(const P4Z3Instance &) const {

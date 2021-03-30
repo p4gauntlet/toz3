@@ -148,8 +148,8 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
                                   index->get_static_type());
             }
             if (is_first) {
-                is_first = false;
                 member_struct.target_member = expr->simplify();
+                is_first = false;
             } else {
                 member_struct.mid_members.push(expr->simplify());
             }
@@ -161,6 +161,7 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
             P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
         }
     }
+    member_struct.is_flat = is_first;
     return member_struct;
 }
 
@@ -272,7 +273,11 @@ void P4State::set_var(MemberStruct *member_struct, P4Z3Instance *rval) {
         set_stack(this, member_struct, rval);
         return;
     }
-
+    if (member_struct->is_flat) {
+        // Flat target, just update state
+        update_var(member_struct->main_member, rval);
+        return;
+    }
     // This is the default mode where we only have strings for a member.
     auto parent_class = get_var(member_struct->main_member);
     while (!member_struct->mid_members.empty()) {
@@ -305,6 +310,30 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
     // Collection phase done
     // Now begins the setting phase...
     set_var(&member_struct, rval);
+}
+
+void P4State::set_var(Visitor *visitor, const IR::Expression *target,
+                      const IR::Expression *rval) {
+    if (auto name = target->to<IR::PathExpression>()) {
+        auto dest_type = get_var_type(name->path->name.name);
+        visitor->visit(rval);
+        auto tmp_rval = get_expr_result();
+        auto cast_val = tmp_rval->cast_allocate(dest_type);
+        update_var(name->path->name, cast_val);
+        return;
+    }
+    if (auto sl = target->to<IR::Slice>()) {
+        visitor->visit(rval);
+        auto tmp_rval = copy_expr_result();
+        set_var(visitor, sl->e0, produce_slice(this, visitor, sl, tmp_rval));
+        return;
+    }
+    auto member_struct = get_member_struct(this, visitor, target);
+    // Collection phase done
+    // Now begins the setting phase...
+    visitor->visit(rval);
+    auto tmp_rval = copy_expr_result();
+    set_var(&member_struct, tmp_rval);
 }
 
 VarMap P4State::merge_args_with_params(Visitor *visitor,
@@ -358,6 +387,7 @@ CopyArgs resolve_args(P4State *state, Visitor *visitor,
             const IR::Argument *arg = args->at(idx);
             auto member_struct =
                 get_member_struct(state, visitor, arg->expression);
+            resolved_args.push_back({member_struct, param->name.name});
         }
         idx++;
     }
