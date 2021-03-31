@@ -18,8 +18,6 @@
 
 namespace TOZ3_V2 {
 
-cstring infer_name(const IR::Annotations *annots, cstring default_name);
-
 class P4State {
  private:
     ProgState scopes;

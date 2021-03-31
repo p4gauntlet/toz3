@@ -251,11 +251,11 @@ bool Z3Visitor::preorder(const IR::BXor *expr) {
 bool Z3Visitor::preorder(const IR::LAnd *expr) {
     visit(expr->left);
     auto left = state->copy_expr_result<Z3Bitvector>();
-    if (left->val.simplify().is_false() or state->has_returned()) {
+    if (left->get_val()->simplify().is_false() or state->has_returned()) {
         state->set_expr_result(*left);
         return false;
     }
-    state->push_forward_cond((left->val));
+    state->push_forward_cond((*left->get_val()));
     visit(expr->right);
     state->pop_forward_cond();
     auto right = state->get_expr_result();
@@ -268,11 +268,11 @@ bool Z3Visitor::preorder(const IR::LAnd *expr) {
 bool Z3Visitor::preorder(const IR::LOr *expr) {
     visit(expr->left);
     auto left = state->copy_expr_result<Z3Bitvector>();
-    if (left->val.simplify().is_true() or state->has_returned()) {
+    if (left->get_val()->simplify().is_true() or state->has_returned()) {
         state->set_expr_result(*left);
         return false;
     }
-    state->push_forward_cond(!(left->val));
+    state->push_forward_cond(!(*left->get_val()));
     visit(expr->right);
     state->pop_forward_cond();
     auto right = state->get_expr_result();
@@ -316,7 +316,7 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
     // resolve condition first
     visit(m->e0);
     auto resolved_condition =
-        state->get_expr_result<Z3Bitvector>()->val.simplify();
+        state->get_expr_result<Z3Bitvector>()->get_val()->simplify();
     // short circuit here
     if (resolved_condition.is_true()) {
         visit(m->e1);

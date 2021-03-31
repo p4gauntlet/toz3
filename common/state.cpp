@@ -69,7 +69,6 @@ z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
 
 Z3Bitvector *produce_slice(P4State *state, Visitor *visitor,
                            const IR::Slice *sl, const P4Z3Instance *val) {
-    // FIXME: What to do about repeated evaluation?
     const z3::expr *lval = nullptr;
     const z3::expr *rval = nullptr;
     const z3::expr *hi = nullptr;
@@ -78,10 +77,10 @@ Z3Bitvector *produce_slice(P4State *state, Visitor *visitor,
     // FIXME: A little snag in the way we return values...
     val = val->copy();
     if (auto z3_bitvec = val->to<Z3Bitvector>()) {
-        rval = &z3_bitvec->val;
+        rval = z3_bitvec->get_val();
         is_signed = z3_bitvec->is_signed;
     } else if (auto z3_int = val->to<Z3Int>()) {
-        rval = &z3_int->val;
+        rval = z3_int->get_val();
     } else {
         P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.",
                           val->get_static_type());
@@ -89,27 +88,23 @@ Z3Bitvector *produce_slice(P4State *state, Visitor *visitor,
     visitor->visit(sl->e0);
     auto lval_expr = state->copy_expr_result();
     if (auto z3_bitvec = lval_expr->to<Z3Bitvector>()) {
-        lval = &z3_bitvec->val;
+        lval = z3_bitvec->get_val();
     } else {
         P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.",
                           val->get_static_type());
     }
     visitor->visit(sl->e1);
     auto hi_expr = state->copy_expr_result();
-    if (auto z3_bitvec = hi_expr->to<Z3Bitvector>()) {
-        hi = &z3_bitvec->val;
-    } else if (auto z3_int = hi_expr->to<Z3Int>()) {
-        hi = &z3_int->val;
+    if (auto z3_val = hi_expr->to<NumericVal>()) {
+        hi = z3_val->get_val();
     } else {
         P4C_UNIMPLEMENTED("Unsupported hi of type %s for slice.",
                           val->get_static_type());
     }
     visitor->visit(sl->e2);
     auto lo_expr = state->get_expr_result();
-    if (auto z3_bitvec = lo_expr->to<Z3Bitvector>()) {
-        lo = &z3_bitvec->val;
-    } else if (auto z3_int = lo_expr->to<Z3Int>()) {
-        lo = &z3_int->val;
+    if (auto z3_val = lo_expr->to<NumericVal>()) {
+        lo = z3_val->get_val();
     } else {
         P4C_UNIMPLEMENTED("Unsupported lo of type %s for slice.",
                           val->get_static_type());
@@ -137,21 +132,17 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
             tmp_target = a->left;
             visitor->visit(a->right);
             auto index = state->get_expr_result();
-            const z3::expr *expr;
-            if (auto z3_expr = index->to<Z3Bitvector>()) {
-                expr = &z3_expr->val;
-            } else if (auto z3_int = index->to<Z3Int>()) {
-                expr = &z3_int->val;
-            } else {
-                P4C_UNIMPLEMENTED("Setting with an index of type %s not "
-                                  "implemented for stacks.",
-                                  index->get_static_type());
-            }
+            auto z3_val = index->to<NumericVal>();
+            BUG_CHECK(z3_val,
+                      "Setting with an index of type %s not "
+                      "implemented for stacks.",
+                      index->get_static_type());
+            auto expr = z3_val->get_val()->simplify();
             if (is_first) {
-                member_struct.target_member = expr->simplify();
+                member_struct.target_member = expr;
                 is_first = false;
             } else {
-                member_struct.mid_members.push(expr->simplify());
+                member_struct.mid_members.push(expr);
             }
             member_struct.has_stack = true;
         } else if (auto path = tmp_target->to<IR::PathExpression>()) {

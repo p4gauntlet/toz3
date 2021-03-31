@@ -143,11 +143,11 @@ z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
         auto key = keys.at(idx);
         visitor->visit(key->expression);
-        auto key_eval = state->get_expr_result<Z3Bitvector>();
+        auto key_eval = state->get_expr_result<Z3Bitvector>()->get_val();
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
         auto key_match =
-            ctx->bv_const(key_name.c_str(), key_eval->val.get_sort().bv_size());
-        hit = hit || (key_eval->val == key_match);
+            ctx->bv_const(key_name.c_str(), key_eval->get_sort().bv_size());
+        hit = hit || (*key_eval == key_match);
     }
     return hit;
 }
@@ -411,7 +411,7 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
-    auto z3_cond = state->get_expr_result<Z3Bitvector>()->val.simplify();
+    auto z3_cond = state->get_expr_result<Z3Bitvector>()->get_val()->simplify();
     if (z3_cond.is_true()) {
         visit(ifs->ifTrue);
         return false;
@@ -557,8 +557,8 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
     // COLLECT
     for (auto state_name : state_names) {
         auto var = state->get_var(state_name);
-        if (auto z3_var = var->to<Z3Bitvector>()) {
-            state_vars.push_back({state_name, z3_var->val});
+        if (auto z3_var = var->to<NumericVal>()) {
+            state_vars.push_back({state_name, *z3_var->get_val()});
         } else if (auto z3_var = var->to<StructBase>()) {
             auto z3_sub_vars = z3_var->get_z3_vars(state_name);
             state_vars.insert(state_vars.end(), z3_sub_vars.begin(),

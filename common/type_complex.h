@@ -183,7 +183,6 @@ class StackInstance : public StructBase {
 
     P4Z3Instance *get_member(const P4Z3Instance *index) const;
     P4Z3Instance *get_member(cstring name) const override;
-    void update_member(const P4Z3Instance *index, P4Z3Instance *val);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
                 const z3::expr *valid_expr = nullptr) const override;

@@ -71,8 +71,8 @@ VarMap get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
 
 void unroll_result(VarMap z3_repr_prog, std::vector<z3::expr> *result_vec) {
     for (auto result_tuple : z3_repr_prog) {
-        if (auto z3_val = result_tuple.second.first->to<Z3Bitvector>()) {
-            result_vec->push_back(z3_val->val);
+        if (auto z3_val = result_tuple.second.first->to<NumericVal>()) {
+            result_vec->push_back(*z3_val->get_val());
         } else if (auto z3_var =
                        result_tuple.second.first->to<ControlState>()) {
             for (auto sub_tuple : z3_var->state_vars) {
@@ -201,11 +201,17 @@ int main(int argc, char *const argv[]) {
     for (auto prog : prog_list) {
         options.file = prog;
         prog_parsed = P4::parseP4File(options);
+        if (prog_parsed != nullptr && ::errorCount() == 0) {
+            P4::P4COptionPragmaParser optionsPragmaParser;
+            prog_parsed->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
+        } else {
+            error("Unable to parse program.");
+            return EXIT_FAILURE;
+        }
         auto z3_repr_prog = TOZ3_V2::get_z3_repr(prog_parsed, &ctx);
         std::vector<z3::expr> result_vec;
         TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
         z3_progs.push_back({prog, result_vec});
     }
     return TOZ3_V2::compare_progs(&ctx, z3_progs);
-    ;
 }

@@ -99,15 +99,35 @@ class ControlState : public P4Z3Instance {
     }
 };
 
-class Z3Bitvector : public P4Z3Instance {
+class NumericVal : public P4Z3Instance {
+ protected:
     const P4State *state;
+    z3::expr val;
 
  public:
-    z3::expr val;
+    explicit NumericVal(const P4State *state, z3::expr val)
+        : state(state), val(val) {}
+
+    const z3::expr *get_val() const { return &val; }
+
+    cstring get_static_type() const override { return "NumericVal"; }
+    cstring to_string() const override {
+        cstring ret = "NumericVal(";
+        return ret + val.to_string().c_str() + ")";
+    }
+    void set_undefined() override {
+        auto sort = val.get_sort();
+        auto ctx = &sort.ctx();
+        val = ctx->constant("undefined", sort);
+    }
+};
+
+class Z3Bitvector : public NumericVal {
+ public:
     bool is_signed;
     explicit Z3Bitvector(const P4State *state, z3::expr val,
                          bool is_signed = false)
-        : state(state), val(val), is_signed(is_signed) {}
+        : NumericVal(state, val), is_signed(is_signed) {}
     explicit Z3Bitvector(const P4State *state);
     ~Z3Bitvector() {}
 
@@ -145,11 +165,6 @@ class Z3Bitvector : public P4Z3Instance {
 
     void merge(const z3::expr &cond, const P4Z3Instance &other) override;
     Z3Bitvector *copy() const override;
-    void set_undefined() override {
-        auto sort = val.get_sort();
-        auto ctx = &sort.ctx();
-        val = ctx->constant("undefined", sort);
-    }
 
     cstring get_static_type() const override { return "Z3Bitvector"; }
     cstring to_string() const override {
@@ -158,13 +173,10 @@ class Z3Bitvector : public P4Z3Instance {
     }
 };
 
-class Z3Int : public P4Z3Instance {
-    const P4State *state;
-
+class Z3Int : public NumericVal {
  public:
-    z3::expr val;
     explicit Z3Int(const P4State *state, z3::expr val)
-        : state(state), val(val) {}
+        : NumericVal(state, val) {}
     Z3Int(const P4State *state, int64_t int_val);
     Z3Int(const P4State *state, big_int int_val);
     explicit Z3Int(const P4State *state);
@@ -202,11 +214,6 @@ class Z3Int : public P4Z3Instance {
 
     void merge(const z3::expr &cond, const P4Z3Instance &other) override;
     Z3Int *copy() const override;
-    void set_undefined() override {
-        auto sort = val.get_sort();
-        auto ctx = &sort.ctx();
-        val = ctx->constant("undefined", sort);
-    }
 
     cstring get_static_type() const override { return "Z3Int"; }
     cstring to_string() const override {

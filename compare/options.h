@@ -8,7 +8,7 @@
 
 namespace TOZ3_V2 {
 
-class CompareOptions : public ParserOptions {
+class CompareOptions : public CompilerOptions {
  public:
     CompareOptions();
     // The P4 program we want to compare against

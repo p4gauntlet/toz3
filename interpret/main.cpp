@@ -56,9 +56,7 @@ int main(int argc, char *const argv[]) {
 
     auto hook = options.getDebugHook();
 
-    const IR::P4Program *program = nullptr;
-
-    program = P4::parseP4File(options);
+    const IR::P4Program *program = P4::parseP4File(options);
 
     if (program != nullptr && ::errorCount() == 0) {
         z3::context ctx;

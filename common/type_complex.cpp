@@ -164,7 +164,8 @@ StructInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
         if (auto *z3_var = member->to<Z3Bitvector>()) {
             auto dest_type = member_types.at(member_tuple.first);
             auto invalid_var = state->gen_z3_expr("invalid", dest_type);
-            auto valid_var = z3::ite(*tmp_valid, z3_var->val, invalid_var);
+            auto valid_var =
+                z3::ite(*tmp_valid, *z3_var->get_val(), invalid_var);
             z3_vars.push_back({name, valid_var});
         } else if (auto z3_var = member->to<StructBase>()) {
             auto z3_sub_vars = z3_var->get_z3_vars(name, valid_expr);
@@ -175,7 +176,8 @@ StructInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
             // type
             auto dest_type = member_types.at(member_tuple.first);
             auto cast_val =
-                z3::int2bv(dest_type->width_bits(), z3_var->val).simplify();
+                z3::int2bv(dest_type->width_bits(), *z3_var->get_val())
+                    .simplify();
             auto invalid_var = state->gen_z3_expr("invalid", dest_type);
             auto valid_var = z3::ite(*tmp_valid, cast_val, invalid_var);
             z3_vars.push_back({name, valid_var});
@@ -439,56 +441,24 @@ P4Z3Instance *StackInstance::get_member(cstring name) const {
 }
 
 P4Z3Instance *StackInstance::get_member(const P4Z3Instance *index) const {
-    if (auto z3_expr = index->to<Z3Bitvector>()) {
-        auto val = z3_expr->val.simplify();
-        std::string val_str;
-        if (val.is_numeral(val_str, 0)) {
-            return get_member(val_str);
-        } else {
-            // We create a new header that we return
-            // This header is the merge of all the sub headers of this stack
-            auto base_hdr = state->gen_instance("undefined", elem_type);
-            for (size_t idx = 0; idx < int_size; ++idx) {
-                cstring member_name = std::to_string(idx);
-                auto hdr = get_member(member_name);
-                auto z3_int = state->get_z3_ctx()->num_val(idx, val.get_sort());
-                base_hdr->merge(val == z3_int, *hdr);
-            }
-            return base_hdr;
-        }
-    } else if (auto z3_int = index->to<Z3Int>()) {
-        // Integers are compile time constant
-        // This means we are able to retrieve the concrete value
-        auto val = z3_int->val.simplify();
-        return get_member(val.get_decimal_string(0));
+    auto z3_expr = index->to<NumericVal>();
+    BUG_CHECK(z3_expr, "Index of type %s not implemented for stacks.",
+              index->get_static_type());
+    auto val = z3_expr->get_val()->simplify();
+    std::string val_str;
+    if (val.is_numeral(val_str, 0)) {
+        return get_member(val_str);
     } else {
-        P4C_UNIMPLEMENTED("Index of type %s not implemented for stacks.",
-                          index->get_static_type());
-    }
-}
-
-void StackInstance::update_member(const P4Z3Instance *index,
-                                  P4Z3Instance *rval) {
-    if (auto z3_expr = index->to<Z3Bitvector>()) {
-        auto val = z3_expr->val.simplify();
-        std::string val_str;
-        if (val.is_numeral(val_str, 0)) {
-            StructBase::update_member(val_str, rval);
-        } else {
-            P4C_UNIMPLEMENTED("Z3 expression index  %s of type %s not "
-                              "implemented for stacks.",
-                              val.to_string().c_str(),
-                              val.get_sort().to_string());
+        // We create a new header that we return
+        // This header is the merge of all the sub headers of this stack
+        auto base_hdr = state->gen_instance("undefined", elem_type);
+        for (size_t idx = 0; idx < int_size; ++idx) {
+            cstring member_name = std::to_string(idx);
+            auto hdr = get_member(member_name);
+            auto z3_int = state->get_z3_ctx()->num_val(idx, val.get_sort());
+            base_hdr->merge(val == z3_int, *hdr);
         }
-    } else if (auto z3_int = index->to<Z3Int>()) {
-        // Integers are compile time constant
-        // This means we are able to retrieve the concrete value
-        auto val = z3_int->val.simplify();
-        StructBase::update_member(val.get_decimal_string(0), rval);
-    } else {
-        P4C_UNIMPLEMENTED(
-            "Setting with an index of type %s not implemented for stacks.",
-            index->get_static_type());
+        return base_hdr;
     }
 }
 
