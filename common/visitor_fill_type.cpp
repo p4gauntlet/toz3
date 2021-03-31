@@ -21,14 +21,47 @@ bool TypeVisitor::preorder(const IR::Type_StructLike *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_Enum *t) {
-    // FIXME: Enums are really nasty because we also need to access them
-    state->add_type(t->name.name, t);
-    state->declare_var(t->name.name, new EnumInstance(state, t, 0), t);
+    // TODO: Enums are really nasty because we also need to access them
+    // TODO: Simplify this.
+    auto dummy = new P4Scope();
+    auto name = t->name.name;
+    auto var = state->find_var(name, &dummy);
+    // Every P4 program is initialized with an error namespace
+    // according to the spec
+    // So if the error exists, we merge
+    if (var) {
+        auto enum_instance = var->to_mut<EnumBase>();
+        BUG_CHECK(enum_instance, "Unexpected enum instance %s",
+                  enum_instance->to_string());
+        for (auto member : t->members) {
+            enum_instance->add_enum_member(member->name.name);
+        }
+    } else {
+        state->add_type(name, t);
+        state->declare_var(name, state->gen_instance(name, t), t);
+    }
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Type_Error *t) {
-    state->add_type(t->name.name, t);
+    // TODO: Simplify this.
+    auto dummy = new P4Scope();
+    auto name = t->name.name;
+    auto var = state->find_var(name, &dummy);
+    // Every P4 program is initialized with an error namespace
+    // according to the spec
+    // So if the error exists, we merge
+    if (var) {
+        auto enum_instance = var->to_mut<EnumBase>();
+        BUG_CHECK(enum_instance, "Unexpected enum instance %s",
+                  enum_instance->to_string());
+        for (auto member : t->members) {
+            enum_instance->add_enum_member(member->name.name);
+        }
+    } else {
+        state->add_type(name, t);
+        state->declare_var(name, state->gen_instance(name, t), t);
+    }
     return false;
 }
 

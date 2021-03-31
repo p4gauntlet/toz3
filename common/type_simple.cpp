@@ -209,13 +209,13 @@ Z3Result Z3Bitvector::operator<<(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Bitvector::operator==(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "==");
+    // TODO: Should I align here?
+    auto other_expr = align_bitvectors(&other, val.get_sort(), true, "==");
     return val == other_expr;
 }
 
 z3::expr Z3Bitvector::operator!=(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "!=");
-    return val != other_expr;
+    return !(*this == other);
 }
 
 z3::expr Z3Bitvector::operator<(const P4Z3Instance &other) const {
@@ -567,21 +567,7 @@ z3::expr Z3Int::operator==(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Int::operator!=(const P4Z3Instance &other) const {
-    const z3::expr *this_expr;
-    const z3::expr *other_expr;
-
-    if (auto other_int = other.to<Z3Int>()) {
-        this_expr = &val;
-        other_expr = &other_int->val;
-    } else if (auto other_val = other.to<Z3Bitvector>()) {
-        auto cast_val = pure_bv_cast(val, other_val->get_val()->get_sort());
-        this_expr = &cast_val;
-        other_expr = other_val->get_val();
-    } else {
-        P4C_UNIMPLEMENTED("!= not implemented for %s.",
-                          other.get_static_type());
-    }
-    return *this_expr != *other_expr;
+    return !(*this == other);
 }
 
 z3::expr Z3Int::operator<(const P4Z3Instance &other) const {

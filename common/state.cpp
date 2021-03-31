@@ -443,22 +443,22 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
 }
 
 P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
-                                    uint64_t id) {
+                                    uint64_t id, cstring prefix) {
     P4Z3Instance *instance;
     if (auto tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
     }
     // FIXME: Split this up to not muddle things.
     if (auto t = type->to<IR::Type_Struct>()) {
-        instance = new StructInstance(this, t, id);
+        instance = new StructInstance(this, t, id, prefix);
     } else if (auto t = type->to<IR::Type_Header>()) {
-        instance = new HeaderInstance(this, t, id);
+        instance = new HeaderInstance(this, t, id, prefix);
     } else if (auto t = type->to<IR::Type_Enum>()) {
-        instance = new EnumInstance(this, t, id);
+        instance = new EnumInstance(this, t, id, prefix);
     } else if (auto t = type->to<IR::Type_Error>()) {
-        instance = new ErrorInstance(this, t, id);
+        instance = new ErrorInstance(this, t, id, prefix);
     } else if (auto t = type->to<IR::Type_Stack>()) {
-        instance = new StackInstance(this, t, id);
+        instance = new StackInstance(this, t, id, prefix);
     } else if (auto t = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, t);
     } else if (auto t = type->to<IR::P4Control>()) {

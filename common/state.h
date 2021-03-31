@@ -18,6 +18,8 @@
 
 namespace TOZ3_V2 {
 
+cstring infer_name(const IR::Annotations *annots, cstring default_name);
+
 class P4State {
  private:
     ProgState scopes;
@@ -59,7 +61,7 @@ class P4State {
     /****** ALLOCATIONS ******/
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
-                               uint64_t id = 0);
+                               uint64_t id = 0, cstring prefix = "");
 
     /****** COPY-IN/COPY-OUT ******/
     VarMap merge_args_with_params(Visitor *visitor,

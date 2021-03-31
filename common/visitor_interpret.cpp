@@ -55,7 +55,7 @@ bool Z3Visitor::preorder(const IR::Function *f) {
 }
 
 bool Z3Visitor::preorder(const IR::Method *m) {
-    auto method_name = m->getName().name;
+    auto method_name = infer_name(m->getAnnotations(), m->getName().name);
     auto method_type = m->type->returnType;
     // TODO: Different types of arguments and multiple calls
     for (auto param : *m->getParameters()) {
@@ -63,7 +63,8 @@ bool Z3Visitor::preorder(const IR::Method *m) {
         cstring merged_param_name = method_name + "_" + param_name;
         if (param->direction == IR::Direction::Out ||
             param->direction == IR::Direction::InOut) {
-            auto instance = state->gen_instance(merged_param_name, param->type);
+            auto instance = state->gen_instance(merged_param_name, param->type,
+                                                0, method_name);
             state->update_var(param_name, instance);
         }
     }

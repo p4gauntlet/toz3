@@ -7,40 +7,25 @@
 
 namespace TOZ3_V2 {
 
-StructBase::StructBase(P4State *state, const IR::Type *type, uint64_t member_id)
-    : state(state), member_id(member_id),
-      valid(state->get_z3_ctx()->bool_val(true)), p4_type(type) {
+StructBase::StructBase(P4State *state, const IR::Type *type, uint64_t member_id,
+                       cstring prefix)
+    : state(state), valid(state->get_z3_ctx()->bool_val(true)), p4_type(type) {
     width = 0;
+    instance_name = prefix + std::to_string(member_id);
 }
 
 StructBase::StructBase(const StructBase &other)
     : P4Z3Instance(other), valid(other.valid) {
     width = other.width;
     state = other.state;
-    valid = other.valid;
     p4_type = other.p4_type;
+    instance_name = other.instance_name;
     member_types = other.member_types;
     for (auto value_tuple : other.members) {
         cstring name = value_tuple.first;
         auto member_cpy = value_tuple.second->copy();
         insert_member(name, member_cpy);
     }
-}
-
-StructBase &StructBase::operator=(const StructBase &other) {
-    if (this == &other) {
-        return *this;
-    }
-    width = other.width;
-    state = other.state;
-    p4_type = other.p4_type;
-    member_types = other.member_types;
-    for (auto &value_tuple : other.members) {
-        cstring name = value_tuple.first;
-        auto member_cpy = value_tuple.second->copy();
-        insert_member(name, member_cpy);
-    }
-    return *this;
 }
 
 void StructBase::set_undefined() {
@@ -130,11 +115,11 @@ z3::expr StructBase::operator!=(const P4Z3Instance &other) const {
 }
 
 StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
-                               uint64_t member_id)
-    : StructBase(state, type, member_id) {
+                               uint64_t member_id, cstring prefix)
+    : StructBase(state, type, member_id, prefix) {
     auto flat_id = member_id;
     for (auto field : type->fields) {
-        cstring name = cstring(std::to_string(flat_id));
+        cstring name = prefix + std::to_string(flat_id);
         const IR::Type *resolved_type = state->resolve_type(field->type);
         auto member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto si = member_var->to_mut<StructBase>()) {
@@ -214,22 +199,13 @@ StructInstance &StructInstance::operator=(const StructInstance &other) {
     if (this == &other) {
         return *this;
     }
-    valid = other.valid;
-    width = other.width;
-    state = other.state;
-    p4_type = other.p4_type;
-    member_types = other.member_types;
-    for (auto value_tuple : other.members) {
-        cstring name = value_tuple.first;
-        auto member_cpy = value_tuple.second->copy();
-        insert_member(name, member_cpy);
-    }
+    *this = StructInstance(other);
     return *this;
 }
 
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type,
-                               uint64_t member_id)
-    : StructInstance(state, type, member_id) {
+                               uint64_t member_id, cstring prefix)
+    : StructInstance(state, type, member_id, prefix) {
     valid = state->get_z3_ctx()->bool_val(false);
     member_functions["setValid0"] = new FunctionWrapper(
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
@@ -262,32 +238,10 @@ HeaderInstance::HeaderInstance(const HeaderInstance &other)
 }
 
 HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
-    // TODO: Clean this up and call super functions
     if (this == &other) {
         return *this;
     }
-    valid = other.valid;
-    width = other.width;
-    state = other.state;
-    p4_type = other.p4_type;
-    member_types = other.member_types;
-    for (auto value_tuple : other.members) {
-        cstring name = value_tuple.first;
-        auto member_cpy = value_tuple.second->copy();
-        insert_member(name, member_cpy);
-    }
-    member_functions["setValid0"] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            setValid(visitor, args);
-        });
-    member_functions["setInvalid0"] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            setInvalid(visitor, args);
-        });
-    member_functions["isValid0"] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            isValid(visitor, args);
-        });
+    *this = HeaderInstance(other);
     return *this;
 }
 
@@ -338,7 +292,7 @@ void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
     if (valid_expr) {
         valid = *valid_expr;
     } else {
-        cstring name = std::to_string(member_id) + "_valid";
+        cstring name = instance_name + "_valid";
         valid = state->get_z3_ctx()->bool_const(name);
         valid_expr = &valid;
     }
@@ -371,15 +325,14 @@ void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
 }
 
 StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
-                             uint64_t member_id)
-    : StructBase(state, type, member_id), nextIndex(Z3Int(state, 0)),
+                             uint64_t member_id, cstring prefix)
+    : StructBase(state, type, member_id, prefix), nextIndex(Z3Int(state, 0)),
       lastIndex(Z3Int(state, 0)), size(Z3Int(state, type->getSize())),
       int_size(type->getSize()), elem_type(type->elementType) {
     auto flat_id = member_id;
     const IR::Type *resolved_type = state->resolve_type(type->elementType);
     for (size_t idx = 0; idx < int_size; ++idx) {
-        cstring name = std::to_string(flat_id);
-        cstring member_name = std::to_string(idx);
+        cstring name = prefix + std::to_string(flat_id);
         auto member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
@@ -388,6 +341,7 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
                               member_var->get_static_type());
         }
+        cstring member_name = std::to_string(idx);
         insert_member(member_name, member_var);
         member_types.insert({member_name, resolved_type});
     }
@@ -417,32 +371,10 @@ StackInstance::StackInstance(const StackInstance &other)
 }
 
 StackInstance &StackInstance::operator=(const StackInstance &other) {
-    // TODO: Clean this up and call super functions
     if (this == &other) {
         return *this;
     }
-    width = other.width;
-    state = other.state;
-    p4_type = other.p4_type;
-    member_types = other.member_types;
-    for (auto value_tuple : other.members) {
-        cstring name = value_tuple.first;
-        auto member_cpy = value_tuple.second->copy();
-        insert_member(name, member_cpy);
-    }
-    nextIndex = other.nextIndex;
-    lastIndex = other.lastIndex;
-    size = other.size;
-    int_size = other.int_size;
-    elem_type = other.elem_type;
-    member_functions["push_front1"] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            push_front(visitor, args);
-        });
-    member_functions["pop_front1"] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            pop_front(visitor, args);
-        });
+    *this = StackInstance(other);
     return *this;
 }
 
@@ -514,65 +446,75 @@ StackInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
     return z3_vars;
 }
 
-EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
-                           uint64_t ext_member_id)
-    : StructBase(p4_state, type, ext_member_id), p4_type(type) {
-    // FIXME: Enums should not be a struct base, actually
-    width = 32;
-    state = p4_state;
-    member_id = ext_member_id;
-    const auto member_type = new IR::Type_Bits(32, false);
-    for (auto member : type->members) {
-        cstring name = member->name.name;
-        auto member_var = state->gen_instance(name, member_type);
-        insert_member(name, member_var);
-    }
-}
-
 std::vector<std::pair<cstring, z3::expr>>
-EnumInstance::get_z3_vars(cstring prefix, const z3::expr *) const {
+EnumBase::get_z3_vars(cstring prefix, const z3::expr *) const {
     std::vector<std::pair<cstring, z3::expr>> z3_vars;
-    auto z3_const = state->get_z3_ctx()->constant(
-        p4_type->name.name, state->get_z3_ctx()->bv_sort(32));
-    cstring name = std::to_string(member_id);
-    if (prefix.size() != 0) {
-        name = prefix + "." + name;
-    }
-    z3_vars.push_back({name, z3_const});
-    return z3_vars;
-}
-
-ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
-                             uint64_t ext_member_id)
-    : StructBase(p4_state, type, ext_member_id), p4_type(type) {
-    // FIXME: Enums should not be a struct base, actually
-    width = 32;
-    state = p4_state;
-    member_id = ext_member_id;
-    auto member_type = new IR::Type_Bits(32, false);
-    for (auto member : type->members) {
-        cstring name = member->name.name;
-        auto member_var = state->gen_instance(name, member_type);
-        insert_member(p4_type->name.name, member_var);
-    }
-}
-
-std::vector<std::pair<cstring, z3::expr>>
-ErrorInstance::get_z3_vars(cstring prefix, const z3::expr *) const {
-    std::vector<std::pair<cstring, z3::expr>> z3_vars;
-    cstring name = p4_type->name.name;
+    cstring name = instance_name;
     if (prefix.size() != 0) {
         name = prefix + "." + name;
     }
     auto z3_const =
         state->get_z3_ctx()->constant(name, state->get_z3_ctx()->bv_sort(32));
-    z3_vars.push_back({std::to_string(member_id), z3_const});
+    z3_vars.push_back({instance_name, z3_const});
     return z3_vars;
 }
 
-ErrorInstance *ErrorInstance::copy() const {
-    return new ErrorInstance(state, p4_type, member_id);
+void EnumBase::add_enum_member(cstring error_name) {
+    auto member_var =
+        new Z3Bitvector(state, state->get_z3_ctx()->bv_val(members.size(), 32));
+    insert_member(error_name, member_var);
 }
+
+z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
+    auto is_eq = state->get_z3_ctx()->bool_val(true);
+    if (auto num_val = other.to<NumericVal>()) {
+        auto other_val = *num_val->get_val();
+        // TODO: Is this the right way to compare? I do not know yet...
+        auto enum_val = state->get_z3_ctx()->bv_const(
+            instance_name, other_val.get_sort().bv_size());
+        return enum_val == other_val;
+    }
+    P4C_UNIMPLEMENTED("Comparing a enum base to %s is not supported.",
+                      other.get_static_type());
+}
+
+z3::expr EnumBase::operator!=(const P4Z3Instance &other) const {
+    return !(*this == other);
+}
+
+EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
+                           uint64_t ext_member_id, cstring prefix)
+    : EnumBase(p4_state, type, ext_member_id, prefix) {
+    // FIXME: Enums should not be a struct base, actually
+    width = 32;
+    state = p4_state;
+    size_t idx = 0;
+    for (auto member : type->members) {
+        auto member_var =
+            new Z3Bitvector(state, state->get_z3_ctx()->bv_val(idx, 32));
+        insert_member(member->name.name, member_var);
+        idx++;
+    }
+}
+
+EnumInstance *EnumInstance::copy() const { return new EnumInstance(*this); }
+
+ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
+                             uint64_t ext_member_id, cstring prefix)
+    : EnumBase(p4_state, type, ext_member_id, prefix) {
+    // FIXME: Enums should not be a struct base, actually
+    width = 32;
+    state = p4_state;
+    size_t idx = 0;
+    for (auto member : type->members) {
+        auto member_var =
+            new Z3Bitvector(state, state->get_z3_ctx()->bv_val(idx, 32));
+        insert_member(member->name.name, member_var);
+        idx++;
+    }
+}
+
+ErrorInstance *ErrorInstance::copy() const { return new ErrorInstance(*this); }
 
 ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *type)
     : state(state), p4_type(type) {

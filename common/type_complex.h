@@ -5,9 +5,10 @@
 
 #include <cstdio>
 
-#include <map>    // std::map
-#include <string> // std::to_string
-#include <vector> // std::vector
+#include <map>     // std::map
+#include <string>  // std::to_string
+#include <utility> // std::pair
+#include <vector>  // std::vector
 
 #include "ir/ir.h"
 #include "lib/cstring.h"
@@ -21,13 +22,14 @@ class StructBase : public P4Z3Instance {
     P4State *state;
     ordered_map<cstring, P4Z3Instance *> members;
     std::map<cstring, const IR::Type *> member_types;
-    uint64_t member_id;
     uint64_t width;
     z3::expr valid;
+    cstring instance_name;
 
  public:
     const IR::Type *p4_type;
-    StructBase(P4State *state, const IR::Type *type, uint64_t member_id);
+    StructBase(P4State *state, const IR::Type *type, uint64_t member_id,
+               cstring prefix);
 
     uint64_t get_width() { return width; }
 
@@ -87,7 +89,7 @@ class StructInstance : public StructBase {
 
  public:
     StructInstance(P4State *state, const IR::Type_StructLike *type,
-                   uint64_t member_id);
+                   uint64_t member_id, cstring prefix);
     StructInstance *copy() const override;
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
@@ -120,7 +122,7 @@ class HeaderInstance : public StructInstance {
 
  public:
     HeaderInstance(P4State *state, const IR::Type_Header *type,
-                   uint64_t member_id);
+                   uint64_t member_id, cstring prefix);
     void set_valid(const z3::expr &valid_val);
     const z3::expr *get_valid() const;
     void setValid(Visitor *, const IR::Vector<IR::Argument> *);
@@ -172,7 +174,7 @@ class StackInstance : public StructBase {
 
  public:
     explicit StackInstance(P4State *state, const IR::Type_Stack *type,
-                           uint64_t member_id);
+                           uint64_t member_id, cstring prefix);
 
     P4Z3Instance *get_function(cstring name) const override {
         auto it = member_functions.find(name);
@@ -212,15 +214,36 @@ class StackInstance : public StructBase {
     ~StackInstance() {}
 };
 
-class EnumInstance : public StructBase {
+class EnumBase : public StructBase {
     using StructBase::StructBase;
 
  public:
-    const IR::Type_Enum *p4_type;
-    EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
                 const z3::expr *valid_expr = nullptr) const override;
+    cstring get_static_type() const override { return "EnumBase"; }
+    cstring to_string() const override {
+        cstring ret = "EnumBase(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first)
+                ret += ", ";
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
+
+    void add_enum_member(cstring error_name);
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
+};
+
+class EnumInstance : public EnumBase {
+ public:
+    EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id,
+                 cstring prefix);
     cstring get_static_type() const override { return "EnumInstance"; }
     cstring to_string() const override {
         cstring ret = "EnumInstance(";
@@ -234,18 +257,15 @@ class EnumInstance : public StructBase {
         ret += ")";
         return ret;
     }
+    // TODO: EnumInstance is static, so no copy allowed
+    EnumInstance *copy() const override;
 };
 
-class ErrorInstance : public StructBase {
-    using StructBase::StructBase;
+class ErrorInstance : public EnumBase {
 
  public:
-    const IR::Type_Error *p4_type;
     ErrorInstance(P4State *state, const IR::Type_Error *type,
-                  uint64_t member_id);
-    std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "",
-                const z3::expr *valid_expr = nullptr) const override;
+                  uint64_t member_id, cstring prefix);
     cstring get_static_type() const override { return "ErrorInstance"; }
     ErrorInstance *copy() const override;
 
