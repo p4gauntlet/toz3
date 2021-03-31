@@ -228,7 +228,7 @@ void set_stack(P4State *state, MemberStruct *member_struct,
             auto complex_class = parent_class->to_mut<StructBase>();
             CHECK_NULL(complex_class);
             if (expr->is_numeral(val_str, 0)) {
-                auto orig_val = complex_class->get_member(*name);
+                auto orig_val = complex_class->get_member(val_str);
                 auto dest_type = complex_class->get_member_type(val_str);
                 auto cast_val = rval->cast_allocate(dest_type);
                 cast_val->merge(!parent_cond, *orig_val);
@@ -335,24 +335,31 @@ VarMap P4State::merge_args_with_params(Visitor *visitor,
     size_t idx = 0;
     // TODO: Clean this up...
     for (auto param : params->parameters) {
+        auto resolved_type = resolve_type(param->type);
         if (param->direction == IR::Direction::Out) {
-            auto instance = gen_instance("undefined", param->type);
-            merged_vec.insert({param->name.name, {instance, param->type}});
+            auto instance = gen_instance("undefined", resolved_type);
+            merged_vec.insert({param->name.name, {instance, resolved_type}});
             idx++;
             continue;
         }
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
             visitor->visit(arg->expression);
-            // TODO: Cast here
-            merged_vec.insert(
-                {param->name.name, {copy_expr_result(), param->type}});
+            // TODO: We should not need this if, this is a hack
+            if (resolved_type->is<IR::Type_StructLike>()) {
+                auto cast_val = get_expr_result()->cast_allocate(resolved_type);
+                merged_vec.insert(
+                    {param->name.name, {cast_val, resolved_type}});
+            } else {
+                merged_vec.insert(
+                    {param->name.name, {copy_expr_result(), resolved_type}});
+            }
         } else {
-            auto arg_expr = gen_instance(param->name.name, param->type);
+            auto arg_expr = gen_instance(param->name.name, resolved_type);
             if (auto complex_arg = arg_expr->to_mut<StructInstance>()) {
                 complex_arg->propagate_validity();
             }
-            merged_vec.insert({param->name.name, {arg_expr, param->type}});
+            merged_vec.insert({param->name.name, {arg_expr, resolved_type}});
         }
         idx++;
     }
@@ -501,7 +508,12 @@ const IR::Type *P4State::get_type(cstring type_name) const {
 const IR::Type *P4State::resolve_type(const IR::Type *type) const {
     if (auto tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
-        return get_type(type_name);
+        // TODO: For now catch these exceptions, but this should be solved
+        try {
+            return get_type(type_name);
+        } catch (const Util::P4CExceptionBase &bug) {
+            return type;
+        }
     }
     return type;
 }
