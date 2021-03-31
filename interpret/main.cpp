@@ -88,7 +88,10 @@ int main(int argc, char *const argv[]) {
             }
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << bug.what() << std::endl;
-            return 1;
+            return EXIT_FAILURE;
+        } catch (z3::exception &ex) {
+            std::cerr << "Z3 exception: " << ex << std::endl;
+            return EXIT_FAILURE;
         }
     }
 

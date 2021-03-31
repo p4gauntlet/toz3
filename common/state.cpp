@@ -433,9 +433,9 @@ void P4State::copy_out() {
 
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (auto tbi = type->to<IR::Type_Bits>()) {
-        return ctx->bv_const(name, tbi->width_bits());
+        return ctx->bv_const(name, tbi->size);
     } else if (auto tvb = type->to<IR::Type_Varbits>()) {
-        return ctx->bv_const(name, tvb->width_bits());
+        return ctx->bv_const(name, tvb->size);
     } else if (type->is<IR::Type_Boolean>()) {
         return ctx->bool_const(name);
     }

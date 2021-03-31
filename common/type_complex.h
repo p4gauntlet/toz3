@@ -76,9 +76,10 @@ class StructBase : public P4Z3Instance {
     StructBase(const StructBase &other);
     // overload = operator
     StructBase &operator=(const StructBase &other);
-
     void merge(const z3::expr &cond, const P4Z3Instance &) override;
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
 };
 
 class StructInstance : public StructBase {

@@ -71,17 +71,17 @@ void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
     }
 }
 
-void StructBase::merge(const z3::expr &cond, const P4Z3Instance &other) {
-    auto other_struct = other.to<StructBase>();
+void StructBase::merge(const z3::expr &cond, const P4Z3Instance &then_var) {
+    auto then_struct = then_var.to<StructBase>();
 
-    if (!other_struct) {
+    if (!then_struct) {
         BUG("Unsupported merge class.");
     }
 
     for (auto member_tuple : members) {
         cstring member_name = member_tuple.first;
         auto then_var = member_tuple.second;
-        auto else_var = other_struct->get_const_member(member_name);
+        auto else_var = then_struct->get_const_member(member_name);
         then_var->merge(cond, *else_var);
     }
 }
@@ -108,6 +108,25 @@ void StructBase::propagate_validity(const z3::expr *valid_expr) {
             z3_var->propagate_validity(valid_expr);
         }
     }
+}
+
+z3::expr StructBase::operator==(const P4Z3Instance &other) const {
+    auto is_eq = state->get_z3_ctx()->bool_val(true);
+    if (other.is<StructBase>()) {
+        for (auto member_tuple : members) {
+            auto member_name = member_tuple.first;
+            auto member_val = member_tuple.second;
+            auto other_val = other.get_member(member_name);
+            is_eq = is_eq && (member_val->operator==(*other_val));
+        }
+        return is_eq;
+    }
+    P4C_UNIMPLEMENTED("Comparing a struct base to %s is not supported.",
+                      other.get_static_type());
+}
+
+z3::expr StructBase::operator!=(const P4Z3Instance &other) const {
+    return !(*this == other);
 }
 
 StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
@@ -275,16 +294,16 @@ HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
 z3::expr HeaderInstance::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
     if (auto other_hdr = other.to<HeaderInstance>()) {
-        auto other_is_valid = other_hdr->get_valid();
+        auto other_is_valid = *other_hdr->get_valid();
         for (auto member_tuple : members) {
             auto member_name = member_tuple.first;
             auto member_val = member_tuple.second;
             auto other_val = other.get_member(member_name);
-            is_eq = is_eq && *member_val == *other_val;
+            is_eq = is_eq && (member_val->operator==(*other_val));
         }
-        auto both_invalid = !(valid || *other_is_valid);
-        auto both_valid_and_eq = is_eq && valid && other_is_valid;
-        return both_invalid || (both_valid_and_eq);
+        auto both_invalid = !(valid || other_is_valid);
+        auto both_valid_and_eq = (is_eq && valid && other_is_valid);
+        return both_invalid || both_valid_and_eq;
     }
     P4C_UNIMPLEMENTED("Comparing a header to %s is not supported.",
                       other.get_static_type());
@@ -335,14 +354,14 @@ HeaderInstance *HeaderInstance::copy() const {
     return new HeaderInstance(*this);
 }
 
-void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &other) {
-    auto other_struct = other.to<HeaderInstance>();
+void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &then_var) {
+    auto then_struct = then_var.to<HeaderInstance>();
 
-    if (!other_struct) {
+    if (!then_struct) {
         P4C_UNIMPLEMENTED("Unsupported merge class.");
     }
-    StructBase::merge(cond, other);
-    auto valid_merge = z3::ite(cond, *get_valid(), *other_struct->get_valid());
+    StructBase::merge(cond, then_var);
+    auto valid_merge = z3::ite(cond, *then_struct->get_valid(), valid);
     set_valid(valid_merge);
 }
 void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
