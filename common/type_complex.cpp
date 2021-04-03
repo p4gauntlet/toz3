@@ -284,8 +284,7 @@ void HeaderInstance::setInvalid(Visitor *, const IR::Vector<IR::Argument> *) {
 }
 
 void HeaderInstance::isValid(Visitor *, const IR::Vector<IR::Argument> *) {
-    static Z3Bitvector wrapper = Z3Bitvector(state, valid);
-    state->set_expr_result(wrapper);
+    state->set_expr_result(Z3Bitvector(state, valid));
 }
 
 void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {

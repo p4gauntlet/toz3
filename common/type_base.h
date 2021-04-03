@@ -48,13 +48,19 @@ using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
 using Z3P4FunctionCall =
     std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
 
-using StringOrExpr = boost::variant<cstring, z3::expr>;
+struct Z3Slice {
+    z3::expr hi;
+    z3::expr lo;
+};
+
+using NameOrIndex = boost::variant<cstring, z3::expr>;
 struct MemberStruct {
     cstring main_member = nullptr;
-    std::stack<StringOrExpr> mid_members;
-    StringOrExpr target_member = nullptr;
+    std::vector<NameOrIndex> mid_members;
+    NameOrIndex target_member = nullptr;
     bool has_stack = false;
     bool is_flat = false;
+    std::vector<Z3Slice> end_slices;
 };
 using CopyArgs = std::vector<std::pair<MemberStruct, cstring>>;
 

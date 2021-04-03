@@ -306,8 +306,8 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
 
         state->pop_scope();
         size_t idx = 0;
-        for (auto arg_tuple : copy_out_args) {
-            auto target = &arg_tuple.first;
+        for (auto &arg_tuple : copy_out_args) {
+            auto target = arg_tuple.first;
             state->set_var(target, copy_out_vals[idx]);
             idx++;
         }

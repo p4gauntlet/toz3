@@ -126,7 +126,7 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
                 member_struct.target_member = member->member.name;
                 is_first = false;
             } else {
-                member_struct.mid_members.push(member->member.name);
+                member_struct.mid_members.push_back(member->member.name);
             }
         } else if (auto a = tmp_target->to<IR::ArrayIndex>()) {
             tmp_target = a->left;
@@ -142,33 +142,59 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
                 member_struct.target_member = expr;
                 is_first = false;
             } else {
-                member_struct.mid_members.push(expr);
+                member_struct.mid_members.push_back(expr);
             }
             member_struct.has_stack = true;
+        } else if (auto sl = tmp_target->to<IR::Slice>()) {
+            tmp_target = sl->e0;
+            const z3::expr *hi = nullptr;
+            const z3::expr *lo = nullptr;
+            visitor->visit(sl->e1);
+            auto hi_expr = state->copy_expr_result();
+            if (auto z3_val = hi_expr->to<NumericVal>()) {
+                hi = z3_val->get_val();
+            } else {
+                P4C_UNIMPLEMENTED("Unsupported hi of type %s for slice.",
+                                  hi_expr->get_static_type());
+            }
+            visitor->visit(sl->e2);
+            auto lo_expr = state->get_expr_result();
+            if (auto z3_val = lo_expr->to<NumericVal>()) {
+                lo = z3_val->get_val();
+            } else {
+                P4C_UNIMPLEMENTED("Unsupported lo of type %s for slice.",
+                                  lo_expr->get_static_type());
+            }
+            auto z3_slice = Z3Slice{
+                *hi,
+                *lo,
+            };
+            member_struct.end_slices.push_back(z3_slice);
         } else if (auto path = tmp_target->to<IR::PathExpression>()) {
             member_struct.main_member = path->path->name.name;
             break;
         } else {
-            P4C_UNIMPLEMENTED("Unknown target %s!", target->node_type_name());
+            P4C_UNIMPLEMENTED("Unknown target %s!",
+                              tmp_target->node_type_name());
         }
     }
     member_struct.is_flat = is_first;
     return member_struct;
 }
 
-void set_stack(P4State *state, MemberStruct *member_struct,
+void set_stack(P4State *state, const MemberStruct &member_struct,
                P4Z3Instance *rval) {
     std::vector<std::pair<z3::expr, P4Z3Instance *>> parent_pairs;
     std::vector<std::pair<int, z3::expr>> permutation_pairs;
     auto tmp_parent_pairs = parent_pairs;
     parent_pairs.push_back({state->get_z3_ctx()->bool_val(true),
-                            state->get_var(member_struct->main_member)});
+                            state->get_var(member_struct.main_member)});
 
     // Collect all the headers that need to be set
-    while (!member_struct->mid_members.empty()) {
-        auto it = member_struct->mid_members.top();
-        member_struct->mid_members.pop();
-        if (auto name = boost::get<cstring>(&it)) {
+    for (auto it = member_struct.mid_members.rbegin();
+         it != member_struct.mid_members.rend(); ++it) {
+        auto mid_member = *it;
+        if (auto name = boost::get<cstring>(&mid_member)) {
             for (auto &parent_pair : parent_pairs) {
                 auto parent_cond = parent_pair.first;
                 auto parent_class = parent_pair.second;
@@ -177,7 +203,7 @@ void set_stack(P4State *state, MemberStruct *member_struct,
             }
             parent_pairs = tmp_parent_pairs;
             tmp_parent_pairs.clear();
-        } else if (auto expr = boost::get<z3::expr>(&it)) {
+        } else if (auto expr = boost::get<z3::expr>(&mid_member)) {
             for (auto &parent_pair : parent_pairs) {
                 auto parent_cond = parent_pair.first;
                 auto parent_class = parent_pair.second;
@@ -207,7 +233,7 @@ void set_stack(P4State *state, MemberStruct *member_struct,
     }
 
     // Set the variable
-    if (auto name = boost::get<cstring>(&member_struct->target_member)) {
+    if (auto name = boost::get<cstring>(&member_struct.target_member)) {
         for (auto &parent_pair : parent_pairs) {
             auto parent_cond = parent_pair.first;
             auto parent_class = parent_pair.second;
@@ -219,8 +245,7 @@ void set_stack(P4State *state, MemberStruct *member_struct,
             cast_val->merge(!parent_cond, *orig_val);
             complex_class->update_member(*name, cast_val);
         }
-    } else if (auto expr =
-                   boost::get<z3::expr>(&member_struct->target_member)) {
+    } else if (auto expr = boost::get<z3::expr>(&member_struct.target_member)) {
         std::string val_str;
         for (auto &parent_pair : parent_pairs) {
             auto parent_cond = parent_pair.first;
@@ -257,32 +282,82 @@ void set_stack(P4State *state, MemberStruct *member_struct,
     }
 }
 
-void P4State::set_var(MemberStruct *member_struct, P4Z3Instance *rval) {
+P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
+    auto parent_class = state->get_var(member_struct.main_member);
+    if (member_struct.is_flat) {
+        return parent_class;
+    }
+    for (auto it = member_struct.mid_members.rbegin();
+         it != member_struct.mid_members.rend(); ++it) {
+        auto name = boost::get<cstring>(*it);
+        parent_class = parent_class->get_member(name);
+    }
+    if (auto name = boost::get<cstring>(&member_struct.target_member)) {
+        return parent_class->get_member(*name);
+    } else {
+        P4C_UNIMPLEMENTED("Member type not implemented.");
+    }
+}
+
+void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     // If we are dealing with a stack, start with a complicated procedure
     // We need to do this to resolve symbolic indices
-    if (member_struct->has_stack) {
+    if (member_struct.has_stack) {
         set_stack(this, member_struct, rval);
         return;
     }
-    if (member_struct->is_flat) {
+    if (member_struct.is_flat) {
         // Flat target, just update state
-        update_var(member_struct->main_member, rval);
+        update_var(member_struct.main_member, rval);
+        return;
+    }
+    if (member_struct.end_slices.size() > 0) {
+        const z3::expr *target_lval = nullptr;
+        const z3::expr *target_rval = nullptr;
+        auto lval = get_member(this, member_struct);
+        if (auto z3_bitvec = lval->to<Z3Bitvector>()) {
+            target_lval = z3_bitvec->get_val();
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.",
+                              lval->get_static_type());
+        }
+
+        bool is_signed = false;
+        if (auto z3_bitvec = rval->to<Z3Bitvector>()) {
+            target_rval = z3_bitvec->get_val();
+            is_signed = z3_bitvec->is_signed;
+        } else if (auto z3_int = rval->to<Z3Int>()) {
+            target_rval = z3_int->get_val();
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.",
+                              rval->get_static_type());
+        }
+        for (auto it = member_struct.end_slices.rbegin();
+             it != member_struct.end_slices.rend(); ++it) {
+            auto res =
+                compute_slice(*target_lval, *target_rval, it->hi, it->lo);
+            target_rval = &res;
+        }
+        MemberStruct new_member_struct = member_struct;
+        new_member_struct.end_slices.clear();
+        auto resolved_rval = new Z3Bitvector(this, *target_rval, is_signed);
+        set_var(new_member_struct, resolved_rval);
         return;
     }
     // This is the default mode where we only have strings for a member.
-    auto parent_class = get_var(member_struct->main_member);
-    while (!member_struct->mid_members.empty()) {
-        auto it = member_struct->mid_members.top();
-        member_struct->mid_members.pop();
-        auto name = boost::get<cstring>(it);
+    auto parent_class = get_var(member_struct.main_member);
+    for (auto it = member_struct.mid_members.rbegin();
+         it != member_struct.mid_members.rend(); ++it) {
+        auto name = boost::get<cstring>(*it);
         parent_class = parent_class->get_member(name);
     }
-    auto name = boost::get<cstring>(member_struct->target_member);
-    auto complex_class = parent_class->to_mut<StructBase>();
-    CHECK_NULL(complex_class);
-    auto dest_type = complex_class->get_member_type(name);
-    auto cast_val = rval->cast_allocate(dest_type);
-    complex_class->update_member(name, cast_val);
+    if (auto name = boost::get<cstring>(&member_struct.target_member)) {
+        auto complex_class = parent_class->to_mut<StructBase>();
+        CHECK_NULL(complex_class);
+        auto dest_type = complex_class->get_member_type(*name);
+        auto cast_val = rval->cast_allocate(dest_type);
+        complex_class->update_member(*name, cast_val);
+    }
 }
 
 void P4State::set_var(Visitor *visitor, const IR::Expression *target,
@@ -300,7 +375,7 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
     auto member_struct = get_member_struct(this, visitor, target);
     // Collection phase done
     // Now begins the setting phase...
-    set_var(&member_struct, rval);
+    set_var(member_struct, rval);
 }
 
 void P4State::set_var(Visitor *visitor, const IR::Expression *target,
@@ -324,7 +399,7 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
     // Now begins the setting phase...
     visitor->visit(rval);
     auto tmp_rval = copy_expr_result();
-    set_var(&member_struct, tmp_rval);
+    set_var(member_struct, tmp_rval);
 }
 
 VarMap P4State::merge_args_with_params(Visitor *visitor,
@@ -424,8 +499,8 @@ void P4State::copy_out() {
 
     pop_scope();
     size_t idx = 0;
-    for (auto arg_tuple : copy_out_args) {
-        auto target = &arg_tuple.first;
+    for (auto &arg_tuple : copy_out_args) {
+        auto target = arg_tuple.first;
         set_var(target, copy_out_vals[idx]);
         idx++;
     }

@@ -151,7 +151,7 @@ class P4State {
     const IR::Type *get_var_type(cstring decl_name) const;
     void set_var(Visitor *visitor, const IR::Expression *target,
                  const IR::Expression *rval);
-    void set_var(MemberStruct *member_struct, P4Z3Instance *rval);
+    void set_var(const MemberStruct &member_struct, P4Z3Instance *rval);
 
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *val);
