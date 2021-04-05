@@ -94,7 +94,6 @@ class P4State {
     void set_exit_cond(const z3::expr &forward_cond) {
         exit_cond = forward_cond;
     }
-
     const std::vector<z3::expr> get_forward_conds() const {
         std::vector<z3::expr> forward_conds;
         for (auto &scope : scopes) {
@@ -108,33 +107,37 @@ class P4State {
         auto scope = get_mut_current_scope();
         scope->push_forward_cond(forward_cond);
     }
+    const std::vector<z3::expr> get_return_conds() const {
+        std::vector<z3::expr> return_conds;
+        for (auto &scope : scopes) {
+            auto sub_conds = scope.get_return_conds();
+            return_conds.insert(return_conds.end(), sub_conds.begin(),
+                                 sub_conds.end());
+        }
+        return return_conds;
+    }
+    void push_return_cond(const z3::expr &return_cond) {
+        get_mut_current_scope()->push_return_cond(return_cond);
+    }
     void pop_forward_cond() {
         auto scope = get_mut_current_scope();
         scope->pop_forward_cond();
     }
-    bool has_returned() const {
-        auto scope = get_current_scope();
-        return scope.has_returned();
-    }
+    bool has_returned() const { return get_current_scope().has_returned(); }
     void set_returned(bool return_state) {
-        auto scope = get_mut_current_scope();
-        scope->set_returned(return_state);
+        get_mut_current_scope()->set_returned(return_state);
     }
     void push_return_expr(const z3::expr &cond, P4Z3Instance *return_expr) {
-        auto scope = get_mut_current_scope();
-        return scope->push_return_expr(cond, return_expr);
+        return get_mut_current_scope()->push_return_expr(cond, return_expr);
     }
     std::vector<std::pair<z3::expr, P4Z3Instance *>> get_return_exprs() {
-        auto scope = get_mut_current_scope();
-        return scope->get_return_exprs();
+        return get_mut_current_scope()->get_return_exprs();
     }
     void push_return_state(const z3::expr &cond, const VarMap &state) {
-        auto scope = get_mut_current_scope();
-        return scope->push_return_state(cond, state);
+        return get_mut_current_scope()->push_return_state(cond, state);
     }
     std::vector<std::pair<z3::expr, VarMap>> get_return_states() const {
-        auto scope = get_current_scope();
-        return scope.get_return_states();
+        return get_current_scope().get_return_states();
     }
 
     /****** TYPES ******/

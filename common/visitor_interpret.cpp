@@ -263,8 +263,12 @@ bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
 
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     auto forward_conds = state->get_forward_conds();
+    auto return_conds = state->get_return_conds();
     auto cond = state->get_z3_ctx()->bool_val(true);
     for (z3::expr sub_cond : forward_conds) {
+        cond = cond && sub_cond;
+    }
+    for (z3::expr sub_cond : return_conds) {
         cond = cond && sub_cond;
     }
     auto exit_cond = state->get_exit_cond();
@@ -274,7 +278,7 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
         state->push_return_expr(cond && exit_cond, state->copy_expr_result());
     }
     state->push_return_state(cond && exit_cond, state->clone_vars());
-    state->set_exit_cond(exit_cond && !cond);
+    state->push_return_cond(!cond);
     state->set_returned(true);
 
     return false;
@@ -282,8 +286,12 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
 
 bool Z3Visitor::preorder(const IR::ExitStatement *) {
     auto forward_conds = state->get_forward_conds();
+    auto return_conds = state->get_return_conds();
     auto cond = state->get_z3_ctx()->bool_val(true);
     for (z3::expr sub_cond : forward_conds) {
+        cond = cond && sub_cond;
+    }
+    for (z3::expr sub_cond : return_conds) {
         cond = cond && sub_cond;
     }
     auto exit_cond = state->get_exit_cond();
@@ -537,6 +545,7 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
         auto par_type = state->resolve_type(param->type);
         auto var = state->gen_instance(param->name.name, par_type);
         if (auto z3_var = var->to_mut<StructInstance>()) {
+            z3_var->bind(0, param->name.name);
             z3_var->propagate_validity();
         }
         state->declare_var(param->name.name, var, par_type);

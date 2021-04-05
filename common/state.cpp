@@ -56,61 +56,15 @@ z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
     if (hi_int < lval_max) {
         assemble.push_back(lval.extract(lval_max, hi_int + 1));
     }
-    // auto middle_size = ctx->bv_sort(hi_int + 1 - lo_int);
-    // auto cast_val = pure_bv_cast(rval, middle_size);
-    assemble.push_back(rval);
+    auto middle_size = ctx->bv_sort(hi_int + 1 - lo_int);
+    auto cast_val = pure_bv_cast(rval, middle_size);
+    assemble.push_back(cast_val);
 
     if (lo_int > lval_min) {
         assemble.push_back(lval.extract(lo_int - 1, lval_min));
     }
 
     return z3::concat(assemble);
-}
-
-Z3Bitvector *produce_slice(P4State *state, Visitor *visitor,
-                           const IR::Slice *sl, const P4Z3Instance *val) {
-    const z3::expr *lval = nullptr;
-    const z3::expr *rval = nullptr;
-    const z3::expr *hi = nullptr;
-    const z3::expr *lo = nullptr;
-    bool is_signed = false;
-    // FIXME: A little snag in the way we return values...
-    val = val->copy();
-    if (auto z3_bitvec = val->to<Z3Bitvector>()) {
-        rval = z3_bitvec->get_val();
-        is_signed = z3_bitvec->is_signed;
-    } else if (auto z3_int = val->to<Z3Int>()) {
-        rval = z3_int->get_val();
-    } else {
-        P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.",
-                          val->get_static_type());
-    }
-    visitor->visit(sl->e0);
-    auto lval_expr = state->copy_expr_result();
-    if (auto z3_bitvec = lval_expr->to<Z3Bitvector>()) {
-        lval = z3_bitvec->get_val();
-    } else {
-        P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.",
-                          val->get_static_type());
-    }
-    visitor->visit(sl->e1);
-    auto hi_expr = state->copy_expr_result();
-    if (auto z3_val = hi_expr->to<NumericVal>()) {
-        hi = z3_val->get_val();
-    } else {
-        P4C_UNIMPLEMENTED("Unsupported hi of type %s for slice.",
-                          val->get_static_type());
-    }
-    visitor->visit(sl->e2);
-    auto lo_expr = state->get_expr_result();
-    if (auto z3_val = lo_expr->to<NumericVal>()) {
-        lo = z3_val->get_val();
-    } else {
-        P4C_UNIMPLEMENTED("Unsupported lo of type %s for slice.",
-                          val->get_static_type());
-    }
-    auto slice_expr = compute_slice(*lval, *rval, *hi, *lo).simplify();
-    return new Z3Bitvector(state, slice_expr, is_signed);
 }
 
 MemberStruct get_member_struct(P4State *state, Visitor *visitor,
@@ -289,31 +243,36 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
     }
     for (auto it = member_struct.mid_members.rbegin();
          it != member_struct.mid_members.rend(); ++it) {
-        auto name = boost::get<cstring>(*it);
-        parent_class = parent_class->get_member(name);
+        auto mid_member = *it;
+        if (auto name = boost::get<cstring>(&mid_member)) {
+            parent_class = parent_class->get_member(*name);
+        } else if (auto z3_expr = boost::get<z3::expr>(&mid_member)) {
+            auto stack_class = parent_class->to_mut<StackInstance>();
+            BUG_CHECK(stack_class, "Expected Stack, got %s",
+                      stack_class->get_static_type());
+            parent_class =
+                stack_class->get_member(new Z3Bitvector(state, *z3_expr));
+        } else {
+            P4C_UNIMPLEMENTED("Member type not implemented.");
+        }
     }
     if (auto name = boost::get<cstring>(&member_struct.target_member)) {
         return parent_class->get_member(*name);
+    } else if (auto z3_expr =
+                   boost::get<z3::expr>(&member_struct.target_member)) {
+        auto stack_class = parent_class->to_mut<StackInstance>();
+        BUG_CHECK(stack_class, "Expected Stack, got %s",
+                  stack_class->get_static_type());
+        return stack_class->get_member(new Z3Bitvector(state, *z3_expr));
     } else {
         P4C_UNIMPLEMENTED("Member type not implemented.");
     }
 }
 
 void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
-    // If we are dealing with a stack, start with a complicated procedure
-    // We need to do this to resolve symbolic indices
-    if (member_struct.has_stack) {
-        set_stack(this, member_struct, rval);
-        return;
-    }
-    if (member_struct.is_flat) {
-        // Flat target, just update state
-        update_var(member_struct.main_member, rval);
-        return;
-    }
     if (member_struct.end_slices.size() > 0) {
         const z3::expr *target_lval = nullptr;
-        const z3::expr *target_rval = nullptr;
+        z3::expr target_rval(*get_z3_ctx());
         auto lval = get_member(this, member_struct);
         if (auto z3_bitvec = lval->to<Z3Bitvector>()) {
             target_lval = z3_bitvec->get_val();
@@ -324,24 +283,34 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
 
         bool is_signed = false;
         if (auto z3_bitvec = rval->to<Z3Bitvector>()) {
-            target_rval = z3_bitvec->get_val();
+            target_rval = *z3_bitvec->get_val();
             is_signed = z3_bitvec->is_signed;
         } else if (auto z3_int = rval->to<Z3Int>()) {
-            target_rval = z3_int->get_val();
+            target_rval = *z3_int->get_val();
         } else {
             P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.",
                               rval->get_static_type());
         }
-        for (auto it = member_struct.end_slices.rbegin();
-             it != member_struct.end_slices.rend(); ++it) {
-            auto res =
-                compute_slice(*target_lval, *target_rval, it->hi, it->lo);
-            target_rval = &res;
+        for (auto it = member_struct.end_slices.begin();
+             it != member_struct.end_slices.end(); ++it) {
+            auto res = compute_slice(*target_lval, target_rval, it->hi, it->lo);
+            target_rval = res;
         }
         MemberStruct new_member_struct = member_struct;
         new_member_struct.end_slices.clear();
-        auto resolved_rval = new Z3Bitvector(this, *target_rval, is_signed);
+        auto resolved_rval = new Z3Bitvector(this, target_rval, is_signed);
         set_var(new_member_struct, resolved_rval);
+        return;
+    }
+    if (member_struct.is_flat) {
+        // Flat target, just update state
+        update_var(member_struct.main_member, rval);
+        return;
+    }
+    // If we are dealing with a stack, start with a complicated procedure
+    // We need to do this to resolve symbolic indices
+    if (member_struct.has_stack) {
+        set_stack(this, member_struct, rval);
         return;
     }
     // This is the default mode where we only have strings for a member.
@@ -368,10 +337,6 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
         update_var(name->path->name, cast_val);
         return;
     }
-    if (auto sl = target->to<IR::Slice>()) {
-        set_var(visitor, sl->e0, produce_slice(this, visitor, sl, rval));
-        return;
-    }
     auto member_struct = get_member_struct(this, visitor, target);
     // Collection phase done
     // Now begins the setting phase...
@@ -386,12 +351,6 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
         auto tmp_rval = get_expr_result();
         auto cast_val = tmp_rval->cast_allocate(dest_type);
         update_var(name->path->name, cast_val);
-        return;
-    }
-    if (auto sl = target->to<IR::Slice>()) {
-        visitor->visit(rval);
-        auto tmp_rval = copy_expr_result();
-        set_var(visitor, sl->e0, produce_slice(this, visitor, sl, tmp_rval));
         return;
     }
     auto member_struct = get_member_struct(this, visitor, target);
@@ -420,8 +379,9 @@ VarMap P4State::merge_args_with_params(Visitor *visitor,
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
             visitor->visit(arg->expression);
-            // TODO: We should not need this if, this is a hack
-            if (resolved_type->is<IR::Type_StructLike>()) {
+            // TODO: We should not need this ite, this is a hack
+            if (resolved_type->is<IR::Type_StructLike>() ||
+                resolved_type->is<IR::Type_Base>()) {
                 auto cast_val = get_expr_result()->cast_allocate(resolved_type);
                 merged_vec.insert(
                     {param->name.name, {cast_val, resolved_type}});

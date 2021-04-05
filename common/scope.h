@@ -28,6 +28,7 @@ class P4Scope {
     std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
     std::vector<std::pair<z3::expr, VarMap>> return_states;
     std::vector<z3::expr> forward_conds;
+    std::vector<z3::expr> return_conds;
     CopyArgs copy_out_args;
 
  public:
@@ -109,6 +110,11 @@ class P4Scope {
     }
     std::vector<z3::expr> get_forward_conds() const { return forward_conds; }
     void pop_forward_cond() { forward_conds.pop_back(); }
+
+    void push_return_cond(const z3::expr &return_cond) {
+        return return_conds.push_back(return_cond);
+    }
+    std::vector<z3::expr> get_return_conds() const { return return_conds; }
 
     void push_return_expr(const z3::expr &cond, P4Z3Instance *return_expr) {
         return return_exprs.push_back({cond, return_expr});

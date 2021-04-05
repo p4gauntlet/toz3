@@ -231,9 +231,7 @@ bool Z3Visitor::preorder(const IR::BOr *expr) {
     auto left = state->copy_expr_result();
     visit(expr->right);
     auto right = state->get_expr_result();
-
     state->set_expr_result(*left | *right);
-
     return false;
 }
 
@@ -242,25 +240,25 @@ bool Z3Visitor::preorder(const IR::BXor *expr) {
     auto left = state->copy_expr_result();
     visit(expr->right);
     auto right = state->get_expr_result();
-
     state->set_expr_result(*left ^ *right);
-
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::LAnd *expr) {
     visit(expr->left);
     auto left = state->copy_expr_result<Z3Bitvector>();
-    if (left->get_val()->simplify().is_false() or state->has_returned()) {
+    if (left->get_val()->simplify().is_false() or state->has_exited()) {
         state->set_expr_result(*left);
         return false;
     }
-    state->push_forward_cond((*left->get_val()));
+    auto old_vars = state->clone_vars();
+    state->push_forward_cond(*left->get_val());
     visit(expr->right);
     state->pop_forward_cond();
-    auto right = state->get_expr_result();
+    auto land_expr = *left && *state->get_expr_result();
+    state->merge_vars(!*left->get_val(), old_vars);
 
-    state->set_expr_result(Z3Bitvector(state, *left && *right));
+    state->set_expr_result(Z3Bitvector(state, land_expr));
 
     return false;
 }
@@ -268,16 +266,18 @@ bool Z3Visitor::preorder(const IR::LAnd *expr) {
 bool Z3Visitor::preorder(const IR::LOr *expr) {
     visit(expr->left);
     auto left = state->copy_expr_result<Z3Bitvector>();
-    if (left->get_val()->simplify().is_true() or state->has_returned()) {
+    if (left->get_val()->simplify().is_true() or state->has_exited()) {
         state->set_expr_result(*left);
         return false;
     }
-    state->push_forward_cond(!(*left->get_val()));
+    auto old_vars = state->clone_vars();
+    state->push_forward_cond(!*left->get_val());
     visit(expr->right);
     state->pop_forward_cond();
-    auto right = state->get_expr_result();
+    auto lor_expr = *left || *state->get_expr_result();
+    state->merge_vars(*left->get_val(), old_vars);
 
-    state->set_expr_result(Z3Bitvector(state, *left || *right));
+    state->set_expr_result(Z3Bitvector(state, lor_expr));
 
     return false;
 }

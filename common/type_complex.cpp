@@ -95,6 +95,36 @@ void StructBase::propagate_validity(const z3::expr *valid_expr) {
     }
 }
 
+void StructBase::bind(uint64_t member_id, cstring prefix) {
+    instance_name = prefix + std::to_string(member_id);
+    auto flat_id = member_id;
+    for (auto type_tuple : members) {
+        auto member_name = type_tuple.first;
+        auto member_var = type_tuple.second;
+        cstring name = prefix + std::to_string(flat_id);
+        if (auto si = member_var->to_mut<StructBase>()) {
+            si->bind(flat_id, prefix);
+            flat_id += si->get_member_map()->size();
+        } else if (auto z3_var = member_var->to<Z3Bitvector>()) {
+            auto z3_expr = z3_var->get_val();
+            auto member_var =
+                state->get_z3_ctx()->constant(name, z3_expr->get_sort());
+            update_member(member_name, new Z3Bitvector(state, member_var,
+                                                       z3_var->is_signed));
+            flat_id++;
+        } else if (auto z3_var = member_var->to<Z3Int>()) {
+            auto z3_expr = z3_var->get_val();
+            auto member_var =
+                state->get_z3_ctx()->constant(name, z3_expr->get_sort());
+            update_member(member_name, new Z3Int(state, member_var));
+            flat_id++;
+        } else {
+            P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
+                              member_var->get_static_type());
+        }
+    }
+}
+
 z3::expr StructBase::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
     if (other.is<StructBase>()) {
@@ -119,9 +149,9 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
     : StructBase(state, type, member_id, prefix) {
     auto flat_id = member_id;
     for (auto field : type->fields) {
-        cstring name = prefix + std::to_string(flat_id);
         const IR::Type *resolved_type = state->resolve_type(field->type);
-        auto member_var = state->gen_instance(name, resolved_type, flat_id);
+        auto member_var =
+            state->gen_instance("undefined", resolved_type, flat_id);
         if (auto si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
             flat_id += si->get_member_map()->size();

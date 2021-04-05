@@ -71,6 +71,7 @@ class StructBase : public P4Z3Instance {
     }
     void set_undefined() override;
     virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
+    virtual void bind(uint64_t member_id = 0, cstring prefix = "");
     virtual void set_list(std::vector<P4Z3Instance *>);
 
     ~StructBase() {}
