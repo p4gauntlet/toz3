@@ -20,6 +20,11 @@ namespace TOZ3_V2 {
 
 cstring infer_name(const IR::Annotations *annots, cstring default_name);
 
+MemberStruct get_member_struct(P4State *state, Visitor *visitor,
+                               const IR::Expression *target);
+std::vector<std::pair<z3::expr, P4Z3Instance *>>
+get_hdr_pairs(P4State *state, const MemberStruct &member_struct);
+
 class P4State {
  private:
     ProgState scopes;
@@ -112,7 +117,7 @@ class P4State {
         for (auto &scope : scopes) {
             auto sub_conds = scope.get_return_conds();
             return_conds.insert(return_conds.end(), sub_conds.begin(),
-                                 sub_conds.end());
+                                sub_conds.end());
         }
         return return_conds;
     }

@@ -116,13 +116,13 @@ int compare_progs(
             z3_vec_before_sorts.push_back(z3_repr_prog_after[i].get_sort());
             z3_vec_after_sorts.push_back(z3_repr_prog_after[i].get_sort());
         }
-        z3::func_decl before_sort = ctx->tuple_sort(
-            "State_before", z3_vec_before.size(), before_names.data(),
-            z3_vec_before_sorts.data(), before_getters);
+        z3::func_decl before_sort =
+            ctx->tuple_sort("State", z3_vec_before.size(), before_names.data(),
+                            z3_vec_before_sorts.data(), before_getters);
 
-        z3::func_decl after_sort = ctx->tuple_sort(
-            "State_before", z3_vec_after.size(), after_names.data(),
-            z3_vec_after_sorts.data(), after_getters);
+        z3::func_decl after_sort =
+            ctx->tuple_sort("State", z3_vec_after.size(), after_names.data(),
+                            z3_vec_after_sorts.data(), after_getters);
         z3::expr prog_before = before_sort(z3_vec_before);
         z3::expr prog_after = after_sort(z3_vec_after);
 
@@ -136,6 +136,8 @@ int compare_progs(
                   prog_before.simplify().to_string().c_str());
             error("Program %s after %s", prog_after_name,
                   prog_after.simplify().to_string().c_str());
+            auto m = s.get_model();
+            std::cerr << "Solution : " << m << std::endl;
             return EXIT_VALIDATION;
         } else if (ret == z3::unknown) {
             error("Could not determine equality. Error\n");

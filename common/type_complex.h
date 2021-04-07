@@ -144,6 +144,7 @@ class HeaderInstance : public StructInstance {
     cstring get_static_type() const override { return "HeaderInstance"; }
     cstring to_string() const override {
         cstring ret = "HeaderInstance(";
+        ret += "valid: " + valid.to_string() + ", ";
         bool first = true;
         for (auto tuple : members) {
             if (!first)

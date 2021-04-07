@@ -82,33 +82,65 @@ bool Z3Visitor::preorder(const IR::TypeNameExpression *t) {
     return false;
 }
 
-const P4Z3Instance *resolve_var_or_decl_parent(Z3Visitor *visitor,
-                                               const IR::Member *m,
-                                               int num_args) {
-    const IR::Expression *parent = m->expr;
-    const P4Z3Instance *complex_type;
-    if (auto member = parent->to<IR::Member>()) {
-        visitor->visit(member);
-        complex_type = visitor->state->get_expr_result();
-    } else if (auto path_expr = parent->to<IR::PathExpression>()) {
-        P4Scope *scope;
-        cstring name = path_expr->path->name.name;
-        if (auto decl = visitor->state->find_static_decl(name, &scope)) {
-            complex_type = decl;
-        } else {
-            // try to find the result in vars and fail otherwise
-            complex_type = visitor->state->get_var(name);
+void resolve_stack_call(Visitor *visitor, P4State *state,
+                        MemberStruct &member_struct,
+                        const IR::Vector<IR::Argument> *arguments) {
+    auto arg_size = arguments->size();
+    auto hdr_pairs = get_hdr_pairs(state, member_struct);
+
+    // Execute and merge the functions
+    if (auto name = boost::get<cstring>(&member_struct.target_member)) {
+        std::vector<std::pair<z3::expr, VarMap>> call_vars;
+        for (auto &parent_pair : hdr_pairs) {
+            auto cond = parent_pair.first;
+            auto parent_class = parent_pair.second;
+            auto member_identifier = *name + std::to_string(arg_size);
+            auto resolved_call = parent_class->get_function(member_identifier);
+            if (auto function = resolved_call->to<FunctionWrapper>()) {
+                // TODO: Support global side effects
+                // For now, we only merge with the current class
+                // There is some strange behavior here when using all state
+                auto orig_class = parent_class->copy();
+                function->function_call(visitor, arguments);
+                parent_class->merge(!cond, *orig_class);
+            } else {
+                BUG("Unexpected stack call member %s ",
+                    resolved_call->get_static_type());
+            }
         }
-    } else if (auto method = parent->to<IR::MethodCallExpression>()) {
-        visitor->visit(method);
-        complex_type = visitor->state->get_expr_result();
     } else {
-        P4C_UNIMPLEMENTED("Parent %s of type %s not implemented!", parent,
-                          parent->node_type_name());
+        P4C_UNIMPLEMENTED("Member type not implemented.");
     }
-    // FIXME: This is a very rough version of overloading...
-    auto member_identifier = m->member.name + std::to_string(num_args);
-    return complex_type->get_function(member_identifier);
+}
+
+const P4Z3Instance *
+resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
+                           int num_args) {
+    const P4Z3Instance *parent_class;
+    P4Scope *scope;
+    if (auto decl =
+            state->find_static_decl(member_struct.main_member, &scope)) {
+        parent_class = decl;
+    } else {
+        // try to find the result in vars and fail otherwise
+        parent_class = state->get_var(member_struct.main_member);
+    }
+
+    for (auto it = member_struct.mid_members.rbegin();
+         it != member_struct.mid_members.rend(); ++it) {
+        auto mid_member = *it;
+        if (auto name = boost::get<cstring>(&mid_member)) {
+            parent_class = parent_class->get_member(*name);
+        } else {
+            P4C_UNIMPLEMENTED("Member type not supported.");
+        }
+    }
+    if (auto name = boost::get<cstring>(&member_struct.target_member)) {
+        // FIXME: This is a very rough version of overloading...
+        auto member_identifier = *name + std::to_string(num_args);
+        return parent_class->get_function(member_identifier);
+    }
+    P4C_UNIMPLEMENTED("Member type not implemented.");
 }
 
 const IR::ParameterList *get_params(const IR::Node *callable) {
@@ -137,8 +169,14 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             path_expr->path->name.name + std::to_string(arg_size);
         callable = state->get_static_decl(path_identifier)->decl;
     } else if (auto member = method_type->to<IR::Member>()) {
+        auto member_struct = get_member_struct(state, this, member);
         // try to resolve and find a function pointer
-        auto resolved_call = resolve_var_or_decl_parent(this, member, arg_size);
+        if (member_struct.has_stack) {
+            resolve_stack_call(this, state, member_struct, arguments);
+            return false;
+        }
+        auto resolved_call =
+            resolve_var_or_decl_parent(state, member_struct, arg_size);
         if (auto function = resolved_call->to<FunctionWrapper>()) {
             // call the function directly for now
             function->function_call(this, arguments);

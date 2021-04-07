@@ -136,14 +136,12 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
     return member_struct;
 }
 
-void set_stack(P4State *state, const MemberStruct &member_struct,
-               P4Z3Instance *rval) {
+std::vector<std::pair<z3::expr, P4Z3Instance *>>
+get_hdr_pairs(P4State *state, const MemberStruct &member_struct) {
     std::vector<std::pair<z3::expr, P4Z3Instance *>> parent_pairs;
-    std::vector<std::pair<int, z3::expr>> permutation_pairs;
     auto tmp_parent_pairs = parent_pairs;
     parent_pairs.push_back({state->get_z3_ctx()->bool_val(true),
                             state->get_var(member_struct.main_member)});
-
     // Collect all the headers that need to be set
     for (auto it = member_struct.mid_members.rbegin();
          it != member_struct.mid_members.rend(); ++it) {
@@ -185,6 +183,12 @@ void set_stack(P4State *state, const MemberStruct &member_struct,
             P4C_UNIMPLEMENTED("Member type not implemented.");
         }
     }
+    return parent_pairs;
+}
+
+void set_stack(P4State *state, const MemberStruct &member_struct,
+               P4Z3Instance *rval) {
+    auto parent_pairs = get_hdr_pairs(state, member_struct);
 
     // Set the variable
     if (auto name = boost::get<cstring>(&member_struct.target_member)) {
@@ -213,7 +217,7 @@ void set_stack(P4State *state, const MemberStruct &member_struct,
                 cast_val->merge(!parent_cond, *orig_val);
                 complex_class->update_member(val_str, cast_val);
             } else {
-                auto stack_class = parent_class->to_mut<StackInstance>();
+                auto stack_class = complex_class->to_mut<StackInstance>();
                 BUG_CHECK(stack_class, "Expected Stack, got %s",
                           stack_class->get_static_type());
                 auto size = stack_class->get_int_size();
