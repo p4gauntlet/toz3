@@ -45,9 +45,8 @@ set (TOZ3V2_COMPARE_HDRS
 
 build_unified(TOZ3V2_COMMON_SRCS)
 add_library(p4toz3lib ${TOZ3V2_COMMON_SRCS})
-# add the z3 library directory and includes
+# add the Z3 includes
 target_include_directories(p4toz3lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3)
-target_link_directories(p4toz3lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3)
 target_link_libraries (p4toz3lib ${P4C_LIBRARIES} ${P4C_LIB_DEPS}
                         ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3/libz3.a )
 add_dependencies(p4toz3lib genIR frontend)
