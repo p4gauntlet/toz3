@@ -1,7 +1,7 @@
 #ifndef _TOZ3_Z3_INTERPRETER_H_
 #define _TOZ3_Z3_INTERPRETER_H_
 
-#include <z3++.h>
+#include "z3++.h"
 
 #include <map>
 #include <utility>

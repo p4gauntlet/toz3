@@ -2,13 +2,13 @@
 #define _TOZ3_SIMPLE_TYPE_H_
 
 #include <cstdio>
-#include <z3++.h>
 
 #include <map>     // std::map
 #include <string>  // std::to_string
 #include <utility> // std::pair
 #include <vector>  // std::vector
 
+#include "z3++.h"
 #include "ir/ir.h"
 #include "lib/cstring.h"
 

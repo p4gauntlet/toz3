@@ -1,12 +1,12 @@
 #ifndef _TOZ3_TYPE_MAP_H_
 #define _TOZ3_TYPE_MAP_H_
 
-#include <z3++.h>
 
 #include <map>
 #include <vector>
 
 #include "ir/ir.h"
+#include "z3++.h"
 #include "visitor_interpret.h"
 
 namespace TOZ3_V2 {

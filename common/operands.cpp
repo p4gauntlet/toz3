@@ -1,9 +1,9 @@
-#include <z3++.h>
 
 #include <cstdio>
 #include <iostream>
 #include <utility>
 
+#include "z3++.h"
 #include "lib/exceptions.h"
 
 #include "visitor_interpret.h"

@@ -1,8 +1,6 @@
 #ifndef _TOZ3_CONTEXT_H_
 #define _TOZ3_CONTEXT_H_
 
-#include <z3++.h>
-
 #include <cstdio>
 
 #include <map>

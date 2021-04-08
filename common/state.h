@@ -2,7 +2,6 @@
 #define _TOZ3_STATE_H_
 
 #include <sys/types.h>
-#include <z3++.h>
 
 #include <alloca.h>
 #include <bits/stdint-uintn.h>
@@ -13,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "z3++.h"
 #include "ir/ir.h"
 #include "scope.h"
 
