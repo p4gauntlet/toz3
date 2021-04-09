@@ -8,7 +8,7 @@
 #include <utility> // std::pair
 #include <vector>  // std::vector
 
-#include "z3++.h"
+#include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
 #include "lib/cstring.h"
 

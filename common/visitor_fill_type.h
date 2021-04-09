@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "ir/ir.h"
-#include "z3++.h"
+#include "../contrib/z3/z3++.h"
 #include "visitor_interpret.h"
 
 namespace TOZ3_V2 {

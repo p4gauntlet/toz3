@@ -3,7 +3,7 @@
 #include <iostream>
 #include <utility>
 
-#include "z3++.h"
+#include "../contrib/z3/z3++.h"
 #include "lib/exceptions.h"
 
 #include "visitor_interpret.h"
@@ -329,6 +329,7 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
     auto old_vars = state->clone_vars();
     state->push_forward_cond(resolved_condition);
     visit(m->e1);
+    state->pop_forward_cond();
     auto then_has_exited = state->has_exited();
     VarMap then_vars;
     if (then_has_exited) {

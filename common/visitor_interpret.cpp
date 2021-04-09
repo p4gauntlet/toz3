@@ -349,32 +349,36 @@ void handle_table_match(P4State *state, Z3Visitor *visitor,
     // now actually map all the statements together
     bool has_exited = true;
     bool has_returned = true;
-    bool fall_through = ctx->bool_val(false);
+    z3::expr fall_through = ctx->bool_val(false);
     z3::expr matches = ctx->bool_val(false);
     for (auto switch_case : cases) {
         if (auto label = switch_case->label->to<IR::PathExpression>()) {
             auto mapped_idx = action_mapping[label->path->name.name];
             auto cond = action_taken == mapped_idx;
-            if (!switch_case->statement) {
+            // There is no block for the switch.
+            // This expressions falls through to the next switch case.
+            if (switch_case->statement == nullptr) {
                 fall_through = fall_through || cond;
                 continue;
             }
+            // Matches the condition OR all the other fall-through switches
+            auto case_match = fall_through || cond;
             fall_through = ctx->bool_val(false);
             auto old_vars = state->clone_vars();
-            state->push_forward_cond(cond);
+            state->push_forward_cond(case_match);
             visitor->visit(switch_case->statement);
             state->pop_forward_cond();
             auto call_has_exited = state->has_exited();
             auto stmt_has_returned = state->has_returned();
             if (!(call_has_exited or stmt_has_returned)) {
-                case_states.push_back({cond, state->get_vars()});
+                case_states.push_back({case_match, state->get_vars()});
             }
             has_exited = has_exited && call_has_exited;
             has_returned = has_returned && stmt_has_returned;
             state->set_exit(false);
             state->set_returned(false);
             state->restore_vars(old_vars);
-            matches = matches || cond;
+            matches = matches || case_match;
         } else if (switch_case->label->is<IR::DefaultExpression>()) {
             default_case = switch_case;
         } else {

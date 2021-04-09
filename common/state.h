@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "z3++.h"
+#include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
 #include "scope.h"
 
