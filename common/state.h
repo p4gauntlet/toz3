@@ -70,10 +70,9 @@ class P4State {
 
     /****** COPY-IN/COPY-OUT ******/
     VarMap merge_args_with_params(Visitor *visitor,
-                                  const IR::Vector<IR::Argument> *args,
-                                  const IR::ParameterList *params);
-    void copy_in(Visitor *visitor, const IR::ParameterList *params,
-                 const IR::Vector<IR::Argument> *arguments);
+                                  const IR::Vector<IR::Argument> &args,
+                                  const IR::ParameterList &params);
+    void copy_in(Visitor *visitor, const ParamInfo &param_info);
     void copy_out();
     void set_copy_out_args(CopyArgs &out_args) {
         auto scope = get_mut_current_scope();

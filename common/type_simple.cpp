@@ -8,12 +8,18 @@
 namespace TOZ3_V2 {
 
 z3::expr pure_bv_cast(const z3::expr &expr, z3::sort dest_type) {
+    // TODO: Clean this up
     uint64_t expr_size;
+    auto cast_expr = expr;
     if (expr.is_bv()) {
         expr_size = expr.get_sort().bv_size();
     } else if (expr.is_int()) {
         auto cast_val = z3::int2bv(dest_type.bv_size(), expr).simplify();
         return z3::int2bv(dest_type.bv_size(), expr).simplify();
+    } else if (expr.is_bool()) {
+        auto ctx = &expr.get_sort().ctx();
+        expr_size = 1;
+        cast_expr = z3::ite(expr, ctx->bv_val(1, 1), ctx->bv_val(0, 1));
     } else {
         BUG("Casting %s to a bit vector is not supported.",
             expr.to_string().c_str());
@@ -23,13 +29,13 @@ z3::expr pure_bv_cast(const z3::expr &expr, z3::sort dest_type) {
 
     if (expr_size < dest_size) {
         // The target value is larger, extend with zeros
-        return z3::zext(expr, dest_size - expr_size);
+        return z3::zext(cast_expr, dest_size - expr_size);
     } else if (expr_size > dest_size) {
         // The target value is smaller, truncate everything on the right
-        return expr.extract(dest_size - 1, 0);
+        return cast_expr.extract(dest_size - 1, 0);
     } else {
         // Nothing to do just return
-        return expr;
+        return cast_expr;
     }
 }
 
@@ -104,20 +110,17 @@ Z3Result Z3Bitvector::operator+(const P4Z3Instance &other) const {
 }
 
 Z3Result Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
-    if (auto other_expr = other.to<Z3Bitvector>()) {
-        auto no_overflow = z3::bvadd_no_overflow(val, other_expr->val, false);
-        auto no_underflow = z3::bvadd_no_underflow(val, other_expr->val);
-        auto sort = val.get_sort();
-        big_int max_return = pow((big_int)2, sort.bv_size()) - 1;
-        auto ctx = &sort.ctx();
-        cstring big_str = Util::toString(max_return, 0, false, 10);
-        z3::expr max_val = ctx->bv_val(big_str.c_str(), sort.bv_size());
-        return Z3Bitvector(state,
-                           z3::ite(no_underflow && no_overflow,
-                                   val + other_expr->val, max_val),
-                           is_signed);
-    }
-    P4C_UNIMPLEMENTED("|+| not implemented for %s.", get_static_type());
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|+|");
+    auto no_overflow = z3::bvadd_no_overflow(val, other_expr, false);
+    auto no_underflow = z3::bvadd_no_underflow(val, other_expr);
+    auto sort = val.get_sort();
+    big_int max_return = pow((big_int)2, sort.bv_size()) - 1;
+    auto ctx = &sort.ctx();
+    cstring big_str = Util::toString(max_return, 0, false, 10);
+    z3::expr max_val = ctx->bv_val(big_str.c_str(), sort.bv_size());
+    return Z3Bitvector(
+        state, z3::ite(no_underflow && no_overflow, val + other_expr, max_val),
+        is_signed);
 }
 
 Z3Result Z3Bitvector::operator-(const P4Z3Instance &other) const {
@@ -126,18 +129,15 @@ Z3Result Z3Bitvector::operator-(const P4Z3Instance &other) const {
 }
 
 Z3Result Z3Bitvector::operatorSubSat(const P4Z3Instance &other) const {
-    if (auto other_expr = other.to<Z3Bitvector>()) {
-        auto no_overflow = z3::bvsub_no_overflow(val, other_expr->val);
-        auto no_underflow = z3::bvsub_no_underflow(val, other_expr->val, false);
-        auto sort = val.get_sort();
-        auto ctx = &sort.ctx();
-        z3::expr min_val = ctx->bv_val(0, sort.bv_size());
-        return Z3Bitvector(state,
-                           z3::ite(no_underflow && no_overflow,
-                                   val - other_expr->val, min_val),
-                           is_signed);
-    }
-    P4C_UNIMPLEMENTED("|+| not implemented for %s.", get_static_type());
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|-|");
+    auto no_overflow = z3::bvsub_no_overflow(val, other_expr);
+    auto no_underflow = z3::bvsub_no_underflow(val, other_expr, false);
+    auto sort = val.get_sort();
+    auto ctx = &sort.ctx();
+    z3::expr min_val = ctx->bv_val(0, sort.bv_size());
+    return Z3Bitvector(
+        state, z3::ite(no_underflow && no_overflow, val - other_expr, min_val),
+        is_signed);
 }
 
 Z3Result Z3Bitvector::operator>>(const P4Z3Instance &other) const {
@@ -203,14 +203,17 @@ Z3Result Z3Bitvector::operator<<(const P4Z3Instance &other) const {
         P4C_UNIMPLEMENTED("<< not implemented for %s.",
                           other.get_static_type());
     }
-    auto shift_result = z3::shl(*cast_this, *cast_other);
+    auto shift_result = z3::shl(*cast_this, *cast_other).simplify();
 
     return Z3Bitvector(state, pure_bv_cast(shift_result, this_sort), is_signed);
 }
 
 z3::expr Z3Bitvector::operator==(const P4Z3Instance &other) const {
-    // TODO: Should I align here?
-    auto other_expr = align_bitvectors(&other, val.get_sort(), true, "==");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "==");
+    // Mismatched bit vectors evaluate to false. TODO: Check if this is allowed
+    if (val.get_sort().bv_size() != other_expr.get_sort().bv_size()) {
+        return state->get_z3_ctx()->bool_val(false);
+    }
     return val == other_expr;
 }
 

@@ -63,6 +63,13 @@ struct MemberStruct {
 };
 using CopyArgs = std::vector<std::pair<MemberStruct, cstring>>;
 
+struct ParamInfo {
+    const IR::ParameterList params;
+    const IR::Vector<IR::Argument> arguments;
+    const IR::TypeParameters type_params;
+    const IR::Vector<IR::Type> type_args;
+};
+
 class P4Z3Instance {
  public:
     P4Z3Instance() {}

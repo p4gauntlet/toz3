@@ -237,6 +237,7 @@ class EnumBase : public StructBase {
     }
 
     void add_enum_member(cstring error_name);
+    void bind(uint64_t member_id, cstring prefix) override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
 };
@@ -283,6 +284,22 @@ class ErrorInstance : public EnumBase {
         return ret;
     }
 }; // namespace TOZ3_V2
+
+class TupleInstance : public StructBase {
+    using StructBase::StructBase;
+
+ public:
+    TupleInstance(P4State *state, const IR::Type_Tuple *type,
+                  uint64_t member_id, cstring prefix);
+
+    cstring get_static_type() const override { return "TupleInstance"; }
+    cstring to_string() const override {
+        cstring ret = "TupleInstance(";
+        ret += ")";
+        return ret;
+    }
+    TupleInstance *copy() const override;
+};
 
 class ListInstance : public P4Z3Instance {
  private:

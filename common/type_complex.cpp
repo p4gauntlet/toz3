@@ -79,8 +79,8 @@ P4Z3Instance *StructBase::cast_allocate(const IR::Type *dest_type) const {
     if (dest_type == p4_type) {
         return copy();
     }
-    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s",
-                      p4_type->node_type_name(), dest_type->node_type_name());
+    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s", p4_type,
+                      dest_type);
 }
 
 void StructBase::propagate_validity(const z3::expr *valid_expr) {
@@ -482,8 +482,8 @@ EnumBase::get_z3_vars(cstring prefix, const z3::expr *) const {
     if (prefix.size() != 0) {
         name = prefix + "." + name;
     }
-    auto z3_const =
-        state->get_z3_ctx()->constant(name, state->get_z3_ctx()->bv_sort(32));
+    auto z3_const = state->get_z3_ctx()->constant(
+        instance_name, state->get_z3_ctx()->bv_sort(32));
     z3_vars.push_back({instance_name, z3_const});
     return z3_vars;
 }
@@ -492,6 +492,10 @@ void EnumBase::add_enum_member(cstring error_name) {
     auto member_var =
         new Z3Bitvector(state, state->get_z3_ctx()->bv_val(members.size(), 32));
     insert_member(error_name, member_var);
+}
+
+void EnumBase::bind(uint64_t, cstring) {
+    // This is a no op.
 }
 
 z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
@@ -516,7 +520,6 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
     : EnumBase(p4_state, type, ext_member_id, prefix) {
     // FIXME: Enums should not be a struct base, actually
     width = 32;
-    state = p4_state;
     size_t idx = 0;
     for (auto member : type->members) {
         auto member_var =
@@ -533,7 +536,6 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
     : EnumBase(p4_state, type, ext_member_id, prefix) {
     // FIXME: Enums should not be a struct base, actually
     width = 32;
-    state = p4_state;
     size_t idx = 0;
     for (auto member : type->members) {
         auto member_var =
@@ -590,6 +592,23 @@ ListInstance *ListInstance::copy() const {
     return new ListInstance(state, val_list, p4_type);
 }
 
+TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type,
+                             uint64_t member_id, cstring prefix)
+    : StructBase(state, type, member_id, prefix) {
+    size_t idx = 0;
+    for (auto &field_type : type->components) {
+        const IR::Type *resolved_type = state->resolve_type(field_type);
+        auto member_var =
+            state->gen_instance("undefined", resolved_type, member_id + idx);
+        cstring name = std::to_string(idx);
+        insert_member(name, member_var);
+        member_types.insert({name, resolved_type});
+        idx++;
+    }
+}
+
+TupleInstance *TupleInstance::copy() const { return new TupleInstance(*this); }
+
 P4TableInstance::P4TableInstance(P4State *state, const IR::Declaration *decl)
     : P4Declaration(decl), state(state),
       hit(state->get_z3_ctx()->bool_val(false)) {
@@ -626,7 +645,9 @@ void P4TableInstance::apply(Visitor *visitor,
     auto table_decl = decl->to<IR::P4Table>();
     CHECK_NULL(table_decl);
     auto params = table_decl->getApplyParameters();
-    state->copy_in(visitor, params, args);
+    auto type_params = table_decl->getApplyMethodType()->getTypeParameters();
+    const ParamInfo param_info = {*params, *args, *type_params, {}};
+    state->copy_in(visitor, param_info);
     visitor->visit(decl);
     state->copy_out();
 }
@@ -649,13 +670,17 @@ DeclarationInstance::DeclarationInstance(P4State *state,
 void DeclarationInstance::apply(Visitor *visitor,
                                 const IR::Vector<IR::Argument> *args) {
     const IR::ParameterList *params = nullptr;
+    const IR::TypeParameters *type_params = nullptr;
     if (auto control = decl->to<IR::P4Control>()) {
         params = control->getApplyParameters();
+        type_params = control->getApplyMethodType()->getTypeParameters();
     } else if (auto parser = decl->to<IR::P4Parser>()) {
         params = parser->getApplyParameters();
+        type_params = parser->getApplyMethodType()->getTypeParameters();
     }
     CHECK_NULL(params);
-    state->copy_in(visitor, params, args);
+    const ParamInfo param_info = {*params, *args, *type_params, {}};
+    state->copy_in(visitor, param_info);
     visitor->visit(decl);
     state->copy_out();
 }

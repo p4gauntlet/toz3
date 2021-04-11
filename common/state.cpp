@@ -1,5 +1,6 @@
 #include "state.h"
 
+#include <algorithm>
 #include <complex>
 #include <cstdio>
 #include <ostream>
@@ -127,6 +128,10 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
         } else if (auto path = tmp_target->to<IR::PathExpression>()) {
             member_struct.main_member = path->path->name.name;
             break;
+        } else if (auto expr = tmp_target->to<IR::TypeNameExpression>()) {
+            // TODO: Think about the lookup here...
+            member_struct.main_member = expr->typeName->path->name.name;
+            break;
         } else {
             P4C_UNIMPLEMENTED("Unknown target %s!",
                               tmp_target->node_type_name());
@@ -167,12 +172,15 @@ get_hdr_pairs(P4State *state, const MemberStruct &member_struct) {
                     auto stack_class = parent_class->to_mut<StackInstance>();
                     BUG_CHECK(stack_class, "Expected Stack, got %s",
                               stack_class->get_static_type());
+                    // Skip anything where the idx is larger then the container
                     auto size = stack_class->get_int_size();
-                    for (size_t idx = 0; idx < size; ++idx) {
-                        auto z3_int =
-                            state->get_z3_ctx()->num_val(idx, expr->get_sort());
+                    auto bv_size = expr->get_sort().bv_size();
+                    int64_t max = (1 << bv_size) - 1;
+                    auto max_idx = std::min<int64_t>(max, size);
+                    for (int64_t idx = 0; idx < max_idx; ++idx) {
+                        auto z3_val = state->get_z3_ctx()->bv_val(idx, bv_size);
                         tmp_parent_pairs.push_back(
-                            {parent_cond && *expr == z3_int,
+                            {parent_cond && *expr == z3_val,
                              parent_class->get_member(std::to_string(idx))});
                     }
                 }
@@ -220,16 +228,19 @@ void set_stack(P4State *state, const MemberStruct &member_struct,
                 auto stack_class = complex_class->to_mut<StackInstance>();
                 BUG_CHECK(stack_class, "Expected Stack, got %s",
                           stack_class->get_static_type());
+                // Skip anything where the idx is larger then the container
                 auto size = stack_class->get_int_size();
-                for (size_t idx = 0; idx < size; ++idx) {
+                auto bv_size = expr->get_sort().bv_size();
+                int64_t max = (1 << bv_size) - 1;
+                auto max_idx = std::min<int64_t>(max, size);
+                for (int64_t idx = 0; idx < max_idx; ++idx) {
                     cstring member_name = std::to_string(idx);
                     auto orig_val = complex_class->get_member(member_name);
                     auto dest_type =
                         complex_class->get_member_type(member_name);
                     auto cast_val = rval->cast_allocate(dest_type);
-                    auto z3_int =
-                        state->get_z3_ctx()->num_val(idx, expr->get_sort());
-                    cast_val->merge(!(parent_cond && *expr == z3_int),
+                    auto z3_val = state->get_z3_ctx()->bv_val(idx, bv_size);
+                    cast_val->merge(!(parent_cond && *expr == z3_val),
                                     *orig_val);
                     complex_class->update_member(member_name, cast_val);
                 }
@@ -366,54 +377,49 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
 }
 
 VarMap P4State::merge_args_with_params(Visitor *visitor,
-                                       const IR::Vector<IR::Argument> *args,
-                                       const IR::ParameterList *params) {
+                                       const IR::Vector<IR::Argument> &args,
+                                       const IR::ParameterList &params) {
     VarMap merged_vec;
-    size_t arg_len = args->size();
     size_t idx = 0;
-    // TODO: Clean this up...
-    for (auto param : params->parameters) {
+    for (auto &arg : args) {
+        const IR::Parameter *param;
+        if (arg->name) {
+            param = params.getParameter(arg->name.name);
+        } else {
+            param = params.getParameter(idx);
+        }
         auto resolved_type = resolve_type(param->type);
         if (param->direction == IR::Direction::Out) {
+            CHECK_NULL(resolved_type); // TODO: Remove this
             auto instance = gen_instance("undefined", resolved_type);
             merged_vec.insert({param->name.name, {instance, resolved_type}});
             idx++;
             continue;
         }
-        if (idx < arg_len) {
-            const IR::Argument *arg = args->at(idx);
-            visitor->visit(arg->expression);
-            // TODO: We should not need this ite, this is a hack
-            if (resolved_type->is<IR::Type_StructLike>() ||
-                resolved_type->is<IR::Type_Base>()) {
-                auto cast_val = get_expr_result()->cast_allocate(resolved_type);
-                merged_vec.insert(
-                    {param->name.name, {cast_val, resolved_type}});
-            } else {
-                merged_vec.insert(
-                    {param->name.name, {copy_expr_result(), resolved_type}});
-            }
+        visitor->visit(arg->expression);
+        // TODO: We should not need this ite, this is a hack
+        if (get_expr_result()->is<ListInstance>() and
+            resolved_type != nullptr) {
+            auto cast_val = get_expr_result()->cast_allocate(resolved_type);
+            merged_vec.insert({param->name.name, {cast_val, resolved_type}});
         } else {
-            auto arg_expr = gen_instance(param->name.name, resolved_type);
-            if (auto complex_arg = arg_expr->to_mut<StructInstance>()) {
-                complex_arg->propagate_validity();
-            }
-            merged_vec.insert({param->name.name, {arg_expr, resolved_type}});
+            // CHECK_NULL(resolved_type); // TODO: Remove this
+            merged_vec.insert(
+                {param->name.name, {copy_expr_result(), resolved_type}});
         }
         idx++;
     }
-
     return merged_vec;
 }
 
 CopyArgs resolve_args(P4State *state, Visitor *visitor,
-                      const IR::Vector<IR::Argument> *args,
-                      const IR::ParameterList *params) {
+                      const IR::Vector<IR::Argument> &args,
+                      const IR::ParameterList &params) {
     CopyArgs resolved_args;
 
-    size_t arg_len = args->size();
+    size_t arg_len = args.size();
     size_t idx = 0;
-    for (auto param : params->parameters) {
+    for (auto param : params.parameters) {
         auto direction = param->direction;
         if (direction == IR::Direction::In ||
             direction == IR::Direction::None) {
@@ -421,7 +427,7 @@ CopyArgs resolve_args(P4State *state, Visitor *visitor,
             continue;
         }
         if (idx < arg_len) {
-            const IR::Argument *arg = args->at(idx);
+            const IR::Argument *arg = args.at(idx);
             auto member_struct =
                 get_member_struct(state, visitor, arg->expression);
             resolved_args.push_back({member_struct, param->name.name});
@@ -431,13 +437,28 @@ CopyArgs resolve_args(P4State *state, Visitor *visitor,
     return resolved_args;
 }
 
-void P4State::copy_in(Visitor *visitor, const IR::ParameterList *params,
-                      const IR::Vector<IR::Argument> *arguments) {
-    // at this point, we assume we are dealing with a Declaration
-    auto copy_out_args = resolve_args(this, visitor, arguments, params);
-    auto merged_args = merge_args_with_params(visitor, arguments, params);
-
+void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
     push_scope();
+
+    auto copy_out_args =
+        resolve_args(this, visitor, param_info.arguments, param_info.params);
+    // Specialize
+    size_t idx = 0;
+    auto type_args_len = param_info.type_args.size();
+    for (auto &param : param_info.type_params.parameters) {
+        auto type_name = param->getName().name;
+        if (idx < type_args_len) {
+            auto arg = param_info.type_args[idx];
+            add_type(type_name, arg);
+            idx++;
+        } else {
+            // Need to infer a type here
+            // We use the parameters
+        }
+    }
+    auto merged_args = merge_args_with_params(visitor, param_info.arguments,
+                                              param_info.params);
+
     for (auto arg_tuple : merged_args) {
         cstring param_name = arg_tuple.first;
         auto arg_val = arg_tuple.second;
@@ -498,6 +519,8 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         instance = new ErrorInstance(this, t, id, prefix);
     } else if (auto t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);
+    } else if (auto t = type->to<IR::Type_Tuple>()) {
+        instance = new TupleInstance(this, t, id, prefix);
     } else if (auto t = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, t);
     } else if (auto t = type->to<IR::P4Control>()) {
@@ -509,8 +532,9 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (type->is<IR::Type_Base>()) {
         instance = new Z3Bitvector(this, gen_z3_expr(name, type));
     } else {
-        P4C_UNIMPLEMENTED("Instance generation for type \"%s\" not supported!.",
-                          type->node_type_name());
+        P4C_UNIMPLEMENTED(
+            "Instance generation for %s of type \"%s\" not supported!.", type,
+            type->node_type_name());
     }
     return instance;
 }
@@ -551,7 +575,7 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) const {
         try {
             return get_type(type_name);
         } catch (const Util::P4CExceptionBase &bug) {
-            return type;
+            return nullptr;
         }
     }
     return type;

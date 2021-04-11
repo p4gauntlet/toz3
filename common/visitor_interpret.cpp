@@ -180,19 +180,24 @@ void handle_table_action(Z3Visitor *visitor, cstring table_name,
         ctrl_args.push_back(arg);
     }
     // At this stage, we synthesize control plane arguments
+    // TODO: Simplify this.
     auto args_len = act->arguments->size();
+    auto ctrl_idx = 0;
     for (size_t idx = 0; idx < method_params->size(); ++idx) {
         auto param = method_params->getParameter(idx);
-        if (args_len <= idx) {
-            cstring arg_name = table_name + action_label + std::to_string(idx);
+        if (args_len <= idx and param->direction == IR::Direction::None) {
+            cstring arg_name =
+                table_name + action_label + std::to_string(ctrl_idx);
             auto ctrl_arg = state->gen_instance(arg_name, param->type);
             // TODO: This is a bug waiting to happen. How to handle fresh
             // arguments and their source?
             state->declare_var(arg_name, ctrl_arg, param->type);
             ctrl_args.push_back(
                 new IR::Argument(new IR::PathExpression(arg_name)));
+            ctrl_idx++;
         }
     }
+
     const auto action_with_ctrl_args =
         new IR::MethodCallExpression(call_name, &ctrl_args);
     visitor->visit(action_with_ctrl_args);
@@ -632,7 +637,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     if (instance_name == "main") {
         main_result = create_state(this, di->arguments, params);
     } else {
-        state->merge_args_with_params(this, di->arguments, params);
+        state->merge_args_with_params(this, *di->arguments, *params);
         if (auto instance_decl = resolved_type->to<IR::Type_Declaration>()) {
             state->declare_var(instance_name,
                                new DeclarationInstance(state, instance_decl),

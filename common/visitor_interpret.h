@@ -1,11 +1,11 @@
 #ifndef _TOZ3_Z3_INTERPRETER_H_
 #define _TOZ3_Z3_INTERPRETER_H_
 
-#include "../contrib/z3/z3++.h"
-
 #include <map>
 #include <utility>
 #include <vector>
+
+#include "../contrib/z3/z3++.h"
 
 #include "ir/ir.h"
 #include "state.h"

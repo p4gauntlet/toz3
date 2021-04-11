@@ -143,22 +143,27 @@ resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
     P4C_UNIMPLEMENTED("Member type not implemented.");
 }
 
-const IR::ParameterList *get_params(const IR::Node *callable) {
+void set_params(const IR::Node *callable, const IR::ParameterList **params,
+                const IR::TypeParameters **type_params) {
     if (auto p4action = callable->to<IR::P4Action>()) {
-        return p4action->getParameters();
+        *params = p4action->getParameters();
+        *type_params = new IR::TypeParameters();
+        return;
     } else if (auto fun = callable->to<IR::Function>()) {
-        return fun->getParameters();
+        *params = fun->getParameters();
+        *type_params = fun->type->getTypeParameters();
+        return;
     } else if (auto method = callable->to<IR::Method>()) {
-        return method->getParameters();
-    } else {
-        P4C_UNIMPLEMENTED("Callable declaration %s of type %s not supported.",
-                          callable, callable->node_type_name());
+        *params = method->getParameters();
+        *type_params = method->type->getTypeParameters();
+        return;
     }
+    P4C_UNIMPLEMENTED("Callable declaration %s of type %s not supported.",
+                      callable, callable->node_type_name());
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Node *callable;
-    const IR::ParameterList *params;
     auto arguments = mce->arguments;
     auto arg_size = arguments->size();
 
@@ -192,9 +197,13 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         P4C_UNIMPLEMENTED("Method call %s not supported.", mce);
     }
     // at this point, we assume we are dealing with a Declaration
-    params = get_params(callable);
+    const IR::ParameterList *params;
+    const IR::TypeParameters *type_params;
+    set_params(callable, &params, &type_params);
 
-    state->copy_in(this, params, arguments);
+    const ParamInfo param_info = {*params, *arguments, *type_params,
+                                  *mce->typeArguments};
+    state->copy_in(this, param_info);
     visit(callable);
     state->copy_out();
     return false;
@@ -212,7 +221,8 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());
     }
-    state->copy_in(this, params, arguments);
+    const ParamInfo param_info = {*params, *arguments, {}, {}};
+    state->copy_in(this, param_info);
     visit(resolved_type);
     state->copy_out();
     return false;
