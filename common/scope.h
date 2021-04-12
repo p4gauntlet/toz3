@@ -99,7 +99,7 @@ class P4Scope {
     void set_copy_out_args(const CopyArgs &input_args) {
         copy_out_args = input_args;
     }
-    CopyArgs get_copy_out_args() { return copy_out_args; }
+    CopyArgs get_copy_out_args() const { return copy_out_args; }
     bool has_returned() const { return is_returned; }
     void set_returned(bool return_state) { is_returned = return_state; }
 

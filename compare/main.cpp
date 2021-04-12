@@ -34,13 +34,13 @@
 namespace TOZ3_V2 {
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    if (auto main = state->find_static_decl("main")) {
-        if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
+    const auto *main = state->find_static_decl("main");
+    if (main != nullptr) {
+        if (const auto *main_pkg = main->decl->to<IR::Declaration_Instance>()) {
             return main_pkg;
-        } else {
-            P4C_UNIMPLEMENTED("Main node %s not implemented!",
-                              main->decl->node_type_name());
         }
+        P4C_UNIMPLEMENTED("Main node %s not implemented!",
+                          main->decl->node_type_name());
     }
     warning("No main declaration found in program.");
     return nullptr;
@@ -57,7 +57,7 @@ VarMap get_z3_repr(cstring prog_name, const IR::P4Program *program,
             TypeVisitor map_builder = TypeVisitor(&state);
             Z3Visitor to_z3 = Z3Visitor(&state);
             program->apply(map_builder);
-            auto decl = get_main_decl(&state);
+            const auto *decl = get_main_decl(&state);
             if (decl == nullptr) {
                 return z3_return;
             }
@@ -79,13 +79,14 @@ VarMap get_z3_repr(cstring prog_name, const IR::P4Program *program,
     return z3_return;
 }
 
-void unroll_result(VarMap z3_repr_prog, std::vector<z3::expr> *result_vec) {
-    for (auto result_tuple : z3_repr_prog) {
-        if (auto z3_val = result_tuple.second.first->to<NumericVal>()) {
+void unroll_result(const VarMap &z3_repr_prog,
+                   std::vector<z3::expr> *result_vec) {
+    for (const auto &result_tuple : z3_repr_prog) {
+        if (const auto *z3_val = result_tuple.second.first->to<NumericVal>()) {
             result_vec->push_back(*z3_val->get_val());
-        } else if (auto z3_var =
+        } else if (const auto *z3_var =
                        result_tuple.second.first->to<ControlState>()) {
-            for (auto sub_tuple : z3_var->state_vars) {
+            for (const auto &sub_tuple : z3_var->state_vars) {
                 result_vec->push_back(sub_tuple.second);
             }
         } else {
@@ -149,7 +150,8 @@ int compare_progs(
             auto m = s.get_model();
             std::cerr << "Solution : " << m << std::endl;
             return EXIT_VIOLATION;
-        } else if (ret == z3::unknown) {
+        }
+        if (ret == z3::unknown) {
             error("Could not determine equality. Error\n");
             return EXIT_FAILURE;
         }
@@ -158,15 +160,15 @@ int compare_progs(
     printf("Passed all checks.\n");
     return EXIT_SUCCESS;
 }
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
 std::vector<cstring> split_input_progs(cstring input_progs) {
     std::vector<cstring> prog_list;
-    const char *pos = 0;
+    const char *pos = nullptr;
     cstring prog;
 
     while ((pos = input_progs.find((size_t)',')) != nullptr) {
-        size_t idx = (size_t)(pos - input_progs);
+        auto idx = (size_t)(pos - input_progs);
         prog = input_progs.substr(0, idx);
         prog_list.push_back(prog);
         input_progs = input_progs.substr(idx + 1);
@@ -223,7 +225,7 @@ int main(int argc, char *const argv[]) {
         auto z3_repr_prog = TOZ3_V2::get_z3_repr(prog, prog_parsed, &ctx);
         std::vector<z3::expr> result_vec;
         TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
-        z3_progs.push_back({prog, result_vec});
+        z3_progs.emplace_back(prog, result_vec);
     }
     return TOZ3_V2::compare_progs(&ctx, z3_progs);
 }

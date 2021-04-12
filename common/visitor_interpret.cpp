@@ -37,11 +37,11 @@ bool Z3Visitor::preorder(const IR::Function *f) {
     auto begin = return_exprs.rbegin();
     auto end = return_exprs.rend();
     if (begin != end) {
-        auto return_type = f->type->returnType;
-        auto merged_return = begin->second->cast_allocate(return_type);
+        const auto *return_type = f->type->returnType;
+        auto *merged_return = begin->second->cast_allocate(return_type);
         for (auto it = std::next(begin); it != end; ++it) {
             z3::expr cond = it->first;
-            auto then_var = it->second->cast_allocate(return_type);
+            const auto *then_var = it->second->cast_allocate(return_type);
             merged_return->merge(cond, *then_var);
         }
         state->set_expr_result(merged_return);
@@ -54,15 +54,15 @@ bool Z3Visitor::preorder(const IR::Function *f) {
 
 bool Z3Visitor::preorder(const IR::Method *m) {
     auto method_name = infer_name(m->getAnnotations(), m->getName().name);
-    auto method_type = m->type->returnType;
+    const auto *method_type = m->type->returnType;
     // TODO: Different types of arguments and multiple calls
-    for (auto param : *m->getParameters()) {
+    for (const auto *param : *m->getParameters()) {
         cstring param_name = param->getName().name;
         cstring merged_param_name = method_name + "_" + param_name;
         if (param->direction == IR::Direction::Out ||
             param->direction == IR::Direction::InOut) {
-            auto instance = state->gen_instance(merged_param_name, param->type,
-                                                0, method_name);
+            auto *instance = state->gen_instance(merged_param_name, param->type,
+                                                 0, method_name);
             state->update_var(param_name, instance);
         }
     }
@@ -75,14 +75,14 @@ void process_table_properties(
     std::vector<const IR::MethodCallExpression *> *actions,
     const IR::MethodCallExpression **default_action, bool *immutable) {
 
-    for (auto p : p4t->properties->properties) {
-        auto val = p->value;
-        if (auto key = val->to<IR::Key>()) {
-            for (auto ke : key->keyElements) {
+    for (const auto *p : p4t->properties->properties) {
+        const auto *val = p->value;
+        if (const auto *key = val->to<IR::Key>()) {
+            for (const auto *ke : key->keyElements) {
                 keys->push_back(ke);
             }
-        } else if (auto action_list = val->to<IR::ActionList>()) {
-            for (auto act : action_list->actionList) {
+        } else if (const auto *action_list = val->to<IR::ActionList>()) {
+            for (const auto *act : action_list->actionList) {
                 bool ignore_default = false;
                 for (const auto *anno : act->getAnnotations()->annotations) {
                     if (anno->name.name == "defaultonly") {
@@ -92,7 +92,7 @@ void process_table_properties(
                 if (ignore_default) {
                     continue;
                 }
-                if (auto method_call =
+                if (const auto *method_call =
                         act->expression->to<IR::MethodCallExpression>()) {
                     actions->push_back(method_call);
                 } else if (act->expression->is<IR::PathExpression>()) {
@@ -103,10 +103,10 @@ void process_table_properties(
                                       act, act->expression->node_type_name());
                 }
             }
-        } else if (auto expr_val = val->to<IR::ExpressionValue>()) {
+        } else if (const auto *expr_val = val->to<IR::ExpressionValue>()) {
             // resolve a default action
             if (p->name.name == "default_action") {
-                if (auto method_call =
+                if (const auto *method_call =
                         expr_val->expression->to<IR::MethodCallExpression>()) {
                     *default_action = method_call;
                 } else if (expr_val->expression->is<IR::PathExpression>()) {
@@ -137,13 +137,13 @@ void process_table_properties(
 
 z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
                            const std::vector<const IR::KeyElement *> &keys) {
-    auto state = visitor->state;
-    auto ctx = state->get_z3_ctx();
+    const auto *state = visitor->state;
+    auto *ctx = state->get_z3_ctx();
     z3::expr hit = ctx->bool_val(false);
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
-        auto key = keys.at(idx);
+        const auto *key = keys.at(idx);
         visitor->visit(key->expression);
-        auto key_eval = state->get_expr_result<Z3Bitvector>()->get_val();
+        const auto *key_eval = state->get_expr_result<Z3Bitvector>()->get_val();
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
         auto key_match =
             ctx->bv_const(key_name.c_str(), key_eval->get_sort().bv_size());
@@ -155,17 +155,17 @@ z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
 void handle_table_action(Z3Visitor *visitor, cstring table_name,
                          const IR::MethodCallExpression *act,
                          cstring action_label) {
-    auto state = visitor->state;
-    const IR::Expression *call_name;
+    auto *state = visitor->state;
+    const IR::Expression *call_name = nullptr;
     IR::Vector<IR::Argument> ctrl_args;
-    const IR::ParameterList *method_params;
+    const IR::ParameterList *method_params = nullptr;
 
-    if (auto path = act->method->to<IR::PathExpression>()) {
+    if (const auto *path = act->method->to<IR::PathExpression>()) {
         call_name = path;
         cstring identifier_path =
             path->path->name + std::to_string(act->arguments->size());
-        auto action_decl = state->get_static_decl(identifier_path);
-        if (auto action = action_decl->decl->to<IR::P4Action>()) {
+        const auto *action_decl = state->get_static_decl(identifier_path);
+        if (const auto *action = action_decl->decl->to<IR::P4Action>()) {
             method_params = action->getParameters();
         } else {
             BUG("Unexpected action call %s of type %s in table.",
@@ -175,7 +175,7 @@ void handle_table_action(Z3Visitor *visitor, cstring table_name,
         P4C_UNIMPLEMENTED("Unsupported action %s of type %s", act,
                           act->method->node_type_name());
     }
-    for (auto &arg : *act->arguments) {
+    for (const auto &arg : *act->arguments) {
         ctrl_args.push_back(arg);
     }
     // At this stage, we synthesize control plane arguments
@@ -183,11 +183,11 @@ void handle_table_action(Z3Visitor *visitor, cstring table_name,
     auto args_len = act->arguments->size();
     auto ctrl_idx = 0;
     for (size_t idx = 0; idx < method_params->size(); ++idx) {
-        auto param = method_params->getParameter(idx);
-        if (args_len <= idx and param->direction == IR::Direction::None) {
+        const auto *param = method_params->getParameter(idx);
+        if (args_len <= idx && param->direction == IR::Direction::None) {
             cstring arg_name =
                 table_name + action_label + std::to_string(ctrl_idx);
-            auto ctrl_arg = state->gen_instance(arg_name, param->type);
+            auto *ctrl_arg = state->gen_instance(arg_name, param->type);
             // TODO: This is a bug waiting to happen. How to handle fresh
             // arguments and their source?
             state->declare_var(arg_name, ctrl_arg, param->type);
@@ -197,7 +197,7 @@ void handle_table_action(Z3Visitor *visitor, cstring table_name,
         }
     }
 
-    const auto action_with_ctrl_args =
+    const auto *action_with_ctrl_args =
         new IR::MethodCallExpression(call_name, &ctrl_args);
     visitor->visit(action_with_ctrl_args);
 }
@@ -220,7 +220,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     bool has_exited = true;
     z3::expr matches = ctx->bool_val(false);
     for (size_t idx = 0; idx < actions.size(); ++idx) {
-        auto action = actions.at(idx);
+        const auto *action = actions.at(idx);
         auto cond = hit && (table_action == ctx->int_val(idx));
         auto old_vars = state->clone_vars();
         state->push_forward_cond(cond);
@@ -228,7 +228,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         state->pop_forward_cond();
         auto call_has_exited = state->has_exited();
         if (!call_has_exited) {
-            action_vars.push_back({cond, state->get_vars()});
+            action_vars.emplace_back(cond, state->get_vars());
         }
         has_exited = has_exited && call_has_exited;
         state->set_exit(false);
@@ -269,15 +269,15 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     auto forward_conds = state->get_forward_conds();
     auto return_conds = state->get_return_conds();
     auto cond = state->get_z3_ctx()->bool_val(true);
-    for (z3::expr sub_cond : forward_conds) {
+    for (const auto &sub_cond : forward_conds) {
         cond = cond && sub_cond;
     }
-    for (z3::expr sub_cond : return_conds) {
+    for (const auto &sub_cond : return_conds) {
         cond = cond && sub_cond;
     }
     auto exit_cond = state->get_exit_cond();
     // if we do not even return do not bother with collecting results
-    if (r->expression) {
+    if (r->expression != nullptr) {
         visit(r->expression);
         state->push_return_expr(cond && exit_cond, state->copy_expr_result());
     }
@@ -292,10 +292,10 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     auto forward_conds = state->get_forward_conds();
     auto return_conds = state->get_return_conds();
     auto cond = state->get_z3_ctx()->bool_val(true);
-    for (z3::expr sub_cond : forward_conds) {
+    for (z3::expr &sub_cond : forward_conds) {
         cond = cond && sub_cond;
     }
-    for (z3::expr sub_cond : return_conds) {
+    for (z3::expr &sub_cond : return_conds) {
         cond = cond && sub_cond;
     }
     auto exit_cond = state->get_exit_cond();
@@ -306,13 +306,13 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     // We do not want to pop the last two scopes
     // FIXME: There has to be a cleaner way here...
     // Ideally we should track the input/output variables
-    for (int i = scopes.size() - 1; i > 1; --i) {
-        auto scope = &scopes.at(i);
+    for (int64_t i = scopes.size() - 1; i > 1; --i) {
+        const auto *scope = &scopes.at(i);
         auto copy_out_args = scope->get_copy_out_args();
         std::vector<P4Z3Instance *> copy_out_vals;
-        for (auto arg_tuple : copy_out_args) {
+        for (const auto &arg_tuple : copy_out_args) {
             auto source = arg_tuple.second;
-            auto val = state->get_var(source);
+            auto *val = state->get_var(source);
             copy_out_vals.push_back(val);
         }
 
@@ -336,14 +336,14 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
 void handle_table_match(P4State *state, Z3Visitor *visitor,
                         const P4TableInstance *table,
                         const IR::Vector<IR::SwitchCase> &cases) {
-    auto ctx = state->get_z3_ctx();
+    auto *ctx = state->get_z3_ctx();
     auto table_action_name = table->table_name + "action_idx";
     auto action_taken = ctx->int_const(table_action_name.c_str());
     std::map<cstring, int> action_mapping;
     size_t idx = 0;
-    for (auto action : table->actions) {
-        auto method_expr = action->method;
-        auto path = method_expr->to<IR::PathExpression>();
+    for (const auto *action : table->actions) {
+        const auto *method_expr = action->method;
+        const auto *path = method_expr->to<IR::PathExpression>();
         CHECK_NULL(path);
         action_mapping[path->path->name.name] = idx;
         idx++;
@@ -355,8 +355,8 @@ void handle_table_match(P4State *state, Z3Visitor *visitor,
     bool has_returned = true;
     z3::expr fall_through = ctx->bool_val(false);
     z3::expr matches = ctx->bool_val(false);
-    for (auto switch_case : cases) {
-        if (auto label = switch_case->label->to<IR::PathExpression>()) {
+    for (const auto *switch_case : cases) {
+        if (const auto *label = switch_case->label->to<IR::PathExpression>()) {
             auto mapped_idx = action_mapping[label->path->name.name];
             auto cond = action_taken == mapped_idx;
             // There is no block for the switch.
@@ -374,8 +374,8 @@ void handle_table_match(P4State *state, Z3Visitor *visitor,
             state->pop_forward_cond();
             auto call_has_exited = state->has_exited();
             auto stmt_has_returned = state->has_returned();
-            if (!(call_has_exited or stmt_has_returned)) {
-                case_states.push_back({case_match, state->get_vars()});
+            if (!(call_has_exited || stmt_has_returned)) {
+                case_states.emplace_back(case_match, state->get_vars());
             }
             has_exited = has_exited && call_has_exited;
             has_returned = has_returned && stmt_has_returned;
@@ -391,14 +391,14 @@ void handle_table_match(P4State *state, Z3Visitor *visitor,
                               switch_case->label->node_type_name());
         }
     }
-    if (default_case) {
+    if (default_case != nullptr) {
         auto old_vars = state->clone_vars();
         state->push_forward_cond(!matches);
         visitor->visit(default_case->statement);
         state->pop_forward_cond();
         auto call_has_exited = state->has_exited();
         auto stmt_has_returned = state->has_returned();
-        if (call_has_exited or stmt_has_returned) {
+        if (call_has_exited || stmt_has_returned) {
             state->restore_vars(old_vars);
         }
         has_exited = has_exited && call_has_exited;
@@ -418,7 +418,7 @@ void handle_table_match(P4State *state, Z3Visitor *visitor,
 
 bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
     visit(ss->expression);
-    auto table = state->copy_expr_result<P4TableInstance>();
+    const auto *table = state->copy_expr_result<P4TableInstance>();
     handle_table_match(state, this, table, ss->cases);
     // P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.", result,
     //                   result->get_static_type());
@@ -472,9 +472,9 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
 }
 
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
-    for (auto c : b->components) {
+    for (const auto *c : b->components) {
         visit(c);
-        if (state->has_returned() or state->has_exited()) {
+        if (state->has_returned() || state->has_exited()) {
             break;
         }
     }
@@ -492,7 +492,7 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
-    P4Z3Instance *left;
+    P4Z3Instance *left = nullptr;
     if (dv->initializer != nullptr) {
         visit(dv->initializer);
         left = state->get_expr_result()->cast_allocate(dv->type);
@@ -504,7 +504,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
-    P4Z3Instance *left;
+    P4Z3Instance *left = nullptr;
     if (dc->initializer != nullptr) {
         visit(dc->initializer);
         left = state->get_expr_result()->cast_allocate(dc->type);
@@ -516,13 +516,13 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
 }
 
 const IR::ParameterList *get_params(const IR::Type *callable_type) {
-    if (auto control = callable_type->to<IR::P4Control>()) {
+    if (const auto *control = callable_type->to<IR::P4Control>()) {
         return control->getApplyParameters();
     }
-    if (auto parser = callable_type->to<IR::P4Parser>()) {
+    if (const auto *parser = callable_type->to<IR::P4Parser>()) {
         return parser->getApplyParameters();
     }
-    if (auto package = callable_type->to<IR::Type_Package>()) {
+    if (const auto *package = callable_type->to<IR::Type_Package>()) {
         return package->getParameters();
     }
     P4C_UNIMPLEMENTED("Callable declaration type %s of type %s not supported.",
@@ -531,14 +531,14 @@ const IR::ParameterList *get_params(const IR::Type *callable_type) {
 
 P4Z3Instance *run_arch_block(Z3Visitor *visitor,
                              const IR::ConstructorCallExpression *cce) {
-    auto state = visitor->state;
+    auto *state = visitor->state;
     state->push_scope();
 
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
-    const IR::ParameterList *params;
-    if (auto c = resolved_type->to<IR::P4Control>()) {
+    const IR::ParameterList *params = nullptr;
+    if (const auto *c = resolved_type->to<IR::P4Control>()) {
         params = c->getApplyParameters();
-    } else if (auto p = resolved_type->to<IR::P4Parser>()) {
+    } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
         params = p->getApplyParameters();
     } else {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
@@ -549,16 +549,17 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
 
     // INITIALIZE
     IR::Vector<IR::Argument> synthesized_args;
-    for (auto param : *params) {
-        auto par_type = state->resolve_type(param->type);
-        auto var = state->gen_instance(param->name.name, par_type);
-        if (auto z3_var = var->to_mut<StructInstance>()) {
+    for (const auto *param : *params) {
+        const auto *par_type = state->resolve_type(param->type);
+        auto *var = state->gen_instance(param->name.name, par_type);
+        if (auto *z3_var = var->to_mut<StructInstance>()) {
             z3_var->bind(0, param->name.name);
             z3_var->propagate_validity();
         }
         state->declare_var(param->name.name, var, par_type);
         state_names.push_back(param->name.name);
-        auto arg = new IR::Argument(new IR::PathExpression(param->name.name));
+        const auto *arg =
+            new IR::Argument(new IR::PathExpression(param->name.name));
         synthesized_args.push_back(arg);
     }
     const auto *new_cce = new IR::ConstructorCallExpression(
@@ -579,7 +580,7 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
                               z3_sub_vars.end());
         } else if (var->is<ExternInstance>()) {
             warning("Skipping extern because we do not know how to represent "
-                    "it.\n");
+                    "it.");
         } else {
             BUG("Var is neither type z3::expr nor P4Z3Instance!");
         }
@@ -595,12 +596,12 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
     VarMap merged_vec;
     size_t arg_len = args->size();
     size_t idx = 0;
-    for (auto param : params->parameters) {
+    for (const auto *param : params->parameters) {
         if (idx < arg_len) {
             const IR::Argument *arg = args->at(idx);
-            if (auto cce =
+            if (const auto *cce =
                     arg->expression->to<IR::ConstructorCallExpression>()) {
-                auto state_result = run_arch_block(visitor, cce);
+                auto *state_result = run_arch_block(visitor, cce);
                 merged_vec.insert(
                     {param->name.name, {state_result, param->type}});
             } else {
@@ -621,20 +622,21 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     auto instance_name = di->getName().name;
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
-    if (auto spec_type = resolved_type->to<IR::Type_Specialized>()) {
+    if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {
         // FIXME: Figure out what do here
         // for (auto arg : *spec_type->arguments) {
         //     const IR::Type *resolved_arg = state->resolve_type(arg);
         // }
         resolved_type = state->resolve_type(spec_type->baseType);
     }
-    const IR::ParameterList *params = get_params(resolved_type);
+    const auto *params = get_params(resolved_type);
 
     if (instance_name == "main") {
         main_result = create_state(this, di->arguments, params);
     } else {
         state->merge_args_with_params(this, *di->arguments, *params);
-        if (auto instance_decl = resolved_type->to<IR::Type_Declaration>()) {
+        if (const auto *instance_decl =
+                resolved_type->to<IR::Type_Declaration>()) {
             state->declare_var(instance_name,
                                new DeclarationInstance(state, instance_decl),
                                resolved_type);

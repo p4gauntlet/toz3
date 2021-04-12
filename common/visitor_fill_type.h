@@ -11,9 +11,10 @@
 namespace TOZ3_V2 {
 
 class TypeVisitor : public Inspector {
- public:
     P4State *state;
     Z3Visitor resolve_expr;
+
+ public:
     explicit TypeVisitor(P4State *state)
         : state(state), resolve_expr(Z3Visitor(state)) {
         visitDagOnce = false;

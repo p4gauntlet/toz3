@@ -31,7 +31,8 @@
 #include "toz3_v2/common/visitor_interpret.h"
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    if (const auto *main = state->find_static_decl("main")) {
+    const auto *main = state->find_static_decl("main");
+    if (main != nullptr) {
         if (const auto *main_pkg = main->decl->to<IR::Declaration_Instance>()) {
             return main_pkg;
         }
@@ -82,8 +83,8 @@ int main(int argc, char *const argv[]) {
                 cstring pipe_name = pipe_state.first;
                 const auto *pipe_vars =
                     pipe_state.second.first->to<TOZ3_V2::ControlState>();
-                if (pipe_vars == nullptr) {
-                    printf("Pipe %s state:\n", pipe_name.c_str());
+                if (pipe_vars != nullptr) {
+                    std::cout << "Pipe " << pipe_name << " state:" << std::endl;
                     for (const auto &tuple : pipe_vars->state_vars) {
                         auto name = tuple.first;
                         auto var = tuple.second.simplify();
@@ -101,6 +102,8 @@ int main(int argc, char *const argv[]) {
             return EXIT_FAILURE;
         }
     }
-
-    return errorCount() > 0;
+    if (errorCount() > 0) {
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }

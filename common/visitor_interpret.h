@@ -12,14 +12,9 @@
 namespace TOZ3_V2 {
 
 class Z3Visitor : public Inspector {
- public:
-    P4State *state;
-    VarMap main_result;
-    explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
-
-    VarMap get_main_result() const { return main_result; }
-
  private:
+    VarMap main_result;
+
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
         P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
@@ -119,6 +114,11 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dc) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
+ public:
+    P4State *state;
+    explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
+
+    VarMap get_main_result() const { return main_result; }
 };
 }  // namespace TOZ3_V2
 
