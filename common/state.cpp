@@ -268,8 +268,7 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
             auto *stack_class = parent_class->to_mut<StackInstance>();
             BUG_CHECK(stack_class, "Expected Stack, got %s",
                       stack_class->get_static_type());
-            parent_class =
-                stack_class->get_member(new Z3Bitvector(state, *z3_expr));
+            parent_class = stack_class->get_member(*z3_expr);
         } else {
             P4C_UNIMPLEMENTED("Member type not implemented.");
         }
@@ -282,7 +281,7 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
         auto *stack_class = parent_class->to_mut<StackInstance>();
         BUG_CHECK(stack_class, "Expected Stack, got %s",
                   stack_class->get_static_type());
-        return stack_class->get_member(new Z3Bitvector(state, *z3_expr));
+        return stack_class->get_member(*z3_expr);
     }
     P4C_UNIMPLEMENTED("Member type not implemented.");
 }
@@ -315,7 +314,10 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
         }
         MemberStruct new_member_struct = member_struct;
         new_member_struct.end_slices.clear();
-        auto *resolved_rval = new Z3Bitvector(this, target_rval, is_signed);
+        const auto *bit_type =
+            new IR::Type_Bits(target_rval.get_sort().bv_size(), false);
+        auto *resolved_rval =
+            new Z3Bitvector(this, bit_type, target_rval, is_signed);
         set_var(new_member_struct, resolved_rval);
         return;
     }
@@ -533,7 +535,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
     } else if (type->is<IR::Type_Base>()) {
-        instance = new Z3Bitvector(this, gen_z3_expr(name, type));
+        instance = new Z3Bitvector(this, type, gen_z3_expr(name, type));
     } else {
         P4C_UNIMPLEMENTED(
             "Instance generation for %s of type \"%s\" not supported!.", type,

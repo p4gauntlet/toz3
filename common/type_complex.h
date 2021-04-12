@@ -25,7 +25,6 @@ class StructBase : public P4Z3Instance {
     cstring instance_name;
 
  public:
-    const IR::Type *p4_type;
     StructBase(P4State *state, const IR::Type *type, uint64_t member_id,
                cstring prefix);
 
@@ -183,7 +182,7 @@ class StackInstance : public StructBase {
         BUG("Name %s not found in function map.", name);
     }
 
-    P4Z3Instance *get_member(const P4Z3Instance *index) const;
+    P4Z3Instance *get_member(const z3::expr &index) const;
     P4Z3Instance *get_member(cstring name) const override;
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
@@ -215,6 +214,9 @@ class StackInstance : public StructBase {
 
 class EnumBase : public StructBase {
     using StructBase::StructBase;
+
+ protected:
+    const IR::Type_Bits member_type = IR::Type_Bits(32, false);
 
  public:
     std::vector<std::pair<cstring, z3::expr>>
@@ -307,10 +309,9 @@ class ListInstance : public P4Z3Instance {
     std::vector<P4Z3Instance *> val_list;
 
  public:
-    const IR::Type *p4_type;
     ListInstance(P4State *state, std::vector<P4Z3Instance *> val_list,
                  const IR::Type *type)
-        : state(state), val_list(std::move(val_list)), p4_type(type) {}
+        : P4Z3Instance(type), state(state), val_list(std::move(val_list)) {}
 
     cstring get_static_type() const override { return "ListInstance"; }
     cstring to_string() const override {
@@ -331,7 +332,9 @@ class P4Declaration : public P4Z3Instance {
  public:
     const IR::Declaration *decl;
     // constructor
-    explicit P4Declaration(const IR::Declaration *decl) : decl(decl) {}
+    // TODO: This is a declaration, not an object. Distinguish!
+    explicit P4Declaration(const IR::Declaration *decl)
+        : P4Z3Instance(nullptr), decl(decl) {}
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override{};
@@ -398,7 +401,7 @@ class ExternInstance : public P4Z3Instance {
  private:
     std::map<cstring, const IR::Method *> methods;
     P4State *state;
-    const IR::Type_Extern *p4_type;
+    const IR::Type_Extern *extern_type;
 
  public:
     explicit ExternInstance(P4State *state, const IR::Type_Extern *type);
@@ -420,7 +423,7 @@ class ExternInstance : public P4Z3Instance {
     }
     // TODO: This is a little pointless....
     ExternInstance *copy() const override {
-        return new ExternInstance(state, p4_type);
+        return new ExternInstance(state, extern_type);
     }
 };
 

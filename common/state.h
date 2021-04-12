@@ -50,7 +50,8 @@ class P4State {
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
     explicit P4State(z3::context *context)
-        : ctx(context), z3_expr_buffer(this, context->bool_val(false)),
+        : ctx(context),
+          z3_expr_buffer(this, &P4_STD_BIT_TYPE, context->bool_val(false)),
           z3_int_buffer(this, context->bool_val(false)) {}
 
     /****** GETTERS ******/

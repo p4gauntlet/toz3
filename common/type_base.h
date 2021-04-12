@@ -32,22 +32,20 @@ class ExternInstance;
 class P4TableInstance;
 
 using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
-                                boost::recursive_wrapper<Z3Bitvector>,
-                                boost::recursive_wrapper<VoidResult>,
-                                boost::recursive_wrapper<StructInstance>,
-                                boost::recursive_wrapper<HeaderInstance>,
-                                boost::recursive_wrapper<EnumInstance>,
-                                boost::recursive_wrapper<ErrorInstance>,
-                                boost::recursive_wrapper<ListInstance>,
-                                boost::recursive_wrapper<P4TableInstance>,
-                                boost::recursive_wrapper<ExternInstance>>;
+                                boost::recursive_wrapper<Z3Bitvector>>;
 using P4Z3Function =
     std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
+using FunOrMethod = boost::variant<P4Z3Function, const IR::Method *>;
 
 struct Z3Slice {
     z3::expr hi;
     z3::expr lo;
 };
+
+static const IR::Type_Boolean BOOL_TYPE{};
+static const IR::Type_Void VOID_TYPE{};
+static const IR::Type_InfInt INT_TYPE{};
+static const IR::Type_Bits P4_STD_BIT_TYPE{32, false};
 
 using NameOrIndex = boost::variant<cstring, z3::expr>;
 struct MemberStruct {
@@ -67,7 +65,7 @@ struct ParamInfo {
     const IR::Vector<IR::Type> type_args;
 };
 
-class P4Z3Object {
+class P4Z3Node {
  public:
     template <typename T> bool is() const { return to<T>() != nullptr; }
     template <typename T> const T *to() const {
@@ -78,13 +76,20 @@ class P4Z3Object {
     virtual cstring get_static_type() const = 0;
     virtual cstring to_string() const = 0;
     friend inline std::ostream &operator<<(std::ostream &out,
-                                           const TOZ3_V2::P4Z3Object &type) {
+                                           const TOZ3_V2::P4Z3Node &type) {
         return out << type.to_string();
     }
 };
 
-class P4Z3Instance : public P4Z3Object {
+class P4Z3Instance : public P4Z3Node {
+ protected:
+    const IR::Type *p4_type = nullptr;
+
  public:
+    explicit P4Z3Instance(const IR::Type *p4_type) : p4_type(p4_type) {}
+    ~P4Z3Instance() {}
+
+    const IR::Type *get_p4_type() const { return p4_type; }
     /****** UNARY OPERANDS ******/
     virtual Z3Result operator-() const {
         P4C_UNIMPLEMENTED("- not implemented for %s", to_string());
@@ -197,6 +202,8 @@ class P4Z3Instance : public P4Z3Object {
         P4C_UNIMPLEMENTED("get_member not implemented for %s.",
                           get_static_type());
     }
+
+    P4Z3Instance(const P4Z3Instance &other) { p4_type = other.p4_type; }
 };
 
 }  // namespace TOZ3_V2

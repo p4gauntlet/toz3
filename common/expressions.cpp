@@ -13,7 +13,7 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->bv_val(val_string, tb->size);
-        auto wrapper = Z3Bitvector(state, expr, tb->isSigned);
+        auto wrapper = Z3Bitvector(state, tb, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
     }
@@ -30,7 +30,7 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     auto expr = state->get_z3_ctx()->bool_val(bl->value);
-    Z3Bitvector wrapper = Z3Bitvector(state, expr);
+    Z3Bitvector wrapper = Z3Bitvector(state, &BOOL_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
@@ -82,8 +82,8 @@ bool Z3Visitor::preorder(const IR::TypeNameExpression *t) {
     return false;
 }
 
-VarOrDecl get_function(const P4Z3Instance *parent_class,
-                       cstring member_identifier) {
+FunOrMethod get_function(const P4Z3Instance *parent_class,
+                         cstring member_identifier) {
     // TODO: Think about how to merge these types. Traits?
     if (const auto *hdr = parent_class->to<HeaderInstance>()) {
         return hdr->get_function(member_identifier);
@@ -135,9 +135,9 @@ void resolve_stack_call(Visitor *visitor, P4State *state,
     }
 }
 
-VarOrDecl resolve_var_or_decl_parent(P4State *state,
-                                     const MemberStruct &member_struct,
-                                     int num_args) {
+FunOrMethod resolve_var_or_decl_parent(P4State *state,
+                                       const MemberStruct &member_struct,
+                                       int num_args) {
     const P4Z3Instance *parent_class = nullptr;
     if (const auto *decl = state->find_static_decl(member_struct.main_member)) {
         parent_class = decl;

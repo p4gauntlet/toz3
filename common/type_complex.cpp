@@ -13,7 +13,8 @@ StructBase
 ***/
 StructBase::StructBase(P4State *state, const IR::Type *type, uint64_t member_id,
                        cstring prefix)
-    : state(state), valid(state->get_z3_ctx()->bool_val(true)), p4_type(type) {
+    : P4Z3Instance(type), state(state),
+      valid(state->get_z3_ctx()->bool_val(true)) {
     width = 0;
     instance_name = prefix + std::to_string(member_id);
 }
@@ -22,7 +23,6 @@ StructBase::StructBase(const StructBase &other)
     : P4Z3Instance(other), valid(other.valid) {
     width = other.width;
     state = other.state;
-    p4_type = other.p4_type;
     instance_name = other.instance_name;
     member_types = other.member_types;
     for (auto value_tuple : other.members) {
@@ -108,8 +108,9 @@ void StructBase::bind(uint64_t member_id, cstring prefix) {
             const auto *z3_expr = z3_var->get_val();
             auto member_var =
                 state->get_z3_ctx()->constant(name, z3_expr->get_sort());
-            update_member(member_name, new Z3Bitvector(state, member_var,
-                                                       z3_var->is_signed));
+            update_member(member_name,
+                          new Z3Bitvector(state, z3_var->get_p4_type(),
+                                          member_var, z3_var->is_signed));
             flat_id++;
         } else if (const auto *z3_var = member_var->to<Z3Int>()) {
             const auto *z3_expr = z3_var->get_val();
@@ -325,7 +326,7 @@ void HeaderInstance::setInvalid(Visitor *, const IR::Vector<IR::Argument> *) {
 }
 
 void HeaderInstance::isValid(Visitor *, const IR::Vector<IR::Argument> *) {
-    state->set_expr_result(Z3Bitvector(state, valid));
+    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, valid));
 }
 
 void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
@@ -435,11 +436,8 @@ P4Z3Instance *StackInstance::get_member(cstring name) const {
     return StructBase::get_member(name);
 }
 
-P4Z3Instance *StackInstance::get_member(const P4Z3Instance *index) const {
-    const auto *z3_expr = index->to<NumericVal>();
-    BUG_CHECK(z3_expr, "Index of type %s not implemented for stacks.",
-              index->get_static_type());
-    auto val = z3_expr->get_val()->simplify();
+P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
+    auto val = index.simplify();
     std::string val_str;
     if (val.is_numeral(val_str, 0)) {
         return get_member(val_str);
@@ -509,8 +507,8 @@ EnumBase::get_z3_vars(cstring prefix, const z3::expr *) const {
 }
 
 void EnumBase::add_enum_member(cstring error_name) {
-    auto *member_var =
-        new Z3Bitvector(state, state->get_z3_ctx()->bv_val(members.size(), 32));
+    auto *member_var = new Z3Bitvector(
+        state, &member_type, state->get_z3_ctx()->bv_val(members.size(), 32));
     insert_member(error_name, member_var);
 }
 
@@ -547,12 +545,11 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
     // FIXME: Enums should not be a struct base, actually
     width = 32;
     size_t idx = 0;
-    const auto *bit_type = new IR::Type_Bits(32);
     for (const auto *member : type->members) {
-        auto *member_var =
-            new Z3Bitvector(state, state->get_z3_ctx()->bv_val(idx, 32));
+        auto *member_var = new Z3Bitvector(
+            state, &member_type, state->get_z3_ctx()->bv_val(idx, 32));
         insert_member(member->name.name, member_var);
-        member_types.insert({member->name.name, bit_type});
+        member_types.insert({member->name.name, &member_type});
         idx++;
     }
 }
@@ -571,12 +568,11 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
     // FIXME: Enums should not be a struct base, actually
     width = 32;
     size_t idx = 0;
-    const auto *bit_type = new IR::Type_Bits(32);
     for (const auto *member : type->members) {
-        auto *member_var =
-            new Z3Bitvector(state, state->get_z3_ctx()->bv_val(idx, 32));
+        auto *member_var = new Z3Bitvector(
+            state, &member_type, state->get_z3_ctx()->bv_val(idx, 32));
         insert_member(member->name.name, member_var);
-        member_types.insert({member->name.name, bit_type});
+        member_types.insert({member->name.name, &member_type});
         idx++;
     }
 }
@@ -589,9 +585,9 @@ ExternInstance
 ===============================================================================
 ***/
 
-ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *type)
-    : state(state), p4_type(type) {
-    for (const auto *method : type->methods) {
+ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
+    : P4Z3Instance(p4_type), state(state), extern_type(p4_type) {
+    for (const auto *method : p4_type->methods) {
         // FIXME: Overloading uses num of parameters, it should use types
         cstring overloaded_name = method->getName().name;
         auto num_params = 0;
@@ -688,7 +684,7 @@ P4TableInstance::P4TableInstance(
     : P4Declaration(decl), state(state), table_name(table_name), hit(hit),
       keys(keys), actions(actions), immutable(immutable) {
     members.insert({"action_run", this});
-    members.insert({"hit", new Z3Bitvector(state, hit)});
+    members.insert({"hit", new Z3Bitvector(state, &BOOL_TYPE, hit)});
     cstring apply_str = "apply";
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str += std::to_string(table->getApplyParameters()->size());
@@ -720,7 +716,7 @@ DeclarationInstance
 
 DeclarationInstance::DeclarationInstance(P4State *state,
                                          const IR::Type_Declaration *decl)
-    : state(state), decl(decl) {
+    : P4Z3Instance(nullptr), state(state), decl(decl) {
     cstring apply_str = "apply";
     if (const auto *ctrl = decl->to<IR::P4Control>()) {
         apply_str += std::to_string(ctrl->getApplyParameters()->size());
