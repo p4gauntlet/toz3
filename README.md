@@ -1,4 +1,4 @@
-# ToZ3:
+# ToZ3
 ToZ3 is a tool that produces Z3 expressions from [P4-16](https://p4.org/p4-spec/docs/P4-16-v1.2.0) programs.
 
 ## Requirements
