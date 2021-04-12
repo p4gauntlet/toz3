@@ -1,12 +1,11 @@
-#ifndef _TOZ3_SIMPLE_TYPE_H_
-#define _TOZ3_SIMPLE_TYPE_H_
-
+#ifndef TOZ3_V2_COMMON_TYPE_SIMPLE_H_
+#define TOZ3_V2_COMMON_TYPE_SIMPLE_H_
 #include <cstdio>
 
-#include <map>     // std::map
-#include <string>  // std::to_string
-#include <utility> // std::pair
-#include <vector>  // std::vector
+#include <map>      // std::map
+#include <string>   // std::to_string
+#include <utility>  // std::pair
+#include <vector>   // std::vector
 
 #include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
@@ -19,11 +18,11 @@ namespace TOZ3_V2 {
 // Forward declare state
 class P4State;
 
-z3::expr pure_bv_cast(const z3::expr &expr, z3::sort dest_type);
+z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type);
 
 class VoidResult : public P4Z3Instance {
  public:
-    VoidResult() {}
+    VoidResult() = default;
     void merge(const z3::expr &, const P4Z3Instance &) override{
         // Merge is a no-op here.
     };
@@ -118,7 +117,7 @@ class NumericVal : public P4Z3Instance {
     void set_undefined() override {
         auto sort = val.get_sort();
         auto ctx = &sort.ctx();
-        val = ctx->constant("undefined", sort);
+        val = ctx->constant(UNDEF_LABEL, sort);
     }
 };
 
@@ -222,6 +221,6 @@ class Z3Int : public NumericVal {
     }
 };
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif // _TOZ3_SIMPLE_TYPE_H_
+#endif  // TOZ3_V2_COMMON_TYPE_SIMPLE_H_

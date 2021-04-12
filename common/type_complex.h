@@ -1,12 +1,11 @@
-#ifndef _TOZ3_COMPLEX_TYPE_H_
-#define _TOZ3_COMPLEX_TYPE_H_
-
+#ifndef TOZ3_V2_COMMON_TYPE_COMPLEX_H_
+#define TOZ3_V2_COMMON_TYPE_COMPLEX_H_
 #include <cstdio>
 
-#include <map>     // std::map
-#include <string>  // std::to_string
-#include <utility> // std::pair
-#include <vector>  // std::vector
+#include <map>      // std::map
+#include <string>   // std::to_string
+#include <utility>  // std::pair
+#include <vector>   // std::vector
 
 #include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
@@ -30,7 +29,7 @@ class StructBase : public P4Z3Instance {
     StructBase(P4State *state, const IR::Type *type, uint64_t member_id,
                cstring prefix);
 
-    uint64_t get_width() { return width; }
+    uint64_t get_width() const { return width; }
 
     const P4Z3Instance *get_const_member(const cstring name) const {
         auto it = members.find(name);
@@ -73,12 +72,11 @@ class StructBase : public P4Z3Instance {
     virtual void bind(uint64_t member_id = 0, cstring prefix = "");
     virtual void set_list(std::vector<P4Z3Instance *>);
 
-    ~StructBase() {}
     // copy constructor
     StructBase(const StructBase &other);
     // overload = operator
     StructBase &operator=(const StructBase &other);
-    void merge(const z3::expr &cond, const P4Z3Instance &) override;
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
@@ -99,15 +97,15 @@ class StructInstance : public StructBase {
         cstring ret = "StructInstance(";
         bool first = true;
         for (auto tuple : members) {
-            if (!first)
+            if (!first) {
                 ret += ", ";
+            }
             ret += tuple.first + ": " + tuple.second->to_string();
             first = false;
         }
         ret += ")";
         return ret;
     }
-    ~StructInstance() {}
     // copy constructor
     StructInstance(const StructInstance &other);
     // overload = operator
@@ -129,8 +127,8 @@ class HeaderInstance : public StructInstance {
     void setInvalid(Visitor *, const IR::Vector<IR::Argument> *);
     void isValid(Visitor *, const IR::Vector<IR::Argument> *);
     void propagate_validity(const z3::expr *valid_expr = nullptr) override;
-    void merge(const z3::expr &cond, const P4Z3Instance &) override;
-    void set_list(std::vector<P4Z3Instance *>) override;
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
+    void set_list(std::vector<P4Z3Instance *> input_list) override;
 
     P4Z3Instance *get_function(cstring name) const override {
         auto it = member_functions.find(name);
@@ -146,15 +144,15 @@ class HeaderInstance : public StructInstance {
         ret += "valid: " + valid.to_string() + ", ";
         bool first = true;
         for (auto tuple : members) {
-            if (!first)
+            if (!first) {
                 ret += ", ";
+            }
             ret += tuple.first + ": " + tuple.second->to_string();
             first = false;
         }
         ret += ")";
         return ret;
     }
-    ~HeaderInstance() {}
     // copy constructor
     HeaderInstance *copy() const override;
     HeaderInstance(const HeaderInstance &other);
@@ -195,8 +193,9 @@ class StackInstance : public StructBase {
         cstring ret = "StackInstance(";
         bool first = true;
         for (auto tuple : members) {
-            if (!first)
+            if (!first) {
                 ret += ", ";
+            }
             ret += tuple.first + ": " + tuple.second->to_string();
             first = false;
         }
@@ -212,7 +211,6 @@ class StackInstance : public StructBase {
     StackInstance(const StackInstance &other);
     // overload = operator
     StackInstance &operator=(const StackInstance &other);
-    ~StackInstance() {}
 };
 
 class EnumBase : public StructBase {
@@ -227,8 +225,9 @@ class EnumBase : public StructBase {
         cstring ret = "EnumBase(";
         bool first = true;
         for (auto tuple : members) {
-            if (!first)
+            if (!first) {
                 ret += ", ";
+            }
             ret += tuple.first + ": " + tuple.second->to_string();
             first = false;
         }
@@ -251,8 +250,9 @@ class EnumInstance : public EnumBase {
         cstring ret = "EnumInstance(";
         bool first = true;
         for (auto tuple : members) {
-            if (!first)
+            if (!first) {
                 ret += ", ";
+            }
             ret += tuple.first + ": " + tuple.second->to_string();
             first = false;
         }
@@ -264,7 +264,6 @@ class EnumInstance : public EnumBase {
 };
 
 class ErrorInstance : public EnumBase {
-
  public:
     ErrorInstance(P4State *state, const IR::Type_Error *type,
                   uint64_t member_id, cstring prefix);
@@ -275,15 +274,16 @@ class ErrorInstance : public EnumBase {
         cstring ret = "ErrorInstance(";
         bool first = true;
         for (auto tuple : members) {
-            if (!first)
+            if (!first) {
                 ret += ", ";
+            }
             ret += tuple.first + ": " + tuple.second->to_string();
             first = false;
         }
         ret += ")";
         return ret;
     }
-}; // namespace TOZ3_V2
+};  // namespace TOZ3_V2
 
 class TupleInstance : public StructBase {
     using StructBase::StructBase;
@@ -310,7 +310,7 @@ class ListInstance : public P4Z3Instance {
     const IR::Type *p4_type;
     ListInstance(P4State *state, std::vector<P4Z3Instance *> val_list,
                  const IR::Type *type)
-        : state(state), val_list(val_list), p4_type(type) {}
+        : state(state), val_list(std::move(val_list)), p4_type(type) {}
 
     cstring get_static_type() const override { return "ListInstance"; }
     cstring to_string() const override {
@@ -333,7 +333,8 @@ class P4Declaration : public P4Z3Instance {
     // constructor
     explicit P4Declaration(const IR::Declaration *decl) : decl(decl) {}
     // Merge is a no-op here.
-    void merge(const z3::expr &, const P4Z3Instance &) override {}
+    void merge(const z3::expr & /*cond*/,
+               const P4Z3Instance & /*then_expr*/) override{};
     // TODO: This is a little pointless....
     P4Declaration *copy() const override { return new P4Declaration(decl); }
 
@@ -362,7 +363,8 @@ class P4TableInstance : public P4Declaration {
         const z3::expr hit, std::vector<const IR::KeyElement *> keys,
         std::vector<const IR::MethodCallExpression *> actions, bool immutable);
     // Merge is a no-op here.
-    void merge(const z3::expr &, const P4Z3Instance &) override {}
+    void merge(const z3::expr & /*cond*/,
+               const P4Z3Instance & /*then_expr*/) override {}
     // TODO: This is a little pointless....
     P4TableInstance *copy() const override {
         return new P4TableInstance(state, decl, table_name, hit, keys, actions,
@@ -404,7 +406,8 @@ class DeclarationInstance : public P4Z3Instance {
     explicit DeclarationInstance(P4State *state,
                                  const IR::Type_Declaration *decl);
     // Merge is a no-op here.
-    void merge(const z3::expr &, const P4Z3Instance &) override {}
+    void merge(const z3::expr & /*cond*/,
+               const P4Z3Instance & /*then_expr*/) override{};
     // TODO: This is a little pointless....
     DeclarationInstance *copy() const override {
         return new DeclarationInstance(state, decl);
@@ -441,9 +444,9 @@ class ExternInstance : public P4Z3Instance {
 
  public:
     explicit ExternInstance(P4State *state, const IR::Type_Extern *type);
-    void merge(const z3::expr &, const P4Z3Instance &) override{
-        // Merge is a no-op here.
-    };
+    // Merge is a no-op here.
+    void merge(const z3::expr & /*cond*/,
+               const P4Z3Instance & /*then_expr*/) override{};
     cstring get_static_type() const override { return "ExternInstance"; }
     cstring to_string() const override {
         cstring ret = "ExternInstance(";
@@ -451,7 +454,7 @@ class ExternInstance : public P4Z3Instance {
         return ret;
     }
     P4Z3Instance *get_function(cstring method_name) const override {
-        if (methods.count(method_name)) {
+        if (methods.count(method_name) > 0) {
             return methods.at(method_name);
         }
         error("Extern %s has no method %s.", p4_type, method_name);
@@ -463,6 +466,6 @@ class ExternInstance : public P4Z3Instance {
     }
 };
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif // _TOZ3_COMPLEX_TYPE_H_
+#endif  // TOZ3_V2_COMMON_TYPE_COMPLEX_H_

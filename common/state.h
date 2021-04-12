@@ -1,5 +1,5 @@
-#ifndef _TOZ3_STATE_H_
-#define _TOZ3_STATE_H_
+#ifndef TOZ3_V2_COMMON_STATE_H_
+#define TOZ3_V2_COMMON_STATE_H_
 
 #include <sys/types.h>
 
@@ -34,23 +34,24 @@ class P4State {
     Z3Int z3_int_buffer;
     P4Z3Instance *expr_result;
     bool is_exited = false;
+    std::vector<std::pair<z3::expr, VarMap>> exit_states;
 
-    const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
     z3::expr exit_cond = ctx->bool_val(true);
     P4Scope *get_mut_current_scope() { return &scopes.back(); }
     void set_var(Visitor *visitor, const IR::Expression *target,
                  P4Z3Instance *rval);
+    P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
+    P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
+    const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
 
  public:
     const P4Scope &get_current_scope() const { return scopes.back(); }
-    std::vector<std::pair<z3::expr, VarMap>> exit_states;
-    bool has_exited() { return is_exited; }
+    bool has_exited() const { return is_exited; }
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
     explicit P4State(z3::context *context)
         : ctx(context), z3_expr_buffer(this, context->bool_val(false)),
           z3_int_buffer(this, context->bool_val(false)) {}
-    ~P4State() {}
 
     /****** GETTERS ******/
     ProgState get_state() const { return scopes; }
@@ -59,9 +60,8 @@ class P4State {
     template <typename T> const T *get_expr_result() const {
         if (auto cast_result = expr_result->to<T>()) {
             return cast_result;
-        } else {
-            BUG("Could not cast to type %s.", typeid(T).name());
         }
+        BUG("Could not cast to type %s.", typeid(T).name());
     }
     /****** ALLOCATIONS ******/
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
@@ -74,8 +74,8 @@ class P4State {
                                   const IR::ParameterList &params);
     void copy_in(Visitor *visitor, const ParamInfo &param_info);
     void copy_out();
-    void set_copy_out_args(CopyArgs &out_args) {
-        auto scope = get_mut_current_scope();
+    void set_copy_out_args(const CopyArgs &out_args) {
+        auto *scope = get_mut_current_scope();
         scope->set_copy_out_args(out_args);
     }
     CopyArgs get_copy_out_args() const {
@@ -92,15 +92,25 @@ class P4State {
     VarMap clone_vars() const;
     void restore_vars(const VarMap &input_map);
     void merge_vars(const z3::expr &cond, const VarMap &other);
-
-    const z3::expr get_exit_cond() { return exit_cond; }
-
+    z3::expr get_exit_cond() const { return exit_cond; }
     void set_exit_cond(const z3::expr &forward_cond) {
         exit_cond = forward_cond;
     }
-    const std::vector<z3::expr> get_forward_conds() const {
+    void clear_exit_state() { exit_states.clear(); }
+    void merge_exit_states() {
+        // Merge the exit states
+        for (const auto &exit_tuple : exit_states) {
+            merge_vars(exit_tuple.first, exit_tuple.second);
+        }
+        // Clear the exit states
+        exit_states.clear();
+    }
+    void add_exit_state(const z3::expr &cond, const VarMap &exit_state) {
+        exit_states.emplace_back(cond, exit_state);
+    }
+    std::vector<z3::expr> get_forward_conds() const {
         std::vector<z3::expr> forward_conds;
-        for (auto &scope : scopes) {
+        for (const auto &scope : scopes) {
             auto sub_conds = scope.get_forward_conds();
             forward_conds.insert(forward_conds.end(), sub_conds.begin(),
                                  sub_conds.end());
@@ -108,12 +118,12 @@ class P4State {
         return forward_conds;
     }
     void push_forward_cond(const z3::expr &forward_cond) {
-        auto scope = get_mut_current_scope();
+        auto *scope = get_mut_current_scope();
         scope->push_forward_cond(forward_cond);
     }
-    const std::vector<z3::expr> get_return_conds() const {
+    std::vector<z3::expr> get_return_conds() const {
         std::vector<z3::expr> return_conds;
-        for (auto &scope : scopes) {
+        for (const auto &scope : scopes) {
             auto sub_conds = scope.get_return_conds();
             return_conds.insert(return_conds.end(), sub_conds.begin(),
                                 sub_conds.end());
@@ -124,7 +134,7 @@ class P4State {
         get_mut_current_scope()->push_return_cond(return_cond);
     }
     void pop_forward_cond() {
-        auto scope = get_mut_current_scope();
+        auto *scope = get_mut_current_scope();
         scope->pop_forward_cond();
     }
     bool has_returned() const { return get_current_scope().has_returned(); }
@@ -147,10 +157,11 @@ class P4State {
     /****** TYPES ******/
     const IR::Type *resolve_type(const IR::Type *type) const;
     void add_type(cstring type_name, const IR::Type *t);
-    const IR::Type *get_type(cstring decl_name) const;
+    const IR::Type *get_type(cstring type_name) const;
+    const IR::Type *find_type(cstring type_name) const;
 
     /****** VARIABLES ******/
-    P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
+    P4Z3Instance *find_var(cstring name) const;
     void update_var(cstring name, P4Z3Instance *var);
     void declare_var(cstring name, P4Z3Instance *var,
                      const IR::Type *decl_type);
@@ -163,15 +174,15 @@ class P4State {
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *val);
     const P4Declaration *get_static_decl(cstring name) const;
+    P4Declaration *find_static_decl(cstring name) const;
     template <typename T> T *get_static_decl(cstring name) const {
-        auto decl = get_static_decl(name);
+        const auto *decl = get_static_decl(name);
         return decl->to_mut<T>();
     }
-    P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
     /****** EXPRESSION RESULTS ******/
     P4Z3Instance *copy_expr_result() const { return expr_result->copy(); }
     template <typename T> T *copy_expr_result() const {
-        auto intermediate = expr_result->copy();
+        auto *intermediate = expr_result->copy();
         if (auto cast_result = intermediate->to_mut<T>()) {
             return cast_result;
         }
@@ -179,10 +190,10 @@ class P4State {
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
     void set_expr_result(Z3Result result) {
-        if (auto result_expr = boost::get<Z3Bitvector>(&result)) {
+        if (auto *result_expr = boost::get<Z3Bitvector>(&result)) {
             z3_expr_buffer = *result_expr;
             expr_result = &z3_expr_buffer;
-        } else if (auto result_expr = boost::get<Z3Int>(&result)) {
+        } else if (auto *result_expr = boost::get<Z3Int>(&result)) {
             z3_int_buffer = *result_expr;
             expr_result = &z3_int_buffer;
         } else {
@@ -193,15 +204,15 @@ class P4State {
                                            const TOZ3_V2::P4State &state) {
         auto var_map = state.get_state();
         size_t idx = 0;
-        // out << "STATIC SCOPE: " << main_scope << "\n";
-        for (auto it = var_map.begin(); it != var_map.end(); ++it) {
-            out << "SCOPE: " << idx << ": " << *it << "\n";
+        // out << "STATIC SCOPE: " << *main_scope << "\n";
+        for (const auto &var : var_map) {
+            out << "SCOPE " << idx << ": " << var << "\n";
             idx++;
         }
         return out;
     }
 };
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif // _TOZ3_STATE_H_
+#endif  // TOZ3_V2_COMMON_STATE_H_

@@ -1,5 +1,5 @@
-#ifndef _TOZ3_TYPE_MAP_H_
-#define _TOZ3_TYPE_MAP_H_
+#ifndef TOZ3_V2_COMMON_VISITOR_FILL_TYPE_H_
+#define TOZ3_V2_COMMON_VISITOR_FILL_TYPE_H_
 
 #include <map>
 #include <vector>
@@ -14,7 +14,8 @@ class TypeVisitor : public Inspector {
  public:
     P4State *state;
     Z3Visitor resolve_expr;
-    TypeVisitor(P4State *state) : state(state), resolve_expr(Z3Visitor(state)) {
+    explicit TypeVisitor(P4State *state)
+        : state(state), resolve_expr(Z3Visitor(state)) {
         visitDagOnce = false;
     }
 
@@ -25,18 +26,18 @@ class TypeVisitor : public Inspector {
         return false;
     }
 
-    bool preorder(const IR::P4Program *) override;
+    bool preorder(const IR::P4Program *prog) override;
 
     /***** Types *****/
-    bool preorder(const IR::Type_Package *) override;
+    bool preorder(const IR::Type_Package *tp) override;
 
-    bool preorder(const IR::Type_StructLike *t) override;
+    bool preorder(const IR::Type_StructLike *ts) override;
     // bool preorder(const IR::Type_Stack *t) override;
-    bool preorder(const IR::Type_Enum *) override;
-    bool preorder(const IR::Type_Error *) override;
+    bool preorder(const IR::Type_Enum *te) override;
+    bool preorder(const IR::Type_Error *te) override;
     // bool preorder(const IR::Type_SerEnum *) override;
-    bool preorder(const IR::Type_Parser *) override;
-    bool preorder(const IR::Type_Control *) override;
+    bool preorder(const IR::Type_Parser *tp) override;
+    bool preorder(const IR::Type_Control *tc) override;
 
     bool preorder(const IR::Type_Extern *t) override;
     // bool preorder(const IR::Type_Method *t) override;
@@ -65,9 +66,9 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
     bool preorder(const IR::Declaration_Variable *dv) override;
-    bool preorder(const IR::Declaration_Constant *dv) override;
-    bool preorder(const IR::Declaration_MatchKind *) override;
+    bool preorder(const IR::Declaration_Constant *dc) override;
+    bool preorder(const IR::Declaration_MatchKind *dm) override;
 };
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif // _TOZ3_TYPE_MAP_H_
+#endif  // TOZ3_V2_COMMON_VISITOR_FILL_TYPE_H_

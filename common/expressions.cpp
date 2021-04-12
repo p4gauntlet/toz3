@@ -1,4 +1,3 @@
-
 #include <cstdio>
 #include <iostream>
 #include <utility>
@@ -11,13 +10,14 @@
 namespace TOZ3_V2 {
 
 bool Z3Visitor::preorder(const IR::Constant *c) {
-    if (auto tb = c->type->to<IR::Type_Bits>()) {
+    if (const auto *tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->bv_val(val_string, tb->size);
         auto wrapper = Z3Bitvector(state, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
-    } else if (c->type->is<IR::Type_InfInt>()) {
+    }
+    if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->int_val(val_string);
         auto var = Z3Int(state, expr);
@@ -43,7 +43,7 @@ bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
 
 bool Z3Visitor::preorder(const IR::ListExpression *le) {
     std::vector<P4Z3Instance *> members;
-    for (auto component : le->components) {
+    for (const auto *component : le->components) {
         visit(component);
         members.push_back(state->copy_expr_result());
     }
@@ -53,14 +53,14 @@ bool Z3Visitor::preorder(const IR::ListExpression *le) {
 
 bool Z3Visitor::preorder(const IR::StructExpression *se) {
     std::vector<P4Z3Instance *> members;
-    for (auto component : se->components) {
+    for (const auto *component : se->components) {
         visit(component);
         members.push_back(state->copy_expr_result());
     }
     // TODO: Not sure what the deal with Type_Unknown is here
-    if (se->type && !se->type->is<IR::Type_Unknown>()) {
-        auto instance = state->gen_instance("undefined", se->type);
-        if (auto struct_instance = instance->to_mut<StructBase>()) {
+    if (se->type != nullptr && !se->type->is<IR::Type_Unknown>()) {
+        auto *instance = state->gen_instance(UNDEF_LABEL, se->type);
+        if (auto *struct_instance = instance->to_mut<StructBase>()) {
             struct_instance->set_list(members);
         } else {
             P4C_UNIMPLEMENTED("Unsupported StructExpression class %s", se);
@@ -83,24 +83,25 @@ bool Z3Visitor::preorder(const IR::TypeNameExpression *t) {
 }
 
 void resolve_stack_call(Visitor *visitor, P4State *state,
-                        MemberStruct &member_struct,
+                        const MemberStruct &member_struct,
                         const IR::Vector<IR::Argument> *arguments) {
     auto arg_size = arguments->size();
     auto hdr_pairs = get_hdr_pairs(state, member_struct);
 
     // Execute and merge the functions
-    if (auto name = boost::get<cstring>(&member_struct.target_member)) {
+    if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
         std::vector<std::pair<z3::expr, VarMap>> call_vars;
         for (auto &parent_pair : hdr_pairs) {
             auto cond = parent_pair.first;
-            auto parent_class = parent_pair.second;
+            auto *parent_class = parent_pair.second;
             auto member_identifier = *name + std::to_string(arg_size);
-            auto resolved_call = parent_class->get_function(member_identifier);
-            if (auto function = resolved_call->to<FunctionWrapper>()) {
+            const auto *resolved_call =
+                parent_class->get_function(member_identifier);
+            if (const auto *function = resolved_call->to<FunctionWrapper>()) {
                 // TODO: Support global side effects
                 // For now, we only merge with the current class
                 // There is some strange behavior here when using all state
-                auto orig_class = parent_class->copy();
+                const auto *orig_class = parent_class->copy();
                 function->function_call(visitor, arguments);
                 parent_class->merge(!cond, *orig_class);
             } else {
@@ -117,9 +118,7 @@ const P4Z3Instance *
 resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
                            int num_args) {
     const P4Z3Instance *parent_class;
-    P4Scope *scope;
-    if (auto decl =
-            state->find_static_decl(member_struct.main_member, &scope)) {
+    if (const auto *decl = state->find_static_decl(member_struct.main_member)) {
         parent_class = decl;
     } else {
         // try to find the result in vars and fail otherwise
@@ -129,13 +128,13 @@ resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
     for (auto it = member_struct.mid_members.rbegin();
          it != member_struct.mid_members.rend(); ++it) {
         auto mid_member = *it;
-        if (auto name = boost::get<cstring>(&mid_member)) {
+        if (const auto *name = boost::get<cstring>(&mid_member)) {
             parent_class = parent_class->get_member(*name);
         } else {
             P4C_UNIMPLEMENTED("Member type not supported.");
         }
     }
-    if (auto name = boost::get<cstring>(&member_struct.target_member)) {
+    if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
         // FIXME: This is a very rough version of overloading...
         auto member_identifier = *name + std::to_string(num_args);
         return parent_class->get_function(member_identifier);
@@ -145,15 +144,17 @@ resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
 
 void set_params(const IR::Node *callable, const IR::ParameterList **params,
                 const IR::TypeParameters **type_params) {
-    if (auto p4action = callable->to<IR::P4Action>()) {
+    if (const auto *p4action = callable->to<IR::P4Action>()) {
         *params = p4action->getParameters();
         *type_params = new IR::TypeParameters();
         return;
-    } else if (auto fun = callable->to<IR::Function>()) {
+    }
+    if (const auto *fun = callable->to<IR::Function>()) {
         *params = fun->getParameters();
         *type_params = fun->type->getTypeParameters();
         return;
-    } else if (auto method = callable->to<IR::Method>()) {
+    }
+    if (const auto *method = callable->to<IR::Method>()) {
         *params = method->getParameters();
         *type_params = method->type->getTypeParameters();
         return;
@@ -164,29 +165,30 @@ void set_params(const IR::Node *callable, const IR::ParameterList **params,
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Node *callable;
-    auto arguments = mce->arguments;
+    const auto *arguments = mce->arguments;
     auto arg_size = arguments->size();
 
-    auto method_type = mce->method;
-    if (auto path_expr = method_type->to<IR::PathExpression>()) {
+    const auto *method_type = mce->method;
+    if (const auto *path_expr = method_type->to<IR::PathExpression>()) {
         // FIXME: This is a very rough version of overloading...
         auto path_identifier =
             path_expr->path->name.name + std::to_string(arg_size);
         callable = state->get_static_decl(path_identifier)->decl;
-    } else if (auto member = method_type->to<IR::Member>()) {
+    } else if (const auto *member = method_type->to<IR::Member>()) {
         auto member_struct = get_member_struct(state, this, member);
         // try to resolve and find a function pointer
         if (member_struct.has_stack) {
             resolve_stack_call(this, state, member_struct, arguments);
             return false;
         }
-        auto resolved_call =
+        const auto *resolved_call =
             resolve_var_or_decl_parent(state, member_struct, arg_size);
-        if (auto function = resolved_call->to<FunctionWrapper>()) {
+        if (const auto *function = resolved_call->to<FunctionWrapper>()) {
             // call the function directly for now
             function->function_call(this, arguments);
             return false;
-        } else if (auto decl = resolved_call->to<P4Declaration>()) {
+        }
+        if (const auto *decl = resolved_call->to<P4Declaration>()) {
             // We are retrieving a method from an extern object
             callable = decl->decl;
         } else {
@@ -212,10 +214,10 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     const IR::ParameterList *params;
-    auto arguments = cce->arguments;
-    if (auto c = resolved_type->to<IR::P4Control>()) {
+    const auto *arguments = cce->arguments;
+    if (const auto *c = resolved_type->to<IR::P4Control>()) {
         params = c->getApplyParameters();
-    } else if (auto p = resolved_type->to<IR::P4Parser>()) {
+    } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
         params = p->getApplyParameters();
     } else {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
@@ -228,4 +230,4 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     return false;
 }
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2

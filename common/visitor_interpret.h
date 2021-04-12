@@ -1,6 +1,5 @@
-#ifndef _TOZ3_Z3_INTERPRETER_H_
-#define _TOZ3_Z3_INTERPRETER_H_
-
+#ifndef TOZ3_V2_COMMON_VISITOR_INTERPRET_H_
+#define TOZ3_V2_COMMON_VISITOR_INTERPRET_H_
 #include <map>
 #include <utility>
 #include <vector>
@@ -18,12 +17,12 @@ class Z3Visitor : public Inspector {
     VarMap main_result;
     explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
 
-    VarMap get_main_result() { return main_result; }
+    VarMap get_main_result() const { return main_result; }
 
  private:
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
-        P4C_UNIMPLEMENTED("IR Node %s  of type %s not implemented!", expr,
+        P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
                           expr->node_type_name());
         return false;
     }
@@ -35,9 +34,9 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::IfStatement *ifs) override;
     bool preorder(const IR::SwitchStatement *ss) override;
     // bool preorder(const IR::SwitchCase *sc) override;
-    bool preorder(const IR::EmptyStatement *) override;
-    bool preorder(const IR::ExitStatement *) override;
-    bool preorder(const IR::ReturnStatement *) override;
+    bool preorder(const IR::EmptyStatement *es) override;
+    bool preorder(const IR::ExitStatement *es) override;
+    bool preorder(const IR::ReturnStatement *rs) override;
 
     /***** Parser *****/
     bool preorder(const IR::P4Parser *p) override;
@@ -47,13 +46,13 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::SelectCase *se) override;
     /***** Methods *****/
     bool preorder(const IR::P4Control *c) override;
-    bool preorder(const IR::P4Action *p4action) override;
+    bool preorder(const IR::P4Action *a) override;
     // bool preorder(const IR::Parameter *param) override;
     // bool preorder(const IR::ParameterList *p) override;
     // bool preorder(const IR::TypeParameters *tp) override;
     // bool preorder(const IR::Argument *param) override;
-    bool preorder(const IR::Method *) override;
-    bool preorder(const IR::Function *) override;
+    bool preorder(const IR::Method *m) override;
+    bool preorder(const IR::Function *f) override;
 
     /***** Tables *****/
     bool preorder(const IR::P4Table *p4table) override;
@@ -73,10 +72,10 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Constant *c) override;
     // bool preorder(const IR::DefaultExpression *) override;
     bool preorder(const IR::ListExpression *le) override;
-    bool preorder(const IR::TypeNameExpression *) override;
+    bool preorder(const IR::TypeNameExpression *tne) override;
     bool preorder(const IR::NamedExpression *ne) override;
     bool preorder(const IR::StructExpression *se) override;
-    bool preorder(const IR::ConstructorCallExpression *) override;
+    bool preorder(const IR::ConstructorCallExpression *cce) override;
     bool preorder(const IR::MethodCallExpression *mce) override;
     bool preorder(const IR::BoolLiteral *bl) override;
     // bool preorder(const IR::StringLiteral *str) override;
@@ -112,15 +111,15 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Range *) override;
     bool preorder(const IR::Cast *c) override;
     bool preorder(const IR::Slice *s) override;
-    bool preorder(const IR::Mux *) override;
+    bool preorder(const IR::Mux *m) override;
 
     /***** Declarations *****/
     bool preorder(const IR::Declaration_Instance *di) override;
     // bool preorder(const IR::Declaration_ID *di) override;
     bool preorder(const IR::Declaration_Variable *dv) override;
-    bool preorder(const IR::Declaration_Constant *dv) override;
+    bool preorder(const IR::Declaration_Constant *dc) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
 };
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif // _TOZ3_Z3_INTERPRETER_H_
+#endif  // TOZ3_V2_COMMON_VISITOR_INTERPRET_H_

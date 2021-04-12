@@ -31,12 +31,15 @@
 #include "toz3_v2/common/visitor_interpret.h"
 
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    auto main = state->get_static_decl("main");
-    if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
-        return main_pkg;
-    } else {
-        BUG("Main node %s not implemented!", main->decl->node_type_name());
+    if (const auto *main = state->find_static_decl("main")) {
+        if (const auto *main_pkg = main->decl->to<IR::Declaration_Instance>()) {
+            return main_pkg;
+        }
+        P4C_UNIMPLEMENTED("Main node %s not implemented!",
+                          main->decl->node_type_name());
     }
+    warning("No main declaration found in program.");
+    return nullptr;
 }
 
 int main(int argc, char *const argv[]) {
@@ -51,8 +54,9 @@ int main(int argc, char *const argv[]) {
     if (options.process(argc, argv) != nullptr) {
         options.setInputFile();
     }
-    if (::errorCount() > 0)
+    if (::errorCount() > 0) {
         return 1;
+    }
 
     auto hook = options.getDebugHook();
 
@@ -68,16 +72,19 @@ int main(int argc, char *const argv[]) {
             TOZ3_V2::TypeVisitor map_builder = TOZ3_V2::TypeVisitor(&state);
             TOZ3_V2::Z3Visitor to_z3 = TOZ3_V2::Z3Visitor(&state);
             program->apply(map_builder);
-            auto decl = get_main_decl(&state);
+            const auto *decl = get_main_decl(&state);
+            if (decl == nullptr) {
+                return EXIT_SKIPPED;
+            }
             decl->apply(to_z3);
             auto decl_result = to_z3.get_main_result();
             for (auto pipe_state : decl_result) {
                 cstring pipe_name = pipe_state.first;
-                auto pipe_vars =
+                const auto *pipe_vars =
                     pipe_state.second.first->to<TOZ3_V2::ControlState>();
-                if (pipe_vars) {
+                if (pipe_vars == nullptr) {
                     printf("Pipe %s state:\n", pipe_name.c_str());
-                    for (auto tuple : pipe_vars->state_vars) {
+                    for (const auto &tuple : pipe_vars->state_vars) {
                         auto name = tuple.first;
                         auto var = tuple.second.simplify();
                         std::cout << name << ": " << var << "\n";
@@ -95,5 +102,5 @@ int main(int argc, char *const argv[]) {
         }
     }
 
-    return ::errorCount() > 0;
+    return errorCount() > 0;
 }

@@ -1,16 +1,17 @@
-#ifndef _TOZ3_BASE_TYPE_H_
-#define _TOZ3_BASE_TYPE_H_
+#ifndef TOZ3_V2_COMMON_TYPE_BASE_H_
+#define TOZ3_V2_COMMON_TYPE_BASE_H_
 
 #include <cstdio>
 
-#include <map>     // std::map
-#include <stack>   // std::stack
-#include <utility> // std::pair
-#include <vector>  // std::vector
+#include <map>      // std::map
+#include <stack>    // std::stack
+#include <utility>  // std::pair
+#include <vector>   // std::vector
 
 #include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
 #include "lib/cstring.h"
+#include "util.h"
 
 #define BOOST_VARIANT_USE_RELAXED_GET_BY_DEFAULT
 #include <boost/range/adaptor/reversed.hpp>
@@ -70,16 +71,26 @@ struct ParamInfo {
     const IR::Vector<IR::Type> type_args;
 };
 
-class P4Z3Instance {
+class P4Z3Object {
  public:
-    P4Z3Instance() {}
+    P4Z3Object() = default;
     template <typename T> bool is() const { return to<T>() != nullptr; }
     template <typename T> const T *to() const {
         return dynamic_cast<const T *>(this);
     }
     template <typename T> T *to_mut() { return dynamic_cast<T *>(this); }
-    virtual ~P4Z3Instance() = default;
+    virtual ~P4Z3Object() = default;
 
+    virtual cstring get_static_type() const = 0;
+    virtual cstring to_string() const = 0;
+    friend inline std::ostream &operator<<(std::ostream &out,
+                                           const TOZ3_V2::P4Z3Object &type) {
+        return out << type.to_string();
+    }
+};
+
+class P4Z3Instance : public P4Z3Object {
+ public:
     /****** UNARY OPERANDS ******/
     virtual Z3Result operator-() const {
         P4C_UNIMPLEMENTED("- not implemented for %s", to_string());
@@ -91,90 +102,93 @@ class P4Z3Instance {
         P4C_UNIMPLEMENTED("! not implemented for %s", to_string());
     }
     /****** BINARY OPERANDS ******/
-    virtual Z3Result operator*(const P4Z3Instance &) const {
+    virtual Z3Result operator*(const P4Z3Instance & /*var*/) const {
         P4C_UNIMPLEMENTED("* not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator/(const P4Z3Instance &) const {
+    virtual Z3Result operator/(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("/ not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator%(const P4Z3Instance &) const {
+    virtual Z3Result operator%(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("% not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator+(const P4Z3Instance &) const {
+    virtual Z3Result operator+(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("+ not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operatorAddSat(const P4Z3Instance &) const {
+    virtual Z3Result operatorAddSat(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("|+| not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator-(const P4Z3Instance &) const {
+    virtual Z3Result operator-(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("- not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operatorSubSat(const P4Z3Instance &) const {
+    virtual Z3Result operatorSubSat(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("|-| not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator>>(const P4Z3Instance &) const {
+    virtual Z3Result operator>>(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED(">> not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator<<(const P4Z3Instance &) const {
+    virtual Z3Result operator<<(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("<< not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator==(const P4Z3Instance &) const {
+    virtual z3::expr operator==(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("== not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator!=(const P4Z3Instance &) const {
+    virtual z3::expr operator!=(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("!= not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator<(const P4Z3Instance &) const {
+    virtual z3::expr operator<(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("< not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator<=(const P4Z3Instance &) const {
+    virtual z3::expr operator<=(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("<= not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator>(const P4Z3Instance &) const {
+    virtual z3::expr operator>(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("> not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator>=(const P4Z3Instance &) const {
+    virtual z3::expr operator>=(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED(">= not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator&&(const P4Z3Instance &) const {
+    virtual z3::expr operator&&(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("&& not implemented for %s.", get_static_type());
     }
-    virtual z3::expr operator||(const P4Z3Instance &) const {
+    virtual z3::expr operator||(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("|| not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator&(const P4Z3Instance &) const {
+    virtual Z3Result operator&(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("& not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator|(const P4Z3Instance &) const {
+    virtual Z3Result operator|(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("| not implemented for %s.", get_static_type());
     }
-    virtual Z3Result operator^(const P4Z3Instance &) const {
+    virtual Z3Result operator^(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("^ not implemented for %s.", get_static_type());
     }
-    virtual Z3Result concat(const P4Z3Instance &) const {
+    virtual Z3Result concat(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
     }
-    virtual Z3Result cast(z3::sort &) const {
+    virtual Z3Result cast(z3::sort & /*other*/) const {
         P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
     }
-    virtual Z3Result cast(const IR::Type *) const {
+    virtual Z3Result cast(const IR::Type * /*dest_sort*/) const {
         P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
     }
-    virtual P4Z3Instance *cast_allocate(const IR::Type *) const {
+    virtual P4Z3Instance *cast_allocate(const IR::Type * /*dest_sort*/) const {
         P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",
                           get_static_type());
     }
     /****** TERNARY OPERANDS ******/
-    virtual Z3Result slice(const P4Z3Instance &, const P4Z3Instance &) const {
+    virtual Z3Result slice(const P4Z3Instance & /*hi*/,
+                           const P4Z3Instance & /*lo*/) const {
         P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
     }
     /****** CUSTOM FUNCTIONS ******/
-    virtual void merge(const z3::expr &, const P4Z3Instance &) {
+    virtual void merge(const z3::expr & /*cond*/,
+                       const P4Z3Instance & /*then_var*/) {
         P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.",
                           get_static_type());
     }
     virtual std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring = "", const z3::expr * = nullptr) const {
+    get_z3_vars(cstring /*prefix*/ = "",
+                const z3 ::expr * /*valid*/ = nullptr) const {
         P4C_UNIMPLEMENTED("get_z3_vars not implemented for %s.",
                           get_static_type());
     }
@@ -185,23 +199,16 @@ class P4Z3Instance {
         P4C_UNIMPLEMENTED("set_undefined not implemented for %s.",
                           get_static_type());
     }
-    virtual P4Z3Instance *get_member(cstring) const {
+    virtual P4Z3Instance *get_member(cstring /*member_name*/) const {
         P4C_UNIMPLEMENTED("get_member not implemented for %s.",
                           get_static_type());
     }
-    virtual P4Z3Instance *get_function(cstring) const {
+    virtual P4Z3Instance *get_function(cstring /*function_name*/) const {
         P4C_UNIMPLEMENTED("get_function not implemented for %s.",
                           get_static_type());
     }
-
-    virtual cstring get_static_type() const = 0;
-    virtual cstring to_string() const = 0;
-    friend inline std::ostream &operator<<(std::ostream &out,
-                                           const TOZ3_V2::P4Z3Instance &type) {
-        return out << type.to_string();
-    }
 };
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif // _TOZ3_BASE_TYPE_H_
+#endif  // TOZ3_V2_COMMON_TYPE_BASE_H_

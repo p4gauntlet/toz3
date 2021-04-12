@@ -13,8 +13,6 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
     for (const IR::Declaration *local_decl : c->controlLocals) {
         local_decl->apply(map_builder);
     }
-
-    // DO SOMETHING
     visit(c->body);
     return false;
 }
@@ -91,8 +89,9 @@ void process_table_properties(
                         ignore_default = true;
                     }
                 }
-                if (ignore_default)
+                if (ignore_default) {
                     continue;
+                }
                 if (auto method_call =
                         act->expression->to<IR::MethodCallExpression>()) {
                     actions->push_back(method_call);
@@ -130,7 +129,7 @@ void process_table_properties(
 
         // if the entries properties is constant it means the entries are fixed
         // we cannot add or remove table entries
-        if (p->name.name == "entries" and p->isConstant) {
+        if (p->name.name == "entries" && p->isConstant) {
             *immutable = true;
         }
     }
@@ -204,7 +203,7 @@ void handle_table_action(Z3Visitor *visitor, cstring table_name,
 }
 
 bool Z3Visitor::preorder(const IR::P4Table *p4t) {
-    auto ctx = state->get_z3_ctx();
+    auto *ctx = state->get_z3_ctx();
     auto table_name = infer_name(p4t->getAnnotations(), p4t->getName().name);
     auto table_action_name = table_name + "action_idx";
     auto table_action = ctx->int_const(table_action_name.c_str());
@@ -237,7 +236,7 @@ bool Z3Visitor::preorder(const IR::P4Table *p4t) {
         matches = matches || cond;
     }
 
-    if (default_action) {
+    if (default_action != nullptr) {
         auto old_vars = state->clone_vars();
         state->push_forward_cond(!matches);
         handle_table_action(this, table_name, default_action, "default");
@@ -327,7 +326,7 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     }
     auto exit_vars = state->clone_vars();
     state->restore_state(old_state);
-    state->exit_states.push_back({exit_cond && cond, exit_vars});
+    state->add_exit_state(exit_cond && cond, exit_vars);
     state->set_exit_cond(exit_cond && !cond);
     state->set_exit(true);
 
@@ -445,7 +444,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     auto then_has_exited = state->has_exited();
     auto then_has_returned = state->has_returned();
     VarMap then_vars;
-    if (then_has_exited or then_has_returned) {
+    if (then_has_exited || then_has_returned) {
         then_vars = old_vars;
     } else {
         then_vars = state->clone_vars();
@@ -460,7 +459,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     state->pop_forward_cond();
     auto else_has_exited = state->has_exited();
     auto else_has_returned = state->has_returned();
-    if (else_has_exited or else_has_returned) {
+    if (else_has_exited || else_has_returned) {
         state->restore_vars(old_state);
     }
 
@@ -494,11 +493,11 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
 
 bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left;
-    if (dv->initializer) {
+    if (dv->initializer != nullptr) {
         visit(dv->initializer);
         left = state->get_expr_result()->cast_allocate(dv->type);
     } else {
-        left = state->gen_instance("undefined", dv->type);
+        left = state->gen_instance(UNDEF_LABEL, dv->type);
     }
     state->declare_var(dv->name.name, left, dv->type);
     return false;
@@ -506,11 +505,11 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
 
 bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left;
-    if (dc->initializer) {
+    if (dc->initializer != nullptr) {
         visit(dc->initializer);
         left = state->get_expr_result()->cast_allocate(dc->type);
     } else {
-        left = state->gen_instance("undefined", dc->type);
+        left = state->gen_instance(UNDEF_LABEL, dc->type);
     }
     state->declare_var(dc->name.name, left, dc->type);
     return false;
@@ -519,15 +518,15 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
 const IR::ParameterList *get_params(const IR::Type *callable_type) {
     if (auto control = callable_type->to<IR::P4Control>()) {
         return control->getApplyParameters();
-    } else if (auto parser = callable_type->to<IR::P4Parser>()) {
-        return parser->getApplyParameters();
-    } else if (auto package = callable_type->to<IR::Type_Package>()) {
-        return package->getParameters();
-    } else {
-        P4C_UNIMPLEMENTED(
-            "Callable declaration type %s of type %s not supported.",
-            callable_type, callable_type->node_type_name());
     }
+    if (auto parser = callable_type->to<IR::P4Parser>()) {
+        return parser->getApplyParameters();
+    }
+    if (auto package = callable_type->to<IR::Type_Package>()) {
+        return package->getParameters();
+    }
+    P4C_UNIMPLEMENTED("Callable declaration type %s of type %s not supported.",
+                      callable_type, callable_type->node_type_name());
 }
 
 P4Z3Instance *run_arch_block(Z3Visitor *visitor,
@@ -562,28 +561,25 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
         auto arg = new IR::Argument(new IR::PathExpression(param->name.name));
         synthesized_args.push_back(arg);
     }
-    const auto new_cce = new IR::ConstructorCallExpression(cce->constructedType,
-                                                           &synthesized_args);
+    const auto *new_cce = new IR::ConstructorCallExpression(
+        cce->constructedType, &synthesized_args);
     visitor->visit(new_cce);
 
     // Merge the exit states
-    for (auto exit_tuple : state->exit_states) {
-        state->merge_vars(exit_tuple.first, exit_tuple.second);
-    }
-    // Clear the exit states
-    state->exit_states.clear();
+    state->merge_exit_states();
 
     // COLLECT
     for (auto state_name : state_names) {
-        auto var = state->get_var(state_name);
-        if (auto z3_var = var->to<NumericVal>()) {
-            state_vars.push_back({state_name, *z3_var->get_val()});
-        } else if (auto z3_var = var->to<StructBase>()) {
+        const auto *var = state->get_var(state_name);
+        if (const auto *z3_var = var->to<NumericVal>()) {
+            state_vars.emplace_back(state_name, *z3_var->get_val());
+        } else if (const auto *z3_var = var->to<StructBase>()) {
             auto z3_sub_vars = z3_var->get_z3_vars(state_name);
             state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                               z3_sub_vars.end());
-        } else if (var->to<ExternInstance>()) {
-            printf("Skipping extern...\n");
+        } else if (var->is<ExternInstance>()) {
+            warning("Skipping extern because we do not know how to represent "
+                    "it.\n");
         } else {
             BUG("Var is neither type z3::expr nor P4Z3Instance!");
         }
@@ -651,4 +647,4 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     return false;
 }
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2

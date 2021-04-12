@@ -33,21 +33,21 @@
 
 namespace TOZ3_V2 {
 
-#define EXIT_SKIPPED 10
-#define EXIT_VALIDATION 20
-#define EXIT_UNDEFINED 30
-
 const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
-    auto main = state->get_static_decl("main");
-    if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
-        return main_pkg;
-    } else {
-        P4C_UNIMPLEMENTED("Main node %s not implemented!",
-                          main->decl->node_type_name());
+    if (auto main = state->find_static_decl("main")) {
+        if (auto main_pkg = main->decl->to<IR::Declaration_Instance>()) {
+            return main_pkg;
+        } else {
+            P4C_UNIMPLEMENTED("Main node %s not implemented!",
+                              main->decl->node_type_name());
+        }
     }
+    warning("No main declaration found in program.");
+    return nullptr;
 }
 
-VarMap get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
+VarMap get_z3_repr(cstring prog_name, const IR::P4Program *program,
+                   z3::context *ctx) {
     VarMap z3_return;
 
     if (program != nullptr && ::errorCount() == 0) {
@@ -58,11 +58,21 @@ VarMap get_z3_repr(const IR::P4Program *program, z3::context *ctx) {
             Z3Visitor to_z3 = Z3Visitor(&state);
             program->apply(map_builder);
             auto decl = get_main_decl(&state);
+            if (decl == nullptr) {
+                return z3_return;
+            }
             decl->apply(to_z3);
             auto decl_result = to_z3.get_main_result();
             return decl_result;
         } catch (const Util::P4CExceptionBase &bug) {
+            std::cerr << "Failed to interpret pass \"" << prog_name << "\"."
+                      << std::endl;
             std::cerr << bug.what() << std::endl;
+            exit(EXIT_FAILURE);
+        } catch (z3::exception &ex) {
+            std::cerr << "Failed to interpret pass \"" << prog_name << "\"."
+                      << std::endl;
+            std::cerr << "Z3 exception: " << ex << std::endl;
             exit(EXIT_FAILURE);
         }
     }
@@ -138,7 +148,7 @@ int compare_progs(
                   prog_after.simplify().to_string().c_str());
             auto m = s.get_model();
             std::cerr << "Solution : " << m << std::endl;
-            return EXIT_VALIDATION;
+            return EXIT_VIOLATION;
         } else if (ret == z3::unknown) {
             error("Could not determine equality. Error\n");
             return EXIT_FAILURE;
@@ -210,7 +220,7 @@ int main(int argc, char *const argv[]) {
             error("Unable to parse program.");
             return EXIT_FAILURE;
         }
-        auto z3_repr_prog = TOZ3_V2::get_z3_repr(prog_parsed, &ctx);
+        auto z3_repr_prog = TOZ3_V2::get_z3_repr(prog, prog_parsed, &ctx);
         std::vector<z3::expr> result_vec;
         TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
         z3_progs.push_back({prog, result_vec});

@@ -26,11 +26,11 @@ cstring infer_name(const IR::Annotations *annots, cstring default_name) {
                 // find the last dot
                 const char *last_dot = full_name.findlast((int)'.');
                 // there is no dot in this string, just return the full name
-                if (not last_dot) {
+                if (last_dot == nullptr) {
                     return full_name;
                 }
                 // otherwise get the index, remove the dot
-                size_t idx = (size_t)(last_dot - full_name + 1);
+                auto idx = (size_t)(last_dot - full_name + 1);
                 return token->text.substr(idx);
             }
             // if the annotation is a member just get the root name
@@ -45,9 +45,9 @@ cstring infer_name(const IR::Annotations *annots, cstring default_name) {
 
 z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
                        const z3::expr &hi, const z3::expr &lo) {
-    auto ctx = &lval.get_sort().ctx();
-    auto lval_max = lval.get_sort().bv_size() - 1ull;
-    auto lval_min = 0ull;
+    auto *ctx = &lval.get_sort().ctx();
+    auto lval_max = lval.get_sort().bv_size() - 1ULL;
+    auto lval_min = 0ULL;
     auto hi_int = hi.get_numeral_uint64();
     auto lo_int = lo.get_numeral_uint64();
     if (hi_int == lval_max && lo_int == lval_min) {
@@ -81,7 +81,7 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
                 member_struct.target_member = member->member.name;
                 is_first = false;
             } else {
-                member_struct.mid_members.push_back(member->member.name);
+                member_struct.mid_members.emplace_back(member->member.name);
             }
         } else if (auto a = tmp_target->to<IR::ArrayIndex>()) {
             tmp_target = a->left;
@@ -97,7 +97,7 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
                 member_struct.target_member = expr;
                 is_first = false;
             } else {
-                member_struct.mid_members.push_back(expr);
+                member_struct.mid_members.emplace_back(expr);
             }
             member_struct.has_stack = true;
         } else if (auto sl = tmp_target->to<IR::Slice>()) {
@@ -390,8 +390,8 @@ VarMap P4State::merge_args_with_params(Visitor *visitor,
         }
         auto resolved_type = resolve_type(param->type);
         if (param->direction == IR::Direction::Out) {
-            CHECK_NULL(resolved_type); // TODO: Remove this
-            auto instance = gen_instance("undefined", resolved_type);
+            CHECK_NULL(resolved_type);  // TODO: Remove this
+            auto instance = gen_instance(UNDEF_LABEL, resolved_type);
             merged_vec.insert({param->name.name, {instance, resolved_type}});
             idx++;
             continue;
@@ -505,27 +505,27 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
 P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
                                     uint64_t id, cstring prefix) {
     P4Z3Instance *instance;
-    if (auto tn = type->to<IR::Type_Name>()) {
+    if (const auto *tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
     }
     // FIXME: Split this up to not muddle things.
-    if (auto t = type->to<IR::Type_Struct>()) {
+    if (const auto *t = type->to<IR::Type_Struct>()) {
         instance = new StructInstance(this, t, id, prefix);
-    } else if (auto t = type->to<IR::Type_Header>()) {
+    } else if (const auto *t = type->to<IR::Type_Header>()) {
         instance = new HeaderInstance(this, t, id, prefix);
-    } else if (auto t = type->to<IR::Type_Enum>()) {
+    } else if (const auto *t = type->to<IR::Type_Enum>()) {
         instance = new EnumInstance(this, t, id, prefix);
-    } else if (auto t = type->to<IR::Type_Error>()) {
+    } else if (const auto *t = type->to<IR::Type_Error>()) {
         instance = new ErrorInstance(this, t, id, prefix);
-    } else if (auto t = type->to<IR::Type_Stack>()) {
+    } else if (const auto *t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);
-    } else if (auto t = type->to<IR::Type_Tuple>()) {
+    } else if (const auto *t = type->to<IR::Type_Tuple>()) {
         instance = new TupleInstance(this, t, id, prefix);
-    } else if (auto t = type->to<IR::Type_Extern>()) {
+    } else if (const auto *t = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, t);
-    } else if (auto t = type->to<IR::P4Control>()) {
+    } else if (const auto *t = type->to<IR::P4Control>()) {
         instance = new DeclarationInstance(this, t);
-    } else if (auto t = type->to<IR::P4Parser>()) {
+    } else if (const auto *t = type->to<IR::P4Parser>()) {
         instance = new DeclarationInstance(this, t);
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
@@ -544,9 +544,7 @@ void P4State::push_scope() { scopes.push_back(P4Scope()); }
 void P4State::pop_scope() { scopes.pop_back(); }
 
 void P4State::add_type(cstring type_name, const IR::Type *t) {
-    P4Scope *target_scope = nullptr;
-    find_type(type_name, &target_scope);
-    if (target_scope) {
+    if (find_type(type_name) != nullptr) {
         FATAL_ERROR("Type %s already exists in target scope.", type_name);
     } else {
         if (scopes.empty()) {
@@ -559,7 +557,7 @@ void P4State::add_type(cstring type_name, const IR::Type *t) {
 }
 
 const IR::Type *P4State::get_type(cstring type_name) const {
-    for (auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_type(type_name)) {
             return scope.get_type(type_name);
         }
@@ -569,7 +567,7 @@ const IR::Type *P4State::get_type(cstring type_name) const {
 }
 
 const IR::Type *P4State::resolve_type(const IR::Type *type) const {
-    if (auto tn = type->to<IR::Type_Name>()) {
+    if (const auto *tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
         // TODO: For now catch these exceptions, but this should be solved
         try {
@@ -583,7 +581,7 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) const {
 
 const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
     for (int i = scopes.size() - 1; i >= 0; --i) {
-        auto scope = &scopes.at(i);
+        auto *scope = &scopes.at(i);
         if (scope->has_type(type_name)) {
             *owner_scope = scope;
             return scope->get_type(type_name);
@@ -597,8 +595,21 @@ const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
     return nullptr;
 }
 
+const IR::Type *P4State::find_type(cstring type_name) const {
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+        if (scope.has_type(type_name)) {
+            return scope.get_type(type_name);
+        }
+    }
+    // also check the parent scope
+    if (main_scope.has_type(type_name)) {
+        return main_scope.get_type(type_name);
+    }
+    return nullptr;
+}
+
 P4Z3Instance *P4State::get_var(cstring name) const {
-    for (auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_var(name)) {
             return scope.get_var(name);
         }
@@ -612,7 +623,7 @@ P4Z3Instance *P4State::get_var(cstring name) const {
 }
 
 const IR::Type *P4State::get_var_type(cstring name) const {
-    for (auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_var(name)) {
             return scope.get_var_type(name);
         }
@@ -626,8 +637,8 @@ const IR::Type *P4State::get_var_type(cstring name) const {
 }
 
 P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
-    for (int i = scopes.size() - 1; i >= 0; --i) {
-        auto scope = &scopes.at(i);
+    for (int64_t i = scopes.size() - 1; i >= 0; --i) {
+        auto *scope = &scopes.at(i);
         if (scope->has_var(name)) {
             *owner_scope = scope;
             return scope->get_var(name);
@@ -641,10 +652,23 @@ P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
     return nullptr;
 }
 
+P4Z3Instance *P4State::find_var(cstring name) const {
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+        if (scope.has_var(name)) {
+            return scope.get_var(name);
+        }
+    }
+    // also check the parent scope
+    if (main_scope.has_var(name)) {
+        return main_scope.get_var(name);
+    }
+    return nullptr;
+}
+
 void P4State::update_var(cstring name, P4Z3Instance *var) {
     P4Scope *target_scope = nullptr;
     find_var(name, &target_scope);
-    if (target_scope) {
+    if (target_scope != nullptr) {
         target_scope->update_var(name, var);
     } else {
         FATAL_ERROR("Variable %s not found.", name);
@@ -662,7 +686,7 @@ void P4State::declare_var(cstring name, P4Z3Instance *var,
 }
 
 const P4Declaration *P4State::get_static_decl(cstring name) const {
-    for (auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_static_decl(name)) {
             return scope.get_static_decl(name);
         }
@@ -675,9 +699,22 @@ const P4Declaration *P4State::get_static_decl(cstring name) const {
     exit(1);
 }
 
+P4Declaration *P4State::find_static_decl(cstring name) const {
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+        if (scope.has_static_decl(name)) {
+            return scope.get_static_decl(name);
+        }
+    }
+    // also check the parent scope
+    if (main_scope.has_static_decl(name)) {
+        return main_scope.get_static_decl(name);
+    }
+    return nullptr;
+}
+
 P4Declaration *P4State::find_static_decl(cstring name, P4Scope **owner_scope) {
-    for (int i = scopes.size() - 1; i >= 0; --i) {
-        auto scope = &scopes.at(i);
+    for (int64_t i = scopes.size() - 1; i >= 0; --i) {
+        auto *scope = &scopes.at(i);
         if (scope->has_static_decl(name)) {
             *owner_scope = scope;
             return scope->get_static_decl(name);
@@ -775,4 +812,4 @@ void P4State::merge_state(const z3::expr &cond, const ProgState &else_state) {
                        else_scope->get_var_map());
     }
 }
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
