@@ -82,6 +82,28 @@ bool Z3Visitor::preorder(const IR::TypeNameExpression *t) {
     return false;
 }
 
+VarOrDecl get_function(const P4Z3Instance *parent_class,
+                       cstring member_identifier) {
+    // TODO: Think about how to merge these types. Traits?
+    if (const auto *hdr = parent_class->to<HeaderInstance>()) {
+        return hdr->get_function(member_identifier);
+    }
+    if (const auto *stack = parent_class->to<StackInstance>()) {
+        return stack->get_function(member_identifier);
+    }
+    if (const auto *ext = parent_class->to<ExternInstance>()) {
+        return ext->get_function(member_identifier);
+    }
+    if (const auto *decl = parent_class->to<DeclarationInstance>()) {
+        return decl->get_function(member_identifier);
+    }
+    if (const auto *decl = parent_class->to<P4TableInstance>()) {
+        return decl->get_function(member_identifier);
+    }
+    P4C_UNIMPLEMENTED("Retrieving a function not implemented for type %s.",
+                      parent_class->get_static_type());
+}
+
 void resolve_stack_call(Visitor *visitor, P4State *state,
                         const MemberStruct &member_struct,
                         const IR::Vector<IR::Argument> *arguments) {
@@ -95,18 +117,17 @@ void resolve_stack_call(Visitor *visitor, P4State *state,
             auto cond = parent_pair.first;
             auto *parent_class = parent_pair.second;
             auto member_identifier = *name + std::to_string(arg_size);
-            const auto *resolved_call =
-                parent_class->get_function(member_identifier);
-            if (const auto *function = resolved_call->to<FunctionWrapper>()) {
+            auto resolved_call = get_function(parent_class, member_identifier);
+            if (const auto *function =
+                    boost::get<P4Z3Function>(&resolved_call)) {
                 // TODO: Support global side effects
                 // For now, we only merge with the current class
                 // There is some strange behavior here when using all state
                 const auto *orig_class = parent_class->copy();
-                function->function_call(visitor, arguments);
+                (*function)(visitor, arguments);
                 parent_class->merge(!cond, *orig_class);
             } else {
-                BUG("Unexpected stack call member %s ",
-                    resolved_call->get_static_type());
+                BUG("Unexpected stack call member");
             }
         }
     } else {
@@ -114,10 +135,10 @@ void resolve_stack_call(Visitor *visitor, P4State *state,
     }
 }
 
-const P4Z3Instance *
-resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
-                           int num_args) {
-    const P4Z3Instance *parent_class;
+VarOrDecl resolve_var_or_decl_parent(P4State *state,
+                                     const MemberStruct &member_struct,
+                                     int num_args) {
+    const P4Z3Instance *parent_class = nullptr;
     if (const auto *decl = state->find_static_decl(member_struct.main_member)) {
         parent_class = decl;
     } else {
@@ -137,7 +158,7 @@ resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
     if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
         // FIXME: This is a very rough version of overloading...
         auto member_identifier = *name + std::to_string(num_args);
-        return parent_class->get_function(member_identifier);
+        return get_function(parent_class, member_identifier);
     }
     P4C_UNIMPLEMENTED("Member type not implemented.");
 }
@@ -164,7 +185,7 @@ void set_params(const IR::Node *callable, const IR::ParameterList **params,
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
-    const IR::Node *callable;
+    const IR::Node *callable = nullptr;
     const auto *arguments = mce->arguments;
     auto arg_size = arguments->size();
 
@@ -181,26 +202,25 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             resolve_stack_call(this, state, member_struct, arguments);
             return false;
         }
-        const auto *resolved_call =
+        auto resolved_call =
             resolve_var_or_decl_parent(state, member_struct, arg_size);
-        if (const auto *function = resolved_call->to<FunctionWrapper>()) {
+        if (const auto *function = boost::get<P4Z3Function>(&resolved_call)) {
             // call the function directly for now
-            function->function_call(this, arguments);
+            (*function)(this, arguments);
             return false;
         }
-        if (const auto *decl = resolved_call->to<P4Declaration>()) {
+        if (auto *decl = boost::get<const IR::Method *>(&resolved_call)) {
             // We are retrieving a method from an extern object
-            callable = decl->decl;
+            callable = *decl;
         } else {
-            BUG("Unexpected method call member %s ",
-                resolved_call->get_static_type());
+            BUG("Unexpected method call member.");
         }
     } else {
         P4C_UNIMPLEMENTED("Method call %s not supported.", mce);
     }
     // at this point, we assume we are dealing with a Declaration
-    const IR::ParameterList *params;
-    const IR::TypeParameters *type_params;
+    const IR::ParameterList *params = nullptr;
+    const IR::TypeParameters *type_params = nullptr;
     set_params(callable, &params, &type_params);
 
     const ParamInfo param_info = {*params, *arguments, *type_params,
@@ -213,7 +233,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
-    const IR::ParameterList *params;
+    const IR::ParameterList *params = nullptr;
     const auto *arguments = cce->arguments;
     if (const auto *c = resolved_type->to<IR::P4Control>()) {
         params = c->getApplyParameters();

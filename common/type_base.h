@@ -30,8 +30,6 @@ class ErrorInstance;
 class ListInstance;
 class ExternInstance;
 class P4TableInstance;
-class FunctionWrapper;
-class P4Declaration;
 
 using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<Z3Bitvector>,
@@ -42,10 +40,8 @@ using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<ErrorInstance>,
                                 boost::recursive_wrapper<ListInstance>,
                                 boost::recursive_wrapper<P4TableInstance>,
-                                boost::recursive_wrapper<FunctionWrapper>,
-                                boost::recursive_wrapper<P4Declaration>,
                                 boost::recursive_wrapper<ExternInstance>>;
-using Z3P4FunctionCall =
+using P4Z3Function =
     std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
 
 struct Z3Slice {
@@ -73,13 +69,11 @@ struct ParamInfo {
 
 class P4Z3Object {
  public:
-    P4Z3Object() = default;
     template <typename T> bool is() const { return to<T>() != nullptr; }
     template <typename T> const T *to() const {
         return dynamic_cast<const T *>(this);
     }
     template <typename T> T *to_mut() { return dynamic_cast<T *>(this); }
-    virtual ~P4Z3Object() = default;
 
     virtual cstring get_static_type() const = 0;
     virtual cstring to_string() const = 0;
@@ -201,10 +195,6 @@ class P4Z3Instance : public P4Z3Object {
     }
     virtual P4Z3Instance *get_member(cstring /*member_name*/) const {
         P4C_UNIMPLEMENTED("get_member not implemented for %s.",
-                          get_static_type());
-    }
-    virtual P4Z3Instance *get_function(cstring /*function_name*/) const {
-        P4C_UNIMPLEMENTED("get_function not implemented for %s.",
                           get_static_type());
     }
 };

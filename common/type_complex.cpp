@@ -248,34 +248,34 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type,
                                uint64_t member_id, cstring prefix)
     : StructInstance(state, type, member_id, prefix) {
     valid = state->get_z3_ctx()->bool_val(false);
-    member_functions["setValid0"] = new FunctionWrapper(
+    member_functions["setValid0"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             setValid(visitor, args);
-        });
-    member_functions["setInvalid0"] = new FunctionWrapper(
+        };
+    member_functions["setInvalid0"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             setInvalid(visitor, args);
-        });
-    member_functions["isValid0"] = new FunctionWrapper(
+        };
+    member_functions["isValid0"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             isValid(visitor, args);
-        });
+        };
 }
 
 HeaderInstance::HeaderInstance(const HeaderInstance &other)
     : StructInstance(other) {
-    member_functions["setValid0"] = new FunctionWrapper(
+    member_functions["setValid0"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             setValid(visitor, args);
-        });
-    member_functions["setInvalid0"] = new FunctionWrapper(
+        };
+    member_functions["setInvalid0"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             setInvalid(visitor, args);
-        });
-    member_functions["isValid0"] = new FunctionWrapper(
+        };
+    member_functions["isValid0"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             isValid(visitor, args);
-        });
+        };
 }
 
 HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
@@ -389,14 +389,14 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
         insert_member(member_name, member_var);
         member_types.insert({member_name, resolved_type});
     }
-    member_functions["push_front1"] = new FunctionWrapper(
+    member_functions["push_front1"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             push_front(visitor, args);
-        });
-    member_functions["pop_front1"] = new FunctionWrapper(
+        };
+    member_functions["pop_front1"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             pop_front(visitor, args);
-        });
+        };
 }
 
 StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
@@ -404,14 +404,14 @@ StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
 StackInstance::StackInstance(const StackInstance &other)
     : StructBase(other), nextIndex(other.nextIndex), lastIndex(other.lastIndex),
       size(other.size), int_size(other.int_size), elem_type(other.elem_type) {
-    member_functions["push_front1"] = new FunctionWrapper(
+    member_functions["push_front1"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             push_front(visitor, args);
-        });
-    member_functions["pop_front1"] = new FunctionWrapper(
+        };
+    member_functions["pop_front1"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             pop_front(visitor, args);
-        });
+        };
 }
 
 StackInstance &StackInstance::operator=(const StackInstance &other) {
@@ -603,12 +603,11 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *type)
                 num_params += 1;
             }
         }
-        auto *decl = new P4Declaration(method);
         for (auto idx = 0; idx <= num_optional_params; ++idx) {
             // The IR has bizarre side effects when storing pointers in a map
             // FIXME: Think about how to simplify this, maybe use their vector
             cstring name = overloaded_name + std::to_string(num_params + idx);
-            methods.insert({name, decl});
+            methods.insert({name, method});
         }
     }
 }
@@ -677,10 +676,10 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::Declaration *decl)
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str += std::to_string(table->getApplyParameters()->size());
     }
-    member_functions[apply_str] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            apply(visitor, args);
-        });
+    member_functions[apply_str] = [this](Visitor *visitor,
+                                         const IR::Vector<IR::Argument> *args) {
+        apply(visitor, args);
+    };
 }
 P4TableInstance::P4TableInstance(
     P4State *state, const IR::Declaration *decl, cstring table_name,
@@ -694,10 +693,10 @@ P4TableInstance::P4TableInstance(
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str += std::to_string(table->getApplyParameters()->size());
     }
-    member_functions[apply_str] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            apply(visitor, args);
-        });
+    member_functions[apply_str] = [this](Visitor *visitor,
+                                         const IR::Vector<IR::Argument> *args) {
+        apply(visitor, args);
+    };
 }
 
 void P4TableInstance::apply(Visitor *visitor,
@@ -728,10 +727,10 @@ DeclarationInstance::DeclarationInstance(P4State *state,
     } else if (const auto *ctrl = decl->to<IR::P4Parser>()) {
         apply_str += std::to_string(ctrl->getApplyParameters()->size());
     }
-    member_functions[apply_str] = new FunctionWrapper(
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            apply(visitor, args);
-        });
+    member_functions[apply_str] = [this](Visitor *visitor,
+                                         const IR::Vector<IR::Argument> *args) {
+        apply(visitor, args);
+    };
 }
 
 void DeclarationInstance::apply(Visitor *visitor,

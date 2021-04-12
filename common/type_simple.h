@@ -17,6 +17,7 @@ namespace TOZ3_V2 {
 
 // Forward declare state
 class P4State;
+using VarOrDecl = boost::variant<P4Z3Function, const IR::Method *>;
 
 z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type);
 
@@ -38,32 +39,6 @@ class VoidResult : public P4Z3Instance {
     P4Z3Instance *cast_allocate(const IR::Type *) const override {
         // TODO: This should not be necessary.
         return new VoidResult();
-    }
-};
-
-class FunctionWrapper : public P4Z3Instance {
- private:
- public:
-    Z3P4FunctionCall function_call;
-    explicit FunctionWrapper(Z3P4FunctionCall function_call)
-        : function_call(function_call) {}
-    void merge(const z3::expr &, const P4Z3Instance &) override{
-        // Merge is a no-op here.
-    };
-    // TODO: This is a little pointless....
-    FunctionWrapper *copy() const override {
-        return new FunctionWrapper(function_call);
-    }
-
-    cstring get_static_type() const override { return "FunctionWrapper"; }
-    cstring to_string() const override {
-        cstring ret = "FunctionWrapper(";
-        ret += ")";
-        return ret;
-    }
-    P4Z3Instance *cast_allocate(const IR::Type *) const override {
-        // TODO: This should not be necessary.
-        return new FunctionWrapper(function_call);
     }
 };
 
@@ -116,7 +91,7 @@ class NumericVal : public P4Z3Instance {
     }
     void set_undefined() override {
         auto sort = val.get_sort();
-        auto ctx = &sort.ctx();
+        auto *ctx = &sort.ctx();
         val = ctx->constant(UNDEF_LABEL, sort);
     }
 };
@@ -128,7 +103,6 @@ class Z3Bitvector : public NumericVal {
                          bool is_signed = false)
         : NumericVal(state, val), is_signed(is_signed) {}
     explicit Z3Bitvector(const P4State *state);
-    ~Z3Bitvector() {}
 
     /****** UNARY OPERANDS ******/
     Z3Result operator-() const override;
@@ -218,6 +192,48 @@ class Z3Int : public NumericVal {
     cstring to_string() const override {
         cstring ret = "Z3Int(";
         return ret + val.to_string().c_str() + ")";
+    }
+};
+
+class DeclarationInstance : public P4Z3Instance {
+ private:
+    P4State *state;
+    std::map<cstring, P4Z3Function> member_functions;
+    ordered_map<cstring, P4Z3Instance *> members;
+    // A wrapper class for table declarations
+ public:
+    const IR::Type_Declaration *decl;
+    // constructor
+    explicit DeclarationInstance(P4State *state,
+                                 const IR::Type_Declaration *decl);
+    // Merge is a no-op here.
+    void merge(const z3::expr & /*cond*/,
+               const P4Z3Instance & /*then_expr*/) override{};
+    // TODO: This is a little pointless....
+    DeclarationInstance *copy() const override {
+        return new DeclarationInstance(state, decl);
+    }
+
+    P4Z3Instance *get_member(cstring name) const override {
+        auto it = members.find(name);
+        if (it != members.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in member map.", name);
+    }
+    P4Z3Function get_function(cstring name) const {
+        auto it = member_functions.find(name);
+        if (it != member_functions.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in function map.", name);
+    }
+    void apply(Visitor *, const IR::Vector<IR::Argument> *);
+
+    cstring get_static_type() const override { return "DeclarationInstance"; }
+    cstring to_string() const override {
+        cstring ret = "DeclarationInstance(";
+        return ret + decl->toString() + ")";
     }
 };
 
