@@ -71,7 +71,12 @@ bool TypeVisitor::preorder(const IR::Type_Extern *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_Typedef *t) {
-    state->add_type(t->name.name, t->type);
+    state->add_type(t->name.name, state->resolve_type(t->type));
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::Type_Newtype *t) {
+    state->add_type(t->name.name, state->resolve_type(t->type));
     return false;
 }
 
@@ -102,7 +107,7 @@ bool TypeVisitor::preorder(const IR::P4Control *c) {
 
 bool TypeVisitor::preorder(const IR::Function *f) {
     // FIXME: Overloading uses num of parameters, it should use types
-    cstring overloaded_name = f->getName().name;
+    cstring overloaded_name = f->name.name;
     auto num_params = f->getParameters()->parameters.size();
     // for (auto param : f->getParameters()->parameters) {
     //     overloaded_name += param->node_type_name();
@@ -114,7 +119,7 @@ bool TypeVisitor::preorder(const IR::Function *f) {
 
 bool TypeVisitor::preorder(const IR::Method *m) {
     // FIXME: Overloading uses num of parameters, it should use types
-    cstring overloaded_name = m->getName().name;
+    cstring overloaded_name = m->name.name;
     auto num_params = 0;
     auto num_optional_params = 0;
     for (const auto *param : m->getParameters()->parameters) {
@@ -136,7 +141,7 @@ bool TypeVisitor::preorder(const IR::Method *m) {
 
 bool TypeVisitor::preorder(const IR::P4Action *a) {
     // FIXME: Overloading uses num of parameters, it should use types
-    cstring overloaded_name = a->getName().name;
+    cstring overloaded_name = a->name.name;
     auto num_params = 0;
     auto num_optional_params = 0;
     for (const auto *param : a->getParameters()->parameters) {
@@ -165,7 +170,7 @@ bool TypeVisitor::preorder(const IR::P4Table *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
-    auto instance_name = di->getName().name;
+    auto instance_name = di->name.name;
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
     if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {
@@ -175,7 +180,8 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
         // }
         resolved_type = state->resolve_type(spec_type->baseType);
     }
-    if (instance_name == "main") {
+    // TODO: Figure out a way to process packages
+    if (instance_name == "main" || resolved_type->is<IR::Type_Package>()) {
         // Do not execute main here just yet.
         state->declare_static_decl(instance_name, new P4Declaration(di));
     } else {

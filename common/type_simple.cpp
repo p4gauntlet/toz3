@@ -301,7 +301,8 @@ Z3Result Z3Bitvector::cast(z3::sort &dest_type) const {
             return Z3Bitvector(state, &BOOL_TYPE, val);
         }
         if (val.is_bv()) {
-            return Z3Bitvector(state, &BOOL_TYPE, pure_bv_cast(val, dest_type));
+            z3::expr bool_res = val > 0;
+            return Z3Bitvector(state, &BOOL_TYPE, val > 0);
         }
     }
     P4C_UNIMPLEMENTED("cast to type %s not implemented for %s.",
@@ -344,8 +345,8 @@ P4Z3Instance *z3_cast_allocate(const P4State *state, const z3::expr &val,
             return new Z3Bitvector(state, &BOOL_TYPE, val);
         }
         if (val.is_bv()) {
-            return new Z3Bitvector(state, &BOOL_TYPE,
-                                   pure_bv_cast(val, dest_type));
+            z3::expr bool_res = val > 0;
+            return new Z3Bitvector(state, &BOOL_TYPE, val > 0);
         }
     }
     P4C_UNIMPLEMENTED("z3_cast_allocate to type %s not implemented",

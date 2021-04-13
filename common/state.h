@@ -176,9 +176,9 @@ class P4State {
     void declare_static_decl(cstring name, P4Declaration *val);
     const P4Declaration *get_static_decl(cstring name) const;
     P4Declaration *find_static_decl(cstring name) const;
-    template <typename T> T *get_static_decl(cstring name) const {
+    template <typename T> const T *get_static_decl(cstring name) const {
         const auto *decl = get_static_decl(name);
-        return decl->to_mut<T>();
+        return decl->to<T>();
     }
     /****** EXPRESSION RESULTS ******/
     P4Z3Instance *copy_expr_result() const { return expr_result->copy(); }

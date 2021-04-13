@@ -449,7 +449,7 @@ void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
     size_t idx = 0;
     auto type_args_len = param_info.type_args.size();
     for (const auto &param : param_info.type_params.parameters) {
-        auto type_name = param->getName().name;
+        auto type_name = param->name.name;
         if (idx < type_args_len) {
             const auto *arg = param_info.type_args[idx];
             add_type(type_name, arg);
@@ -734,11 +734,12 @@ P4Declaration *P4State::find_static_decl(cstring name, P4Scope **owner_scope) {
 }
 
 void P4State::declare_static_decl(cstring name, P4Declaration *decl) {
-    P4Scope *target_scope = nullptr;
-    find_static_decl(name, &target_scope);
-    if (target_scope != nullptr) {
-        warning("Declaration %s shadows existing declaration.", decl->decl);
-    }
+    // TODO: There is some weird pointer comparison going on.
+    // P4Scope *target_scope = nullptr;
+    // find_static_decl(name, &target_scope);
+    // if (target_scope != nullptr) {
+    //     warning("Declaration %s shadows existing declaration.", decl->decl);
+    // }
     if (scopes.empty()) {
         main_scope.declare_static_decl(name, decl);
         // assume we insert into the global scope

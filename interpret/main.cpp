@@ -73,6 +73,7 @@ int main(int argc, char *const argv[]) {
             TOZ3_V2::TypeVisitor map_builder = TOZ3_V2::TypeVisitor(&state);
             TOZ3_V2::Z3Visitor to_z3 = TOZ3_V2::Z3Visitor(&state);
             program->apply(map_builder);
+
             const auto *decl = get_main_decl(&state);
             if (decl == nullptr) {
                 return EXIT_SKIPPED;

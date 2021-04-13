@@ -239,6 +239,10 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         params = c->getApplyParameters();
     } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
         params = p->getApplyParameters();
+    } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
+        // TODO: What are params here?
+        params = new IR::ParameterList();
+        return false;
     } else {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());

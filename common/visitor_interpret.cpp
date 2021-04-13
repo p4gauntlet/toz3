@@ -53,11 +53,11 @@ bool Z3Visitor::preorder(const IR::Function *f) {
 }
 
 bool Z3Visitor::preorder(const IR::Method *m) {
-    auto method_name = infer_name(m->getAnnotations(), m->getName().name);
+    auto method_name = infer_name(m->getAnnotations(), m->name.name);
     const auto *method_type = m->type->returnType;
     // TODO: Different types of arguments and multiple calls
     for (const auto *param : *m->getParameters()) {
-        cstring param_name = param->getName().name;
+        cstring param_name = param->name.name;
         cstring merged_param_name = method_name + "_" + param_name;
         if (param->direction == IR::Direction::Out ||
             param->direction == IR::Direction::InOut) {
@@ -204,7 +204,7 @@ void handle_table_action(Z3Visitor *visitor, cstring table_name,
 
 bool Z3Visitor::preorder(const IR::P4Table *p4t) {
     auto *ctx = state->get_z3_ctx();
-    auto table_name = infer_name(p4t->getAnnotations(), p4t->getName().name);
+    auto table_name = infer_name(p4t->getAnnotations(), p4t->name.name);
     auto table_action_name = table_name + "action_idx";
     auto table_action = ctx->int_const(table_action_name.c_str());
     bool immutable = false;
@@ -540,6 +540,9 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
         params = c->getApplyParameters();
     } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
         params = p->getApplyParameters();
+    } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
+        // TODO: What are params here?
+        params = new IR::ParameterList();
     } else {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());
@@ -551,12 +554,14 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
     IR::Vector<IR::Argument> synthesized_args;
     for (const auto *param : *params) {
         const auto *par_type = state->resolve_type(param->type);
-        auto *var = state->gen_instance(param->name.name, par_type);
-        if (auto *z3_var = var->to_mut<StructInstance>()) {
-            z3_var->bind(0, param->name.name);
-            z3_var->propagate_validity();
+        if (!par_type->is<IR::Type_Package>()) {
+            auto *var = state->gen_instance(param->name.name, par_type);
+            if (auto *z3_var = var->to_mut<StructInstance>()) {
+                z3_var->bind(0, param->name.name);
+                z3_var->propagate_validity();
+            }
+            state->declare_var(param->name.name, var, par_type);
         }
-        state->declare_var(param->name.name, var, par_type);
         state_names.push_back(param->name.name);
         const auto *arg =
             new IR::Argument(new IR::PathExpression(param->name.name));
@@ -598,18 +603,45 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
     size_t idx = 0;
     for (const auto *param : params->parameters) {
         if (idx < arg_len) {
-            const IR::Argument *arg = args->at(idx);
+            const auto *arg = args->at(idx);
+            const auto *arg_expr = arg->expression;
             if (const auto *cce =
-                    arg->expression->to<IR::ConstructorCallExpression>()) {
+                    arg_expr->to<IR::ConstructorCallExpression>()) {
                 auto *state_result = run_arch_block(visitor, cce);
                 merged_vec.insert(
                     {param->name.name, {state_result, param->type}});
+            } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
+                const auto *decl =
+                    visitor->state->get_static_decl(path->path->name.name);
+                const auto *di = decl->decl->to<IR::Declaration_Instance>();
+                const IR::Type *resolved_type =
+                    visitor->state->resolve_type(di->type);
+
+                if (const auto *spec_type =
+                        resolved_type->to<IR::Type_Specialized>()) {
+                    // FIXME: Figure out what do here
+                    // for (auto arg : *spec_type->arguments) {
+                    //     const IR::Type *resolved_arg =
+                    //     state->resolve_type(arg);
+                    // }
+                    resolved_type =
+                        visitor->state->resolve_type(spec_type->baseType);
+                }
+                const auto *sub_params = get_params(resolved_type);
+                auto sub_results =
+                    create_state(visitor, di->arguments, sub_params);
+                for (const auto &sub_result : sub_results) {
+                    auto merged_name = param->name.name + sub_result.first;
+                    auto variables = sub_result.second;
+                    merged_vec.insert({merged_name, variables});
+                }
             } else {
-                P4C_UNIMPLEMENTED("Unsupported main argument %s",
-                                  arg->expression);
+                P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
+                                  arg->expression,
+                                  arg->expression->node_type_name());
             }
         } else {
-            BUG("Mismatch between arguments %s and parameters %s", *args,
+            BUG("Mismatch between argument size %d and parameters %s", arg_len,
                 *params);
         }
         idx++;
@@ -619,7 +651,7 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
-    auto instance_name = di->getName().name;
+    auto instance_name = di->name.name;
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
     if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {

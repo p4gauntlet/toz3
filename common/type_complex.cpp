@@ -589,7 +589,7 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
     : P4Z3Instance(p4_type), state(state), extern_type(p4_type) {
     for (const auto *method : p4_type->methods) {
         // FIXME: Overloading uses num of parameters, it should use types
-        cstring overloaded_name = method->getName().name;
+        cstring overloaded_name = method->name.name;
         auto num_params = 0;
         auto num_optional_params = 0;
         for (const auto *param : method->getParameters()->parameters) {
