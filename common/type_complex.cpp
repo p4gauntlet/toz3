@@ -103,7 +103,7 @@ void StructBase::bind(uint64_t member_id, cstring prefix) {
         cstring name = prefix + std::to_string(flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
             si->bind(flat_id, prefix);
-            flat_id += si->get_member_map()->size();
+            flat_id += si->get_width();
         } else if (const auto *z3_var = member_var->to<Z3Bitvector>()) {
             const auto *z3_expr = z3_var->get_val();
             auto member_var =
@@ -111,13 +111,7 @@ void StructBase::bind(uint64_t member_id, cstring prefix) {
             update_member(member_name,
                           new Z3Bitvector(state, z3_var->get_p4_type(),
                                           member_var, z3_var->is_signed));
-            flat_id++;
-        } else if (const auto *z3_var = member_var->to<Z3Int>()) {
-            const auto *z3_expr = z3_var->get_val();
-            auto member_var =
-                state->get_z3_ctx()->constant(name, z3_expr->get_sort());
-            update_member(member_name, new Z3Int(state, member_var));
-            flat_id++;
+            flat_id += z3_var->get_p4_type()->width_bits();
         } else {
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
                               member_var->get_static_type());
@@ -160,13 +154,13 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
             state->gen_instance(UNDEF_LABEL, resolved_type, flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
-            flat_id += si->get_member_map()->size();
+            flat_id += si->get_width();
         } else if (const auto *tbi = resolved_type->to<IR::Type_Bits>()) {
             width += tbi->width_bits();
-            flat_id++;
+            flat_id += tbi->width_bits();
         } else if (const auto *tvb = resolved_type->to<IR::Type_Varbits>()) {
             width += tvb->width_bits();
-            flat_id++;
+            flat_id += tvb->width_bits();
         } else if (resolved_type->is<IR::Type_Boolean>()) {
             width++;
             flat_id++;
@@ -185,7 +179,7 @@ StructInstance *StructInstance::copy() const {
 std::vector<std::pair<cstring, z3::expr>>
 StructInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
     // TODO: Clean this up and split it
-    const z3::expr *tmp_valid;
+    const z3::expr *tmp_valid = nullptr;
     if (this->is<HeaderInstance>() && valid_expr == nullptr) {
         valid_expr = &valid;
         tmp_valid = valid_expr;
