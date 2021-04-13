@@ -131,7 +131,6 @@ class Z3Bitvector : public NumericVal {
     Z3Result operator|(const P4Z3Instance &other) const override;
     Z3Result operator^(const P4Z3Instance &other) const override;
     Z3Result concat(const P4Z3Instance &) const override;
-    Z3Result cast(z3::sort &) const override;
     Z3Result cast(const IR::Type *) const override;
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/
@@ -193,7 +192,6 @@ class Z3Int : public NumericVal {
     Z3Result operator|(const P4Z3Instance &other) const override;
     Z3Result operator^(const P4Z3Instance &other) const override;
     Z3Result concat(const P4Z3Instance &) const override;
-    Z3Result cast(z3::sort &) const override;
     Z3Result cast(const IR::Type *) const override;
     P4Z3Instance *cast_allocate(const IR::Type *) const override;
     /****** TERNARY OPERANDS ******/

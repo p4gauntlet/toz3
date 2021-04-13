@@ -289,25 +289,6 @@ Z3Result Z3Bitvector::concat(const P4Z3Instance &other) const {
                       other.get_static_type());
 }
 
-Z3Result Z3Bitvector::cast(z3::sort &dest_type) const {
-    if (dest_type.is_bv()) {
-        // TODO: Clean casts up.
-        const auto *bit_type = new IR::Type_Bits(dest_type.bv_size(), false);
-        return Z3Bitvector(state, bit_type, pure_bv_cast(val, dest_type));
-    }
-    if (dest_type.is_bool()) {
-        if (val.is_bool()) {
-            // nothing to do just return a new object
-            return Z3Bitvector(state, &BOOL_TYPE, val);
-        }
-        if (val.is_bv()) {
-            z3::expr bool_res = val > 0;
-            return Z3Bitvector(state, &BOOL_TYPE, val > 0);
-        }
-    }
-    P4C_UNIMPLEMENTED("cast to type %s not implemented for %s.",
-                      dest_type.to_string().c_str(), get_static_type());
-}
 Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
@@ -315,7 +296,7 @@ Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
         auto *ctx = &val.get_sort().ctx();
         auto dest_sort = ctx->bv_sort(tb->width_bits());
-        return cast(dest_sort);
+        return Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort));
     }
     if (dest_type->is<IR::Type_InfInt>()) {
         // TODO: Clean this up and add some checks
@@ -327,55 +308,27 @@ Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
     if (dest_type->is<IR::Type_Boolean>()) {
         auto *ctx = &val.get_sort().ctx();
         auto dest_sort = ctx->bool_sort();
-        return cast(dest_sort);
+        if (val.is_bool()) {
+            // nothing to do just return a new object
+            return Z3Bitvector(state, &BOOL_TYPE, val);
+        }
+        if (val.is_bv()) {
+            z3::expr bool_res = val > 0;
+            return Z3Bitvector(state, &BOOL_TYPE, val > 0);
+        }
     }
     P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
 }
 
-P4Z3Instance *z3_cast_allocate(const P4State *state, const z3::expr &val,
-                               const z3::sort &dest_type) {
-    if (dest_type.is_bv()) {
-        // TODO: Clean casts up.
-        const auto *bit_type = new IR::Type_Bits(dest_type.bv_size(), false);
-        return new Z3Bitvector(state, bit_type, pure_bv_cast(val, dest_type));
-    }
-    if (dest_type.is_bool()) {
-        if (val.is_bool()) {
-            // nothing to do
-            return new Z3Bitvector(state, &BOOL_TYPE, val);
-        }
-        if (val.is_bv()) {
-            z3::expr bool_res = val > 0;
-            return new Z3Bitvector(state, &BOOL_TYPE, val > 0);
-        }
-    }
-    P4C_UNIMPLEMENTED("z3_cast_allocate to type %s not implemented",
-                      dest_type.to_string().c_str());
-}
-
 P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
-    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
-        dest_type = state->resolve_type(tn);
+    auto cast_result = cast(dest_type);
+    if (auto *z3_bit = boost::get<Z3Bitvector>(&cast_result)) {
+        return z3_bit->copy();
     }
-    if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
-        auto *ctx = &val.get_sort().ctx();
-        auto dest_sort = ctx->bv_sort(tb->width_bits());
-        return z3_cast_allocate(state, val, dest_sort);
+    if (auto *z3_int = boost::get<Z3Int>(&cast_result)) {
+        return z3_int->copy();
     }
-    if (dest_type->is<IR::Type_InfInt>()) {
-        // TODO: Clean this up and add some checks
-        auto *ctx = &val.get_sort().ctx();
-        auto dec_str = val.get_decimal_string(0);
-        auto int_expr = ctx->int_val(dec_str.c_str());
-        return new Z3Int(state, int_expr);
-    }
-    if (dest_type->is<IR::Type_Boolean>()) {
-        auto *ctx = &val.get_sort().ctx();
-        auto dest_sort = ctx->bool_sort();
-        return z3_cast_allocate(state, val, dest_sort);
-    }
-    P4C_UNIMPLEMENTED("cast_allocate to type %s not implemented for %s.",
-                      dest_type->node_type_name(), get_static_type());
+    BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
 }
 
 /****** TERNARY OPERANDS ******/
@@ -692,15 +645,6 @@ Z3Result Z3Int::concat(const P4Z3Instance &) const {
     P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
 }
 
-Z3Result Z3Int::cast(z3::sort &dest_type) const {
-    if (dest_type.is_bv()) {
-        // TODO: Clean casts up.
-        const auto *bit_type = new IR::Type_Bits(dest_type.bv_size(), false);
-        return Z3Bitvector(state, bit_type, pure_bv_cast(val, dest_type));
-    }
-    P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
-}
-
 Z3Result Z3Int::cast(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
@@ -708,7 +652,7 @@ Z3Result Z3Int::cast(const IR::Type *dest_type) const {
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
         auto *ctx = &val.get_sort().ctx();
         auto dest_sort = ctx->bv_sort(tb->width_bits());
-        return cast(dest_sort);
+        return Z3Bitvector(state, tb, pure_bv_cast(val, dest_sort));
     }
     if (dest_type->is<IR::Type_InfInt>()) {
         // nothing to do, return a copy
@@ -719,20 +663,14 @@ Z3Result Z3Int::cast(const IR::Type *dest_type) const {
 }
 
 P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
-    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
-        dest_type = state->resolve_type(tn);
+    auto cast_result = cast(dest_type);
+    if (auto *z3_bit = boost::get<Z3Bitvector>(&cast_result)) {
+        return z3_bit->copy();
     }
-    if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
-        auto *ctx = &val.get_sort().ctx();
-        auto dest_sort = ctx->bv_sort(tb->width_bits());
-        return new Z3Bitvector(state, tb, pure_bv_cast(val, dest_sort));
+    if (auto *z3_int = boost::get<Z3Int>(&cast_result)) {
+        return z3_int->copy();
     }
-    if (dest_type->is<IR::Type_InfInt>()) {
-        // nothing to do, return a new allocation
-        return new Z3Int(state, val);
-    }
-    P4C_UNIMPLEMENTED("cast_allocate not implemented for %s to type %s.",
-                      get_static_type(), dest_type->node_type_name());
+    BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
 }
 
 /****** TERNARY OPERANDS ******/

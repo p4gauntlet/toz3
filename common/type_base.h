@@ -31,7 +31,8 @@ class ListInstance;
 class ExternInstance;
 class P4TableInstance;
 
-using Z3Result = boost::variant<boost::recursive_wrapper<Z3Int>,
+using Z3Result = boost::variant<boost::recursive_wrapper<VoidResult>,
+                                boost::recursive_wrapper<Z3Int>,
                                 boost::recursive_wrapper<Z3Bitvector>>;
 using P4Z3Function =
     std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
@@ -163,9 +164,6 @@ class P4Z3Instance : public P4Z3Node {
     }
     virtual Z3Result concat(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
-    }
-    virtual Z3Result cast(z3::sort & /*other*/) const {
-        P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
     }
     virtual Z3Result cast(const IR::Type * /*dest_sort*/) const {
         P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
