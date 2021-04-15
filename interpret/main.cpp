@@ -78,8 +78,7 @@ int main(int argc, char *const argv[]) {
             if (decl == nullptr) {
                 return EXIT_SKIPPED;
             }
-            decl->apply(to_z3);
-            auto decl_result = to_z3.get_main_result();
+            auto decl_result = to_z3.gen_state_from_instance(decl);
             for (auto pipe_state : decl_result) {
                 cstring pipe_name = pipe_state.first;
                 const auto *pipe_vars =

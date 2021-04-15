@@ -406,7 +406,6 @@ VarMap P4State::merge_args_with_params(Visitor *visitor,
             auto *cast_val = get_expr_result()->cast_allocate(resolved_type);
             merged_vec.insert({param->name.name, {cast_val, resolved_type}});
         } else {
-            // CHECK_NULL(resolved_type); // TODO: Remove this
             merged_vec.insert(
                 {param->name.name, {copy_expr_result(), resolved_type}});
         }
@@ -519,9 +518,14 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (const auto *t = type->to<IR::Type_Header>()) {
         instance = new HeaderInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Enum>()) {
-        instance = new EnumInstance(this, t, id, prefix);
+        // Enums are static so we just return the declaration
+        instance = get_var(t->name.name);
     } else if (const auto *t = type->to<IR::Type_Error>()) {
-        instance = new ErrorInstance(this, t, id, prefix);
+        // Errors are static so we just return the declaration
+        instance = get_var(t->name.name);
+    } else if (const auto *t = type->to<IR::Type_SerEnum>()) {
+        // SerEnums are static so we just return the declaration
+        instance = get_var(t->name.name);
     } else if (const auto *t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Tuple>()) {

@@ -37,7 +37,7 @@ bool TypeVisitor::preorder(const IR::Type_Enum *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, state->gen_instance(name, t), t);
+        state->declare_var(name, new EnumInstance(state, t, 0, ""), t);
     }
     return false;
 }
@@ -58,7 +58,38 @@ bool TypeVisitor::preorder(const IR::Type_Error *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, state->gen_instance(name, t), t);
+        state->declare_var(name, new ErrorInstance(state, t, 0, ""), t);
+    }
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
+    // TODO: Enums are really nasty because we also need to access them
+    // TODO: Simplify this.
+    auto name = t->name.name;
+    auto *var = state->find_var(name);
+    // Every P4 program is initialized with an error namespace
+    // according to the spec
+    // So if the error exists, we merge
+    if (var != nullptr) {
+        auto *enum_instance = var->to_mut<EnumBase>();
+        BUG_CHECK(enum_instance, "Unexpected enum instance %s",
+                  enum_instance->to_string());
+        for (const auto *member : t->members) {
+            enum_instance->add_enum_member(member->name.name);
+        }
+    } else {
+        ordered_map<cstring, P4Z3Instance *> input_members;
+        const auto *member_type = t->type;
+        for (const auto *member : t->members) {
+            member->value->apply(resolve_expr);
+            input_members.emplace(
+                member->name.name,
+                state->get_expr_result()->cast_allocate(member_type));
+        }
+        state->add_type(name, t);
+        state->declare_var(
+            name, new SerEnumInstance(state, input_members, t, 0, ""), t);
     }
     return false;
 }

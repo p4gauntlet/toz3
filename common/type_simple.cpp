@@ -317,6 +317,24 @@ Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
             return Z3Bitvector(state, &BOOL_TYPE, val > 0);
         }
     }
+    if (const auto *te = dest_type->to<IR::Type_Enum>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<EnumInstance>();
+        // TODO: Cast.
+        new_enum.set_enum_val(val);
+        return new_enum;
+    }
+    if (const auto *te = dest_type->to<IR::Type_Error>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<ErrorInstance>();
+        // TODO: Cast.
+        new_enum.set_enum_val(val);
+        return new_enum;
+    }
+    if (const auto *te = dest_type->to<IR::Type_SerEnum>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<SerEnumInstance>();
+        // TODO: Cast.
+        new_enum.set_enum_val(val);
+        return new_enum;
+    }
     P4C_UNIMPLEMENTED("cast to %s not implemented for %s.",
                       dest_type->node_type_name(), get_static_type());
 }
@@ -328,6 +346,15 @@ P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
     }
     if (auto *z3_int = boost::get<Z3Int>(&cast_result)) {
         return z3_int->copy();
+    }
+    if (auto *enum_instance = boost::get<EnumInstance>(&cast_result)) {
+        return enum_instance->copy();
+    }
+    if (auto *enum_instance = boost::get<ErrorInstance>(&cast_result)) {
+        return enum_instance->copy();
+    }
+    if (auto *enum_instance = boost::get<SerEnumInstance>(&cast_result)) {
+        return enum_instance->copy();
     }
     BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
 }
@@ -612,7 +639,6 @@ Z3Result Z3Int::operator^(const P4Z3Instance &other) const {
     P4C_UNIMPLEMENTED("^ not implemented for %s.", other.get_static_type());
 }
 
-
 Z3Result Z3Int::cast(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
@@ -640,6 +666,5 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
     }
     BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
 }
-
 
 }  // namespace TOZ3_V2

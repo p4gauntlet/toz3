@@ -216,9 +216,12 @@ class EnumBase : public StructBase {
     using StructBase::StructBase;
 
  protected:
-    const IR::Type_Bits member_type = IR::Type_Bits(32, false);
+    z3::expr enum_val;
+    const IR::Type_Bits *member_type = &P4_STD_BIT_TYPE;
 
  public:
+    EnumBase(P4State *state, const IR::Type *type, uint64_t member_id,
+             cstring prefix);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
                 const z3::expr *valid_expr = nullptr) const override;
@@ -236,11 +239,13 @@ class EnumBase : public StructBase {
         ret += ")";
         return ret;
     }
-
     void add_enum_member(cstring error_name);
     void bind(uint64_t member_id, cstring prefix) override;
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
+    virtual z3::expr get_enum_val() const;
+    void set_enum_val(const z3::expr &enum_input);
 };
 
 class EnumInstance : public EnumBase {
@@ -285,7 +290,31 @@ class ErrorInstance : public EnumBase {
         ret += ")";
         return ret;
     }
-};  // namespace TOZ3_V2
+};
+
+class SerEnumInstance : public EnumBase {
+ public:
+    SerEnumInstance(P4State *state,
+                    ordered_map<cstring, P4Z3Instance *> input_members,
+                    const IR::Type_SerEnum *type, uint64_t member_id,
+                    cstring prefix);
+    cstring get_static_type() const override { return "SerEnumInstance"; }
+    cstring to_string() const override {
+        cstring ret = "SerSerEnumInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first) {
+                ret += ", ";
+            }
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
+    // TODO: SerEnumInstance is static, so no copy allowed
+    SerEnumInstance *copy() const override;
+};
 
 class TupleInstance : public StructBase {
     using StructBase::StructBase;

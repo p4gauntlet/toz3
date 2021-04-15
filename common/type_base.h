@@ -27,12 +27,16 @@ class StructInstance;
 class HeaderInstance;
 class EnumInstance;
 class ErrorInstance;
+class SerEnumInstance;
 class ListInstance;
 class ExternInstance;
 class P4TableInstance;
 
 using Z3Result = boost::variant<boost::recursive_wrapper<VoidResult>,
                                 boost::recursive_wrapper<Z3Int>,
+                                boost::recursive_wrapper<SerEnumInstance>,
+                                boost::recursive_wrapper<EnumInstance>,
+                                boost::recursive_wrapper<ErrorInstance>,
                                 boost::recursive_wrapper<Z3Bitvector>>;
 using P4Z3Function =
     std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;

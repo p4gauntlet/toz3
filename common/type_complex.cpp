@@ -487,27 +487,41 @@ EnumBase
 ===============================================================================
 ***/
 
+EnumBase::EnumBase(P4State *state, const IR::Type *type, uint64_t member_id,
+                   cstring prefix)
+    : StructBase(state, type, member_id, prefix),
+      enum_val(state->gen_z3_expr(instance_name, &P4_STD_BIT_TYPE)) {}
+
 std::vector<std::pair<cstring, z3::expr>>
-EnumBase::get_z3_vars(cstring prefix, const z3::expr *) const {
+EnumBase::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
+    // TODO: Clean this up and split it
+    const z3::expr *tmp_valid = nullptr;
+    if (valid_expr != nullptr) {
+        tmp_valid = valid_expr;
+    } else {
+        tmp_valid = &valid;
+    }
     std::vector<std::pair<cstring, z3::expr>> z3_vars;
     cstring name = instance_name;
     if (prefix.size() != 0) {
         name = prefix + "." + name;
     }
-    auto z3_const = state->get_z3_ctx()->constant(
-        instance_name, state->get_z3_ctx()->bv_sort(32));
-    z3_vars.emplace_back(instance_name, z3_const);
+    auto invalid_var = state->gen_z3_expr(INVALID_LABEL, member_type);
+    auto valid_var = z3::ite(*tmp_valid, enum_val, invalid_var);
+    z3_vars.emplace_back(instance_name, valid_var);
     return z3_vars;
 }
 
 void EnumBase::add_enum_member(cstring error_name) {
-    auto *member_var = new Z3Bitvector(
-        state, &member_type, state->get_z3_ctx()->bv_val(members.size(), 32));
+    auto *member_var = new Z3Bitvector(state, member_type, enum_val);
     insert_member(error_name, member_var);
 }
 
-void EnumBase::bind(uint64_t, cstring) {
-    // This is a no op.
+void EnumBase::bind(uint64_t member_id, cstring prefix) {
+    instance_name = prefix + std::to_string(member_id);
+    auto flat_id = member_id;
+    cstring name = prefix + std::to_string(flat_id);
+    enum_val = state->gen_z3_expr(name, member_type);
 }
 
 z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
@@ -527,6 +541,17 @@ z3::expr EnumBase::operator!=(const P4Z3Instance &other) const {
     return !(*this == other);
 }
 
+z3::expr EnumBase::get_enum_val() const { return enum_val; }
+void EnumBase::set_enum_val(const z3::expr &enum_input) {
+    enum_val = enum_input;
+}
+
+void EnumBase::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
+    const auto *then_enum = then_expr.to<EnumBase>();
+    BUG_CHECK(then_enum, "Unsupported merge class.");
+    enum_val = z3::ite(cond, then_enum->get_enum_val(), enum_val);
+}
+
 /***
 ===============================================================================
 EnumInstance
@@ -541,9 +566,9 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
     size_t idx = 0;
     for (const auto *member : type->members) {
         auto *member_var = new Z3Bitvector(
-            state, &member_type, state->get_z3_ctx()->bv_val(idx, 32));
+            state, member_type, state->get_z3_ctx()->bv_val(idx, 32));
         insert_member(member->name.name, member_var);
-        member_types.insert({member->name.name, &member_type});
+        member_types.insert({member->name.name, member_type});
         idx++;
     }
 }
@@ -564,14 +589,40 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
     size_t idx = 0;
     for (const auto *member : type->members) {
         auto *member_var = new Z3Bitvector(
-            state, &member_type, state->get_z3_ctx()->bv_val(idx, 32));
+            state, member_type, state->get_z3_ctx()->bv_val(idx, 32));
         insert_member(member->name.name, member_var);
-        member_types.insert({member->name.name, &member_type});
+        member_types.insert({member->name.name, member_type});
         idx++;
     }
 }
 
 ErrorInstance *ErrorInstance::copy() const { return new ErrorInstance(*this); }
+
+/***
+===============================================================================
+SerEnumInstance
+===============================================================================
+***/
+
+SerEnumInstance::SerEnumInstance(
+    P4State *p4_state, ordered_map<cstring, P4Z3Instance *> input_members,
+    const IR::Type_SerEnum *type, uint64_t ext_member_id, cstring prefix)
+    : EnumBase(p4_state, type, ext_member_id, prefix) {
+    enum_val = state->gen_z3_expr(instance_name, type->type);
+    if (const auto *tb = type->type->to<IR::Type_Bits>()) {
+        member_type = tb;
+    } else {
+        P4C_UNIMPLEMENTED("Type %s not supported for SerEnum!",
+                          type->type->node_type_name());
+    }
+    // FIXME: Enums should not be a struct base, actually
+    width = 32;
+    members = std::move(input_members);
+}
+
+SerEnumInstance *SerEnumInstance::copy() const {
+    return new SerEnumInstance(*this);
+}
 
 /***
 ===============================================================================

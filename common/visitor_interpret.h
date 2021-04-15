@@ -13,8 +13,6 @@ namespace TOZ3_V2 {
 
 class Z3Visitor : public Inspector {
  private:
-    VarMap main_result;
-
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
         P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
@@ -118,7 +116,7 @@ class Z3Visitor : public Inspector {
     P4State *state;
     explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }
 
-    VarMap get_main_result() const { return main_result; }
+    VarMap gen_state_from_instance(const IR::Declaration_Instance *di);
 };
 }  // namespace TOZ3_V2
 

@@ -61,9 +61,7 @@ VarMap get_z3_repr(cstring prog_name, const IR::P4Program *program,
             if (decl == nullptr) {
                 return z3_return;
             }
-            decl->apply(to_z3);
-            auto decl_result = to_z3.get_main_result();
-            return decl_result;
+            return to_z3.gen_state_from_instance(decl);
         } catch (const Util::P4CExceptionBase &bug) {
             std::cerr << "Failed to interpret pass \"" << prog_name << "\"."
                       << std::endl;

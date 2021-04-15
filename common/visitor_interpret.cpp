@@ -567,9 +567,13 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
             new IR::Argument(new IR::PathExpression(param->name.name));
         synthesized_args.push_back(arg);
     }
-    const auto *new_cce = new IR::ConstructorCallExpression(
-        cce->constructedType, &synthesized_args);
-    visitor->visit(new_cce);
+    const auto new_cce =
+        IR::ConstructorCallExpression(cce->constructedType, &synthesized_args);
+    const Visitor_Context *visitor_ctx = nullptr;
+    if (visitor->getChildContext() != nullptr) {
+        visitor_ctx = visitor->getContext();
+    }
+    new_cce.apply(*visitor, visitor_ctx);
 
     // Merge the exit states
     state->merge_exit_states();
@@ -614,22 +618,8 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
                 const auto *decl =
                     visitor->state->get_static_decl(path->path->name.name);
                 const auto *di = decl->decl->to<IR::Declaration_Instance>();
-                const IR::Type *resolved_type =
-                    visitor->state->resolve_type(di->type);
-
-                if (const auto *spec_type =
-                        resolved_type->to<IR::Type_Specialized>()) {
-                    // FIXME: Figure out what do here
-                    // for (auto arg : *spec_type->arguments) {
-                    //     const IR::Type *resolved_arg =
-                    //     state->resolve_type(arg);
-                    // }
-                    resolved_type =
-                        visitor->state->resolve_type(spec_type->baseType);
-                }
-                const auto *sub_params = get_params(resolved_type);
-                auto sub_results =
-                    create_state(visitor, di->arguments, sub_params);
+                CHECK_NULL(di);
+                auto sub_results = visitor->gen_state_from_instance(di);
                 for (const auto &sub_result : sub_results) {
                     auto merged_name = param->name.name + sub_result.first;
                     auto variables = sub_result.second;
@@ -650,8 +640,7 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
     return merged_vec;
 }
 
-bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
-    auto instance_name = di->name.name;
+VarMap Z3Visitor::gen_state_from_instance(const IR::Declaration_Instance *di) {
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
     if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {
@@ -662,22 +651,30 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
         resolved_type = state->resolve_type(spec_type->baseType);
     }
     const auto *params = get_params(resolved_type);
+    return create_state(this, di->arguments, params);
+}
 
-    if (instance_name == "main") {
-        main_result = create_state(this, di->arguments, params);
-    } else {
-        state->merge_args_with_params(this, *di->arguments, *params);
-        if (const auto *instance_decl =
-                resolved_type->to<IR::Type_Declaration>()) {
-            state->declare_var(instance_name,
-                               new DeclarationInstance(state, instance_decl),
-                               resolved_type);
-        } else {
-            P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
-                              resolved_type, resolved_type->node_type_name());
-        }
+bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
+    const IR::Type *resolved_type = state->resolve_type(di->type);
+
+    if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {
+        // FIXME: Figure out what do here
+        // for (auto arg : *spec_type->arguments) {
+        //     const IR::Type *resolved_arg = state->resolve_type(arg);
+        // }
+        resolved_type = state->resolve_type(spec_type->baseType);
     }
 
+    const auto *params = get_params(resolved_type);
+    if (const auto *instance_decl = resolved_type->to<IR::Type_Declaration>()) {
+        state->merge_args_with_params(this, *di->arguments, *params);
+        state->declare_var(di->name.name,
+                           new DeclarationInstance(state, instance_decl),
+                           resolved_type);
+    } else {
+        P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
+                          resolved_type, resolved_type->node_type_name());
+    }
     return false;
 }
 
