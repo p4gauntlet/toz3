@@ -528,9 +528,6 @@ z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
     if (const auto *num_val = other.to<NumericVal>()) {
         auto other_val = *num_val->get_val();
-        // TODO: Is this the right way to compare? I do not know yet...
-        auto enum_val = state->get_z3_ctx()->bv_const(
-            instance_name, other_val.get_sort().bv_size());
         return enum_val == other_val;
     }
     P4C_UNIMPLEMENTED("Comparing a enum base to %s is not supported.",
