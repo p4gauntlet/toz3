@@ -45,7 +45,8 @@ class ControlState : public P4Z3Instance {
  public:
     std::vector<std::pair<cstring, z3::expr>> state_vars;
     explicit ControlState(std::vector<std::pair<cstring, z3::expr>> state_vars)
-        : P4Z3Instance(new IR::Type_Void()), state_vars(state_vars) {}
+        : P4Z3Instance(new IR::Type_Void()), state_vars(std::move(state_vars)) {
+    }
     ControlState() : P4Z3Instance(new IR::Type_Void()) {}
     void merge(const z3::expr &, const P4Z3Instance &) override{
         // Merge is a no-op here.
@@ -57,10 +58,11 @@ class ControlState : public P4Z3Instance {
     cstring to_string() const override {
         cstring ret = "ControlState(";
         bool first = true;
-        for (auto tuple : state_vars) {
-            if (!first)
+        for (const auto &tuple : state_vars) {
+            if (!first) {
                 ret += ", ";
-            ret += tuple.first + ": " + tuple.second.to_string().c_str();
+            }
+            ret += tuple.first + ": " + tuple.second.to_string();
             first = false;
         }
         ret += ")";
@@ -79,7 +81,7 @@ class NumericVal : public P4Z3Instance {
 
  public:
     explicit NumericVal(const P4State *state, const IR::Type *p4_type,
-                        z3::expr val)
+                        const z3::expr &val)
         : P4Z3Instance(p4_type), state(state), val(val) {}
 
     const z3::expr *get_val() const { return &val; }
@@ -102,7 +104,7 @@ class Z3Bitvector : public NumericVal {
  public:
     bool is_signed;
     explicit Z3Bitvector(const P4State *state, const IR::Type *p4_type,
-                         z3::expr val, bool is_signed = false)
+                         const z3::expr &val, bool is_signed = false)
         : NumericVal(state, p4_type, val), is_signed(is_signed) {}
 
     /****** UNARY OPERANDS ******/
@@ -130,13 +132,12 @@ class Z3Bitvector : public NumericVal {
     Z3Result operator&(const P4Z3Instance &other) const override;
     Z3Result operator|(const P4Z3Instance &other) const override;
     Z3Result operator^(const P4Z3Instance &other) const override;
-    Z3Result concat(const P4Z3Instance &) const override;
-    Z3Result cast(const IR::Type *) const override;
-    P4Z3Instance *cast_allocate(const IR::Type *) const override;
+    Z3Result concat(const P4Z3Instance &other) const override;
+    Z3Result cast(const IR::Type *dest_type) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
-    Z3Result slice(const P4Z3Instance &, const P4Z3Instance &) const override;
-
-    void merge(const z3::expr &cond, const P4Z3Instance &other) override;
+    Z3Result slice(const z3::expr &hi, const z3::expr &lo) const override;
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     Z3Bitvector *copy() const override;
 
     cstring get_static_type() const override { return "Z3Bitvector"; }
@@ -144,8 +145,7 @@ class Z3Bitvector : public NumericVal {
         cstring ret = "Z3Bitvector(";
         return ret + val.to_string().c_str() + ")";
     }
-    Z3Bitvector(const Z3Bitvector &other)
-        : NumericVal(other), is_signed(other.is_signed) {}
+    Z3Bitvector(const Z3Bitvector &other) = default;
     // overload = operator
     Z3Bitvector &operator=(const Z3Bitvector &other) {
         if (this == &other) {
@@ -162,14 +162,12 @@ class Z3Bitvector : public NumericVal {
 
 class Z3Int : public NumericVal {
  public:
-    explicit Z3Int(const P4State *state, z3::expr val);
+    explicit Z3Int(const P4State *state, const z3::expr &val);
     explicit Z3Int(const P4State *state, int64_t int_val);
     explicit Z3Int(const P4State *state, big_int int_val);
     explicit Z3Int(const P4State *state);
 
     Z3Result operator-() const override;
-    Z3Result operator~() const override;
-    Z3Result operator!() const override;
     /****** BINARY OPERANDS ******/
     Z3Result operator*(const P4Z3Instance &other) const override;
     Z3Result operator/(const P4Z3Instance &other) const override;
@@ -186,18 +184,13 @@ class Z3Int : public NumericVal {
     z3::expr operator<=(const P4Z3Instance &other) const override;
     z3::expr operator>(const P4Z3Instance &other) const override;
     z3::expr operator>=(const P4Z3Instance &other) const override;
-    z3::expr operator&&(const P4Z3Instance &other) const override;
-    z3::expr operator||(const P4Z3Instance &other) const override;
     Z3Result operator&(const P4Z3Instance &other) const override;
     Z3Result operator|(const P4Z3Instance &other) const override;
     Z3Result operator^(const P4Z3Instance &other) const override;
-    Z3Result concat(const P4Z3Instance &) const override;
-    Z3Result cast(const IR::Type *) const override;
-    P4Z3Instance *cast_allocate(const IR::Type *) const override;
+    Z3Result cast(const IR::Type *dest_type) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
-    Z3Result slice(const P4Z3Instance &, const P4Z3Instance &) const override;
-
-    void merge(const z3::expr &cond, const P4Z3Instance &other) override;
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     Z3Int *copy() const override;
 
     cstring get_static_type() const override { return "Z3Int"; }
@@ -206,7 +199,7 @@ class Z3Int : public NumericVal {
         return ret + val.to_string().c_str() + ")";
     }
 
-    Z3Int(const Z3Int &other) : NumericVal(other) {}
+    Z3Int(const Z3Int &other) = default;
     // overload = operator
     Z3Int &operator=(const Z3Int &other) {
         if (this == &other) {
@@ -253,6 +246,7 @@ class DeclarationInstance : public P4Z3Instance {
         }
         BUG("Name %s not found in function map.", name);
     }
+
     void apply(Visitor *, const IR::Vector<IR::Argument> *);
 
     cstring get_static_type() const override { return "DeclarationInstance"; }

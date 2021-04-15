@@ -173,8 +173,8 @@ class P4Z3Instance : public P4Z3Node {
                           get_static_type());
     }
     /****** TERNARY OPERANDS ******/
-    virtual Z3Result slice(const P4Z3Instance & /*hi*/,
-                           const P4Z3Instance & /*lo*/) const {
+    virtual Z3Result slice(const z3::expr & /*hi*/,
+                           const z3::expr & /*lo*/) const {
         P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
     }
     /****** CUSTOM FUNCTIONS ******/

@@ -9,7 +9,7 @@ namespace TOZ3_V2 {
 
 z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
     // TODO: Clean this up
-    uint64_t expr_size;
+    uint64_t expr_size = 0;
     auto cast_expr = expr;
     if (expr.is_bv()) {
         expr_size = expr.get_sort().bv_size();
@@ -41,7 +41,7 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
 
 z3::expr align_bitvectors(const P4Z3Instance *target, const z3::sort &bv_cast,
                           bool align_bv = false, cstring op = "") {
-    const z3::expr *cast_expr;
+    const z3::expr *cast_expr = nullptr;
     if (const auto *target_int = target->to<Z3Int>()) {
         auto cast_val = pure_bv_cast(*target_int->get_val(), bv_cast);
         cast_expr = &cast_val;
@@ -111,7 +111,7 @@ Z3Result Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
     auto sort = val.get_sort();
     big_int max_return = pow((big_int)2, sort.bv_size()) - 1;
     auto *ctx = &sort.ctx();
-    cstring big_str = Util::toString(max_return, 0, false, 10);
+    cstring big_str = Util::toString(max_return, 0, false);
     z3::expr max_val = ctx->bv_val(big_str.c_str(), sort.bv_size());
     return Z3Bitvector(
         state, p4_type,
@@ -138,8 +138,8 @@ Z3Result Z3Bitvector::operatorSubSat(const P4Z3Instance &other) const {
 }
 
 Z3Result Z3Bitvector::operator>>(const P4Z3Instance &other) const {
-    const z3::expr *cast_other;
-    const z3::expr *cast_this;
+    const z3::expr *cast_other = nullptr;
+    const z3::expr *cast_this = nullptr;
     auto this_sort = val.get_sort();
     if (const auto *target_int = other.to<Z3Int>()) {
         auto cast_val = pure_bv_cast(*target_int->get_val(), this_sort);
@@ -171,8 +171,8 @@ Z3Result Z3Bitvector::operator>>(const P4Z3Instance &other) const {
 }
 
 Z3Result Z3Bitvector::operator<<(const P4Z3Instance &other) const {
-    const z3::expr *cast_other;
-    const z3::expr *cast_this;
+    const z3::expr *cast_other = nullptr;
+    const z3::expr *cast_this = nullptr;
     auto this_sort = val.get_sort();
     if (const auto *target_int = other.to<Z3Int>()) {
         // Produce a zero for ints that are larger than the target width
@@ -276,10 +276,10 @@ Z3Result Z3Bitvector::operator^(const P4Z3Instance &other) const {
 }
 
 Z3Result Z3Bitvector::concat(const P4Z3Instance &other) const {
-    const z3::expr *other_expr;
+    const z3::expr *other_expr = nullptr;
     if (const auto *other_val = other.to<Z3Bitvector>()) {
         other_expr = other_val->get_val();
-        auto concat_type = new IR::Type_Bits(
+        const auto *concat_type = new IR::Type_Bits(
             other_expr->get_sort().bv_size() + val.get_sort().bv_size(), false);
 
         return Z3Bitvector(state, concat_type, z3::concat(val, *other_expr),
@@ -317,7 +317,8 @@ Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
             return Z3Bitvector(state, &BOOL_TYPE, val > 0);
         }
     }
-    P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
+    P4C_UNIMPLEMENTED("cast to %s not implemented for %s.",
+                      dest_type->node_type_name(), get_static_type());
 }
 
 P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
@@ -333,26 +334,12 @@ P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
 
 /****** TERNARY OPERANDS ******/
 
-Z3Result Z3Bitvector::slice(const P4Z3Instance &hi,
-                            const P4Z3Instance &lo) const {
-    const z3::expr *hi_expr = nullptr;
-    const z3::expr *lo_expr = nullptr;
-    if (const auto *hi_var = hi.to<NumericVal>()) {
-        hi_expr = hi_var->get_val();
-    }
-    if (const auto *lo_var = lo.to<NumericVal>()) {
-        lo_expr = lo_var->get_val();
-    }
-    if (hi_expr != nullptr && lo_expr != nullptr) {
-        auto hi_int = hi_expr->get_numeral_uint64();
-        auto lo_int = lo_expr->get_numeral_uint64();
-        const auto *slice_type = new IR::Type_Bits(hi_int - lo_int + 1, false);
-        return Z3Bitvector(state, slice_type,
-                           val.extract(hi_int, lo_int).simplify(), is_signed);
-    }
-    P4C_UNIMPLEMENTED("Slice for hi %s and lo %s not implemented for %s.",
-                      hi.get_static_type(), lo.get_static_type(),
-                      get_static_type());
+Z3Result Z3Bitvector::slice(const z3::expr &hi, const z3::expr &lo) const {
+    auto hi_int = hi.get_numeral_uint64();
+    auto lo_int = lo.get_numeral_uint64();
+    const auto *slice_type = new IR::Type_Bits(hi_int - lo_int + 1, false);
+    return Z3Bitvector(state, slice_type,
+                       val.extract(hi_int, lo_int).simplify(), is_signed);
 }
 
 Z3Bitvector *Z3Bitvector::copy() const {
@@ -379,12 +366,12 @@ Z3Int
 ===============================================================================
 ***/
 
-Z3Int::Z3Int(const P4State *state, z3::expr val)
+Z3Int::Z3Int(const P4State *state, const z3::expr &val)
     : NumericVal(state, &INT_TYPE, val) {}
 Z3Int::Z3Int(const P4State *state, big_int int_val)
-    : NumericVal(
-          state, &INT_TYPE,
-          state->get_z3_ctx()->int_val(Util::toString(int_val, 0, false))) {}
+    : NumericVal(state, &INT_TYPE,
+                 state->get_z3_ctx()->int_val(
+                     Util::toString(std::move(int_val), 0, false))) {}
 
 Z3Int::Z3Int(const P4State *state, int64_t int_val)
     : NumericVal(state, &INT_TYPE, state->get_z3_ctx()->int_val(int_val)) {}
@@ -406,14 +393,6 @@ void Z3Int::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
 }
 
 Z3Result Z3Int::operator-() const { return Z3Int(state, -val); }
-
-Z3Result Z3Int::operator~() const {
-    P4C_UNIMPLEMENTED("~ not implemented for %s", to_string());
-}
-
-Z3Result Z3Int::operator!() const {
-    P4C_UNIMPLEMENTED("! not implemented for %s", to_string());
-}
 
 /****** BINARY OPERANDS ******/
 
@@ -475,7 +454,7 @@ Z3Result Z3Int::operatorAddSat(const P4Z3Instance &other) const {
         auto sort = cast_val.get_sort();
         big_int max_return = pow((big_int)2, sort.bv_size()) - 1;
         auto *ctx = &sort.ctx();
-        cstring big_str = Util::toString(max_return, 0, false, 10);
+        cstring big_str = Util::toString(max_return, 0, false);
         z3::expr max_val = ctx->bv_val(big_str.c_str(), sort.bv_size());
         return Z3Bitvector(state, other_val->get_p4_type(),
                            z3::ite(no_underflow && no_overflow,
@@ -588,14 +567,6 @@ z3::expr Z3Int::operator>=(const P4Z3Instance &other) const {
     P4C_UNIMPLEMENTED(">= not implemented for %s.", other.get_static_type());
 }
 
-z3::expr Z3Int::operator&&(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("&& not implemented for %s.", get_static_type());
-}
-
-z3::expr Z3Int::operator||(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("|| not implemented for %s.", get_static_type());
-}
-
 Z3Result Z3Int::operator&(const P4Z3Instance &other) const {
     if (const auto *other_int = other.to<Z3Int>()) {
         auto left = big_int(val.simplify().get_decimal_string(0));
@@ -641,9 +612,6 @@ Z3Result Z3Int::operator^(const P4Z3Instance &other) const {
     P4C_UNIMPLEMENTED("^ not implemented for %s.", other.get_static_type());
 }
 
-Z3Result Z3Int::concat(const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
-}
 
 Z3Result Z3Int::cast(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
@@ -673,10 +641,5 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
     BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
 }
 
-/****** TERNARY OPERANDS ******/
-
-Z3Result Z3Int::slice(const P4Z3Instance &, const P4Z3Instance &) const {
-    P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
-}
 
 }  // namespace TOZ3_V2

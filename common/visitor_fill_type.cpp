@@ -192,7 +192,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
 }
 // new DeclarationInstance(state, instance_decl)
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
-    P4Z3Instance *left;
+    P4Z3Instance *left = nullptr;
     if (dc->initializer != nullptr) {
         dc->initializer->apply(resolve_expr);
         left = state->get_expr_result()->cast_allocate(dc->type);
@@ -204,7 +204,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
-    P4Z3Instance *left;
+    P4Z3Instance *left = nullptr;
     if (dv->initializer != nullptr) {
         dv->initializer->apply(resolve_expr);
         left = state->get_expr_result()->cast_allocate(dv->type);
