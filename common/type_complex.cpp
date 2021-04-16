@@ -528,7 +528,8 @@ z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
     if (const auto *num_val = other.to<NumericVal>()) {
         auto other_val = *num_val->get_val();
-        return enum_val == other_val;
+        auto cast_val = pure_bv_cast(enum_val, other_val.get_sort());
+        return cast_val == other_val;
     }
     P4C_UNIMPLEMENTED("Comparing a enum base to %s is not supported.",
                       other.get_static_type());
@@ -575,7 +576,7 @@ EnumInstance *EnumInstance::copy() const { return new EnumInstance(*this); }
 /***
 ===============================================================================
 ErrorInstance
-===============================================================================
+==================================d=============================================
 ***/
 
 ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
