@@ -332,16 +332,13 @@ class TupleInstance : public StructBase {
     TupleInstance *copy() const override;
 };
 
-class ListInstance : public P4Z3Instance {
- private:
-    P4State *state;
-    std::vector<P4Z3Instance *> val_list;
-
+class ListInstance : public StructBase {
  public:
-    ListInstance(P4State *state, std::vector<P4Z3Instance *> val_list,
-                 const IR::Type *type)
-        : P4Z3Instance(type), state(state), val_list(std::move(val_list)) {}
-
+    explicit ListInstance(P4State *state,
+                          const std::vector<P4Z3Instance *> &val_list,
+                          const IR::Type *type);
+    explicit ListInstance(P4State *state, const IR::Type_List *list_type,
+                          uint64_t member_id, cstring prefix);
     cstring get_static_type() const override { return "ListInstance"; }
     cstring to_string() const override {
         cstring ret = "ListInstance(";
@@ -349,8 +346,8 @@ class ListInstance : public P4Z3Instance {
         return ret;
     }
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
-    std::vector<P4Z3Instance *> get_val_list() const { return val_list; }
     ListInstance *copy() const override;
+    std::vector<P4Z3Instance *> get_val_list() const;
 };
 
 class P4Declaration : public P4Z3Instance {

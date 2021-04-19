@@ -656,6 +656,36 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
 ListInstance
 ===============================================================================
 ***/
+ListInstance::ListInstance(P4State *state,
+                           const std::vector<P4Z3Instance *> &val_list,
+                           const IR::Type *type_list)
+    : StructBase(state, type_list, 0, "") {
+    IR::Vector<IR::Type> components;
+    for (size_t idx = 0; idx < val_list.size(); ++idx) {
+        auto *val = val_list[idx];
+        cstring name = std::to_string(idx);
+        insert_member(name, val);
+        const auto *type = val->get_p4_type();
+        member_types.insert({name, type});
+        components.push_back(type);
+    }
+    // The list should have the type information now
+    p4_type = new IR::Type_List(components);
+}
+
+ListInstance::ListInstance(P4State *state, const IR::Type_List *list_type,
+                           uint64_t member_id, cstring prefix)
+    : StructBase(state, list_type, member_id, prefix) {
+    auto flat_id = member_id;
+    for (size_t idx = 0; idx < list_type->components.size(); ++idx) {
+        const auto *type = list_type->components[idx];
+        cstring name = std::to_string(idx);
+        insert_member(
+            name, state->gen_instance(prefix + std::to_string(flat_id), type));
+        member_types.insert({name, type});
+        flat_id++;
+    }
+}
 
 P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
     auto *instance = state->gen_instance("list", dest_type);
@@ -664,7 +694,7 @@ P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
         P4C_UNIMPLEMENTED("Unsupported type %s for ListInstance.",
                           dest_type->node_type_name());
     }
-    struct_instance->set_list(val_list);
+    struct_instance->set_list(get_val_list());
     return struct_instance;
 }
 
@@ -675,7 +705,15 @@ ListInstance *ListInstance::copy() const {
     // }
     // we perform a copy any time we assign a list instance
     // so cloning is not needed here
-    return new ListInstance(state, val_list, p4_type);
+    return new ListInstance(state, get_val_list(), p4_type);
+}
+
+std::vector<P4Z3Instance *> ListInstance::get_val_list() const {
+    std::vector<P4Z3Instance *> val_list;
+    for (const auto &member : members) {
+        val_list.push_back(member.second);
+    }
+    return val_list;
 }
 
 /***

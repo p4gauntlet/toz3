@@ -380,11 +380,11 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
     set_var(member_struct, tmp_rval);
 }
 
-VarMap P4State::merge_args_with_params(Visitor *visitor,
-                                       const IR::Vector<IR::Argument> &args,
-                                       const IR::ParameterList &params) {
-    VarMap merged_vec;
+void P4State::merge_args_with_params(Visitor *visitor,
+                                     const IR::Vector<IR::Argument> &args,
+                                     const IR::ParameterList &params) {
     size_t idx = 0;
+    VarMap merged_vec;
     for (const auto &arg : args) {
         const IR::Parameter *param = nullptr;
         if (arg->name) {
@@ -392,17 +392,26 @@ VarMap P4State::merge_args_with_params(Visitor *visitor,
         } else {
             param = params.getParameter(idx);
         }
-        const auto *resolved_type = resolve_type(param->type);
+        const auto *resolved_type = param->type;
+        visitor->visit(arg->expression);
+        if (const auto *tn = resolved_type->to<IR::Type_Name>()) {
+            cstring type_name = tn->path->name.name;
+            resolved_type = find_type(type_name);
+            if (resolved_type == nullptr) {
+                // Need to infer a type here and add it to the scope
+                // TODO: This should be a separate pass.
+                resolved_type = get_expr_result()->get_p4_type();
+                add_type(type_name, resolved_type);
+            }
+        }
         if (param->direction == IR::Direction::Out) {
-            CHECK_NULL(resolved_type);  // TODO: Remove this
             auto *instance = gen_instance(UNDEF_LABEL, resolved_type);
-            merged_vec.insert({param->name.name, {instance, resolved_type}});
             idx++;
+            merged_vec.insert({param->name.name, {instance, resolved_type}});
             continue;
         }
-        visitor->visit(arg->expression);
         // TODO: We should not need this ite, this is a hack
-        if (get_expr_result()->is<ListInstance>() && resolved_type != nullptr) {
+        if (get_expr_result()->is<ListInstance>()) {
             auto *cast_val = get_expr_result()->cast_allocate(resolved_type);
             merged_vec.insert({param->name.name, {cast_val, resolved_type}});
         } else {
@@ -411,7 +420,13 @@ VarMap P4State::merge_args_with_params(Visitor *visitor,
         }
         idx++;
     }
-    return merged_vec;
+    // Now we actually set the variables.
+    // After we have resolved and collected them.
+    for (auto arg_tuple : merged_vec) {
+        cstring param_name = arg_tuple.first;
+        auto arg_val = arg_tuple.second;
+        declare_var(param_name, arg_val.first, arg_val.second);
+    }
 }
 
 CopyArgs resolve_args(P4State *state, Visitor *visitor,
@@ -440,10 +455,11 @@ CopyArgs resolve_args(P4State *state, Visitor *visitor,
 }
 
 void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
-    push_scope();
-
     auto copy_out_args =
         resolve_args(this, visitor, param_info.arguments, param_info.params);
+
+    push_scope();
+
     // Specialize
     size_t idx = 0;
     auto type_args_len = param_info.type_args.size();
@@ -453,19 +469,10 @@ void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
             const auto *arg = param_info.type_args[idx];
             add_type(type_name, arg);
             idx++;
-        } else {
-            // Need to infer a type here
-            // We use the parameters
         }
     }
-    auto merged_args = merge_args_with_params(visitor, param_info.arguments,
-                                              param_info.params);
+    merge_args_with_params(visitor, param_info.arguments, param_info.params);
 
-    for (auto arg_tuple : merged_args) {
-        cstring param_name = arg_tuple.first;
-        auto arg_val = arg_tuple.second;
-        declare_var(param_name, arg_val.first, arg_val.second);
-    }
     set_copy_out_args(copy_out_args);
 }
 
@@ -512,7 +519,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     if (const auto *tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
     }
-    // FIXME: Split this up to not muddle things.
+    // TODO: Split this up to not muddle things.
     if (const auto *t = type->to<IR::Type_Struct>()) {
         instance = new StructInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Header>()) {
@@ -528,6 +535,8 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         instance = get_var(t->name.name);
     } else if (const auto *t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);
+    } else if (const auto *t = type->to<IR::Type_List>()) {
+        instance = new ListInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Tuple>()) {
         instance = new TupleInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Extern>()) {
@@ -579,11 +588,7 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) const {
     if (const auto *tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
         // TODO: For now catch these exceptions, but this should be solved
-        try {
-            return get_type(type_name);
-        } catch (const Util::P4CExceptionBase &bug) {
-            return nullptr;
-        }
+        return get_type(type_name);
     }
     return type;
 }

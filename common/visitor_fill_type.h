@@ -35,7 +35,7 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::Type_StructLike *ts) override;
     bool preorder(const IR::Type_Enum *te) override;
     bool preorder(const IR::Type_Error *te) override;
-    bool preorder(const IR::Type_SerEnum *) override;
+    bool preorder(const IR::Type_SerEnum *tse) override;
     bool preorder(const IR::Type_Parser *tp) override;
     bool preorder(const IR::Type_Control *tc) override;
 

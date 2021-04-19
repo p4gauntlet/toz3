@@ -70,7 +70,7 @@ class P4State {
                                uint64_t id = 0, cstring prefix = "");
 
     /****** COPY-IN/COPY-OUT ******/
-    VarMap merge_args_with_params(Visitor *visitor,
+    void merge_args_with_params(Visitor *visitor,
                                   const IR::Vector<IR::Argument> &args,
                                   const IR::ParameterList &params);
     void copy_in(Visitor *visitor, const ParamInfo &param_info);
