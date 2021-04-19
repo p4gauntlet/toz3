@@ -508,7 +508,10 @@ Z3Result Z3Int::operatorSubSat(const P4Z3Instance &) const {
 
 Z3Result Z3Int::operator>>(const P4Z3Instance &other) const {
     if (const auto *other_int = other.to<Z3Int>()) {
-        big_int result = val >> other_int->val;
+        // TODO: Figure out big int here, why is that not supported?
+        auto left = val.simplify().get_numeral_int64();
+        auto right = other_int->val.simplify().get_numeral_int64();
+        auto result = left >> right;
         return Z3Int(state, result);
     }
     if (const auto *other_val = other.to<Z3Bitvector>()) {
@@ -521,7 +524,10 @@ Z3Result Z3Int::operator>>(const P4Z3Instance &other) const {
 
 Z3Result Z3Int::operator<<(const P4Z3Instance &other) const {
     if (const auto *other_int = other.to<Z3Int>()) {
-        big_int result = val << other_int->val;
+        // TODO: Figure out big int here, why is that not supported?
+        auto left = val.simplify().get_numeral_int64();
+        auto right = other_int->val.simplify().get_numeral_int64();
+        auto result = left << right;
         return Z3Int(state, result);
     }
     if (const auto *other_val = other.to<Z3Bitvector>()) {
