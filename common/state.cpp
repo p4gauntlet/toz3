@@ -380,9 +380,10 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
     set_var(member_struct, tmp_rval);
 }
 
-void P4State::merge_args_with_params(Visitor *visitor,
-                                     const IR::Vector<IR::Argument> &args,
-                                     const IR::ParameterList &params) {
+CopyArgs P4State::merge_args_with_params(Visitor *visitor,
+                                         const IR::Vector<IR::Argument> &args,
+                                         const IR::ParameterList &params) {
+    CopyArgs resolved_args;
     size_t idx = 0;
     VarMap merged_vec;
     for (const auto &arg : args) {
@@ -392,31 +393,43 @@ void P4State::merge_args_with_params(Visitor *visitor,
         } else {
             param = params.getParameter(idx);
         }
+        const P4Z3Instance *arg_result = nullptr;
+        auto direction = param->direction;
+        if (direction == IR::Direction::Out ||
+            direction == IR::Direction::InOut) {
+            auto member_struct =
+                get_member_struct(this, visitor, arg->expression);
+            resolved_args.push_back({member_struct, param->name.name});
+            arg_result = get_member(this, member_struct);
+        } else {
+            visitor->visit(arg->expression);
+            arg_result = get_expr_result();
+        }
+
         const auto *resolved_type = param->type;
-        visitor->visit(arg->expression);
         if (const auto *tn = resolved_type->to<IR::Type_Name>()) {
             cstring type_name = tn->path->name.name;
             resolved_type = find_type(type_name);
             if (resolved_type == nullptr) {
                 // Need to infer a type here and add it to the scope
                 // TODO: This should be a separate pass.
-                resolved_type = get_expr_result()->get_p4_type();
+                resolved_type = arg_result->get_p4_type();
                 add_type(type_name, resolved_type);
             }
         }
-        if (param->direction == IR::Direction::Out) {
+        if (direction == IR::Direction::Out) {
             auto *instance = gen_instance(UNDEF_LABEL, resolved_type);
             idx++;
             merged_vec.insert({param->name.name, {instance, resolved_type}});
             continue;
         }
         // TODO: We should not need this ite, this is a hack
-        if (get_expr_result()->is<ListInstance>()) {
-            auto *cast_val = get_expr_result()->cast_allocate(resolved_type);
+        if (arg_result->is<ListInstance>()) {
+            auto *cast_val = arg_result->cast_allocate(resolved_type);
             merged_vec.insert({param->name.name, {cast_val, resolved_type}});
         } else {
             merged_vec.insert(
-                {param->name.name, {copy_expr_result(), resolved_type}});
+                {param->name.name, {arg_result->copy(), resolved_type}});
         }
         idx++;
     }
@@ -427,36 +440,10 @@ void P4State::merge_args_with_params(Visitor *visitor,
         auto arg_val = arg_tuple.second;
         declare_var(param_name, arg_val.first, arg_val.second);
     }
-}
-
-CopyArgs resolve_args(P4State *state, Visitor *visitor,
-                      const IR::Vector<IR::Argument> &args,
-                      const IR::ParameterList &params) {
-    CopyArgs resolved_args;
-
-    size_t arg_len = args.size();
-    size_t idx = 0;
-    for (const auto *param : params.parameters) {
-        auto direction = param->direction;
-        if (direction == IR::Direction::In ||
-            direction == IR::Direction::None) {
-            idx++;
-            continue;
-        }
-        if (idx < arg_len) {
-            const IR::Argument *arg = args.at(idx);
-            auto member_struct =
-                get_member_struct(state, visitor, arg->expression);
-            resolved_args.push_back({member_struct, param->name.name});
-        }
-        idx++;
-    }
     return resolved_args;
 }
 
 void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
-    auto copy_out_args =
-        resolve_args(this, visitor, param_info.arguments, param_info.params);
 
     push_scope();
 
@@ -471,7 +458,8 @@ void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
             idx++;
         }
     }
-    merge_args_with_params(visitor, param_info.arguments, param_info.params);
+    auto copy_out_args = merge_args_with_params(visitor, param_info.arguments,
+                                                param_info.params);
 
     set_copy_out_args(copy_out_args);
 }
