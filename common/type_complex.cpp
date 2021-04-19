@@ -609,12 +609,11 @@ SerEnumInstance::SerEnumInstance(
     enum_val = state->gen_z3_expr(instance_name, type->type);
     if (const auto *tb = type->type->to<IR::Type_Bits>()) {
         member_type = tb;
+        width = tb->width_bits();
     } else {
         P4C_UNIMPLEMENTED("Type %s not supported for SerEnum!",
                           type->type->node_type_name());
     }
-    // FIXME: Enums should not be a struct base, actually
-    width = 32;
     members = std::move(input_members);
 }
 
