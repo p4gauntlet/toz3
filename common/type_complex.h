@@ -62,10 +62,6 @@ class StructBase : public P4Z3Instance {
     const ordered_map<cstring, P4Z3Instance *> *get_member_map() const {
         return &members;
     }
-    const ordered_map<cstring, P4Z3Instance *> *
-    get_immutable_member_map() const {
-        return &members;
-    }
     void set_undefined() override;
     virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
     virtual void bind(uint64_t member_id = 0, cstring prefix = "");
@@ -113,9 +109,13 @@ class StructInstance : public StructBase {
 
 class HeaderInstance : public StructInstance {
     using StructInstance::StructInstance;
+    // HeaderUnionInstances are friend classes because they need direct var
+    // access outside the API
+    friend HeaderUnionInstance;
 
  private:
     std::map<cstring, P4Z3Function> member_functions;
+    HeaderUnionInstance *parent_union = nullptr;
 
  public:
     HeaderInstance(P4State *state, const IR::Type_Header *type,
@@ -128,6 +128,7 @@ class HeaderInstance : public StructInstance {
     void propagate_validity(const z3::expr *valid_expr = nullptr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     void set_list(std::vector<P4Z3Instance *> input_list) override;
+    void bind_to_union(HeaderUnionInstance *union_parent);
 
     P4Z3Function get_function(cstring name) const {
         auto it = member_functions.find(name);
@@ -210,6 +211,50 @@ class StackInstance : public StructBase {
     StackInstance(const StackInstance &other);
     // overload = operator
     StackInstance &operator=(const StackInstance &other);
+};
+
+class HeaderUnionInstance : public StructBase {
+ private:
+    std::map<cstring, P4Z3Function> member_functions;
+    z3::expr get_valid() const;
+
+ public:
+    explicit HeaderUnionInstance(P4State *state,
+                                 const IR::Type_HeaderUnion *type,
+                                 uint64_t member_id, cstring prefix);
+
+    std::vector<std::pair<cstring, z3::expr>>
+    get_z3_vars(cstring prefix = "",
+                const z3::expr *valid_expr = nullptr) const override;
+    cstring get_static_type() const override { return "HeaderUnionInstance"; }
+    cstring to_string() const override {
+        cstring ret = "HeaderUnionInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first) {
+                ret += ", ";
+            }
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
+        ret += ")";
+        return ret;
+    }
+    P4Z3Function get_function(cstring name) const {
+        auto it = member_functions.find(name);
+        if (it != member_functions.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in function map.", name);
+    }
+    void update_validity(const HeaderInstance *child,
+                         const z3::expr &valid_val);
+    void isValid(Visitor *, const IR::Vector<IR::Argument> *);
+    // copy constructor
+    HeaderUnionInstance *copy() const override;
+    HeaderUnionInstance(const HeaderUnionInstance &other);
+    // overload = operator
+    HeaderUnionInstance &operator=(const HeaderUnionInstance &other);
 };
 
 class EnumBase : public StructBase {

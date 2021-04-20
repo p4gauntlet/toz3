@@ -143,11 +143,15 @@ z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
         const auto *key = keys.at(idx);
         visitor->visit(key->expression);
-        const auto *key_eval = state->get_expr_result<Z3Bitvector>()->get_val();
+        auto key_eval = *state->get_expr_result<Z3Bitvector>()->get_val();
+        // It is actually possible to use a bool as key.
+        if (key_eval.is_bool()) {
+            key_eval = z3::ite(key_eval, ctx->bv_val(1, 1), ctx->bv_val(0, 1));
+        }
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
         auto key_match =
-            ctx->bv_const(key_name.c_str(), key_eval->get_sort().bv_size());
-        hit = hit || (*key_eval == key_match);
+            ctx->bv_const(key_name.c_str(), key_eval.get_sort().bv_size());
+        hit = hit || (key_eval == key_match);
     }
     return hit;
 }

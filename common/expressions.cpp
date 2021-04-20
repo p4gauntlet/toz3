@@ -100,6 +100,9 @@ FunOrMethod get_function(const P4Z3Instance *parent_class,
     if (const auto *decl = parent_class->to<P4TableInstance>()) {
         return decl->get_function(member_identifier);
     }
+    if (const auto *decl = parent_class->to<HeaderUnionInstance>()) {
+        return decl->get_function(member_identifier);
+    }
     P4C_UNIMPLEMENTED("Retrieving a function not implemented for type %s.",
                       parent_class->get_static_type());
 }

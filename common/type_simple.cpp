@@ -207,8 +207,10 @@ Z3Result Z3Bitvector::operator<<(const P4Z3Instance &other) const {
 
 z3::expr Z3Bitvector::operator==(const P4Z3Instance &other) const {
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "==");
-    // Mismatched bit vectors evaluate to false. TODO: Check if this is allowed
-    if (val.get_sort().bv_size() != other_expr.get_sort().bv_size()) {
+    // Mismatched bit vectors evaluate to false.
+    // TODO: Check if this is allowed and clean this up.
+    if (val.get_sort().is_bv() && other_expr.get_sort().is_bv() &&
+        val.get_sort().bv_size() != other_expr.get_sort().bv_size()) {
         return state->get_z3_ctx()->bool_val(false);
     }
     return val == other_expr;
@@ -653,6 +655,9 @@ Z3Result Z3Int::cast(const IR::Type *dest_type) const {
         auto *ctx = &val.get_sort().ctx();
         auto dest_sort = ctx->bv_sort(tb->width_bits());
         return Z3Bitvector(state, tb, pure_bv_cast(val, dest_sort));
+    }
+    if (const auto *tb = dest_type->to<IR::Type_Boolean>()) {
+        return Z3Bitvector(state, tb, val != 0);
     }
     if (dest_type->is<IR::Type_InfInt>()) {
         // nothing to do, return a copy

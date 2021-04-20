@@ -25,6 +25,7 @@ class Z3Bitvector;
 class VoidResult;
 class StructInstance;
 class HeaderInstance;
+class HeaderUnionInstance;
 class EnumInstance;
 class ErrorInstance;
 class SerEnumInstance;

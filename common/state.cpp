@@ -523,6 +523,8 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         instance = get_var(t->name.name);
     } else if (const auto *t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);
+    } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {
+        instance = new HeaderUnionInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_List>()) {
         instance = new ListInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Tuple>()) {
@@ -551,14 +553,13 @@ void P4State::pop_scope() { scopes.pop_back(); }
 
 void P4State::add_type(cstring type_name, const IR::Type *t) {
     if (find_type(type_name) != nullptr) {
-        FATAL_ERROR("Type %s already exists in target scope.", type_name);
+        warning("Type %s shadows existing type in target scope.", type_name);
+    }
+    if (scopes.empty()) {
+        main_scope.add_type(type_name, t);
+        // assume we insert into the global scope
     } else {
-        if (scopes.empty()) {
-            main_scope.add_type(type_name, t);
-            // assume we insert into the global scope
-        } else {
-            get_mut_current_scope()->add_type(type_name, t);
-        }
+        get_mut_current_scope()->add_type(type_name, t);
     }
 }
 

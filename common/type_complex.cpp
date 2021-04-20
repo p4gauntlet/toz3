@@ -303,7 +303,13 @@ z3::expr HeaderInstance::operator!=(const P4Z3Instance &other) const {
     return !(*this == other);
 }
 
-void HeaderInstance::set_valid(const z3::expr &valid_val) { valid = valid_val; }
+void HeaderInstance::set_valid(const z3::expr &valid_val) {
+    valid = valid_val;
+    // If this is header is bound to a union we need to invalidate its peers
+    if (parent_union != nullptr) {
+        parent_union->update_validity(this, valid_val);
+    }
+}
 const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
 void HeaderInstance::setValid(Visitor *, const IR::Vector<IR::Argument> *) {
@@ -355,6 +361,10 @@ void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
     StructBase::set_list(input_list);
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
+}
+
+void HeaderInstance::bind_to_union(HeaderUnionInstance *union_parent) {
+    parent_union = union_parent;
 }
 
 /***
@@ -474,11 +484,124 @@ StackInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
             auto z3_sub_vars = z3_var->get_z3_vars(name, valid_expr);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
+        } else if (const auto *z3_var = member->to<HeaderUnionInstance>()) {
+            auto z3_sub_vars = z3_var->get_z3_vars(name, valid_expr);
+            z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
+                           z3_sub_vars.end());
         } else {
             BUG("Var is neither type z3::expr nor HeaderInstance!");
         }
     }
     return z3_vars;
+}
+
+/***
+===============================================================================
+HeaderUnionInstance
+===============================================================================
+***/
+
+HeaderUnionInstance::HeaderUnionInstance(P4State *state,
+                                         const IR::Type_HeaderUnion *type,
+                                         uint64_t member_id, cstring prefix)
+    : StructBase(state, type, member_id, prefix) {
+    auto flat_id = member_id;
+    for (const auto *field : type->fields) {
+        const IR::Type *resolved_type = state->resolve_type(field->type);
+        if (resolved_type->is<IR::Type_Header>()) {
+            auto *member_var =
+                state->gen_instance(UNDEF_LABEL, resolved_type, flat_id);
+            const auto *si = member_var->to<HeaderInstance>();
+            BUG_CHECK(si, "Unexpected generated instance %s",
+                      member_var->to_string());
+            width += si->get_width();
+            flat_id += si->get_width();
+            insert_member(field->name.name, member_var);
+            member_types.insert({field->name.name, resolved_type});
+        } else {
+            P4C_UNIMPLEMENTED("Type \"%s\" not supported!", field->type);
+        }
+    }
+    member_functions["isValid0"] =
+        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+            isValid(visitor, args);
+        };
+}
+
+HeaderUnionInstance::HeaderUnionInstance(const HeaderUnionInstance &other)
+    : StructBase(other) {
+    member_functions["isValid0"] =
+        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+            isValid(visitor, args);
+        };
+}
+
+HeaderUnionInstance &
+HeaderUnionInstance::operator=(const HeaderUnionInstance &other) {
+    if (this == &other) {
+        return *this;
+    }
+    *this = HeaderUnionInstance(other);
+    return *this;
+}
+
+std::vector<std::pair<cstring, z3::expr>>
+HeaderUnionInstance::get_z3_vars(cstring prefix,
+                                 const z3::expr *valid_expr) const {
+    // TODO: Fix this.
+    auto tmp_valid = get_valid();
+    if (valid_expr == nullptr) {
+        valid_expr = &tmp_valid;
+    }
+    std::vector<z3::expr> valid_vars;
+
+    std::vector<std::pair<cstring, z3::expr>> z3_vars;
+    for (auto member_tuple : members) {
+        cstring name = member_tuple.first;
+        if (prefix.size() != 0) {
+            name = prefix + "." + name;
+        }
+        const auto *member = member_tuple.second;
+        if (const auto *hi = member->to<HeaderInstance>()) {
+            auto z3_sub_vars = hi->get_z3_vars(name, valid_expr);
+            z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
+                           z3_sub_vars.end());
+        } else {
+            BUG("Member is not a header instance!");
+        }
+    }
+    return z3_vars;
+}
+z3::expr HeaderUnionInstance::get_valid() const {
+    z3::expr valid_var = state->get_z3_ctx()->bool_val(false);
+    // A header union is valid if any of its members is valid
+    for (const auto &member : members) {
+        const auto *hi = member.second->to<HeaderInstance>();
+        BUG_CHECK(hi, "Unexpected instance %s", member.second->to_string());
+        valid_var = valid_var || *hi->get_valid();
+    }
+    return valid_var;
+}
+
+void HeaderUnionInstance::isValid(Visitor *, const IR::Vector<IR::Argument> *) {
+    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, get_valid()));
+}
+
+HeaderUnionInstance *HeaderUnionInstance::copy() const {
+    return new HeaderUnionInstance(*this);
+}
+
+void HeaderUnionInstance::update_validity(const HeaderInstance *child,
+                                          const z3::expr &valid_val) {
+    for (auto &member : members) {
+        auto *hi = member.second->to_mut<HeaderInstance>();
+        BUG_CHECK(hi, "Unexpected instance %s", member.second->to_string());
+        const auto *old_valid = hi->get_valid();
+        // This is kind of stup but works, I have no means to check child
+        // equality yet
+        hi->valid = z3::ite(valid_val, state->get_z3_ctx()->bool_val(false),
+                            *old_valid);
+    }
 }
 
 /***
