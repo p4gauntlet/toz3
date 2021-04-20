@@ -300,6 +300,12 @@ Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
         auto dest_sort = ctx->bv_sort(tb->width_bits());
         return Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort));
     }
+    // TODO: Merge with Bits
+    if (const auto *tb = dest_type->to<IR::Type_Varbits>()) {
+        auto *ctx = &val.get_sort().ctx();
+        auto dest_sort = ctx->bv_sort(tb->width_bits());
+        return Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort));
+    }
     if (dest_type->is<IR::Type_InfInt>()) {
         // TODO: Clean this up and add some checks
         auto *ctx = &val.get_sort().ctx();
