@@ -144,15 +144,13 @@ z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
         const auto *key = keys.at(idx);
         visitor->visit(key->expression);
-        auto key_eval = *state->get_expr_result<Z3Bitvector>()->get_val();
-        // It is actually possible to use a bool as key.
-        if (key_eval.is_bool()) {
-            key_eval = z3::ite(key_eval, ctx->bv_val(1, 1), ctx->bv_val(0, 1));
-        }
+        const auto *key_eval = state->get_expr_result();
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
-        auto key_match =
-            ctx->bv_const(key_name.c_str(), key_eval.get_sort().bv_size());
-        hit = hit || (key_eval == key_match);
+        // It is actually possible to use a variety of types as key.
+        // So we have to stay generic and produce a corresponding variable.
+        const auto *key_match =
+            visitor->state->gen_instance(key_name, key_eval->get_p4_type());
+        hit = hit || (*key_eval == *key_match);
     }
     return hit;
 }
@@ -597,37 +595,41 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
     size_t arg_len = args->size();
     size_t idx = 0;
     for (const auto *param : params->parameters) {
+        const IR::Expression *arg_expr = nullptr;
         if (idx < arg_len) {
-            const auto *arg = args->at(idx);
-            const auto *arg_expr = arg->expression;
-            if (const auto *cce =
-                    arg_expr->to<IR::ConstructorCallExpression>()) {
-                auto *state_result = run_arch_block(visitor, cce);
-                merged_vec.insert(
-                    {param->name.name, {state_result, param->type}});
-            } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
-                const auto *decl =
-                    visitor->state->get_static_decl(path->path->name.name);
-                const auto *di = decl->decl->to<IR::Declaration_Instance>();
-                CHECK_NULL(di);
-                auto sub_results = visitor->gen_state_from_instance(di);
-                for (const auto &sub_result : sub_results) {
-                    auto merged_name = param->name.name + sub_result.first;
-                    auto variables = sub_result.second;
-                    merged_vec.insert({merged_name, variables});
-                }
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
-                                  arg->expression,
-                                  arg->expression->node_type_name());
-            }
+            arg_expr = args->at(idx)->expression;
+        } else if (param->defaultValue != nullptr) {
+            arg_expr = param->defaultValue;
+        } else if (param->isOptional()) {
+            // No argument for an optional parameter
+            // TODO: Continue or initialize something?
+            idx++;
+            continue;
         } else {
             BUG("Mismatch between argument size %d and parameters %s", arg_len,
                 *params);
         }
+
+        if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
+            auto *state_result = run_arch_block(visitor, cce);
+            merged_vec.insert({param->name.name, {state_result, param->type}});
+        } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
+            const auto *decl =
+                visitor->state->get_static_decl(path->path->name.name);
+            const auto *di = decl->decl->to<IR::Declaration_Instance>();
+            CHECK_NULL(di);
+            auto sub_results = visitor->gen_state_from_instance(di);
+            for (const auto &sub_result : sub_results) {
+                auto merged_name = param->name.name + sub_result.first;
+                auto variables = sub_result.second;
+                merged_vec.insert({merged_name, variables});
+            }
+        } else {
+            P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
+                              arg_expr, arg_expr->node_type_name());
+        }
         idx++;
     }
-
     return merged_vec;
 }
 

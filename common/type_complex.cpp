@@ -650,10 +650,13 @@ void EnumBase::bind(uint64_t member_id, cstring prefix) {
 
 z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
-    if (const auto *num_val = other.to<NumericVal>()) {
-        auto other_val = *num_val->get_val();
+    if (const auto *other_numeric = other.to<NumericVal>()) {
+        auto other_val = *other_numeric->get_val();
         auto cast_val = pure_bv_cast(enum_val, other_val.get_sort());
         return cast_val == other_val;
+    }
+    if (const auto *other_enum = other.to<EnumBase>()) {
+        return enum_val == other_enum->get_enum_val();
     }
     P4C_UNIMPLEMENTED("Comparing a enum base to %s is not supported.",
                       other.get_static_type());
