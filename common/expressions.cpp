@@ -94,7 +94,7 @@ FunOrMethod get_function(const P4Z3Instance *parent_class,
     if (const auto *ext = parent_class->to<ExternInstance>()) {
         return ext->get_function(member_identifier);
     }
-    if (const auto *decl = parent_class->to<DeclarationInstance>()) {
+    if (const auto *decl = parent_class->to<ControlInstance>()) {
         return decl->get_function(member_identifier);
     }
     if (const auto *decl = parent_class->to<P4TableInstance>()) {

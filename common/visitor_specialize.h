@@ -32,6 +32,6 @@ class TypeSpecialization : public PassManager {
     }
 };
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif // _TOZ3_VISITOR_SPECIALIZE_H_
+#endif  // _TOZ3_VISITOR_SPECIALIZE_H_

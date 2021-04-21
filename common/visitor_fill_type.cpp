@@ -2,6 +2,7 @@
 #include <utility>
 
 #include "lib/exceptions.h"
+#include "type_base.h"
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
 
@@ -96,7 +97,6 @@ bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
 
 bool TypeVisitor::preorder(const IR::Type_Extern *t) {
     state->add_type(t->name.name, t);
-    // state->declare_var(t->name.name, new ExternInstance(state, t), t);
 
     return false;
 }
@@ -215,12 +215,27 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
     if (instance_name == "main" || resolved_type->is<IR::Type_Package>()) {
         // Do not execute main here just yet.
         state->declare_static_decl(instance_name, new P4Declaration(di));
+    } else if (const auto *te = resolved_type->to<IR::Type_Extern>()) {
+        // TODO: Clean this mess up.
+        state->declare_var(instance_name, new ExternInstance(state, te), te);
+    } else if (const auto *instance_decl =
+                   resolved_type->to<IR::Type_Declaration>()) {
+        std::vector<P4Z3Instance *> resolved_const_args;
+        for (const auto *arg : *di->arguments) {
+            arg->expression->apply(resolve_expr);
+            resolved_const_args.push_back(state->copy_expr_result());
+        }
+        state->declare_var(
+            di->name.name,
+            new ControlInstance(state, instance_decl, resolved_const_args),
+            resolved_type);
     } else {
-        auto *instance = state->gen_instance(instance_name, resolved_type);
-        state->declare_var(instance_name, instance, resolved_type);
+        P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
+                          resolved_type, resolved_type->node_type_name());
     }
     return false;
 }
+
 // new DeclarationInstance(state, instance_decl)
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left = nullptr;

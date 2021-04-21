@@ -2,6 +2,7 @@
 #include <utility>
 
 #include "lib/exceptions.h"
+#include "type_simple.h"
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
 
@@ -519,20 +520,6 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     return false;
 }
 
-const IR::ParameterList *get_params(const IR::Type *callable_type) {
-    if (const auto *control = callable_type->to<IR::P4Control>()) {
-        return control->getApplyParameters();
-    }
-    if (const auto *parser = callable_type->to<IR::P4Parser>()) {
-        return parser->getApplyParameters();
-    }
-    if (const auto *package = callable_type->to<IR::Type_Package>()) {
-        return package->getParameters();
-    }
-    P4C_UNIMPLEMENTED("Callable declaration type %s of type %s not supported.",
-                      callable_type, callable_type->node_type_name());
-}
-
 P4Z3Instance *run_arch_block(Z3Visitor *visitor,
                              const IR::ConstructorCallExpression *cce) {
     auto *state = visitor->state;
@@ -644,6 +631,20 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
     return merged_vec;
 }
 
+const IR::ParameterList *get_params(const IR::Type *callable_type) {
+    if (const auto *control = callable_type->to<IR::P4Control>()) {
+        return control->getConstructorParameters();
+    }
+    if (const auto *parser = callable_type->to<IR::P4Parser>()) {
+        return parser->getConstructorParameters();
+    }
+    if (const auto *package = callable_type->to<IR::Type_Package>()) {
+        return package->getParameters();
+    }
+    P4C_UNIMPLEMENTED("Callable declaration type %s of type %s not supported.",
+                      callable_type, callable_type->node_type_name());
+}
+
 VarMap Z3Visitor::gen_state_from_instance(const IR::Declaration_Instance *di) {
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
@@ -669,12 +670,16 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
         resolved_type = state->resolve_type(spec_type->baseType);
     }
 
-    const auto *params = get_params(resolved_type);
     if (const auto *instance_decl = resolved_type->to<IR::Type_Declaration>()) {
-        state->merge_args_with_params(this, *di->arguments, *params);
-        state->declare_var(di->name.name,
-                           new DeclarationInstance(state, instance_decl),
-                           resolved_type);
+        std::vector<P4Z3Instance *> resolved_const_args;
+        for (const auto *arg : *di->arguments) {
+            visit(arg->expression);
+            resolved_const_args.push_back(state->copy_expr_result());
+        }
+        state->declare_var(
+            di->name.name,
+            new ControlInstance(state, instance_decl, resolved_const_args),
+            resolved_type);
     } else {
         P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
                           resolved_type, resolved_type->node_type_name());

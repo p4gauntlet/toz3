@@ -531,10 +531,6 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         instance = new TupleInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, t);
-    } else if (const auto *t = type->to<IR::P4Control>()) {
-        instance = new DeclarationInstance(this, t);
-    } else if (const auto *t = type->to<IR::P4Parser>()) {
-        instance = new DeclarationInstance(this, t);
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
     } else if (type->is<IR::Type_Base>()) {

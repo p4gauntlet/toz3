@@ -1,5 +1,6 @@
 #include "type_complex.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <utility>
 
@@ -159,8 +160,8 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
             width += tbi->width_bits();
             flat_id += tbi->width_bits();
         } else if (const auto *tvb = resolved_type->to<IR::Type_Varbits>()) {
-            width += tvb->width_bits();
-            flat_id += tvb->width_bits();
+            width += tvb->size;
+            flat_id += tvb->size;
         } else if (resolved_type->is<IR::Type_Boolean>()) {
             width++;
             flat_id++;
@@ -913,13 +914,15 @@ void P4TableInstance::apply(Visitor *visitor,
 
 /***
 ===============================================================================
-DeclarationInstance
+ControlInstance
 ===============================================================================
 ***/
 
-DeclarationInstance::DeclarationInstance(P4State *state,
-                                         const IR::Type_Declaration *decl)
-    : P4Z3Instance(nullptr), state(state), decl(decl) {
+ControlInstance::ControlInstance(
+    P4State *state, const IR::Type_Declaration *decl,
+    std::vector<P4Z3Instance *> resolved_const_args)
+    : P4Z3Instance(nullptr), state(state),
+      resolved_const_args(std::move(resolved_const_args)), decl(decl) {
     cstring apply_str = "apply";
     if (const auto *ctrl = decl->to<IR::P4Control>()) {
         apply_str += std::to_string(ctrl->getApplyParameters()->size());
@@ -932,20 +935,28 @@ DeclarationInstance::DeclarationInstance(P4State *state,
     };
 }
 
-void DeclarationInstance::apply(Visitor *visitor,
-                                const IR::Vector<IR::Argument> *args) {
+void ControlInstance::apply(Visitor *visitor,
+                            const IR::Vector<IR::Argument> *args) {
     const IR::ParameterList *params = nullptr;
+    const IR::ParameterList *const_params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     if (const auto *control = decl->to<IR::P4Control>()) {
         params = control->getApplyParameters();
+        const_params = control->getConstructorParameters();
         type_params = control->getApplyMethodType()->getTypeParameters();
     } else if (const auto *parser = decl->to<IR::P4Parser>()) {
         params = parser->getApplyParameters();
+        const_params = parser->getConstructorParameters();
         type_params = parser->getApplyMethodType()->getTypeParameters();
     }
     CHECK_NULL(params);
     const ParamInfo param_info = {*params, *args, *type_params, {}};
     state->copy_in(visitor, param_info);
+    for (size_t idx = 0; idx < resolved_const_args.size(); ++idx) {
+        const auto *const_param = const_params->getParameter(idx);
+        state->declare_var(const_param->name.name, resolved_const_args[idx],
+                           const_param->type);
+    }
     visitor->visit(decl);
     state->copy_out();
 }
