@@ -7,7 +7,7 @@
 
 #include "visitor_interpret.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
@@ -257,4 +257,4 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     return false;
 }
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3

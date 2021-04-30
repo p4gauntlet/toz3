@@ -18,7 +18,7 @@
 #include <boost/variant.hpp>
 #include <boost/variant/get.hpp>
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 class Z3Int;
 class Z3Bitvector;
@@ -82,7 +82,7 @@ class P4Z3Node {
     virtual cstring get_static_type() const = 0;
     virtual cstring to_string() const = 0;
     friend inline std::ostream &operator<<(std::ostream &out,
-                                           const TOZ3_V2::P4Z3Node &type) {
+                                           const TOZ3::P4Z3Node &type) {
         return out << type.to_string();
     }
 };
@@ -209,6 +209,6 @@ class P4Z3Instance : public P4Z3Node {
     P4Z3Instance(const P4Z3Instance &other) { p4_type = other.p4_type; }
 };
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_TYPE_BASE_H_

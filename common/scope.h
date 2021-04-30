@@ -11,7 +11,7 @@
 
 #include "type_complex.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 using VarMap = std::map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
 
@@ -149,7 +149,7 @@ class P4Scope {
         return cloned_map;
     }
     friend inline std::ostream &operator<<(std::ostream &out,
-                                           const TOZ3_V2::P4Scope &scope) {
+                                           const TOZ3::P4Scope &scope) {
         auto var_map = scope.get_var_map();
         for (auto it = var_map.begin(); it != var_map.end(); ++it) {
             const cstring name = it->first;
@@ -165,6 +165,6 @@ class P4Scope {
 
 using ProgState = std::vector<P4Scope>;
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_SCOPE_H_

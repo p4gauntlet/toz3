@@ -9,7 +9,7 @@
 #include "ir/ir.h"
 #include "visitor_interpret.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 class DoTypeSpecialization : public Transform {
  public:
@@ -32,6 +32,6 @@ class TypeSpecialization : public PassManager {
     }
 };
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_VISITOR_SPECIALIZE_H_

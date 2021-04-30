@@ -8,7 +8,7 @@
 
 #include "lib/exceptions.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 cstring infer_name(const IR::Annotations *annots, cstring default_name) {
     // This function is a bit of a hacky way to infer the true name of a
@@ -811,4 +811,4 @@ void P4State::merge_state(const z3::expr &cond, const ProgState &else_state) {
                        else_scope->get_var_map());
     }
 }
-}  // namespace TOZ3_V2
+}  // namespace TOZ3

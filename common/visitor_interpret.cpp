@@ -6,7 +6,7 @@
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
     TypeVisitor map_builder = TypeVisitor(state);
@@ -689,4 +689,4 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     return false;
 }
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3

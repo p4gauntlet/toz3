@@ -13,7 +13,7 @@
 
 #include "type_simple.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 class StructBase : public P4Z3Instance {
  protected:
@@ -542,6 +542,6 @@ class ExternInstance : public P4Z3Instance {
     }
 };
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_TYPE_COMPLEX_H_

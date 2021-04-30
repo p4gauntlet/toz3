@@ -32,15 +32,15 @@
 #include "lib/nullstream.h"
 
 #include "options.h"
-#include "toz3_v2/common/visitor_fill_type.h"
-#include "toz3_v2/common/visitor_interpret.h"
+#include "toz3/common/visitor_fill_type.h"
+#include "toz3/common/visitor_interpret.h"
 
 using Z3Prog = std::pair<cstring, std::vector<std::pair<cstring, z3::expr>>>;
 constexpr auto COLUMN_WIDTH = 40;
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
-const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
+const IR::Declaration_Instance *get_main_decl(P4State *state) {
     const auto *main = state->find_static_decl("main");
     if (main != nullptr) {
         if (const auto *main_pkg = main->decl->to<IR::Declaration_Instance>()) {
@@ -177,7 +177,7 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs) {
     std::cout << "Passed all checks." << std::endl;
     return EXIT_SUCCESS;
 }
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 std::vector<cstring> split_input_progs(cstring input_progs) {
     std::vector<cstring> prog_list;
@@ -197,8 +197,8 @@ std::vector<cstring> split_input_progs(cstring input_progs) {
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
 
-    AutoCompileContext autoP4toZ3Context(new TOZ3_V2::P4toZ3Context);
-    auto &options = TOZ3_V2::P4toZ3Context::get().options();
+    AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
+    auto &options = TOZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = "p4toz3 test";
@@ -238,10 +238,10 @@ int main(int argc, char *const argv[]) {
             std::cerr << "Unable to parse program." << std::endl;
             return EXIT_FAILURE;
         }
-        auto z3_repr_prog = TOZ3_V2::get_z3_repr(prog, prog_parsed, &ctx);
+        auto z3_repr_prog = TOZ3::get_z3_repr(prog, prog_parsed, &ctx);
         std::vector<std::pair<cstring, z3::expr>> result_vec;
-        TOZ3_V2::unroll_result(z3_repr_prog, &result_vec);
+        TOZ3::unroll_result(z3_repr_prog, &result_vec);
         z3_progs.emplace_back(prog, result_vec);
     }
-    return TOZ3_V2::compare_progs(&ctx, z3_progs);
+    return TOZ3::compare_progs(&ctx, z3_progs);
 }

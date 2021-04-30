@@ -8,7 +8,7 @@
 #include "ir/ir.h"
 #include "visitor_interpret.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 class TypeVisitor : public Inspector {
     P4State *state;
@@ -69,6 +69,6 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::Declaration_Constant *dc) override;
     bool preorder(const IR::Declaration_MatchKind *dm) override;
 };
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_VISITOR_FILL_TYPE_H_

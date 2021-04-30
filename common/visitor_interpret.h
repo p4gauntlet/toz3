@@ -9,7 +9,7 @@
 #include "ir/ir.h"
 #include "state.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 class Z3Visitor : public Inspector {
  private:
@@ -118,6 +118,6 @@ class Z3Visitor : public Inspector {
 
     VarMap gen_state_from_instance(const IR::Declaration_Instance *di);
 };
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_VISITOR_INTERPRET_H_

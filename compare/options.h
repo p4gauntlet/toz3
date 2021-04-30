@@ -6,7 +6,7 @@
 #include "frontends/common/options.h"
 #include "lib/options.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 class CompareOptions : public CompilerOptions {
  public:
@@ -17,6 +17,6 @@ class CompareOptions : public CompilerOptions {
 
 using P4toZ3Context = P4CContextWithOptions<CompareOptions>;
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMPARE_OPTIONS_H_

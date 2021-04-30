@@ -16,7 +16,7 @@
 #include "ir/ir.h"
 #include "scope.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 cstring infer_name(const IR::Annotations *annots, cstring default_name);
 
@@ -202,7 +202,7 @@ class P4State {
         }
     }
     friend inline std::ostream &operator<<(std::ostream &out,
-                                           const TOZ3_V2::P4State &state) {
+                                           const TOZ3::P4State &state) {
         auto var_map = state.get_state();
         size_t idx = 0;
         // out << "STATIC SCOPE: " << *main_scope << "\n";
@@ -214,6 +214,6 @@ class P4State {
     }
 };
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_STATE_H_

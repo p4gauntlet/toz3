@@ -6,7 +6,7 @@
 
 #include "state.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 /***
 ===============================================================================
 StructBase
@@ -963,4 +963,4 @@ void ControlInstance::apply(Visitor *visitor,
     state->copy_out();
 }
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3

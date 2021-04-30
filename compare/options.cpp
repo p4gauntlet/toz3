@@ -1,6 +1,6 @@
 #include "options.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 CompareOptions::CompareOptions() {}
-}  // namespace TOZ3_V2
+}  // namespace TOZ3

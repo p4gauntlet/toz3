@@ -27,10 +27,10 @@
 #include "lib/nullstream.h"
 
 #include "options.h"
-#include "toz3_v2/common/visitor_fill_type.h"
-#include "toz3_v2/common/visitor_interpret.h"
+#include "toz3/common/visitor_fill_type.h"
+#include "toz3/common/visitor_interpret.h"
 
-const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
+const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state) {
     const auto *main = state->find_static_decl("main");
     if (main != nullptr) {
         if (const auto *main_pkg = main->decl->to<IR::Declaration_Instance>()) {
@@ -46,8 +46,8 @@ const IR::Declaration_Instance *get_main_decl(TOZ3_V2::P4State *state) {
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
 
-    AutoCompileContext autoP4toZ3Context(new TOZ3_V2::P4toZ3Context);
-    auto &options = TOZ3_V2::P4toZ3Context::get().options();
+    AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
+    auto &options = TOZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = "p4toz3 test";
@@ -69,9 +69,9 @@ int main(int argc, char *const argv[]) {
             P4::P4COptionPragmaParser optionsPragmaParser;
             program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
             // convert the P4 program to Z3 Python
-            TOZ3_V2::P4State state = TOZ3_V2::P4State(&ctx);
-            TOZ3_V2::TypeVisitor map_builder = TOZ3_V2::TypeVisitor(&state);
-            TOZ3_V2::Z3Visitor to_z3 = TOZ3_V2::Z3Visitor(&state);
+            TOZ3::P4State state = TOZ3::P4State(&ctx);
+            TOZ3::TypeVisitor map_builder = TOZ3::TypeVisitor(&state);
+            TOZ3::Z3Visitor to_z3 = TOZ3::Z3Visitor(&state);
             program->apply(map_builder);
 
             const auto *decl = get_main_decl(&state);
@@ -82,7 +82,7 @@ int main(int argc, char *const argv[]) {
             for (auto pipe_state : decl_result) {
                 cstring pipe_name = pipe_state.first;
                 const auto *pipe_vars =
-                    pipe_state.second.first->to<TOZ3_V2::ControlState>();
+                    pipe_state.second.first->to<TOZ3::ControlState>();
                 if (pipe_vars != nullptr) {
                     std::cout << "Pipe " << pipe_name << " state:" << std::endl;
                     for (const auto &tuple : pipe_vars->state_vars) {

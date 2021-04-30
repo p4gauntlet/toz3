@@ -63,14 +63,14 @@ target_link_libraries (p4-check-equality p4toz3lib)
 install(TARGETS p4-check-equality RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
 
-add_custom_target(linkp4toz3_v2
+add_custom_target(linkp4toz3
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/p4-to-z3 ${P4C_BINARY_DIR}/p4-to-z3
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/p4-check-equality ${P4C_BINARY_DIR}/p4-check-equality
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${P4C_BINARY_DIR}/p4include ${CMAKE_CURRENT_BINARY_DIR}/p4include
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${P4C_BINARY_DIR}/p4_14include ${CMAKE_CURRENT_BINARY_DIR}/p4_14include
 )
 
-add_dependencies(p4c_driver linkp4toz3_v2)
+add_dependencies(p4c_driver linkp4toz3)
 
 
 # This also builds the pruner module

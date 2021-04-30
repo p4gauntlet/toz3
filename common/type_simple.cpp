@@ -5,7 +5,7 @@
 
 #include "state.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
     // TODO: Clean this up
@@ -684,4 +684,4 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
     BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
 }
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3

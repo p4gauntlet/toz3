@@ -8,7 +8,7 @@
 
 #include "visitor_interpret.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 bool Z3Visitor::preorder(const IR::Member *m) {
     visit(m->expr);
@@ -361,4 +361,4 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
     return false;
 }
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3

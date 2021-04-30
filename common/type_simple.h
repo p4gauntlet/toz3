@@ -13,7 +13,7 @@
 
 #include "type_base.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 // Forward declare state
 class P4State;
@@ -213,6 +213,6 @@ class Z3Int : public NumericVal {
     }
 };
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_TYPE_SIMPLE_H_

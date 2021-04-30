@@ -6,7 +6,7 @@
 #include "frontends/common/options.h"
 #include "lib/options.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 class toz3Options : public CompilerOptions {
  public:
@@ -15,6 +15,6 @@ class toz3Options : public CompilerOptions {
 
 using P4toZ3Context = P4CContextWithOptions<toz3Options>;
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
 
 #endif  // TOZ3_INTERPRET_OPTIONS_H_

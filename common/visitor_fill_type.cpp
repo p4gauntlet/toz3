@@ -6,7 +6,7 @@
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
 
-namespace TOZ3_V2 {
+namespace TOZ3 {
 
 bool TypeVisitor::preorder(const IR::P4Program *p) {
     // Start to visit the actual AST objects
@@ -268,4 +268,4 @@ bool TypeVisitor::preorder(const IR::Declaration_MatchKind * /*dm */) {
     return false;
 }
 
-}  // namespace TOZ3_V2
+}  // namespace TOZ3
