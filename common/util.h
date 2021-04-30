@@ -1,5 +1,5 @@
-#ifndef TOZ3_V2_COMMON_UTIL_H_
-#define TOZ3_V2_COMMON_UTIL_H_
+#ifndef TOZ3_COMMON_UTIL_H_
+#define TOZ3_COMMON_UTIL_H_
 // The program is empty, there is nothing to do here
 #define EXIT_SKIPPED 10
 // When comparing two programs, they are unequal
@@ -10,4 +10,4 @@
 #define UNDEF_LABEL "undefined"
 #define INVALID_LABEL "invalid"
 
-#endif  // TOZ3_V2_COMMON_UTIL_H_
+#endif  // TOZ3_COMMON_UTIL_H_

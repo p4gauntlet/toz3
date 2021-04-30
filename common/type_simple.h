@@ -1,5 +1,5 @@
-#ifndef TOZ3_V2_COMMON_TYPE_SIMPLE_H_
-#define TOZ3_V2_COMMON_TYPE_SIMPLE_H_
+#ifndef TOZ3_COMMON_TYPE_SIMPLE_H_
+#define TOZ3_COMMON_TYPE_SIMPLE_H_
 #include <cstdio>
 
 #include <map>      // std::map
@@ -215,4 +215,4 @@ class Z3Int : public NumericVal {
 
 }  // namespace TOZ3_V2
 
-#endif  // TOZ3_V2_COMMON_TYPE_SIMPLE_H_
+#endif  // TOZ3_COMMON_TYPE_SIMPLE_H_

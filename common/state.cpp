@@ -444,7 +444,6 @@ CopyArgs P4State::merge_args_with_params(Visitor *visitor,
 }
 
 void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
-
     push_scope();
 
     // Specialize
