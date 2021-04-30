@@ -460,7 +460,6 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
 }
 
 void StackInstance::push_front(Visitor *, const IR::Vector<IR::Argument> *) {
-
     for (size_t i = 0; i < int_size; ++i) {
     }
     P4C_UNIMPLEMENTED("push_front not implemented");

@@ -1,5 +1,5 @@
-#ifndef TOZ3_V2_COMMON_VISITOR_INTERPRET_H_
-#define TOZ3_V2_COMMON_VISITOR_INTERPRET_H_
+#ifndef TOZ3_COMMON_VISITOR_INTERPRET_H_
+#define TOZ3_COMMON_VISITOR_INTERPRET_H_
 #include <map>
 #include <utility>
 #include <vector>
@@ -120,4 +120,4 @@ class Z3Visitor : public Inspector {
 };
 }  // namespace TOZ3_V2
 
-#endif  // TOZ3_V2_COMMON_VISITOR_INTERPRET_H_
+#endif  // TOZ3_COMMON_VISITOR_INTERPRET_H_

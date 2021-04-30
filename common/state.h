@@ -1,5 +1,5 @@
-#ifndef TOZ3_V2_COMMON_STATE_H_
-#define TOZ3_V2_COMMON_STATE_H_
+#ifndef TOZ3_COMMON_STATE_H_
+#define TOZ3_COMMON_STATE_H_
 
 #include <sys/types.h>
 
@@ -216,4 +216,4 @@ class P4State {
 
 }  // namespace TOZ3_V2
 
-#endif  // TOZ3_V2_COMMON_STATE_H_
+#endif  // TOZ3_COMMON_STATE_H_

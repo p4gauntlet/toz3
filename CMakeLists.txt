@@ -72,3 +72,6 @@ add_custom_target(linkp4toz3_v2
 
 add_dependencies(p4c_driver linkp4toz3_v2)
 
+
+# This also builds the pruner module
+add_subdirectory (pruner)

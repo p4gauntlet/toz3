@@ -1,5 +1,5 @@
-#ifndef TOZ3_V2_COMMON_TYPE_BASE_H_
-#define TOZ3_V2_COMMON_TYPE_BASE_H_
+#ifndef TOZ3_COMMON_TYPE_BASE_H_
+#define TOZ3_COMMON_TYPE_BASE_H_
 
 #include <cstdio>
 
@@ -211,4 +211,4 @@ class P4Z3Instance : public P4Z3Node {
 
 }  // namespace TOZ3_V2
 
-#endif  // TOZ3_V2_COMMON_TYPE_BASE_H_
+#endif  // TOZ3_COMMON_TYPE_BASE_H_

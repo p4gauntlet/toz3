@@ -1,5 +1,5 @@
-#ifndef _TOZ3_INTERPRET_OPTIONS_H_
-#define _TOZ3_INTERPRET_OPTIONS_H_
+#ifndef TOZ3_INTERPRET_OPTIONS_H_
+#define TOZ3_INTERPRET_OPTIONS_H_
 
 #include "ir/ir.h"
 
@@ -15,6 +15,6 @@ class toz3Options : public CompilerOptions {
 
 using P4toZ3Context = P4CContextWithOptions<toz3Options>;
 
-} // namespace TOZ3_V2
+}  // namespace TOZ3_V2
 
-#endif /* _TOZ3_INTERPRET_OPTIONS_H_ */
+#endif  // TOZ3_INTERPRET_OPTIONS_H_
