@@ -13,7 +13,10 @@ function run_cpplint() {
     return_status=$(($return_status || $?))
 }
 
-run_cpplint $ROOT_DIR/src
+run_cpplint $ROOT_DIR/pruner/src
+run_cpplint $ROOT_DIR/common
+run_cpplint $ROOT_DIR/compare
+run_cpplint $ROOT_DIR/interpret
 
 echo "********************************"
 if [ $return_status -eq 0 ]; then
