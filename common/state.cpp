@@ -512,14 +512,14 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (const auto *t = type->to<IR::Type_Header>()) {
         instance = new HeaderInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Enum>()) {
-        // Enums are static so we just return the declaration
-        instance = get_var(t->name.name);
+        // For Enums we just return a copy of the declaration
+        instance = get_var(t->name.name)->copy();
     } else if (const auto *t = type->to<IR::Type_Error>()) {
-        // Errors are static so we just return the declaration
-        instance = get_var(t->name.name);
+        // For Errors we just return a copy of the declaration
+        instance = get_var(t->name.name)->copy();
     } else if (const auto *t = type->to<IR::Type_SerEnum>()) {
-        // SerEnums are static so we just return the declaration
-        instance = get_var(t->name.name);
+        // For SerEnums  we just return a copy of the declaration
+        instance = get_var(t->name.name)->copy();
     } else if (const auto *t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {

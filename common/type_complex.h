@@ -291,6 +291,8 @@ class EnumBase : public StructBase {
     z3::expr operator!=(const P4Z3Instance &other) const override;
     virtual z3::expr get_enum_val() const;
     void set_enum_val(const z3::expr &enum_input);
+    EnumBase(const EnumBase &other);
+    // overload = operator
 };
 
 class EnumInstance : public EnumBase {
@@ -311,8 +313,11 @@ class EnumInstance : public EnumBase {
         ret += ")";
         return ret;
     }
-    // TODO: EnumInstance is static, so no copy allowed
+    // copy constructor
     EnumInstance *copy() const override;
+    EnumInstance(const EnumInstance &other);
+    // overload = operator
+    EnumInstance &operator=(const EnumInstance &other);
 };
 
 class ErrorInstance : public EnumBase {

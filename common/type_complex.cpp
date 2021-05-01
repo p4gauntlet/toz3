@@ -382,11 +382,11 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
     auto flat_id = member_id;
     const IR::Type *resolved_type = state->resolve_type(type->elementType);
     for (size_t idx = 0; idx < int_size; ++idx) {
-        cstring name = prefix + std::to_string(flat_id);
-        auto *member_var = state->gen_instance(name, resolved_type, flat_id);
+        auto *member_var =
+            state->gen_instance(UNDEF_LABEL, resolved_type, flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
-            flat_id += si->get_member_map()->size();
+            flat_id += si->get_width();
         } else {
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
                               member_var->get_static_type());
@@ -624,14 +624,13 @@ EnumBase::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
     } else {
         tmp_valid = &valid;
     }
-    std::vector<std::pair<cstring, z3::expr>> z3_vars;
     cstring name = instance_name;
     if (prefix.size() != 0) {
         name = prefix + "." + name;
     }
     auto invalid_var = state->gen_z3_expr(INVALID_LABEL, member_type);
     auto valid_var = z3::ite(*tmp_valid, enum_val, invalid_var);
-    z3_vars.emplace_back(instance_name, valid_var);
+    std::vector<std::pair<cstring, z3::expr>> z3_vars = {{name, valid_var}};
     return z3_vars;
 }
 
@@ -642,9 +641,7 @@ void EnumBase::add_enum_member(cstring error_name) {
 
 void EnumBase::bind(uint64_t member_id, cstring prefix) {
     instance_name = prefix + std::to_string(member_id);
-    auto flat_id = member_id;
-    cstring name = prefix + std::to_string(flat_id);
-    enum_val = state->gen_z3_expr(name, member_type);
+    enum_val = state->gen_z3_expr(instance_name, member_type);
 }
 
 z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
@@ -676,6 +673,10 @@ void EnumBase::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
     enum_val = z3::ite(cond, then_enum->get_enum_val(), enum_val);
 }
 
+EnumBase::EnumBase(const EnumBase &other)
+    : StructBase(other), enum_val(other.enum_val),
+      member_type(other.member_type) {}
+
 /***
 ===============================================================================
 EnumInstance
@@ -698,6 +699,16 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
 }
 
 EnumInstance *EnumInstance::copy() const { return new EnumInstance(*this); }
+
+EnumInstance::EnumInstance(const EnumInstance &other) : EnumBase(other) {}
+
+EnumInstance &EnumInstance::operator=(const EnumInstance &other) {
+    if (this == &other) {
+        return *this;
+    }
+    *this = EnumInstance(other);
+    return *this;
+}
 
 /***
 ===============================================================================
