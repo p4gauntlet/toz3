@@ -284,6 +284,7 @@ class EnumBase : public StructBase {
         ret += ")";
         return ret;
     }
+    void set_undefined() override;
     void add_enum_member(cstring error_name);
     void bind(uint64_t member_id, cstring prefix) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
@@ -405,13 +406,13 @@ class ControlInstance : public P4Z3Instance {
     P4State *state;
     std::map<cstring, P4Z3Function> member_functions;
     ordered_map<cstring, P4Z3Instance *> members;
-    std::vector<P4Z3Instance *> resolved_const_args;
+    const VarMap resolved_const_args;
     // A wrapper class for table declarations
  public:
     const IR::Type_Declaration *decl;
     // constructor
     explicit ControlInstance(P4State *state, const IR::Type_Declaration *decl,
-                             std::vector<P4Z3Instance *> resolved_const_args);
+                             VarMap resolved_const_args);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override{};

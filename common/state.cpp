@@ -5,8 +5,12 @@
 #include <cstdio>
 #include <ostream>
 #include <string>
+#include <tuple>
 
+#include "ir/visitor.h"
 #include "lib/exceptions.h"
+#include "lib/null.h"
+#include "type_base.h"
 
 namespace TOZ3 {
 
@@ -380,9 +384,10 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
     set_var(member_struct, tmp_rval);
 }
 
-CopyArgs P4State::merge_args_with_params(Visitor *visitor,
-                                         const IR::Vector<IR::Argument> &args,
-                                         const IR::ParameterList &params) {
+std::pair<CopyArgs, VarMap>
+P4State::merge_args_with_params(Visitor *visitor,
+                                const IR::Vector<IR::Argument> &args,
+                                const IR::ParameterList &params) {
     CopyArgs resolved_args;
     size_t idx = 0;
     VarMap merged_vec;
@@ -433,14 +438,48 @@ CopyArgs P4State::merge_args_with_params(Visitor *visitor,
         }
         idx++;
     }
-    // Now we actually set the variables.
-    // After we have resolved and collected them.
-    for (auto arg_tuple : merged_vec) {
-        cstring param_name = arg_tuple.first;
-        auto arg_val = arg_tuple.second;
-        declare_var(param_name, arg_val.first, arg_val.second);
+    return std::pair<CopyArgs, VarMap>{resolved_args, merged_vec};
+}
+
+VarMap
+P4State::merge_args_with_const_params(Visitor *visitor,
+                                      const IR::Vector<IR::Argument> &args,
+                                      const IR::ParameterList &params) {
+    size_t idx = 0;
+    VarMap merged_vec;
+    for (const auto &arg : args) {
+        const IR::Parameter *param = nullptr;
+        if (arg->name) {
+            param = params.getParameter(arg->name.name);
+        } else {
+            param = params.getParameter(idx);
+        }
+        const P4Z3Instance *arg_result = nullptr;
+        arg->expression->apply(*visitor);
+        arg_result = get_expr_result();
+
+        const auto *resolved_type = param->type;
+        if (const auto *tn = resolved_type->to<IR::Type_Name>()) {
+            cstring type_name = tn->path->name.name;
+            resolved_type = find_type(type_name);
+            if (resolved_type == nullptr) {
+                // Need to infer a type here and add it to the scope
+                // TODO: This should be a separate pass.
+                resolved_type = arg_result->get_p4_type();
+                add_type(type_name, resolved_type);
+            }
+        }
+        // TODO: We should not need this ite, this is a hack
+        if (arg_result->is<ListInstance>()) {
+            auto *cast_val = arg_result->cast_allocate(resolved_type);
+            merged_vec.insert({param->name.name, {cast_val, resolved_type}});
+        } else {
+            merged_vec.insert(
+                {param->name.name, {arg_result->copy(), resolved_type}});
+        }
+        idx++;
     }
-    return resolved_args;
+    return merged_vec;
 }
 
 void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
@@ -457,9 +496,17 @@ void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
             idx++;
         }
     }
-    auto copy_out_args = merge_args_with_params(visitor, param_info.arguments,
-                                                param_info.params);
-
+    auto var_tuple = merge_args_with_params(visitor, param_info.arguments,
+                                            param_info.params);
+    auto copy_out_args = var_tuple.first;
+    auto merged_vec = var_tuple.second;
+    // Now we actually set the variables.
+    // After we have resolved and collected them.
+    for (auto arg_tuple : merged_vec) {
+        cstring param_name = arg_tuple.first;
+        auto arg_val = arg_tuple.second;
+        declare_var(param_name, arg_val.first, arg_val.second);
+    }
     set_copy_out_args(copy_out_args);
 }
 
@@ -512,14 +559,24 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
     } else if (const auto *t = type->to<IR::Type_Header>()) {
         instance = new HeaderInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_Enum>()) {
+        // TODO: Clean this up
         // For Enums we just return a copy of the declaration
-        instance = get_var(t->name.name)->copy();
+        auto *enum_instance = get_var<EnumInstance>(t->name.name)->copy();
+        CHECK_NULL(enum_instance);
+        enum_instance->set_enum_val(gen_z3_expr(name, &P4_STD_BIT_TYPE));
+        instance = enum_instance;
     } else if (const auto *t = type->to<IR::Type_Error>()) {
         // For Errors we just return a copy of the declaration
-        instance = get_var(t->name.name)->copy();
+        auto *enum_instance = get_var<ErrorInstance>(t->name.name)->copy();
+        CHECK_NULL(enum_instance);
+        enum_instance->set_enum_val(gen_z3_expr(name, &P4_STD_BIT_TYPE));
+        instance = enum_instance;
     } else if (const auto *t = type->to<IR::Type_SerEnum>()) {
-        // For SerEnums  we just return a copy of the declaration
-        instance = get_var(t->name.name)->copy();
+        // For SerEnums we just return a copy of the declaration
+        auto *enum_instance = get_var<SerEnumInstance>(t->name.name)->copy();
+        CHECK_NULL(enum_instance);
+        enum_instance->set_enum_val(gen_z3_expr(name, t->type));
+        instance = enum_instance;
     } else if (const auto *t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);
     } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {

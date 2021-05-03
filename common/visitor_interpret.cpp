@@ -2,6 +2,7 @@
 #include <utility>
 
 #include "lib/exceptions.h"
+#include "type_complex.h"
 #include "type_simple.h"
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
@@ -148,7 +149,7 @@ z3::expr compute_table_hit(Z3Visitor *visitor, cstring table_name,
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
         // It is actually possible to use a variety of types as key.
         // So we have to stay generic and produce a corresponding variable.
-        const auto *key_match =
+        auto *key_match =
             visitor->state->gen_instance(key_name, key_eval->get_p4_type());
         hit = hit || (*key_eval == *key_match);
     }
@@ -540,14 +541,17 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
     std::vector<cstring> state_names;
 
     // INITIALIZE
+    // TODO: Simplify this
     IR::Vector<IR::Argument> synthesized_args;
     for (const auto *param : *params) {
         const auto *par_type = state->resolve_type(param->type);
         if (!par_type->is<IR::Type_Package>()) {
             auto *var = state->gen_instance(param->name.name, par_type);
-            if (auto *z3_var = var->to_mut<StructInstance>()) {
-                z3_var->bind(0, param->name.name);
-                z3_var->propagate_validity();
+            if (param->direction != IR::Direction::Out) {
+                if (auto *z3_var = var->to_mut<StructBase>()) {
+                    z3_var->bind(0, param->name.name);
+                    z3_var->propagate_validity();
+                }
             }
             state->declare_var(param->name.name, var, par_type);
         }
@@ -673,15 +677,20 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     }
 
     if (const auto *instance_decl = resolved_type->to<IR::Type_Declaration>()) {
-        std::vector<P4Z3Instance *> resolved_const_args;
-        for (const auto *arg : *di->arguments) {
-            visit(arg->expression);
-            resolved_const_args.push_back(state->copy_expr_result());
+        const IR::ParameterList *params = nullptr;
+        if (const auto *c = instance_decl->to<IR::P4Control>()) {
+            params = c->getConstructorParameters();
+        } else if (const auto *p = instance_decl->to<IR::P4Parser>()) {
+            params = p->getConstructorParameters();
+        } else {
+            P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
+                              resolved_type, resolved_type->node_type_name());
         }
-        state->declare_var(
-            di->name.name,
-            new ControlInstance(state, instance_decl, resolved_const_args),
-            resolved_type);
+        auto var_map =
+            state->merge_args_with_const_params(this, *di->arguments, *params);
+        state->declare_var(di->name.name,
+                           new ControlInstance(state, instance_decl, var_map),
+                           resolved_type);
     } else {
         P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
                           resolved_type, resolved_type->node_type_name());

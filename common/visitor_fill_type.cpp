@@ -220,15 +220,20 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
         state->declare_var(instance_name, new ExternInstance(state, te), te);
     } else if (const auto *instance_decl =
                    resolved_type->to<IR::Type_Declaration>()) {
-        std::vector<P4Z3Instance *> resolved_const_args;
-        for (const auto *arg : *di->arguments) {
-            arg->expression->apply(resolve_expr);
-            resolved_const_args.push_back(state->copy_expr_result());
+        const IR::ParameterList *params = nullptr;
+        if (const auto *c = instance_decl->to<IR::P4Control>()) {
+            params = c->getConstructorParameters();
+        } else if (const auto *p = instance_decl->to<IR::P4Parser>()) {
+            params = p->getConstructorParameters();
+        } else {
+            P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
+                              resolved_type, resolved_type->node_type_name());
         }
-        state->declare_var(
-            di->name.name,
-            new ControlInstance(state, instance_decl, resolved_const_args),
-            resolved_type);
+        auto var_map = state->merge_args_with_const_params(
+            &resolve_expr, *di->arguments, *params);
+        state->declare_var(di->name.name,
+                           new ControlInstance(state, instance_decl, var_map),
+                           resolved_type);
     } else {
         P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
                           resolved_type, resolved_type->node_type_name());

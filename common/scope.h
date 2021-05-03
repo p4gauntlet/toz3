@@ -13,8 +13,6 @@
 
 namespace TOZ3 {
 
-using VarMap = std::map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
-
 class P4Scope {
  private:
     // maps of local values and types

@@ -5,6 +5,9 @@
 #include <utility>
 
 #include "state.h"
+#include "type_base.h"
+#include "type_simple.h"
+#include "util.h"
 
 namespace TOZ3 {
 /***
@@ -613,7 +616,7 @@ EnumBase
 EnumBase::EnumBase(P4State *state, const IR::Type *type, uint64_t member_id,
                    cstring prefix)
     : StructBase(state, type, member_id, prefix),
-      enum_val(state->gen_z3_expr(instance_name, &P4_STD_BIT_TYPE)) {}
+      enum_val(state->gen_z3_expr(UNDEF_LABEL, &P4_STD_BIT_TYPE)) {}
 
 std::vector<std::pair<cstring, z3::expr>>
 EnumBase::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
@@ -639,17 +642,25 @@ void EnumBase::add_enum_member(cstring error_name) {
     insert_member(error_name, member_var);
 }
 
+void EnumBase::set_undefined() {
+    enum_val = state->gen_z3_expr(UNDEF_LABEL, member_type);
+}
+
 void EnumBase::bind(uint64_t member_id, cstring prefix) {
     instance_name = prefix + std::to_string(member_id);
     enum_val = state->gen_z3_expr(instance_name, member_type);
 }
 
 z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
-    auto is_eq = state->get_z3_ctx()->bool_val(true);
-    if (const auto *other_numeric = other.to<NumericVal>()) {
+    if (const auto *other_numeric = other.to<Z3Bitvector>()) {
         auto other_val = *other_numeric->get_val();
         auto cast_val = pure_bv_cast(enum_val, other_val.get_sort());
         return cast_val == other_val;
+    }
+    if (const auto *other_numeric = other.to<Z3Int>()) {
+        auto cast_val =
+            pure_bv_cast(*other_numeric->get_val(), enum_val.get_sort());
+        return enum_val == cast_val;
     }
     if (const auto *other_enum = other.to<EnumBase>()) {
         return enum_val == other_enum->get_enum_val();
@@ -743,7 +754,7 @@ SerEnumInstance::SerEnumInstance(
     P4State *p4_state, ordered_map<cstring, P4Z3Instance *> input_members,
     const IR::Type_SerEnum *type, uint64_t ext_member_id, cstring prefix)
     : EnumBase(p4_state, type, ext_member_id, prefix) {
-    enum_val = state->gen_z3_expr(instance_name, type->type);
+    enum_val = state->gen_z3_expr(UNDEF_LABEL, type->type);
     if (const auto *tb = type->type->to<IR::Type_Bits>()) {
         member_type = tb;
         width = tb->width_bits();
@@ -931,9 +942,9 @@ ControlInstance
 ===============================================================================
 ***/
 
-ControlInstance::ControlInstance(
-    P4State *state, const IR::Type_Declaration *decl,
-    std::vector<P4Z3Instance *> resolved_const_args)
+ControlInstance::ControlInstance(P4State *state,
+                                 const IR::Type_Declaration *decl,
+                                 VarMap resolved_const_args)
     : P4Z3Instance(nullptr), state(state),
       resolved_const_args(std::move(resolved_const_args)), decl(decl) {
     cstring apply_str = "apply";
@@ -951,24 +962,20 @@ ControlInstance::ControlInstance(
 void ControlInstance::apply(Visitor *visitor,
                             const IR::Vector<IR::Argument> *args) {
     const IR::ParameterList *params = nullptr;
-    const IR::ParameterList *const_params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     if (const auto *control = decl->to<IR::P4Control>()) {
         params = control->getApplyParameters();
-        const_params = control->getConstructorParameters();
         type_params = control->getApplyMethodType()->getTypeParameters();
     } else if (const auto *parser = decl->to<IR::P4Parser>()) {
         params = parser->getApplyParameters();
-        const_params = parser->getConstructorParameters();
         type_params = parser->getApplyMethodType()->getTypeParameters();
     }
     CHECK_NULL(params);
     const ParamInfo param_info = {*params, *args, *type_params, {}};
     state->copy_in(visitor, param_info);
-    for (size_t idx = 0; idx < resolved_const_args.size(); ++idx) {
-        const auto *const_param = const_params->getParameter(idx);
-        state->declare_var(const_param->name.name, resolved_const_args[idx],
-                           const_param->type);
+    for (auto &var_tuple : resolved_const_args) {
+        state->declare_var(var_tuple.first, var_tuple.second.first,
+                           var_tuple.second.second);
     }
     visitor->visit(decl);
     state->copy_out();

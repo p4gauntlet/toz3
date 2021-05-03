@@ -70,9 +70,13 @@ class P4State {
                                uint64_t id = 0, cstring prefix = "");
 
     /****** COPY-IN/COPY-OUT ******/
-    CopyArgs merge_args_with_params(Visitor *visitor,
-                                    const IR::Vector<IR::Argument> &args,
-                                    const IR::ParameterList &params);
+    std::pair<CopyArgs, VarMap>
+    merge_args_with_params(Visitor *visitor,
+                           const IR::Vector<IR::Argument> &args,
+                           const IR::ParameterList &params);
+    VarMap merge_args_with_const_params(Visitor *visitor,
+                                        const IR::Vector<IR::Argument> &args,
+                                        const IR::ParameterList &params);
     void copy_in(Visitor *visitor, const ParamInfo &param_info);
     void copy_out();
     void set_copy_out_args(const CopyArgs &out_args) {
@@ -167,6 +171,10 @@ class P4State {
     void declare_var(cstring name, P4Z3Instance *var,
                      const IR::Type *decl_type);
     P4Z3Instance *get_var(cstring name) const;
+    template <typename T> const T *get_var(cstring name) const {
+        const auto *var = get_var(name);
+        return var->to<T>();
+    }
     const IR::Type *get_var_type(cstring decl_name) const;
     void set_var(Visitor *visitor, const IR::Expression *target,
                  const IR::Expression *rval);

@@ -209,6 +209,8 @@ class P4Z3Instance : public P4Z3Node {
     P4Z3Instance(const P4Z3Instance &other) { p4_type = other.p4_type; }
 };
 
+using VarMap = std::map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
+
 }  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_TYPE_BASE_H_

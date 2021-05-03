@@ -5,6 +5,7 @@
 #include "../contrib/z3/z3++.h"
 #include "lib/exceptions.h"
 
+#include "util.h"
 #include "visitor_interpret.h"
 
 namespace TOZ3 {
@@ -238,13 +239,17 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     const IR::ParameterList *params = nullptr;
     const auto *arguments = cce->arguments;
+    // TODO: At this point we need to bind the types...
     if (const auto *c = resolved_type->to<IR::P4Control>()) {
         params = c->getApplyParameters();
     } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
         params = p->getApplyParameters();
     } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
-        // TODO: What are params here?
+        // TODO: How to cleanly resolve this?
         params = new IR::ParameterList();
+        // const auto *ext_const = ext->lookupConstructor(arguments);
+        auto *ext_instance = state->gen_instance(UNDEF_LABEL, ext);
+        state->set_expr_result(ext_instance);
         return false;
     } else {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
