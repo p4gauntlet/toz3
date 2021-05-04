@@ -28,7 +28,7 @@ get_hdr_pairs(P4State *state, const MemberStruct &member_struct);
 class P4State {
  private:
     ProgState scopes;
-    P4Scope main_scope = P4Scope();
+    P4Scope main_scope;
     z3::context *ctx;
     Z3Bitvector z3_expr_buffer;
     Z3Int z3_int_buffer;
@@ -213,7 +213,7 @@ class P4State {
                                            const TOZ3::P4State &state) {
         auto var_map = state.get_state();
         size_t idx = 0;
-        // out << "STATIC SCOPE: " << *main_scope << "\n";
+        // out << "STATIC SCOPE: " << main_scope << "\n";
         for (const auto &var : var_map) {
             out << "SCOPE " << idx << ": " << var << "\n";
             idx++;

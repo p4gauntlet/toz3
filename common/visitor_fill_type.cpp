@@ -3,6 +3,7 @@
 
 #include "lib/exceptions.h"
 #include "type_base.h"
+#include "type_complex.h"
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
 
@@ -127,12 +128,19 @@ bool TypeVisitor::preorder(const IR::Type_Control *t) {
 }
 
 bool TypeVisitor::preorder(const IR::P4Parser *p) {
+    // Parsers can be both a var and a type
+    // FIXME: Take a closer look at this...
     state->add_type(p->name.name, p);
+    state->declare_var(p->name.name, new ControlInstance(state, p, {}), p);
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::P4Control *c) {
     state->add_type(c->name.name, c);
+    // Controls can be both a decl and a type
+    // FIXME: Take a closer look at this...
+    state->declare_var(c->name.name, new ControlInstance(state, c, {}), c);
+
     return false;
 }
 

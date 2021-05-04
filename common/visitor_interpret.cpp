@@ -628,6 +628,11 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
                 auto variables = sub_result.second;
                 merged_vec.insert({merged_name, variables});
             }
+        } else if (const auto *cst = arg_expr->to<IR::Literal>()) {
+            cst->apply(*visitor);
+            merged_vec.insert(
+                {param->name.name,
+                 {visitor->state->copy_expr_result(), param->type}});
         } else {
             P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
                               arg_expr, arg_expr->node_type_name());
