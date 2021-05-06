@@ -162,7 +162,7 @@ bool TypeVisitor::preorder(const IR::Method *m) {
     auto num_params = 0;
     auto num_optional_params = 0;
     for (const auto *param : m->getParameters()->parameters) {
-        if (param->isOptional()) {
+        if (param->isOptional() || param->defaultValue != nullptr) {
             num_optional_params += 1;
         } else {
             num_params += 1;

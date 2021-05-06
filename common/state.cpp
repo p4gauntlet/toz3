@@ -391,6 +391,7 @@ P4State::merge_args_with_params(Visitor *visitor,
     CopyArgs resolved_args;
     size_t idx = 0;
     VarMap merged_vec;
+    // TODO: This is terrible. Clean this up
     for (const auto &arg : args) {
         const IR::Parameter *param = nullptr;
         if (arg->name) {
@@ -437,6 +438,26 @@ P4State::merge_args_with_params(Visitor *visitor,
                 {param->name.name, {arg_result->copy(), resolved_type}});
         }
         idx++;
+    }
+    // We also need to add default arguments which are trailing
+    // TODO: Find a better way to merge this with the above loop
+    if (idx < params.size()) {
+        for (auto it = params.begin() + idx; it < params.end(); it++) {
+            const auto *param = *it;
+            if (param->defaultValue != nullptr) {
+                visitor->visit(param->defaultValue);
+                auto *cast_result =
+                    get_expr_result()->cast_allocate(param->type);
+                merged_vec.insert(
+                    {param->name.name, {cast_result, param->type}});
+            } else if (param->isOptional()) {
+            } else {
+                FATAL_ERROR("Can not find default argument for parameter %s "
+                            "and index %s",
+                            param, idx);
+            }
+            idx++;
+        }
     }
     return std::pair<CopyArgs, VarMap>{resolved_args, merged_vec};
 }

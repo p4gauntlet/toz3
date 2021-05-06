@@ -947,16 +947,28 @@ ControlInstance::ControlInstance(P4State *state,
                                  VarMap resolved_const_args)
     : P4Z3Instance(nullptr), state(state),
       resolved_const_args(std::move(resolved_const_args)), decl(decl) {
-    cstring apply_str = "apply";
+    const IR::ParameterList *params = nullptr;
     if (const auto *ctrl = decl->to<IR::P4Control>()) {
-        apply_str += std::to_string(ctrl->getApplyParameters()->size());
+        params = ctrl->getApplyParameters();
     } else if (const auto *ctrl = decl->to<IR::P4Parser>()) {
-        apply_str += std::to_string(ctrl->getApplyParameters()->size());
+        params = ctrl->getApplyParameters();
     }
-    member_functions[apply_str] = [this](Visitor *visitor,
-                                         const IR::Vector<IR::Argument> *args) {
-        apply(visitor, args);
-    };
+    auto num_params = 0;
+    auto num_optional_params = 0;
+    for (const auto *param : *params) {
+        if (param->isOptional() || param->defaultValue != nullptr) {
+            num_optional_params += 1;
+        } else {
+            num_params += 1;
+        }
+    }
+    for (auto idx = 0; idx <= num_optional_params; ++idx) {
+        cstring apply_str = "apply" + std::to_string(num_params + idx);
+        member_functions[apply_str] =
+            [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                apply(visitor, args);
+            };
+    }
 }
 
 void ControlInstance::apply(Visitor *visitor,
