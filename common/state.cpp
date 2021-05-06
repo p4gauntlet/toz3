@@ -389,26 +389,41 @@ P4State::merge_args_with_params(Visitor *visitor,
                                 const IR::Vector<IR::Argument> &args,
                                 const IR::ParameterList &params) {
     CopyArgs resolved_args;
-    size_t idx = 0;
     VarMap merged_vec;
-    // TODO: This is terrible. Clean this up
+    ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
+    for (const auto &param : params) {
+        // This may have a nullptr, but we need to maintain order
+        param_mapping.emplace(param, param->defaultValue);
+    }
+    size_t idx = 0;
     for (const auto &arg : args) {
-        const IR::Parameter *param = nullptr;
+        // We override the mapping here.
         if (arg->name) {
-            param = params.getParameter(arg->name.name);
+            param_mapping[params.getParameter(arg->name.name)] =
+                arg->expression;
         } else {
-            param = params.getParameter(idx);
+            param_mapping[params.getParameter(idx)] = arg->expression;
         }
+        idx++;
+    }
+
+    for (const auto &mapping : param_mapping) {
+        const auto *param = mapping.first;
+        const auto *arg_expr = mapping.second;
+        // Ignore empty optional parameters, they can not be used properly
+        if (param->isOptional() && arg_expr == nullptr) {
+            continue;
+        }
+        CHECK_NULL(arg_expr);
         const P4Z3Instance *arg_result = nullptr;
         auto direction = param->direction;
         if (direction == IR::Direction::Out ||
             direction == IR::Direction::InOut) {
-            auto member_struct =
-                get_member_struct(this, visitor, arg->expression);
+            auto member_struct = get_member_struct(this, visitor, arg_expr);
             resolved_args.push_back({member_struct, param->name.name});
             arg_result = get_member(this, member_struct);
         } else {
-            visitor->visit(arg->expression);
+            visitor->visit(arg_expr);
             arg_result = get_expr_result();
         }
 
@@ -438,26 +453,6 @@ P4State::merge_args_with_params(Visitor *visitor,
                 {param->name.name, {arg_result->copy(), resolved_type}});
         }
         idx++;
-    }
-    // We also need to add default arguments which are trailing
-    // TODO: Find a better way to merge this with the above loop
-    if (idx < params.size()) {
-        for (auto it = params.begin() + idx; it < params.end(); it++) {
-            const auto *param = *it;
-            if (param->defaultValue != nullptr) {
-                visitor->visit(param->defaultValue);
-                auto *cast_result =
-                    get_expr_result()->cast_allocate(param->type);
-                merged_vec.insert(
-                    {param->name.name, {cast_result, param->type}});
-            } else if (param->isOptional()) {
-            } else {
-                FATAL_ERROR("Can not find default argument for parameter %s "
-                            "and index %s",
-                            param, idx);
-            }
-            idx++;
-        }
     }
     return std::pair<CopyArgs, VarMap>{resolved_args, merged_vec};
 }

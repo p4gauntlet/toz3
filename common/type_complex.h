@@ -57,7 +57,7 @@ class StructBase : public P4Z3Instance {
         members.at(name) = val;
     }
     void insert_member(cstring name, P4Z3Instance *val) {
-        members.insert({name, val});
+        members.emplace(name, val);
     }
     const ordered_map<cstring, P4Z3Instance *> *get_member_map() const {
         return &members;

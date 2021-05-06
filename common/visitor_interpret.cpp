@@ -1,7 +1,9 @@
 #include <cstdio>
 #include <utility>
 
+#include "lib/error.h"
 #include "lib/exceptions.h"
+#include "lib/log.h"
 #include "type_complex.h"
 #include "type_simple.h"
 #include "visitor_fill_type.h"
@@ -596,24 +598,32 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
 VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
                     const IR::ParameterList *params) {
     VarMap merged_vec;
-    size_t arg_len = args->size();
     size_t idx = 0;
-    for (const auto *param : params->parameters) {
-        const IR::Expression *arg_expr = nullptr;
-        if (idx < arg_len) {
-            arg_expr = args->at(idx)->expression;
-        } else if (param->defaultValue != nullptr) {
-            arg_expr = param->defaultValue;
-        } else if (param->isOptional()) {
-            // No argument for an optional parameter
-            // TODO: Continue or initialize something?
-            idx++;
-            continue;
-        } else {
-            BUG("Mismatch between argument size %d and parameters %s", arg_len,
-                *params);
-        }
 
+    ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
+    for (const auto &param : *params) {
+        // This may have a nullptr, but we need to maintain order
+        param_mapping.emplace(param, param->defaultValue);
+    }
+    for (const auto &arg : *args) {
+        // We override the mapping here.
+        if (arg->name) {
+            param_mapping[params->getParameter(arg->name.name)] =
+                arg->expression;
+        } else {
+            param_mapping[params->getParameter(idx)] = arg->expression;
+        }
+        idx++;
+    }
+
+    for (const auto &mapping : param_mapping) {
+        const auto *param = mapping.first;
+        const auto *arg_expr = mapping.second;
+        // Ignore empty optional parameters, they can not be used properly
+        if (param->isOptional() && arg_expr == nullptr) {
+            continue;
+        }
+        CHECK_NULL(arg_expr);
         if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
             auto *state_result = run_arch_block(visitor, cce);
             merged_vec.insert({param->name.name, {state_result, param->type}});
@@ -637,7 +647,6 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
             P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
                               arg_expr, arg_expr->node_type_name());
         }
-        idx++;
     }
     return merged_vec;
 }
