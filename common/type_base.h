@@ -49,6 +49,7 @@ struct Z3Slice {
 };
 
 static const IR::Type_Boolean BOOL_TYPE{};
+static const IR::Type_String STRING_TYPE{};
 static const IR::Type_Void VOID_TYPE{};
 static const IR::Type_InfInt INT_TYPE{};
 static const IR::Type_Bits P4_STD_BIT_TYPE{32, false};

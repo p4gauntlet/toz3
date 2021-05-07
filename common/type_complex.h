@@ -211,6 +211,7 @@ class StackInstance : public StructBase {
     StackInstance(const StackInstance &other);
     // overload = operator
     StackInstance &operator=(const StackInstance &other);
+    StackInstance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
 class HeaderUnionInstance : public StructBase {
@@ -546,6 +547,7 @@ class ExternInstance : public P4Z3Instance {
     ExternInstance *copy() const override {
         return new ExternInstance(state, extern_type);
     }
+    ExternInstance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
 }  // namespace TOZ3

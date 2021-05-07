@@ -2,12 +2,16 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <string>
 #include <utility>
 
+#include "ir/ir-generated.h"
+#include "lib/error.h"
 #include "state.h"
 #include "type_base.h"
 #include "type_simple.h"
 #include "util.h"
+#include "visitor_interpret.h"
 
 namespace TOZ3 {
 /***
@@ -82,8 +86,8 @@ P4Z3Instance *StructBase::cast_allocate(const IR::Type *dest_type) const {
     if (dest_type == p4_type) {
         return copy();
     }
-    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s", p4_type,
-                      dest_type);
+    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
+                      p4_type, dest_type, get_static_type());
 }
 
 void StructBase::propagate_validity(const z3::expr *valid_expr) {
@@ -462,15 +466,59 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     return base_hdr;
 }
 
-void StackInstance::push_front(Visitor *, const IR::Vector<IR::Argument> *) {
-    for (size_t i = 0; i < int_size; ++i) {
+void StackInstance::push_front(Visitor *visitor,
+                               const IR::Vector<IR::Argument> *args) {
+    if (args->size() != 1) {
+        error("Expected one argument for push_front, received %s",
+              args->size());
     }
-    P4C_UNIMPLEMENTED("push_front not implemented");
+    visitor->visit(args->at(0)->expression);
+    const auto *numeric_val = state->get_expr_result<NumericVal>();
+    const auto z3_push_size = numeric_val->get_val()->simplify();
+    auto int_push_size = z3_push_size.get_numeral_uint64();
+    // TODO: Checks
+    for (size_t idx = 0; idx < int_push_size; ++idx) {
+        // Check if we are pushing beyond the stack size
+        if (idx >= int_size) {
+            break;
+        }
+        auto *member = get_member(std::to_string(idx));
+        auto *hdr = member->to_mut<HeaderInstance>();
+        hdr->setInvalid(visitor, {});
+    }
+    nextIndex = Z3Int(state, (*nextIndex.get_val() + z3_push_size).simplify());
+    if ((nextIndex > size).is_true()) {
+        nextIndex = size;
+    }
+    lastIndex = nextIndex;
 }
-void StackInstance::pop_front(Visitor *, const IR::Vector<IR::Argument> *) {
-    for (size_t i = 0; i < int_size; ++i) {
+void StackInstance::pop_front(Visitor *visitor,
+                              const IR::Vector<IR::Argument> *args) {
+    if (args->size() != 1) {
+        error("Expected one argument for push_front, received %s",
+              args->size());
     }
-    P4C_UNIMPLEMENTED("pop_front not implemented");
+    visitor->visit(args->at(0)->expression);
+    const auto *numeric_val = state->get_expr_result<NumericVal>();
+    const auto z3_pop_size = numeric_val->get_val()->simplify();
+    auto int_pop_size = z3_pop_size.get_numeral_uint64();
+    auto last_range = int_pop_size > int_size ? 0 : int_size - int_pop_size;
+    for (size_t idx = last_range; idx < int_size; ++idx) {
+        // Check if we are pushing beyond the stack size
+        if (idx >= int_size) {
+            break;
+        }
+        auto *member = get_member(std::to_string(idx));
+        auto *hdr = member->to_mut<HeaderInstance>();
+        hdr->setInvalid(visitor, {});
+    }
+    if ((*nextIndex.get_val() < z3_pop_size).is_true()) {
+        nextIndex = Z3Int(state, state->get_z3_ctx()->int_val(0));
+    } else {
+        nextIndex =
+            Z3Int(state, (*nextIndex.get_val() - z3_pop_size).simplify());
+    }
+    lastIndex = nextIndex;
 }
 
 std::vector<std::pair<cstring, z3::expr>>
@@ -496,6 +544,24 @@ StackInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
         }
     }
     return z3_vars;
+}
+
+StackInstance *StackInstance::cast_allocate(const IR::Type *dest_type) const {
+    // There is only rudimentary casting support for Type_Structs
+    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
+        dest_type = state->resolve_type(tn);
+    }
+    const auto *stack_p4_type = p4_type->to<IR::Type_Stack>();
+    const auto *stack_dst_type = dest_type->to<IR::Type_Stack>();
+    // TODO: This is a hack because there is something amiss with equality
+    // comparison
+    if (stack_p4_type->elementType->toString() ==
+            stack_dst_type->elementType->toString() &&
+        stack_p4_type->getSize() == stack_dst_type->getSize()) {
+        return copy();
+    }
+    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
+                      p4_type, dest_type, get_static_type());
 }
 
 /***
@@ -798,6 +864,18 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
     }
 }
 
+ExternInstance *ExternInstance::cast_allocate(const IR::Type *dest_type) const {
+    // There is only rudimentary casting support for Type_Structs
+    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
+        dest_type = state->resolve_type(tn);
+    }
+    if (dest_type == p4_type) {
+        return copy();
+    }
+    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
+                      p4_type, dest_type, get_static_type());
+}
+
 /***
 ===============================================================================
 ListInstance
@@ -913,6 +991,7 @@ P4TableInstance::P4TableInstance(
       keys(keys), actions(actions), immutable(immutable) {
     members.insert({"action_run", this});
     members.insert({"hit", new Z3Bitvector(state, &BOOL_TYPE, hit)});
+    members.insert({"miss", new Z3Bitvector(state, &BOOL_TYPE, !hit)});
     cstring apply_str = "apply";
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str += std::to_string(table->getApplyParameters()->size());
@@ -985,10 +1064,6 @@ void ControlInstance::apply(Visitor *visitor,
     CHECK_NULL(params);
     const ParamInfo param_info = {*params, *args, *type_params, {}};
     state->copy_in(visitor, param_info);
-    for (auto &var_tuple : resolved_const_args) {
-        state->declare_var(var_tuple.first, var_tuple.second.first,
-                           var_tuple.second.second);
-    }
     visitor->visit(decl);
     state->copy_out();
 }

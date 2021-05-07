@@ -71,7 +71,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::ConstructorCallExpression *cce) override;
     bool preorder(const IR::MethodCallExpression *mce) override;
     bool preorder(const IR::BoolLiteral *bl) override;
-    // bool preorder(const IR::StringLiteral *str) override;
+    bool preorder(const IR::StringLiteral *sl) override;
 
     /****** UNARY OPERANDS ******/
     bool preorder(const IR::Neg *expr) override;

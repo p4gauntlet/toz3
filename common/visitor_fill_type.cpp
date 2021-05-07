@@ -147,12 +147,22 @@ bool TypeVisitor::preorder(const IR::P4Control *c) {
 bool TypeVisitor::preorder(const IR::Function *f) {
     // FIXME: Overloading uses num of parameters, it should use types
     cstring overloaded_name = f->name.name;
-    auto num_params = f->getParameters()->parameters.size();
-    // for (auto param : f->getParameters()->parameters) {
-    //     overloaded_name += param->node_type_name();
-    // }
-    overloaded_name += std::to_string(num_params);
-    state->declare_static_decl(overloaded_name, new P4Declaration(f));
+    auto num_params = 0;
+    auto num_optional_params = 0;
+    for (const auto *param : f->getParameters()->parameters) {
+        if (param->isOptional() || param->defaultValue != nullptr) {
+            num_optional_params += 1;
+        } else {
+            num_params += 1;
+        }
+    }
+    auto *decl = new P4Declaration(f);
+    for (auto idx = 0; idx <= num_optional_params; ++idx) {
+        // The IR has bizarre side effects when storing pointers in a map
+        // FIXME: Think about how to simplify this, maybe use their vector
+        auto name = overloaded_name + std::to_string(num_params + idx);
+        state->declare_static_decl(name, decl);
+    }
     return false;
 }
 
@@ -184,7 +194,8 @@ bool TypeVisitor::preorder(const IR::P4Action *a) {
     auto num_params = 0;
     auto num_optional_params = 0;
     for (const auto *param : a->getParameters()->parameters) {
-        if (param->direction == IR::Direction::None) {
+        if (param->direction == IR::Direction::None || param->isOptional() ||
+            param->defaultValue != nullptr) {
             num_optional_params += 1;
         } else {
             num_params += 1;

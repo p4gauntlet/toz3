@@ -5,6 +5,7 @@
 #include "../contrib/z3/z3++.h"
 #include "lib/exceptions.h"
 
+#include "type_base.h"
 #include "util.h"
 #include "visitor_interpret.h"
 
@@ -32,6 +33,13 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     auto expr = state->get_z3_ctx()->bool_val(bl->value);
     Z3Bitvector wrapper = Z3Bitvector(state, &BOOL_TYPE, expr);
+    state->set_expr_result(wrapper);
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::StringLiteral *sl) {
+    auto expr = state->get_z3_ctx()->string_val(sl->value);
+    Z3Bitvector wrapper = Z3Bitvector(state, &STRING_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
