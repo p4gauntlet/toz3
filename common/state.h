@@ -74,9 +74,6 @@ class P4State {
     merge_args_with_params(Visitor *visitor,
                            const IR::Vector<IR::Argument> &args,
                            const IR::ParameterList &params);
-    VarMap merge_args_with_const_params(Visitor *visitor,
-                                        const IR::Vector<IR::Argument> &args,
-                                        const IR::ParameterList &params);
     void copy_in(Visitor *visitor, const ParamInfo &param_info);
     void copy_out();
     void set_copy_out_args(const CopyArgs &out_args) {

@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <utility>
 
+#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
 #include "type_base.h"
 #include "type_complex.h"
@@ -248,11 +249,12 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
             P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                               resolved_type, resolved_type->node_type_name());
         }
-        auto var_map = state->merge_args_with_const_params(
-            &resolve_expr, *di->arguments, *params);
-        state->declare_var(di->name.name,
-                           new ControlInstance(state, instance_decl, var_map),
-                           resolved_type);
+        auto var_map = state->merge_args_with_params(&resolve_expr,
+                                                     *di->arguments, *params);
+        state->declare_var(
+            di->name.name,
+            new ControlInstance(state, instance_decl, var_map.second),
+            resolved_type);
     } else {
         P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
                           resolved_type, resolved_type->node_type_name());
@@ -283,6 +285,14 @@ bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     }
     state->declare_var(dv->name.name, left, dv->type);
 
+    return false;
+}
+
+
+bool TypeVisitor::preorder(const IR::P4ValueSet *pvs) {
+    auto pvs_name = infer_name(pvs->getAnnotations(), pvs->name.name);
+    auto *instance = state->gen_instance(pvs_name, pvs->elementType);
+    state->declare_var(pvs_name, instance, pvs->elementType);
     return false;
 }
 

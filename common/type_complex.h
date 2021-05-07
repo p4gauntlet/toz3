@@ -211,7 +211,7 @@ class StackInstance : public StructBase {
     StackInstance(const StackInstance &other);
     // overload = operator
     StackInstance &operator=(const StackInstance &other);
-    StackInstance *cast_allocate(const IR::Type *dest_type) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
 class HeaderUnionInstance : public StructBase {
@@ -410,16 +410,15 @@ class ControlInstance : public P4Z3Instance {
     const VarMap resolved_const_args;
     // A wrapper class for table declarations
  public:
-    const IR::Type_Declaration *decl;
     // constructor
-    explicit ControlInstance(P4State *state, const IR::Type_Declaration *decl,
+    explicit ControlInstance(P4State *state, const IR::Type *decl,
                              VarMap resolved_const_args);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override{};
     // TODO: This is a little pointless....
     ControlInstance *copy() const override {
-        return new ControlInstance(state, decl, resolved_const_args);
+        return new ControlInstance(state, p4_type, resolved_const_args);
     }
 
     P4Z3Instance *get_member(cstring name) const override {
@@ -439,11 +438,12 @@ class ControlInstance : public P4Z3Instance {
 
     void apply(Visitor *, const IR::Vector<IR::Argument> *);
 
-    cstring get_static_type() const override { return "DeclarationInstance"; }
+    cstring get_static_type() const override { return "ControlInstance"; }
     cstring to_string() const override {
-        cstring ret = "DeclarationInstance(";
-        return ret + decl->toString() + ")";
+        cstring ret = "ControlInstance(";
+        return ret + p4_type->toString() + ")";
     }
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
 class P4Declaration : public P4Z3Instance {
@@ -547,7 +547,7 @@ class ExternInstance : public P4Z3Instance {
     ExternInstance *copy() const override {
         return new ExternInstance(state, extern_type);
     }
-    ExternInstance *cast_allocate(const IR::Type *dest_type) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
 }  // namespace TOZ3

@@ -32,13 +32,13 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::ReturnStatement *rs) override;
 
     /***** Parser *****/
-    bool preorder(const IR::P4Parser *p) override;
+    // bool preorder(const IR::P4Parser *p) override;
     // bool preorder(const IR::ParserState *ps) override;
     // bool preorder(const IR::P4ValueSet *pvs) override;
     // bool preorder(const IR::SelectExpression *se) override;
     // bool preorder(const IR::SelectCase *se) override;
     /***** Methods *****/
-    bool preorder(const IR::P4Control *c) override;
+    // bool preorder(const IR::P4Control *c) override;
     bool preorder(const IR::P4Action *a) override;
     // bool preorder(const IR::Parameter *param) override;
     // bool preorder(const IR::ParameterList *p) override;
@@ -112,6 +112,10 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dc) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
+    VarMap create_state(const IR::Vector<IR::Argument> *args,
+                        const IR::ParameterList *params);
+    P4Z3Instance *run_arch_block(const IR::ConstructorCallExpression *cce);
+
  public:
     P4State *state;
     explicit Z3Visitor(P4State *state) : state(state) { visitDagOnce = false; }

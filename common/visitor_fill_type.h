@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../contrib/z3/z3++.h"
+#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "visitor_interpret.h"
 
@@ -68,6 +69,7 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dc) override;
     bool preorder(const IR::Declaration_MatchKind *dm) override;
+    bool preorder(const IR::P4ValueSet *pvs) override;
 };
 }  // namespace TOZ3
 

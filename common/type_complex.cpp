@@ -11,6 +11,7 @@
 #include "type_base.h"
 #include "type_simple.h"
 #include "util.h"
+#include "visitor_fill_type.h"
 #include "visitor_interpret.h"
 
 namespace TOZ3 {
@@ -546,7 +547,7 @@ StackInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
     return z3_vars;
 }
 
-StackInstance *StackInstance::cast_allocate(const IR::Type *dest_type) const {
+P4Z3Instance *StackInstance::cast_allocate(const IR::Type *dest_type) const {
     // There is only rudimentary casting support for Type_Structs
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
@@ -864,7 +865,7 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
     }
 }
 
-ExternInstance *ExternInstance::cast_allocate(const IR::Type *dest_type) const {
+P4Z3Instance *ExternInstance::cast_allocate(const IR::Type *dest_type) const {
     // There is only rudimentary casting support for Type_Structs
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
@@ -1021,11 +1022,10 @@ ControlInstance
 ===============================================================================
 ***/
 
-ControlInstance::ControlInstance(P4State *state,
-                                 const IR::Type_Declaration *decl,
+ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
                                  VarMap resolved_const_args)
-    : P4Z3Instance(nullptr), state(state),
-      resolved_const_args(std::move(resolved_const_args)), decl(decl) {
+    : P4Z3Instance(decl), state(state),
+      resolved_const_args(std::move(resolved_const_args)) {
     const IR::ParameterList *params = nullptr;
     if (const auto *ctrl = decl->to<IR::P4Control>()) {
         params = ctrl->getApplyParameters();
@@ -1054,18 +1054,43 @@ void ControlInstance::apply(Visitor *visitor,
                             const IR::Vector<IR::Argument> *args) {
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
-    if (const auto *control = decl->to<IR::P4Control>()) {
+    IR::IndexedVector<IR::Declaration> local_decls;
+    const IR::BlockStatement *body = nullptr;
+    if (const auto *control = p4_type->to<IR::P4Control>()) {
         params = control->getApplyParameters();
         type_params = control->getApplyMethodType()->getTypeParameters();
-    } else if (const auto *parser = decl->to<IR::P4Parser>()) {
+        local_decls = control->controlLocals;
+        body = control->body;
+    } else if (const auto *parser = p4_type->to<IR::P4Parser>()) {
         params = parser->getApplyParameters();
         type_params = parser->getApplyMethodType()->getTypeParameters();
+        local_decls = parser->parserLocals;
     }
     CHECK_NULL(params);
     const ParamInfo param_info = {*params, *args, *type_params, {}};
     state->copy_in(visitor, param_info);
-    visitor->visit(decl);
+    for (const auto &const_arg : resolved_const_args) {
+        state->declare_var(const_arg.first, const_arg.second.first,
+                           const_arg.second.second);
+    }
+    TypeVisitor map_builder = TypeVisitor(state);
+    for (const auto *local_decl : local_decls) {
+        local_decl->apply(map_builder);
+    }
+    visitor->visit(body);
     state->copy_out();
+}
+
+P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
+    // There is only rudimentary casting support for Type_Structs
+    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
+        dest_type = state->resolve_type(tn);
+    }
+    if (dest_type == p4_type) {
+        return copy();
+    }
+    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
+                      p4_type, dest_type, get_static_type());
 }
 
 }  // namespace TOZ3

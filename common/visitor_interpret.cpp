@@ -11,21 +11,6 @@
 
 namespace TOZ3 {
 
-bool Z3Visitor::preorder(const IR::P4Control *c) {
-    TypeVisitor map_builder = TypeVisitor(state);
-
-    for (const IR::Declaration *local_decl : c->controlLocals) {
-        local_decl->apply(map_builder);
-    }
-    visit(c->body);
-    return false;
-}
-
-bool Z3Visitor::preorder(const IR::P4Parser *) {
-    // TODO: Implement
-    return false;
-}
-
 bool Z3Visitor::preorder(const IR::P4Action *a) {
     visit(a->body);
     state->set_expr_result(new VoidResult());
@@ -521,29 +506,46 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     return false;
 }
 
-P4Z3Instance *run_arch_block(Z3Visitor *visitor,
-                             const IR::ConstructorCallExpression *cce) {
-    auto *state = visitor->state;
+P4Z3Instance *
+Z3Visitor::run_arch_block(const IR::ConstructorCallExpression *cce) {
+    auto *state = this->state;
     state->push_scope();
 
-    const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
+    const Visitor_Context *visitor_ctx = nullptr;
+    if (this->getChildContext() != nullptr) {
+        visitor_ctx = this->getContext();
+    }
+    this->visit(cce);
     const IR::ParameterList *params = nullptr;
-    if (const auto *c = resolved_type->to<IR::P4Control>()) {
-        params = c->getApplyParameters();
-    } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
-        params = p->getApplyParameters();
-    } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
-        // TODO: What are params here?
-        params = new IR::ParameterList();
+    P4Z3Function fun_call = nullptr;
+    auto *constructed_expr = state->copy_expr_result();
+    const IR::Type *resolved_type = constructed_expr->get_p4_type();
+    if (auto *ctrl_instance = constructed_expr->to_mut<ControlInstance>()) {
+        if (const auto *c = resolved_type->to<IR::P4Control>()) {
+            params = c->getApplyParameters();
+            cstring apply_name = "apply" + std::to_string(params->size());
+            fun_call = ctrl_instance->get_function(apply_name);
+        } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
+            params = p->getApplyParameters();
+            cstring apply_name = "apply" + std::to_string(params->size());
+            fun_call = ctrl_instance->get_function(apply_name);
+        } else {
+            P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
+                              resolved_type, resolved_type->node_type_name());
+        }
+    } else if (const auto *extern_instance =
+                   constructed_expr->to<ExternInstance>()) {
+        // Not sure what to do here yet...
+        // TODO: Fix that copy
+        return new ControlState();
     } else {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());
     }
-    std::vector<std::pair<cstring, z3::expr>> state_vars;
-    std::vector<cstring> state_names;
 
     // INITIALIZE
     // TODO: Simplify this
+    std::vector<cstring> state_names;
     IR::Vector<IR::Argument> synthesized_args;
     for (const auto *param : *params) {
         const auto *par_type = state->resolve_type(param->type);
@@ -562,18 +564,12 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
             new IR::Argument(new IR::PathExpression(param->name.name));
         synthesized_args.push_back(arg);
     }
-    const auto new_cce =
-        IR::ConstructorCallExpression(cce->constructedType, &synthesized_args);
-    const Visitor_Context *visitor_ctx = nullptr;
-    if (visitor->getChildContext() != nullptr) {
-        visitor_ctx = visitor->getContext();
-    }
-    new_cce.apply(*visitor, visitor_ctx);
-
+    fun_call(this, &synthesized_args);
     // Merge the exit states
     state->merge_exit_states();
 
     // COLLECT
+    std::vector<std::pair<cstring, z3::expr>> state_vars;
     for (auto state_name : state_names) {
         const auto *var = state->get_var(state_name);
         if (const auto *z3_var = var->to<NumericVal>()) {
@@ -595,8 +591,8 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
     return new ControlState(state_vars);
 }
 
-VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
-                    const IR::ParameterList *params) {
+VarMap Z3Visitor::create_state(const IR::Vector<IR::Argument> *args,
+                               const IR::ParameterList *params) {
     VarMap merged_vec;
     size_t idx = 0;
 
@@ -625,24 +621,23 @@ VarMap create_state(Z3Visitor *visitor, const IR::Vector<IR::Argument> *args,
         }
         CHECK_NULL(arg_expr);
         if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
-            auto *state_result = run_arch_block(visitor, cce);
+            auto *state_result = run_arch_block(cce);
             merged_vec.insert({param->name.name, {state_result, param->type}});
         } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
             const auto *decl =
-                visitor->state->get_static_decl(path->path->name.name);
+                this->state->get_static_decl(path->path->name.name);
             const auto *di = decl->decl->to<IR::Declaration_Instance>();
             CHECK_NULL(di);
-            auto sub_results = visitor->gen_state_from_instance(di);
+            auto sub_results = this->gen_state_from_instance(di);
             for (const auto &sub_result : sub_results) {
                 auto merged_name = param->name.name + sub_result.first;
                 auto variables = sub_result.second;
                 merged_vec.insert({merged_name, variables});
             }
         } else if (const auto *cst = arg_expr->to<IR::Literal>()) {
-            cst->apply(*visitor);
-            merged_vec.insert(
-                {param->name.name,
-                 {visitor->state->copy_expr_result(), param->type}});
+            this->visit(cst);
+            merged_vec.insert({param->name.name,
+                               {this->state->copy_expr_result(), param->type}});
         } else {
             P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
                               arg_expr, arg_expr->node_type_name());
@@ -676,7 +671,7 @@ VarMap Z3Visitor::gen_state_from_instance(const IR::Declaration_Instance *di) {
         resolved_type = state->resolve_type(spec_type->baseType);
     }
     const auto *params = get_params(resolved_type);
-    return create_state(this, di->arguments, params);
+    return create_state(di->arguments, params);
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
@@ -701,10 +696,11 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
                               resolved_type, resolved_type->node_type_name());
         }
         auto var_map =
-            state->merge_args_with_const_params(this, *di->arguments, *params);
-        state->declare_var(di->name.name,
-                           new ControlInstance(state, instance_decl, var_map),
-                           resolved_type);
+            state->merge_args_with_params(this, *di->arguments, *params);
+        state->declare_var(
+            di->name.name,
+            new ControlInstance(state, instance_decl, var_map.second),
+            resolved_type);
     } else {
         P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
                           resolved_type, resolved_type->node_type_name());

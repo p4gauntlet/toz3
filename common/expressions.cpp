@@ -249,9 +249,13 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const auto *arguments = cce->arguments;
     // TODO: At this point we need to bind the types...
     if (const auto *c = resolved_type->to<IR::P4Control>()) {
-        params = c->getApplyParameters();
+        params = c->getConstructorParameters();
+        auto var_map = state->merge_args_with_params(this, *arguments, *params);
+        state->set_expr_result(new ControlInstance(state, c, var_map.second));
     } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
-        params = p->getApplyParameters();
+        params = p->getConstructorParameters();
+        auto var_map = state->merge_args_with_params(this, *arguments, *params);
+        state->set_expr_result(new ControlInstance(state, p, var_map.second));
     } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
         // TODO: How to cleanly resolve this?
         params = new IR::ParameterList();
@@ -263,11 +267,10 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());
     }
-    const ParamInfo param_info = {*params, *arguments, {}, {}};
-    state->copy_in(this, param_info);
-    visit(resolved_type);
-    state->copy_out();
+    // const ParamInfo param_info = {*params, *arguments, {}, {}};
+    // state->copy_in(this, param_info);
+    // visit(resolved_type);
+    // state->copy_out();
     return false;
 }
-
 }  // namespace TOZ3

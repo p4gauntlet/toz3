@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <complex>
+#include <cstddef>
 #include <cstdio>
 #include <ostream>
 #include <string>
@@ -395,8 +396,8 @@ P4State::merge_args_with_params(Visitor *visitor,
         // This may have a nullptr, but we need to maintain order
         param_mapping.emplace(param, param->defaultValue);
     }
-    size_t idx = 0;
-    for (const auto &arg : args) {
+    for (size_t idx = 0; idx < args.size(); ++idx) {
+        const auto *arg = args.at(idx);
         // We override the mapping here.
         if (arg->name) {
             param_mapping[params.getParameter(arg->name.name)] =
@@ -404,7 +405,6 @@ P4State::merge_args_with_params(Visitor *visitor,
         } else {
             param_mapping[params.getParameter(idx)] = arg->expression;
         }
-        idx++;
     }
 
     for (const auto &mapping : param_mapping) {
@@ -440,68 +440,21 @@ P4State::merge_args_with_params(Visitor *visitor,
         }
         if (direction == IR::Direction::Out) {
             auto *instance = gen_instance(UNDEF_LABEL, resolved_type);
-            idx++;
             merged_vec.insert({param->name.name, {instance, resolved_type}});
             continue;
         }
-        auto *cast_val = arg_result->cast_allocate(resolved_type);
-        merged_vec.insert({param->name.name, {cast_val, resolved_type}});
-        idx++;
+        // TODO: We should not need this ite, this is a hack
+        if (arg_result->is<ListInstance>()) {
+            auto *cast_val = arg_result->cast_allocate(resolved_type);
+            merged_vec.insert({param->name.name, {cast_val, resolved_type}});
+        } else {
+            merged_vec.insert(
+                {param->name.name, {arg_result->copy(), resolved_type}});
+        }
     }
     return std::pair<CopyArgs, VarMap>{resolved_args, merged_vec};
 }
 
-VarMap
-P4State::merge_args_with_const_params(Visitor *visitor,
-                                      const IR::Vector<IR::Argument> &args,
-                                      const IR::ParameterList &params) {
-    VarMap merged_vec;
-    ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
-    for (const auto &param : params) {
-        // This may have a nullptr, but we need to maintain order
-        param_mapping.emplace(param, param->defaultValue);
-    }
-    size_t idx = 0;
-    for (const auto &arg : args) {
-        // We override the mapping here.
-        if (arg->name) {
-            param_mapping[params.getParameter(arg->name.name)] =
-                arg->expression;
-        } else {
-            param_mapping[params.getParameter(idx)] = arg->expression;
-        }
-        idx++;
-    }
-
-    for (const auto &mapping : param_mapping) {
-        const auto *param = mapping.first;
-        const auto *arg_expr = mapping.second;
-        // Ignore empty optional parameters, they can not be used properly
-        if (param->isOptional() && arg_expr == nullptr) {
-            continue;
-        }
-        CHECK_NULL(arg_expr);
-        const P4Z3Instance *arg_result = nullptr;
-        arg_expr->apply(*visitor);
-        arg_result = get_expr_result();
-
-        const auto *resolved_type = param->type;
-        if (const auto *tn = resolved_type->to<IR::Type_Name>()) {
-            cstring type_name = tn->path->name.name;
-            resolved_type = find_type(type_name);
-            if (resolved_type == nullptr) {
-                // Need to infer a type here and add it to the scope
-                // TODO: This should be a separate pass.
-                resolved_type = arg_result->get_p4_type();
-                add_type(type_name, resolved_type);
-            }
-        }
-        auto *cast_val = arg_result->cast_allocate(resolved_type);
-        merged_vec.insert({param->name.name, {cast_val, resolved_type}});
-        idx++;
-    }
-    return merged_vec;
-}
 
 void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
     push_scope();
