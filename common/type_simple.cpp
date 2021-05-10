@@ -295,6 +295,10 @@ Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
     }
+    if (dest_type->equiv(*p4_type)) {
+        // Nothing to do, return a copy.
+        return *this;
+    }
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
         auto *ctx = &val.get_sort().ctx();
         auto dest_sort = ctx->bv_sort(tb->size);

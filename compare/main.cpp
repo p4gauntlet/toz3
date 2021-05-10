@@ -61,8 +61,8 @@ VarMap get_z3_repr(cstring prog_name, const IR::P4Program *program,
         // convert the P4 program to Z3
         P4State state(ctx);
         TypeVisitor map_builder = TypeVisitor(&state);
-        Z3Visitor to_z3 = Z3Visitor(&state);
         program->apply(map_builder);
+        Z3Visitor to_z3 = Z3Visitor(&state);
         const auto *decl = get_main_decl(&state);
         if (decl == nullptr) {
             return z3_return;

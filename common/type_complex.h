@@ -211,7 +211,6 @@ class StackInstance : public StructBase {
     StackInstance(const StackInstance &other);
     // overload = operator
     StackInstance &operator=(const StackInstance &other);
-    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
 class HeaderUnionInstance : public StructBase {
@@ -400,6 +399,8 @@ class ListInstance : public StructBase {
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     ListInstance *copy() const override;
     std::vector<P4Z3Instance *> get_val_list() const;
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
 };
 
 class ControlInstance : public P4Z3Instance {

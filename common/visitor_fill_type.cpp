@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <utility>
 
-#include "ir/ir-generated.h"
 #include "lib/exceptions.h"
 #include "type_base.h"
 #include "type_complex.h"
@@ -85,7 +84,7 @@ bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
         ordered_map<cstring, P4Z3Instance *> input_members;
         const auto *member_type = t->type;
         for (const auto *member : t->members) {
-            member->value->apply(resolve_expr);
+            resolve_expr.visit(member->value);
             input_members.emplace(
                 member->name.name,
                 state->get_expr_result()->cast_allocate(member_type));
@@ -266,7 +265,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left = nullptr;
     if (dc->initializer != nullptr) {
-        dc->initializer->apply(resolve_expr);
+        resolve_expr.visit(dc->initializer);
         left = state->get_expr_result()->cast_allocate(dc->type);
     } else {
         left = state->gen_instance(UNDEF_LABEL, dc->type);
@@ -278,7 +277,7 @@ bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
 bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left = nullptr;
     if (dv->initializer != nullptr) {
-        dv->initializer->apply(resolve_expr);
+        resolve_expr.visit(dv->initializer);
         left = state->get_expr_result()->cast_allocate(dv->type);
     } else {
         left = state->gen_instance(UNDEF_LABEL, dv->type);
@@ -287,7 +286,6 @@ bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
 
     return false;
 }
-
 
 bool TypeVisitor::preorder(const IR::P4ValueSet *pvs) {
     auto pvs_name = infer_name(pvs->getAnnotations(), pvs->name.name);

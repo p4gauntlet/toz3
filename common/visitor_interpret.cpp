@@ -511,10 +511,6 @@ Z3Visitor::run_arch_block(const IR::ConstructorCallExpression *cce) {
     auto *state = this->state;
     state->push_scope();
 
-    const Visitor_Context *visitor_ctx = nullptr;
-    if (this->getChildContext() != nullptr) {
-        visitor_ctx = this->getContext();
-    }
     this->visit(cce);
     const IR::ParameterList *params = nullptr;
     P4Z3Function fun_call = nullptr;

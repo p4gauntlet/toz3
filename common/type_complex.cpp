@@ -84,7 +84,7 @@ P4Z3Instance *StructBase::cast_allocate(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
     }
-    if (dest_type == p4_type) {
+    if (dest_type->equiv(*p4_type)) {
         return copy();
     }
     P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
@@ -130,6 +130,10 @@ void StructBase::bind(uint64_t member_id, cstring prefix) {
 
 z3::expr StructBase::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
+    if (other.is<ListInstance>()) {
+        // We might be dealing with a list, flip and use the List implementation
+        return other.operator==(*this);
+    }
     if (other.is<StructBase>()) {
         for (auto member_tuple : members) {
             auto member_name = member_tuple.first;
@@ -547,24 +551,6 @@ StackInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
     return z3_vars;
 }
 
-P4Z3Instance *StackInstance::cast_allocate(const IR::Type *dest_type) const {
-    // There is only rudimentary casting support for Type_Structs
-    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
-        dest_type = state->resolve_type(tn);
-    }
-    const auto *stack_p4_type = p4_type->to<IR::Type_Stack>();
-    const auto *stack_dst_type = dest_type->to<IR::Type_Stack>();
-    // TODO: This is a hack because there is something amiss with equality
-    // comparison
-    if (stack_p4_type->elementType->toString() ==
-            stack_dst_type->elementType->toString() &&
-        stack_p4_type->getSize() == stack_dst_type->getSize()) {
-        return copy();
-    }
-    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
-                      p4_type, dest_type, get_static_type());
-}
-
 /***
 ===============================================================================
 HeaderUnionInstance
@@ -866,13 +852,9 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
 }
 
 P4Z3Instance *ExternInstance::cast_allocate(const IR::Type *dest_type) const {
-    // There is only rudimentary casting support for Type_Structs
-    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
-        dest_type = state->resolve_type(tn);
-    }
-    if (dest_type == p4_type) {
-        return copy();
-    }
+    // There is only rudimentary casting support, just copy for now
+    // TODO: Make this proper and think about equality here...
+    return copy();
     P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
                       p4_type, dest_type, get_static_type());
 }
@@ -914,6 +896,9 @@ ListInstance::ListInstance(P4State *state, const IR::Type_List *list_type,
 }
 
 P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
+    if (dest_type->equiv(*p4_type)) {
+        return copy();
+    }
     auto *instance = state->gen_instance("list", dest_type);
     auto *struct_instance = instance->to_mut<StructBase>();
     if (struct_instance == nullptr) {
@@ -940,6 +925,35 @@ std::vector<P4Z3Instance *> ListInstance::get_val_list() const {
         val_list.push_back(member.second);
     }
     return val_list;
+}
+
+z3::expr ListInstance::operator==(const P4Z3Instance &other) const {
+    auto is_eq = state->get_z3_ctx()->bool_val(true);
+    if (const auto *other_struct = other.to<StructBase>()) {
+        // TODO: Make more precise, use width
+        if (members.size() != other_struct->get_member_map()->size()) {
+            return state->get_z3_ctx()->bool_val(false);
+        }
+        // From here on out we assume equal member size.
+        // TODO: What about flat lists and structures?
+        auto this_it = members.begin();
+        auto this_end = members.end();
+        auto others_it = other_struct->get_member_map()->begin();
+        while (this_it != this_end) {
+            const auto *member_val = this_it->second;
+            const auto *other_val = others_it->second;
+            is_eq = is_eq && (member_val->operator==(*other_val));
+            this_it++;
+            others_it++;
+        }
+        return is_eq;
+    }
+    P4C_UNIMPLEMENTED("Comparing a struct base to %s is not supported.",
+                      other.get_static_type());
+}
+
+z3::expr ListInstance::operator!=(const P4Z3Instance &other) const {
+    return !(*this == other);
 }
 
 /***
@@ -1082,13 +1096,9 @@ void ControlInstance::apply(Visitor *visitor,
 }
 
 P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
-    // There is only rudimentary casting support for Type_Structs
-    if (const auto *tn = dest_type->to<IR::Type_Name>()) {
-        dest_type = state->resolve_type(tn);
-    }
-    if (dest_type == p4_type) {
-        return copy();
-    }
+    // There is only rudimentary casting support, just copy for now
+    // TODO: Make this proper and think about equality here...
+    return copy();
     P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
                       p4_type, dest_type, get_static_type());
 }
