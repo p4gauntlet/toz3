@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "../contrib/z3/z3++.h"
-#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "visitor_interpret.h"
 
@@ -25,7 +24,6 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::Node *expr) override {
         FATAL_ERROR("TypeVisitor: IR Node %s not implemented!",
                     expr->node_type_name());
-        return false;
     }
 
     bool preorder(const IR::P4Program *prog) override;

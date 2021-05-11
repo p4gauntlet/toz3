@@ -9,6 +9,7 @@
 
 #include <map>
 #include <memory>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -70,10 +71,9 @@ class P4State {
                                uint64_t id = 0, cstring prefix = "");
 
     /****** COPY-IN/COPY-OUT ******/
-    std::pair<CopyArgs, VarMap>
-    merge_args_with_params(Visitor *visitor,
-                           const IR::Vector<IR::Argument> &args,
-                           const IR::ParameterList &params);
+    std::pair<CopyArgs, VarMap> merge_args_with_params(
+        Visitor *visitor, const IR::Vector<IR::Argument> &args,
+        const IR::ParameterList &params, const IR::TypeParameters &type_params);
     void copy_in(Visitor *visitor, const ParamInfo &param_info);
     void copy_out();
     void set_copy_out_args(const CopyArgs &out_args) {
@@ -160,7 +160,8 @@ class P4State {
     const IR::Type *resolve_type(const IR::Type *type) const;
     void add_type(cstring type_name, const IR::Type *t);
     const IR::Type *get_type(cstring type_name) const;
-    const IR::Type *find_type(cstring type_name) const;
+    const IR::Type *check_for_type(cstring type_name) const;
+    const IR::Type *check_for_type(const IR::Type *t) const;
 
     /****** VARIABLES ******/
     P4Z3Instance *find_var(cstring name) const;

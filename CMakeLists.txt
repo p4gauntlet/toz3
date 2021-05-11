@@ -8,6 +8,7 @@ set (TOZ3V2_COMMON_SRCS
     common/state.cpp
     common/type_simple.cpp
     common/type_complex.cpp
+    common/visitor_specialize.cpp
     common/visitor_fill_type.cpp
     common/visitor_interpret.cpp
     common/expressions.cpp
@@ -20,6 +21,7 @@ set (TOZ3V2_COMMON_HDRS
     common/type_base.h
     common/type_simple.h
     common/type_complex.h
+    common/visitor_specialize.h
     common/visitor_interpret.h
     common/visitor_fill_type.h
     )

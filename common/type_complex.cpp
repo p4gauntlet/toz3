@@ -5,8 +5,8 @@
 #include <string>
 #include <utility>
 
-#include "ir/ir-generated.h"
 #include "lib/error.h"
+#include "lib/null.h"
 #include "state.h"
 #include "type_base.h"
 #include "type_simple.h"
@@ -1041,10 +1041,16 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     : P4Z3Instance(decl), state(state),
       resolved_const_args(std::move(resolved_const_args)) {
     const IR::ParameterList *params = nullptr;
+    const IR::TypeParameters *type_params = nullptr;
+    const IR::ParameterList *const_params = nullptr;
     if (const auto *ctrl = decl->to<IR::P4Control>()) {
         params = ctrl->getApplyParameters();
-    } else if (const auto *ctrl = decl->to<IR::P4Parser>()) {
-        params = ctrl->getApplyParameters();
+        type_params = ctrl->getTypeParameters();
+        const_params = ctrl->getConstructorParameters();
+    } else if (const auto *parser = decl->to<IR::P4Parser>()) {
+        params = parser->getApplyParameters();
+        type_params = parser->getTypeParameters();
+        const_params = parser->getConstructorParameters();
     }
     auto num_params = 0;
     auto num_optional_params = 0;
@@ -1061,6 +1067,17 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
             [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
                 apply(visitor, args);
             };
+    }
+    for (const auto &arg : resolved_const_args) {
+        const auto arg_name = arg.first;
+        const auto *arg_type = arg.second.second;
+        const auto *param = const_params->getParameter(arg_name);
+        CHECK_NULL(param);
+        if (const auto *tn = param->type->to<IR::Type_Name>()) {
+            if (type_params->getDeclByName(tn->path->name.name) != nullptr) {
+                local_type_map.emplace(tn->path->name.name, arg_type);
+            }
+        }
     }
 }
 
@@ -1079,6 +1096,9 @@ void ControlInstance::apply(Visitor *visitor,
         params = parser->getApplyParameters();
         type_params = parser->getApplyMethodType()->getTypeParameters();
         local_decls = parser->parserLocals;
+    }
+    for (auto &local_type : local_type_map) {
+        state->add_type(local_type.first, local_type.second);
     }
     CHECK_NULL(params);
     const ParamInfo param_info = {*params, *args, *type_params, {}};

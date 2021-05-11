@@ -8,10 +8,13 @@
 #include <string>
 #include <tuple>
 
+#include "ir/ir-generated.h"
+#include "ir/node.h"
 #include "ir/visitor.h"
 #include "lib/exceptions.h"
 #include "lib/null.h"
 #include "type_base.h"
+#include "visitor_specialize.h"
 
 namespace TOZ3 {
 
@@ -385,10 +388,9 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target,
     set_var(member_struct, tmp_rval);
 }
 
-std::pair<CopyArgs, VarMap>
-P4State::merge_args_with_params(Visitor *visitor,
-                                const IR::Vector<IR::Argument> &args,
-                                const IR::ParameterList &params) {
+std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(
+    Visitor *visitor, const IR::Vector<IR::Argument> &args,
+    const IR::ParameterList &params, const IR::TypeParameters &type_params) {
     CopyArgs resolved_args;
     VarMap merged_vec;
     ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
@@ -426,30 +428,26 @@ P4State::merge_args_with_params(Visitor *visitor,
             visitor->visit(arg_expr);
             arg_result = get_expr_result();
         }
-
-        const auto *resolved_type = param->type;
-        if (const auto *tn = resolved_type->to<IR::Type_Name>()) {
+        if (const auto *tn = param->type->to<IR::Type_Name>()) {
             cstring type_name = tn->path->name.name;
-            resolved_type = find_type(type_name);
-            if (resolved_type == nullptr) {
+            if (type_params.getDeclByName(type_name) != nullptr) {
                 // Need to infer a type here and add it to the scope
                 // TODO: This should be a separate pass.
-                resolved_type = arg_result->get_p4_type();
-                add_type(type_name, resolved_type);
+                add_type(type_name, arg_result->get_p4_type());
             }
         }
+        const auto *resolved_type = resolve_type(param->type);
         if (direction == IR::Direction::Out) {
             auto *instance = gen_instance(UNDEF_LABEL, resolved_type);
             merged_vec.insert({param->name.name, {instance, resolved_type}});
-            continue;
+        } else {
+            // TODO: We should not need this ite, this is a hack
+            auto *cast_val = arg_result->cast_allocate(resolved_type);
+            merged_vec.insert({param->name.name, {cast_val, resolved_type}});
         }
-        // TODO: We should not need this ite, this is a hack
-        auto *cast_val = arg_result->cast_allocate(resolved_type);
-        merged_vec.insert({param->name.name, {cast_val, resolved_type}});
     }
     return std::pair<CopyArgs, VarMap>{resolved_args, merged_vec};
 }
-
 
 void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
     push_scope();
@@ -457,16 +455,19 @@ void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
     // Specialize
     size_t idx = 0;
     auto type_args_len = param_info.type_args.size();
+    IR::TypeParameters missing_type_params;
     for (const auto &param : param_info.type_params.parameters) {
         auto type_name = param->name.name;
         if (idx < type_args_len) {
             const auto *arg = param_info.type_args[idx];
             add_type(type_name, arg);
             idx++;
+        } else {
+            missing_type_params.push_back(param);
         }
     }
-    auto var_tuple = merge_args_with_params(visitor, param_info.arguments,
-                                            param_info.params);
+    auto var_tuple = merge_args_with_params(
+        visitor, param_info.arguments, param_info.params, missing_type_params);
     auto copy_out_args = var_tuple.first;
     auto merged_vec = var_tuple.second;
     // Now we actually set the variables.
@@ -573,7 +574,7 @@ void P4State::push_scope() { scopes.push_back(P4Scope()); }
 void P4State::pop_scope() { scopes.pop_back(); }
 
 void P4State::add_type(cstring type_name, const IR::Type *t) {
-    if (find_type(type_name) != nullptr) {
+    if (check_for_type(type_name) != nullptr) {
         warning("Type %s shadows existing type in target scope.", type_name);
     }
     if (scopes.empty()) {
@@ -598,28 +599,19 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) const {
     if (const auto *tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
         // TODO: For now catch these exceptions, but this should be solved
-        return get_type(type_name);
+        type = get_type(type_name);
+    }
+    if (const auto *ts = type->to<IR::Type_Specialized>()) {
+        TypeSpecializer specializer(*this, *ts->arguments);
+        const auto *resolved_node = ts->baseType->clone()->apply(specializer);
+        const auto *resolved_type = resolved_node->to<IR::Type>();
+        CHECK_NULL(resolved_type);
+        return resolved_type;
     }
     return type;
 }
 
-const IR::Type *P4State::find_type(cstring type_name, P4Scope **owner_scope) {
-    for (int64_t i = scopes.size() - 1; i >= 0; --i) {
-        auto *scope = &scopes.at(i);
-        if (scope->has_type(type_name)) {
-            *owner_scope = scope;
-            return scope->get_type(type_name);
-        }
-    }
-    // also check the parent scope
-    if (main_scope.has_type(type_name)) {
-        *owner_scope = &main_scope;
-        return main_scope.get_type(type_name);
-    }
-    return nullptr;
-}
-
-const IR::Type *P4State::find_type(cstring type_name) const {
+const IR::Type *P4State::check_for_type(cstring type_name) const {
     for (const auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_type(type_name)) {
             return scope.get_type(type_name);
@@ -630,6 +622,13 @@ const IR::Type *P4State::find_type(cstring type_name) const {
         return main_scope.get_type(type_name);
     }
     return nullptr;
+}
+
+const IR::Type *P4State::check_for_type(const IR::Type *t) const {
+    if (const auto *tn = t->to<IR::Type_Name>()) {
+        return check_for_type(tn->path->name.name);
+    }
+    return t;
 }
 
 P4Z3Instance *P4State::get_var(cstring name) const {

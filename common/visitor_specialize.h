@@ -5,30 +5,47 @@
 #include <vector>
 
 #include "../contrib/z3/z3++.h"
-#include "frontends/common/resolveReferences/resolveReferences.h"
 #include "ir/ir.h"
-#include "visitor_interpret.h"
+#include "ir/visitor.h"
+#include "state.h"
 
 namespace TOZ3 {
 
-class DoTypeSpecialization : public Transform {
+class TypeModifier : public Transform {
+ private:
+    const P4State &state;
+    std::map<cstring, const IR::Type *> *type_mapping;
+    const IR::Node *postorder(IR::Type *type) override;
+
  public:
-    P4State *state;
-    P4::ReferenceMap *ref_map;
-    explicit DoTypeSpecialization(P4State *state, P4::ReferenceMap *ref_map)
-        : state(state), ref_map(ref_map) {
+    explicit TypeModifier(const P4State &state,
+                          std::map<cstring, const IR::Type *> *type_mapping)
+        : state(state), type_mapping(type_mapping) {
         visitDagOnce = false;
     }
-
-    const IR::Node *postorder(IR::MethodCallExpression *) override;
 };
 
-class TypeSpecialization : public PassManager {
+class TypeSpecializer : public Transform {
+ private:
+    const P4State &state;
+    const IR::Vector<IR::Type> &types;
+    // const std::vector<P4Z3Instance *> *resolved_args;
+
+    const IR::Node *preorder(IR::Node *node) override {
+        FATAL_ERROR("TypeSpecializer: IR Node %s not implemented!",
+                    node->node_type_name());
+    }
+    const IR::Node *preorder(IR::Type_Extern *te) override;
+    const IR::Node *preorder(IR::P4Control *tc) override;
+    const IR::Node *preorder(IR::Type_Package *tp) override;
+    const IR::Node *preorder(IR::Type_Var *tv) override;
+    const IR::Node *preorder(IR::Type_Name *tn) override;
+
  public:
-    explicit TypeSpecialization(P4State *state) {
-        P4::ReferenceMap ref_map;
-        passes.push_back(new P4::ResolveReferences(&ref_map, true));
-        passes.push_back(new DoTypeSpecialization(state, &ref_map));
+    explicit TypeSpecializer(const P4State &state,
+                             const IR::Vector<IR::Type> &types)
+        : state(state), types(types) {
+        visitDagOnce = false;
     }
 };
 

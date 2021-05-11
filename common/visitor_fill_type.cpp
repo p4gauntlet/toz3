@@ -2,6 +2,7 @@
 #include <utility>
 
 #include "lib/exceptions.h"
+#include "lib/null.h"
 #include "type_base.h"
 #include "type_complex.h"
 #include "visitor_fill_type.h"
@@ -222,34 +223,32 @@ bool TypeVisitor::preorder(const IR::P4Table *t) {
 bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
     auto instance_name = di->name.name;
     const IR::Type *resolved_type = state->resolve_type(di->type);
-
-    if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {
-        // FIXME: Figure out what do here
-        // for (auto arg : *spec_type->arguments) {
-        //     const IR::Type *resolved_arg = state->resolve_type(arg);
-        // }
-        resolved_type = state->resolve_type(spec_type->baseType);
-    }
     // TODO: Figure out a way to process packages
     if (instance_name == "main" || resolved_type->is<IR::Type_Package>()) {
         // Do not execute main here just yet.
         state->declare_static_decl(instance_name, new P4Declaration(di));
     } else if (const auto *te = resolved_type->to<IR::Type_Extern>()) {
         // TODO: Clean this mess up.
+        const auto *ext_const = te->lookupConstructor(di->arguments);
+        const IR::ParameterList *params = nullptr;
+        params = ext_const->getParameters();
         state->declare_var(instance_name, new ExternInstance(state, te), te);
     } else if (const auto *instance_decl =
                    resolved_type->to<IR::Type_Declaration>()) {
         const IR::ParameterList *params = nullptr;
+        const IR::TypeParameters *type_params = nullptr;
         if (const auto *c = instance_decl->to<IR::P4Control>()) {
             params = c->getConstructorParameters();
+            type_params = c->getTypeParameters();
         } else if (const auto *p = instance_decl->to<IR::P4Parser>()) {
             params = p->getConstructorParameters();
+            type_params = p->getTypeParameters();
         } else {
             P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                               resolved_type, resolved_type->node_type_name());
         }
-        auto var_map = state->merge_args_with_params(&resolve_expr,
-                                                     *di->arguments, *params);
+        auto var_map = state->merge_args_with_params(
+            &resolve_expr, *di->arguments, *params, *type_params);
         state->declare_var(
             di->name.name,
             new ControlInstance(state, instance_decl, var_map.second),

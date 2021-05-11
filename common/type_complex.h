@@ -409,11 +409,14 @@ class ControlInstance : public P4Z3Instance {
     std::map<cstring, P4Z3Function> member_functions;
     ordered_map<cstring, P4Z3Instance *> members;
     const VarMap resolved_const_args;
+    std::map<cstring, const IR::Type *> local_type_map;
     // A wrapper class for table declarations
  public:
     // constructor
     explicit ControlInstance(P4State *state, const IR::Type *decl,
                              VarMap resolved_const_args);
+    explicit ControlInstance(P4State *state, const IR::Type *decl,
+                             std::vector<P4Z3Instance *> &constructor_args);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override{};

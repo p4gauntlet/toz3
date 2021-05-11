@@ -659,13 +659,6 @@ const IR::ParameterList *get_params(const IR::Type *callable_type) {
 VarMap Z3Visitor::gen_state_from_instance(const IR::Declaration_Instance *di) {
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
-    if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {
-        // FIXME: Figure out what do here
-        // for (auto arg : *spec_type->arguments) {
-        //     const IR::Type *resolved_arg = state->resolve_type(arg);
-        // }
-        resolved_type = state->resolve_type(spec_type->baseType);
-    }
     const auto *params = get_params(resolved_type);
     return create_state(di->arguments, params);
 }
@@ -673,26 +666,21 @@ VarMap Z3Visitor::gen_state_from_instance(const IR::Declaration_Instance *di) {
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
-    if (const auto *spec_type = resolved_type->to<IR::Type_Specialized>()) {
-        // FIXME: Figure out what do here
-        // for (auto arg : *spec_type->arguments) {
-        //     const IR::Type *resolved_arg = state->resolve_type(arg);
-        // }
-        resolved_type = state->resolve_type(spec_type->baseType);
-    }
-
     if (const auto *instance_decl = resolved_type->to<IR::Type_Declaration>()) {
         const IR::ParameterList *params = nullptr;
+        const IR::TypeParameters *type_params = nullptr;
         if (const auto *c = instance_decl->to<IR::P4Control>()) {
             params = c->getConstructorParameters();
+            type_params = c->getTypeParameters();
         } else if (const auto *p = instance_decl->to<IR::P4Parser>()) {
             params = p->getConstructorParameters();
+            type_params = p->getTypeParameters();
         } else {
             P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                               resolved_type, resolved_type->node_type_name());
         }
-        auto var_map =
-            state->merge_args_with_params(this, *di->arguments, *params);
+        auto var_map = state->merge_args_with_params(this, *di->arguments,
+                                                     *params, *type_params);
         state->declare_var(
             di->name.name,
             new ControlInstance(state, instance_decl, var_map.second),

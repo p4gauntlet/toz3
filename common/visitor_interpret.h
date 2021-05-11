@@ -17,7 +17,6 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Node *expr) override {
         P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
                           expr->node_type_name());
-        return false;
     }
 
     /***** Statements *****/

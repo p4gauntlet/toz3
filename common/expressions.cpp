@@ -250,11 +250,13 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     // TODO: At this point we need to bind the types...
     if (const auto *c = resolved_type->to<IR::P4Control>()) {
         params = c->getConstructorParameters();
-        auto var_map = state->merge_args_with_params(this, *arguments, *params);
+        auto var_map = state->merge_args_with_params(this, *arguments, *params,
+                                                     *c->getTypeParameters());
         state->set_expr_result(new ControlInstance(state, c, var_map.second));
     } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
         params = p->getConstructorParameters();
-        auto var_map = state->merge_args_with_params(this, *arguments, *params);
+        auto var_map = state->merge_args_with_params(this, *arguments, *params,
+                                                     *p->getTypeParameters());
         state->set_expr_result(new ControlInstance(state, p, var_map.second));
     } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
         // TODO: How to cleanly resolve this?

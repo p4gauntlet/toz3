@@ -9,6 +9,7 @@
 
 #include "ir/ir.h"
 
+#include "ir/visitor.h"
 #include "type_complex.h"
 
 namespace TOZ3 {
