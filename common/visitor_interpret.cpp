@@ -8,6 +8,7 @@
 #include "type_simple.h"
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
+#include "visitor_specialize.h"
 
 namespace TOZ3 {
 
@@ -43,7 +44,7 @@ bool Z3Visitor::preorder(const IR::Function *f) {
 
 bool Z3Visitor::preorder(const IR::Method *m) {
     auto method_name = infer_name(m->getAnnotations(), m->name.name);
-    const auto *method_type = m->type->returnType;
+    const auto *method_type = state->resolve_type(m->type->returnType);
     // TODO: Different types of arguments and multiple calls
     for (const auto *param : *m->getParameters()) {
         cstring param_name = param->name.name;
@@ -506,22 +507,95 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     return false;
 }
 
-P4Z3Instance *
-Z3Visitor::run_arch_block(const IR::ConstructorCallExpression *cce) {
-    auto *state = this->state;
-    state->push_scope();
+std::map<cstring, const IR::Type *>
+get_type_mapping_2(const IR::ParameterList *src_params,
+                   const IR::TypeParameters *src_type_params,
+                   const IR::ParameterList *dest_params) {
+    std::map<cstring, const IR::Type *> type_mapping;
+    auto dest_params_size = dest_params->size();
+    for (size_t idx = 0; idx < src_params->size(); ++idx) {
+        // Ignore optional params
+        if (idx >= dest_params_size) {
+            continue;
+        }
+        const auto *src_param = src_params->getParameter(idx);
+        const auto *dst_param = dest_params->getParameter(idx);
+        if (const auto *tn = src_param->type->to<IR::Type_Name>()) {
+            auto src_type_name = tn->path->name.name;
+            if (src_type_params->getDeclByName(src_type_name) != nullptr) {
+                type_mapping.emplace(src_type_name, dst_param->type);
+            }
+        }
+    }
+    return type_mapping;
+}
 
-    this->visit(cce);
+std::map<cstring, const IR::Type *>
+specialize_arch_blocks(const IR::Type *src_type, const IR::Type *dest_type) {
+    if (const auto *control = src_type->to<IR::Type_Control>()) {
+        if (const auto *control_dst_type = dest_type->to<IR::P4Control>()) {
+            const auto *src_params = control->getApplyParameters();
+            const auto *src_type_params = control->getTypeParameters();
+            auto type_mapping =
+                get_type_mapping_2(src_params, src_type_params,
+                                   control_dst_type->getApplyParameters());
+            TypeModifier type_modifier(&type_mapping);
+            return type_mapping;
+        }
+    }
+    if (const auto *parser = src_type->to<IR::Type_Parser>()) {
+        if (const auto *parser_dst_type = dest_type->to<IR::P4Parser>()) {
+            const auto *src_params = parser->getApplyParameters();
+            const auto *src_type_params = parser->getTypeParameters();
+            auto type_mapping =
+                get_type_mapping_2(src_params, src_type_params,
+                                   parser_dst_type->getApplyParameters());
+            return type_mapping;
+        }
+    }
+    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s", src_type,
+                      dest_type);
+}
+
+P4Z3Instance *run_arch_block(Z3Visitor *visitor,
+                             const IR::ConstructorCallExpression *cce,
+                             const IR::Type *param_type,
+                             const IR::TypeParameters &meta_params) {
+    auto *state = visitor->state;
+
+    visitor->visit(cce);
     const IR::ParameterList *params = nullptr;
     P4Z3Function fun_call = nullptr;
-    auto *constructed_expr = state->copy_expr_result();
-    const IR::Type *resolved_type = constructed_expr->get_p4_type();
-    if (auto *ctrl_instance = constructed_expr->to_mut<ControlInstance>()) {
+    // TODO: Refactor all of this into a separate pass
+    const auto *constructed_expr =
+        state->get_expr_result()->cast_allocate(param_type);
+    const auto *resolved_type = constructed_expr->get_p4_type();
+    if (const auto *ctrl_instance = constructed_expr->to<ControlInstance>()) {
         if (const auto *c = resolved_type->to<IR::P4Control>()) {
+            auto type_mapping =
+                specialize_arch_blocks(param_type, resolved_type);
+            for (const auto &mapped_type : type_mapping) {
+                if (meta_params.getDeclByName(mapped_type.first) != nullptr &&
+                    visitor->state->check_for_type(mapped_type.first) ==
+                        nullptr) {
+                    visitor->state->add_type(mapped_type.first,
+                                             mapped_type.second);
+                }
+            }
             params = c->getApplyParameters();
             cstring apply_name = "apply" + std::to_string(params->size());
             fun_call = ctrl_instance->get_function(apply_name);
         } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
+            auto type_mapping =
+                specialize_arch_blocks(param_type, resolved_type);
+            for (const auto &mapped_type : type_mapping) {
+                if (meta_params.getDeclByName(mapped_type.first) != nullptr &&
+                    visitor->state->check_for_type(mapped_type.first) ==
+                        nullptr) {
+                    visitor->state->add_type(mapped_type.first,
+                                             mapped_type.second);
+                }
+            }
             params = p->getApplyParameters();
             cstring apply_name = "apply" + std::to_string(params->size());
             fun_call = ctrl_instance->get_function(apply_name);
@@ -538,9 +612,10 @@ Z3Visitor::run_arch_block(const IR::ConstructorCallExpression *cce) {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());
     }
-
     // INITIALIZE
     // TODO: Simplify this
+    state->push_scope();
+
     std::vector<cstring> state_names;
     IR::Vector<IR::Argument> synthesized_args;
     for (const auto *param : *params) {
@@ -560,7 +635,7 @@ Z3Visitor::run_arch_block(const IR::ConstructorCallExpression *cce) {
             new IR::Argument(new IR::PathExpression(param->name.name));
         synthesized_args.push_back(arg);
     }
-    fun_call(this, &synthesized_args);
+    fun_call(visitor, &synthesized_args);
     // Merge the exit states
     state->merge_exit_states();
 
@@ -587,23 +662,23 @@ Z3Visitor::run_arch_block(const IR::ConstructorCallExpression *cce) {
     return new ControlState(state_vars);
 }
 
-VarMap Z3Visitor::create_state(const IR::Vector<IR::Argument> *args,
-                               const IR::ParameterList *params) {
+VarMap create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
     VarMap merged_vec;
     size_t idx = 0;
 
     ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
-    for (const auto &param : *params) {
+    for (const auto &param : param_info.params) {
         // This may have a nullptr, but we need to maintain order
         param_mapping.emplace(param, param->defaultValue);
     }
-    for (const auto &arg : *args) {
+    for (const auto &arg : param_info.arguments) {
         // We override the mapping here.
         if (arg->name) {
-            param_mapping[params->getParameter(arg->name.name)] =
+            param_mapping[param_info.params.getParameter(arg->name.name)] =
                 arg->expression;
         } else {
-            param_mapping[params->getParameter(idx)] = arg->expression;
+            param_mapping[param_info.params.getParameter(idx)] =
+                arg->expression;
         }
         idx++;
     }
@@ -617,23 +692,26 @@ VarMap Z3Visitor::create_state(const IR::Vector<IR::Argument> *args,
         }
         CHECK_NULL(arg_expr);
         if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
-            auto *state_result = run_arch_block(cce);
+            auto *state_result = run_arch_block(
+                visitor, cce, visitor->state->resolve_type(param->type),
+                param_info.type_params);
             merged_vec.insert({param->name.name, {state_result, param->type}});
         } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
             const auto *decl =
-                this->state->get_static_decl(path->path->name.name);
+                visitor->state->get_static_decl(path->path->name.name);
             const auto *di = decl->decl->to<IR::Declaration_Instance>();
             CHECK_NULL(di);
-            auto sub_results = this->gen_state_from_instance(di);
+            auto sub_results = visitor->gen_state_from_instance(di);
             for (const auto &sub_result : sub_results) {
                 auto merged_name = param->name.name + sub_result.first;
                 auto variables = sub_result.second;
                 merged_vec.insert({merged_name, variables});
             }
         } else if (const auto *cst = arg_expr->to<IR::Literal>()) {
-            this->visit(cst);
-            merged_vec.insert({param->name.name,
-                               {this->state->copy_expr_result(), param->type}});
+            visitor->visit(cst);
+            merged_vec.insert(
+                {param->name.name,
+                 {visitor->state->copy_expr_result(), param->type}});
         } else {
             P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
                               arg_expr, arg_expr->node_type_name());
@@ -642,25 +720,26 @@ VarMap Z3Visitor::create_state(const IR::Vector<IR::Argument> *args,
     return merged_vec;
 }
 
-const IR::ParameterList *get_params(const IR::Type *callable_type) {
-    if (const auto *control = callable_type->to<IR::P4Control>()) {
-        return control->getConstructorParameters();
-    }
-    if (const auto *parser = callable_type->to<IR::P4Parser>()) {
-        return parser->getConstructorParameters();
-    }
-    if (const auto *package = callable_type->to<IR::Type_Package>()) {
-        return package->getParameters();
-    }
-    P4C_UNIMPLEMENTED("Callable declaration type %s of type %s not supported.",
-                      callable_type, callable_type->node_type_name());
-}
-
 VarMap Z3Visitor::gen_state_from_instance(const IR::Declaration_Instance *di) {
     const IR::Type *resolved_type = state->resolve_type(di->type);
-
-    const auto *params = get_params(resolved_type);
-    return create_state(di->arguments, params);
+    const IR::ParameterList *params = nullptr;
+    const IR::TypeParameters *type_params = nullptr;
+    if (const auto *control = resolved_type->to<IR::P4Control>()) {
+        params = control->getConstructorParameters();
+        type_params = control->getTypeParameters();
+    } else if (const auto *parser = resolved_type->to<IR::P4Parser>()) {
+        params = parser->getConstructorParameters();
+        type_params = parser->getTypeParameters();
+    } else if (const auto *package = resolved_type->to<IR::Type_Package>()) {
+        params = package->getConstructorParameters();
+        type_params = package->getTypeParameters();
+    } else {
+        P4C_UNIMPLEMENTED(
+            "Callable declaration type %s of type %s not supported.",
+            resolved_type, resolved_type->node_type_name());
+    }
+    ParamInfo param_info{*params, *di->arguments, *type_params, {}};
+    return create_state(this, param_info);
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {

@@ -415,8 +415,6 @@ class ControlInstance : public P4Z3Instance {
     // constructor
     explicit ControlInstance(P4State *state, const IR::Type *decl,
                              VarMap resolved_const_args);
-    explicit ControlInstance(P4State *state, const IR::Type *decl,
-                             std::vector<P4Z3Instance *> &constructor_args);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override{};

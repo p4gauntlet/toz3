@@ -441,7 +441,6 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(
             auto *instance = gen_instance(UNDEF_LABEL, resolved_type);
             merged_vec.insert({param->name.name, {instance, resolved_type}});
         } else {
-            // TODO: We should not need this ite, this is a hack
             auto *cast_val = arg_result->cast_allocate(resolved_type);
             merged_vec.insert({param->name.name, {cast_val, resolved_type}});
         }

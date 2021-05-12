@@ -13,6 +13,7 @@
 #include "util.h"
 #include "visitor_fill_type.h"
 #include "visitor_interpret.h"
+#include "visitor_specialize.h"
 
 namespace TOZ3 {
 /***
@@ -836,7 +837,7 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
         auto num_params = 0;
         auto num_optional_params = 0;
         for (const auto *param : method->getParameters()->parameters) {
-            if (param->isOptional()) {
+            if (param->isOptional() || param->defaultValue != nullptr) {
                 num_optional_params += 1;
             } else {
                 num_params += 1;
@@ -1051,6 +1052,8 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
         params = parser->getApplyParameters();
         type_params = parser->getTypeParameters();
         const_params = parser->getConstructorParameters();
+    } else {
+        BUG("Unsupported control instance %s.", decl->node_type_name());
     }
     auto num_params = 0;
     auto num_optional_params = 0;
@@ -1115,10 +1118,58 @@ void ControlInstance::apply(Visitor *visitor,
     state->copy_out();
 }
 
+std::map<cstring, const IR::Type *>
+get_type_mapping(const IR::ParameterList *src_params,
+                 const IR::TypeParameters *src_type_params,
+                 const IR::ParameterList *dest_params) {
+    std::map<cstring, const IR::Type *> type_mapping;
+    auto dest_params_size = dest_params->size();
+    for (size_t idx = 0; idx < src_params->size(); ++idx) {
+        // Ignore optional params
+        if (idx >= dest_params_size) {
+            continue;
+        }
+        const auto *src_param = src_params->getParameter(idx);
+        if (const auto *tn = src_param->type->to<IR::Type_Name>()) {
+            auto src_type_name = tn->path->name.name;
+            if (src_type_params->getDeclByName(src_type_name) != nullptr) {
+                const auto *dst_param = dest_params->getParameter(idx);
+                type_mapping.emplace(src_type_name, dst_param->type);
+            }
+        }
+    }
+    return type_mapping;
+}
+
 P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
     // There is only rudimentary casting support, just copy for now
     // TODO: Make this proper and think about equality here...
-    return copy();
+    if (const auto *control = p4_type->to<IR::P4Control>()) {
+        if (const auto *control_dst_type = dest_type->to<IR::Type_Control>()) {
+            const auto *src_params = control->getApplyParameters();
+            const auto *src_type_params = control->getTypeParameters();
+            const auto type_mapping =
+                get_type_mapping(src_params, src_type_params,
+                                 control_dst_type->getApplyParameters());
+            TypeModifier type_modifier(&type_mapping);
+            const auto *cast_type =
+                p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
+            return new ControlInstance(state, cast_type, resolved_const_args);
+        }
+    }
+    if (const auto *parser = p4_type->to<IR::P4Parser>()) {
+        if (const auto *parser_dst_type = dest_type->to<IR::Type_Parser>()) {
+            const auto *src_params = parser->getApplyParameters();
+            const auto *src_type_params = parser->getTypeParameters();
+            const auto type_mapping =
+                get_type_mapping(src_params, src_type_params,
+                                 parser_dst_type->getApplyParameters());
+            TypeModifier type_modifier(&type_mapping);
+            const auto *cast_type =
+                p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
+            return new ControlInstance(state, cast_type, resolved_const_args);
+        }
+    }
     P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s",
                       p4_type, dest_type, get_static_type());
 }

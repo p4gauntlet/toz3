@@ -111,9 +111,6 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dc) override;
     // bool preorder(const IR::Declaration_MatchKind *) override;
-    VarMap create_state(const IR::Vector<IR::Argument> *args,
-                        const IR::ParameterList *params);
-    P4Z3Instance *run_arch_block(const IR::ConstructorCallExpression *cce);
 
  public:
     P4State *state;

@@ -13,14 +13,13 @@ namespace TOZ3 {
 
 class TypeModifier : public Transform {
  private:
-    const P4State &state;
-    std::map<cstring, const IR::Type *> *type_mapping;
+    const std::map<cstring, const IR::Type *> *type_mapping;
     const IR::Node *postorder(IR::Type *type) override;
 
  public:
-    explicit TypeModifier(const P4State &state,
-                          std::map<cstring, const IR::Type *> *type_mapping)
-        : state(state), type_mapping(type_mapping) {
+    explicit TypeModifier(
+        const std::map<cstring, const IR::Type *> *type_mapping)
+        : type_mapping(type_mapping) {
         visitDagOnce = false;
     }
 };
@@ -29,14 +28,16 @@ class TypeSpecializer : public Transform {
  private:
     const P4State &state;
     const IR::Vector<IR::Type> &types;
-    // const std::vector<P4Z3Instance *> *resolved_args;
 
     const IR::Node *preorder(IR::Node *node) override {
-        FATAL_ERROR("TypeSpecializer: IR Node %s not implemented!",
-                    node->node_type_name());
+        P4C_UNIMPLEMENTED("TypeSpecializer: IR Node %s not implemented!",
+                          node->node_type_name());
     }
     const IR::Node *preorder(IR::Type_Extern *te) override;
-    const IR::Node *preorder(IR::P4Control *tc) override;
+    const IR::Node *preorder(IR::P4Control *c) override;
+    const IR::Node *preorder(IR::Type_Control *tc) override;
+    const IR::Node *preorder(IR::P4Parser *p) override;
+    const IR::Node *preorder(IR::Type_Parser *tp) override;
     const IR::Node *preorder(IR::Type_Package *tp) override;
     const IR::Node *preorder(IR::Type_Var *tv) override;
     const IR::Node *preorder(IR::Type_Name *tn) override;
