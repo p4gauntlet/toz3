@@ -63,7 +63,6 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::P4Action *a) override;
     bool preorder(const IR::P4Table *t) override;
     bool preorder(const IR::Declaration_Instance *di) override;
-    // bool preorder(const IR::Declaration_ID *di) override;
     bool preorder(const IR::Declaration_Variable *dv) override;
     bool preorder(const IR::Declaration_Constant *dc) override;
     bool preorder(const IR::Declaration_MatchKind *dm) override;

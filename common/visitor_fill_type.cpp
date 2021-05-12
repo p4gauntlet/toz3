@@ -83,9 +83,10 @@ bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
         }
     } else {
         ordered_map<cstring, P4Z3Instance *> input_members;
-        const auto *member_type = t->type;
+        const auto *member_type = state->resolve_type(t->type);
         for (const auto *member : t->members) {
-            resolve_expr.visit(member->value);
+            // TODO: Why does apply work here?
+            member->value->apply(resolve_expr);
             input_members.emplace(
                 member->name.name,
                 state->get_expr_result()->cast_allocate(member_type));
@@ -263,33 +264,36 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
 // new DeclarationInstance(state, instance_decl)
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left = nullptr;
+    const auto *resolved_type = state->resolve_type(dc->type);
     if (dc->initializer != nullptr) {
         resolve_expr.visit(dc->initializer);
-        left = state->get_expr_result()->cast_allocate(dc->type);
+        left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
-        left = state->gen_instance(UNDEF_LABEL, dc->type);
+        left = state->gen_instance(UNDEF_LABEL, resolved_type);
     }
-    state->declare_var(dc->name.name, left, dc->type);
+    state->declare_var(dc->name.name, left, resolved_type);
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left = nullptr;
+    const auto *resolved_type = state->resolve_type(dv->type);
     if (dv->initializer != nullptr) {
         resolve_expr.visit(dv->initializer);
-        left = state->get_expr_result()->cast_allocate(dv->type);
+        left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
-        left = state->gen_instance(UNDEF_LABEL, dv->type);
+        left = state->gen_instance(UNDEF_LABEL, resolved_type);
     }
-    state->declare_var(dv->name.name, left, dv->type);
+    state->declare_var(dv->name.name, left, resolved_type);
 
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::P4ValueSet *pvs) {
+    const auto *resolved_type = state->resolve_type(pvs->elementType);
     auto pvs_name = infer_name(pvs->getAnnotations(), pvs->name.name);
-    auto *instance = state->gen_instance(pvs_name, pvs->elementType);
-    state->declare_var(pvs_name, instance, pvs->elementType);
+    auto *instance = state->gen_instance(pvs_name, resolved_type);
+    state->declare_var(pvs_name, instance, resolved_type);
     return false;
 }
 

@@ -483,27 +483,30 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
+bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left = nullptr;
-    if (dv->initializer != nullptr) {
-        visit(dv->initializer);
-        left = state->get_expr_result()->cast_allocate(dv->type);
+    const auto *resolved_type = state->resolve_type(dc->type);
+    if (dc->initializer != nullptr) {
+        visit(dc->initializer);
+        left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
-        left = state->gen_instance(UNDEF_LABEL, dv->type);
+        left = state->gen_instance(UNDEF_LABEL, resolved_type);
     }
-    state->declare_var(dv->name.name, left, dv->type);
+    state->declare_var(dc->name.name, left, resolved_type);
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
+bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left = nullptr;
-    if (dc->initializer != nullptr) {
-        visit(dc->initializer);
-        left = state->get_expr_result()->cast_allocate(dc->type);
+    const auto *resolved_type = state->resolve_type(dv->type);
+    if (dv->initializer != nullptr) {
+        visit(dv->initializer);
+        left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
-        left = state->gen_instance(UNDEF_LABEL, dc->type);
+        left = state->gen_instance(UNDEF_LABEL, resolved_type);
     }
-    state->declare_var(dc->name.name, left, dc->type);
+    state->declare_var(dv->name.name, left, resolved_type);
+
     return false;
 }
 

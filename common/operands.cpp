@@ -305,10 +305,10 @@ bool Z3Visitor::preorder(const IR::Slice *sl) {
 
 bool Z3Visitor::preorder(const IR::Cast *c) {
     // resolve expression
+    const auto *resolved_type = state->resolve_type(c->destType);
     visit(c->expr);
     const auto *resolved_expr = state->get_expr_result();
-
-    state->set_expr_result(resolved_expr->cast_allocate(c->destType));
+    state->set_expr_result(resolved_expr->cast_allocate(resolved_type));
     return false;
 }
 

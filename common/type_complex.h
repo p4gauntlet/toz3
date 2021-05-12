@@ -346,7 +346,7 @@ class ErrorInstance : public EnumBase {
 class SerEnumInstance : public EnumBase {
  public:
     SerEnumInstance(P4State *state,
-                    ordered_map<cstring, P4Z3Instance *> input_members,
+                    const ordered_map<cstring, P4Z3Instance *> &input_members,
                     const IR::Type_SerEnum *type, uint64_t member_id,
                     cstring prefix);
     cstring get_static_type() const override { return "SerEnumInstance"; }

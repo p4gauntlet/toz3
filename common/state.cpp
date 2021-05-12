@@ -456,14 +456,10 @@ void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
     auto type_args_len = param_info.type_args.size();
     IR::TypeParameters missing_type_params;
     for (const auto &param : param_info.type_params.parameters) {
-        auto type_name = param->name.name;
-        if (idx < type_args_len) {
-            const auto *arg = param_info.type_args[idx];
-            add_type(type_name, arg);
-            idx++;
-        } else {
+        if (idx >= type_args_len) {
             missing_type_params.push_back(param);
         }
+        idx++;
     }
     auto var_tuple = merge_args_with_params(
         visitor, param_info.arguments, param_info.params, missing_type_params);
@@ -544,7 +540,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         // For SerEnums we just return a copy of the declaration
         auto *enum_instance = get_var<SerEnumInstance>(t->name.name)->copy();
         CHECK_NULL(enum_instance);
-        enum_instance->set_enum_val(gen_z3_expr(name, t->type));
+        enum_instance->set_enum_val(gen_z3_expr(name, resolve_type(t->type)));
         instance = enum_instance;
     } else if (const auto *t = type->to<IR::Type_Stack>()) {
         instance = new StackInstance(this, t, id, prefix);

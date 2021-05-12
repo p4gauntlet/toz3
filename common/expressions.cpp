@@ -8,6 +8,7 @@
 #include "type_base.h"
 #include "util.h"
 #include "visitor_interpret.h"
+#include "visitor_specialize.h"
 
 namespace TOZ3 {
 
@@ -230,13 +231,18 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     } else {
         P4C_UNIMPLEMENTED("Method call %s not supported.", mce);
     }
-    // at this point, we assume we are dealing with a Declaration
+
+    // At this point, we assume we are dealing with a Declaration
+    TypeSpecializer specializer(*state, *mce->typeArguments);
+    callable = callable->clone()->apply(specializer);
+
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     set_params(callable, &params, &type_params);
 
     const ParamInfo param_info = {*params, *arguments, *type_params,
                                   *mce->typeArguments};
+
     state->copy_in(this, param_info);
     visit(callable);
     state->copy_out();

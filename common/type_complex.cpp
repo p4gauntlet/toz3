@@ -58,7 +58,8 @@ void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
             if (auto *sub_target = target_val->to_mut<StructBase>()) {
                 sub_target->set_list(sub_list->get_val_list());
             } else {
-                BUG("Unsupported set list class.");
+                BUG("Unsupported set list class %s.",
+                    target_val->get_static_type());
             }
         } else {
             const auto *member_type = get_member_type(member_name);
@@ -805,18 +806,21 @@ SerEnumInstance
 ***/
 
 SerEnumInstance::SerEnumInstance(
-    P4State *p4_state, ordered_map<cstring, P4Z3Instance *> input_members,
+    P4State *p4_state,
+    const ordered_map<cstring, P4Z3Instance *> &input_members,
     const IR::Type_SerEnum *type, uint64_t ext_member_id, cstring prefix)
     : EnumBase(p4_state, type, ext_member_id, prefix) {
-    enum_val = state->gen_z3_expr(UNDEF_LABEL, type->type);
-    if (const auto *tb = type->type->to<IR::Type_Bits>()) {
+    members.clear();
+    members.insert(input_members.begin(), input_members.end());
+    const auto *resolved_type = state->resolve_type(type->type);
+    enum_val = state->gen_z3_expr(UNDEF_LABEL, resolved_type);
+    if (const auto *tb = resolved_type->to<IR::Type_Bits>()) {
         member_type = tb;
         width = tb->width_bits();
     } else {
         P4C_UNIMPLEMENTED("Type %s not supported for SerEnum!",
                           type->type->node_type_name());
     }
-    members = std::move(input_members);
 }
 
 SerEnumInstance *SerEnumInstance::copy() const {

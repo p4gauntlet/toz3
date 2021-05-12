@@ -41,6 +41,10 @@ class TypeSpecializer : public Transform {
     const IR::Node *preorder(IR::Type_Package *tp) override;
     const IR::Node *preorder(IR::Type_Var *tv) override;
     const IR::Node *preorder(IR::Type_Name *tn) override;
+    const IR::Node *preorder(IR::Type_StructLike *ts) override;
+    const IR::Node *preorder(IR::P4Action *a) override;
+    const IR::Node *preorder(IR::Function *f) override;
+    const IR::Node *preorder(IR::Method *m) override;
 
  public:
     explicit TypeSpecializer(const P4State &state,
