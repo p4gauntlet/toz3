@@ -14,7 +14,6 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
     if (expr.is_bv()) {
         expr_size = expr.get_sort().bv_size();
     } else if (expr.is_int()) {
-        auto cast_val = z3::int2bv(dest_type.bv_size(), expr).simplify();
         return z3::int2bv(dest_type.bv_size(), expr).simplify();
     } else if (expr.is_bool()) {
         auto *ctx = &expr.get_sort().ctx();
@@ -662,8 +661,8 @@ Z3Result Z3Int::cast(const IR::Type *dest_type) const {
         dest_type = state->resolve_type(tn);
     }
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
-        auto *ctx = &val.get_sort().ctx();
-        auto dest_sort = ctx->bv_sort(tb->width_bits());
+        // TODO: Resolve this
+        auto dest_sort = state->get_z3_ctx()->bv_sort(tb->size);
         return Z3Bitvector(state, tb, pure_bv_cast(val, dest_sort));
     }
     if (const auto *tb = dest_type->to<IR::Type_Boolean>()) {

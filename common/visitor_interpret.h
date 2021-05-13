@@ -114,10 +114,12 @@ class Z3Visitor : public Inspector {
 
  public:
     P4State *state;
-    explicit Z3Visitor(P4State *state) : state(state) {
+    explicit Z3Visitor(P4State *state, bool gen_ctx = true) : state(state) {
         visitDagOnce = false;
-        const auto ctx = Context();
-        Visitor::init_apply(nullptr, &ctx);
+        if (gen_ctx) {
+            const auto ctx = Context();
+            Visitor::init_apply(nullptr, &ctx);
+        }
     }
 
     VarMap gen_state_from_instance(const IR::Declaration_Instance *di);

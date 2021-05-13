@@ -24,6 +24,7 @@ bool TypeVisitor::preorder(const IR::Type_StructLike *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_Enum *t) {
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_Enum>();
     // TODO: Enums are really nasty because we also need to access them
     // TODO: Simplify this.
     auto name = t->name.name;
@@ -47,6 +48,7 @@ bool TypeVisitor::preorder(const IR::Type_Enum *t) {
 
 bool TypeVisitor::preorder(const IR::Type_Error *t) {
     // TODO: Simplify this.
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_Error>();
     auto name = t->name.name;
     auto *var = state->find_var(name);
     // Every P4 program is initialized with an error namespace
@@ -69,6 +71,7 @@ bool TypeVisitor::preorder(const IR::Type_Error *t) {
 bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
     // TODO: Enums are really nasty because we also need to access them
     // TODO: Simplify this.
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_SerEnum>();
     auto name = t->name.name;
     auto *var = state->find_var(name);
     // Every P4 program is initialized with an error namespace
@@ -84,6 +87,7 @@ bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
     } else {
         ordered_map<cstring, P4Z3Instance *> input_members;
         const auto *member_type = state->resolve_type(t->type);
+        auto resolve_expr = Z3Visitor(state, false);
         for (const auto *member : t->members) {
             // TODO: Why does apply work here?
             member->value->apply(resolve_expr);
@@ -105,12 +109,16 @@ bool TypeVisitor::preorder(const IR::Type_Extern *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_Typedef *t) {
-    state->add_type(t->name.name, state->resolve_type(t->type));
+    const auto *type_clone =
+        t->type->apply(DoBitFolding(state))->checkedTo<IR::Type>();
+    state->add_type(t->name.name, state->resolve_type(type_clone));
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Type_Newtype *t) {
-    state->add_type(t->name.name, state->resolve_type(t->type));
+    const auto *type_clone =
+        t->type->apply(DoBitFolding(state))->checkedTo<IR::Type>();
+    state->add_type(t->name.name, state->resolve_type(type_clone));
     return false;
 }
 
@@ -261,12 +269,14 @@ bool TypeVisitor::preorder(const IR::Declaration_Instance *di) {
     return false;
 }
 
-// new DeclarationInstance(state, instance_decl)
 bool TypeVisitor::preorder(const IR::Declaration_Constant *dc) {
     P4Z3Instance *left = nullptr;
-    const auto *resolved_type = state->resolve_type(dc->type);
+    const auto *type_clone =
+        dc->type->apply(DoBitFolding(state))->checkedTo<IR::Type>();
+    const auto *resolved_type = state->resolve_type(type_clone);
     if (dc->initializer != nullptr) {
-        resolve_expr.visit(dc->initializer);
+        auto resolve_expr = Z3Visitor(state, false);
+        dc->initializer->apply(resolve_expr);
         left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
         left = state->gen_instance(UNDEF_LABEL, resolved_type);
@@ -279,7 +289,8 @@ bool TypeVisitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left = nullptr;
     const auto *resolved_type = state->resolve_type(dv->type);
     if (dv->initializer != nullptr) {
-        resolve_expr.visit(dv->initializer);
+        auto resolve_expr = Z3Visitor(state, false);
+        dv->initializer->apply(resolve_expr);
         left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
         left = state->gen_instance(UNDEF_LABEL, resolved_type);
@@ -301,6 +312,26 @@ bool TypeVisitor::preorder(const IR::Declaration_MatchKind * /*dm */) {
     // TODO: Figure out purpose of Declaration_MatchKind
     // state->add_decl(dm->name.name, dm);
     return false;
+}
+
+void DoBitFolding::postorder(IR::Type_Bits *tb) {
+    if (tb->expression != nullptr) {
+        tb->expression->apply(Z3Visitor(state, false));
+        const auto *result = state->get_expr_result<NumericVal>();
+        auto int_size = result->get_val()->simplify().get_numeral_uint64();
+        tb->size = int_size;
+        tb->expression = nullptr;
+    }
+}
+
+void DoBitFolding::postorder(IR::Type_Varbits *tb) {
+    if (tb->expression != nullptr) {
+        tb->expression->apply(Z3Visitor(state, false));
+        const auto *result = state->get_expr_result<NumericVal>();
+        auto int_size = result->get_val()->simplify().get_numeral_uint64();
+        tb->size = int_size;
+        tb->expression = nullptr;
+    }
 }
 
 }  // namespace TOZ3

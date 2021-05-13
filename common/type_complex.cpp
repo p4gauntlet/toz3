@@ -116,12 +116,9 @@ void StructBase::bind(uint64_t member_id, cstring prefix) {
             si->bind(flat_id, prefix);
             flat_id += si->get_width();
         } else if (const auto *z3_var = member_var->to<Z3Bitvector>()) {
-            const auto *z3_expr = z3_var->get_val();
-            auto member_var =
-                state->get_z3_ctx()->constant(name, z3_expr->get_sort());
             update_member(member_name,
-                          new Z3Bitvector(state, z3_var->get_p4_type(),
-                                          member_var, z3_var->is_signed));
+                          state->gen_instance(name, z3_var->get_p4_type()));
+            // TODO: Fix this, all elements should have a bit width
             flat_id += z3_var->get_p4_type()->width_bits();
         } else {
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
@@ -171,8 +168,8 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
             width += si->get_width();
             flat_id += si->get_width();
         } else if (const auto *tbi = resolved_type->to<IR::Type_Bits>()) {
-            width += tbi->width_bits();
-            flat_id += tbi->width_bits();
+            width += tbi->size;
+            flat_id += tbi->size;
         } else if (const auto *tvb = resolved_type->to<IR::Type_Varbits>()) {
             width += tvb->size;
             flat_id += tvb->size;
@@ -221,15 +218,23 @@ StructInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(),
                            z3_sub_vars.end());
         } else if (const auto *z3_var = member->to<Z3Int>()) {
-            // We receive an int that we need to cast towards the member
-            // type
+            // We need to cast towards the member type
             const auto *dest_type = member_types.at(member_tuple.first);
-            auto cast_val =
-                z3::int2bv(dest_type->width_bits(), *z3_var->get_val())
-                    .simplify();
-            auto invalid_var = state->gen_z3_expr(INVALID_LABEL, dest_type);
-            auto valid_var = z3::ite(*tmp_valid, cast_val, invalid_var);
-            z3_vars.emplace_back(name, valid_var);
+            if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
+                auto cast_val =
+                    z3::int2bv(tb->size, *z3_var->get_val()).simplify();
+                auto invalid_var = state->gen_z3_expr(INVALID_LABEL, dest_type);
+                auto valid_var = z3::ite(*tmp_valid, cast_val, invalid_var);
+                z3_vars.emplace_back(name, valid_var);
+            } else if (const auto *tb = dest_type->to<IR::Type_Varbits>()) {
+                auto cast_val =
+                    z3::int2bv(tb->size, *z3_var->get_val()).simplify();
+                auto invalid_var = state->gen_z3_expr(INVALID_LABEL, dest_type);
+                auto valid_var = z3::ite(*tmp_valid, cast_val, invalid_var);
+                z3_vars.emplace_back(name, valid_var);
+            } else {
+                BUG("Unsupported int cast to %s.", dest_type);
+            }
         } else {
             BUG("Var is neither type z3::expr nor P4Z3Instance!");
         }
@@ -816,7 +821,7 @@ SerEnumInstance::SerEnumInstance(
     enum_val = state->gen_z3_expr(UNDEF_LABEL, resolved_type);
     if (const auto *tb = resolved_type->to<IR::Type_Bits>()) {
         member_type = tb;
-        width = tb->width_bits();
+        width = tb->size;
     } else {
         P4C_UNIMPLEMENTED("Type %s not supported for SerEnum!",
                           type->type->node_type_name());

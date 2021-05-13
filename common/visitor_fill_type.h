@@ -10,6 +10,19 @@
 
 namespace TOZ3 {
 
+class DoBitFolding : public Modifier {
+ private:
+    P4State *state;
+    void postorder(IR::Type_Bits *tb) override;
+    void postorder(IR::Type_Varbits *tb) override;
+
+ public:
+    using Modifier::postorder;
+    explicit DoBitFolding(P4State *state) : state(state) {
+        visitDagOnce = false;
+    }
+};
+
 class TypeVisitor : public Inspector {
     P4State *state;
     Z3Visitor resolve_expr;
