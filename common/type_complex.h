@@ -162,7 +162,15 @@ class HeaderInstance : public StructInstance {
     z3::expr operator!=(const P4Z3Instance &other) const override;
 };
 
-class StackInstance : public StructBase {
+class IndexableInstance : public StructBase {
+    using StructBase::StructBase;
+
+ public:
+    virtual P4Z3Instance *get_member(const z3::expr &index) const = 0;
+    virtual size_t get_int_size() const = 0;
+};
+
+class StackInstance : public IndexableInstance {
  private:
     std::map<cstring, P4Z3Function> member_functions;
     mutable Z3Int nextIndex;
@@ -183,7 +191,7 @@ class StackInstance : public StructBase {
         BUG("Name %s not found in function map.", name);
     }
 
-    P4Z3Instance *get_member(const z3::expr &index) const;
+    P4Z3Instance *get_member(const z3::expr &index) const override;
     P4Z3Instance *get_member(cstring name) const override;
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
@@ -202,7 +210,7 @@ class StackInstance : public StructBase {
         ret += ")";
         return ret;
     }
-    size_t get_int_size() const { return int_size; }
+    size_t get_int_size() const override { return int_size; }
     void push_front(Visitor *, const IR::Vector<IR::Argument> *);
     void pop_front(Visitor *, const IR::Vector<IR::Argument> *);
 
@@ -211,6 +219,22 @@ class StackInstance : public StructBase {
     StackInstance(const StackInstance &other);
     // overload = operator
     StackInstance &operator=(const StackInstance &other);
+};
+
+class TupleInstance : public IndexableInstance {
+ public:
+    TupleInstance(P4State *state, const IR::Type_Tuple *type,
+                  uint64_t member_id, cstring prefix);
+
+    cstring get_static_type() const override { return "TupleInstance"; }
+    cstring to_string() const override {
+        cstring ret = "TupleInstance(";
+        ret += ")";
+        return ret;
+    }
+    TupleInstance *copy() const override;
+    size_t get_int_size() const override { return members.size(); }
+    P4Z3Instance *get_member(const z3::expr &index) const override;
 };
 
 class HeaderUnionInstance : public StructBase {
@@ -365,22 +389,6 @@ class SerEnumInstance : public EnumBase {
     }
     // TODO: SerEnumInstance is static, so no copy allowed
     SerEnumInstance *copy() const override;
-};
-
-class TupleInstance : public StructBase {
-    using StructBase::StructBase;
-
- public:
-    TupleInstance(P4State *state, const IR::Type_Tuple *type,
-                  uint64_t member_id, cstring prefix);
-
-    cstring get_static_type() const override { return "TupleInstance"; }
-    cstring to_string() const override {
-        cstring ret = "TupleInstance(";
-        ret += ")";
-        return ret;
-    }
-    TupleInstance *copy() const override;
 };
 
 class ListInstance : public StructBase {

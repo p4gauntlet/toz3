@@ -34,9 +34,9 @@ class P4State {
     Z3Bitvector z3_expr_buffer;
     Z3Int z3_int_buffer;
     P4Z3Instance *expr_result;
+    // Exit vars
     bool is_exited = false;
     std::vector<std::pair<z3::expr, VarMap>> exit_states;
-
     z3::expr exit_cond = ctx->bool_val(true);
     P4Scope *get_mut_current_scope() { return &scopes.back(); }
     void set_var(Visitor *visitor, const IR::Expression *target,
@@ -106,6 +106,8 @@ class P4State {
         }
         // Clear the exit states
         exit_states.clear();
+        exit_cond = ctx->bool_val(true);
+        is_exited = false;
     }
     void add_exit_state(const z3::expr &cond, const VarMap &exit_state) {
         exit_states.emplace_back(cond, exit_state);

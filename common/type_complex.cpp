@@ -395,9 +395,10 @@ StackInstance
 
 StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
                              uint64_t member_id, cstring prefix)
-    : StructBase(state, type, member_id, prefix), nextIndex(Z3Int(state, 0)),
-      lastIndex(Z3Int(state, 0)), size(Z3Int(state, type->getSize())),
-      int_size(type->getSize()), elem_type(type->elementType) {
+    : IndexableInstance(state, type, member_id, prefix),
+      nextIndex(Z3Int(state, 0)), lastIndex(Z3Int(state, 0)),
+      size(Z3Int(state, type->getSize())), int_size(type->getSize()),
+      elem_type(type->elementType) {
     auto flat_id = member_id;
     const IR::Type *resolved_type = state->resolve_type(type->elementType);
     for (size_t idx = 0; idx < int_size; ++idx) {
@@ -427,8 +428,9 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
 StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
 
 StackInstance::StackInstance(const StackInstance &other)
-    : StructBase(other), nextIndex(other.nextIndex), lastIndex(other.lastIndex),
-      size(other.size), int_size(other.int_size), elem_type(other.elem_type) {
+    : IndexableInstance(other), nextIndex(other.nextIndex),
+      lastIndex(other.lastIndex), size(other.size), int_size(other.int_size),
+      elem_type(other.elem_type) {
     member_functions["push_front1"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             push_front(visitor, args);
@@ -974,7 +976,7 @@ TupleInstance
 
 TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type,
                              uint64_t member_id, cstring prefix)
-    : StructBase(state, type, member_id, prefix) {
+    : IndexableInstance(state, type, member_id, prefix) {
     size_t idx = 0;
     for (const auto &field_type : type->components) {
         const IR::Type *resolved_type = state->resolve_type(field_type);
@@ -988,6 +990,16 @@ TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type,
 }
 
 TupleInstance *TupleInstance::copy() const { return new TupleInstance(*this); }
+
+P4Z3Instance *TupleInstance::get_member(const z3::expr &index) const {
+    auto val = index.simplify();
+    std::string val_str;
+    if (val.is_numeral(val_str, 0)) {
+        return StructBase::get_member(val_str);
+    }
+    P4C_UNIMPLEMENTED("Runtime indices not supported for %s",
+                      get_static_type());
+}
 
 /***
 ===============================================================================

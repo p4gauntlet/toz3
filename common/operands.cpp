@@ -19,10 +19,21 @@ bool Z3Visitor::preorder(const IR::Member *m) {
 
 bool Z3Visitor::preorder(const IR::ArrayIndex *ai) {
     visit(ai->right);
-    auto index = *state->get_expr_result<NumericVal>()->get_val();
+    // TODO: Dummy expression, find a better way
+    const auto *index = state->get_expr_result();
+    z3::expr expr(*state->get_z3_ctx());
+    if (const auto *num_val = index->to<NumericVal>()) {
+        expr = num_val->get_val()->simplify();
+    } else if (const auto *enum_val = index->to<EnumBase>()) {
+        expr = enum_val->get_enum_val().simplify();
+    } else {
+        P4C_UNIMPLEMENTED("Access index of type %s not "
+                          "implemented for indexable types.",
+                          index->get_static_type());
+    }
     visit(ai->left);
-    const auto *stack_class = state->get_expr_result<StackInstance>();
-    state->set_expr_result(stack_class->get_member(index));
+    const auto *indexable_class = state->get_expr_result<IndexableInstance>();
+    state->set_expr_result(indexable_class->get_member(expr));
     return false;
 }
 

@@ -373,8 +373,8 @@ P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
 /****** TERNARY OPERANDS ******/
 
 Z3Result Z3Bitvector::slice(const z3::expr &hi, const z3::expr &lo) const {
-    auto hi_int = hi.get_numeral_uint64();
-    auto lo_int = lo.get_numeral_uint64();
+    auto hi_int = hi.simplify().get_numeral_uint64();
+    auto lo_int = lo.simplify().get_numeral_uint64();
     const auto *slice_type = new IR::Type_Bits(hi_int - lo_int + 1, false);
     return Z3Bitvector(state, slice_type,
                        val.extract(hi_int, lo_int).simplify(), is_signed);

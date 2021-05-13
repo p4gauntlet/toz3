@@ -57,8 +57,8 @@ z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
     auto *ctx = &lval.get_sort().ctx();
     auto lval_max = lval.get_sort().bv_size() - 1ULL;
     auto lval_min = 0ULL;
-    auto hi_int = hi.get_numeral_uint64();
-    auto lo_int = lo.get_numeral_uint64();
+    auto hi_int = hi.simplify().get_numeral_uint64();
+    auto lo_int = lo.simplify().get_numeral_uint64();
     if (hi_int == lval_max && lo_int == lval_min) {
         return rval;
     }
@@ -96,12 +96,17 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
             tmp_target = a->left;
             visitor->visit(a->right);
             const auto *index = state->get_expr_result();
-            const auto *z3_val = index->to<NumericVal>();
-            BUG_CHECK(z3_val,
-                      "Setting with an index of type %s not "
-                      "implemented for stacks.",
-                      index->get_static_type());
-            auto expr = z3_val->get_val()->simplify();
+            // TODO: Dummy expression, find a  better way
+            z3::expr expr(*state->get_z3_ctx());
+            if (const auto *num_val = index->to<NumericVal>()) {
+                expr = num_val->get_val()->simplify();
+            } else if (const auto *enum_val = index->to<EnumBase>()) {
+                expr = enum_val->get_enum_val().simplify();
+            } else {
+                P4C_UNIMPLEMENTED("Setting with an index of type %s not "
+                                  "implemented for stacks.",
+                                  index->get_static_type());
+            }
             if (is_first) {
                 member_struct.target_member = expr;
                 is_first = false;
