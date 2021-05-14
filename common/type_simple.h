@@ -219,6 +219,26 @@ class Z3Int : public NumericVal {
     }
 };
 
+// Guess I can only go so far with variants...
+inline z3::expr check_eq(const Z3Result &left, const Z3Result &right) {
+    if (const auto *result_left = boost::get<Z3Bitvector>(&left)) {
+        if (const auto *result_right = boost::get<Z3Bitvector>(&right)) {
+            return *result_left == *result_right;
+        }
+        if (const auto *result_right = boost::get<Z3Int>(&right)) {
+            return *result_left == *result_right;
+        }
+    } else if (const auto *result_left = boost::get<Z3Int>(&left)) {
+        if (const auto *result_right = boost::get<Z3Bitvector>(&right)) {
+            return *result_left == *result_right;
+        }
+        if (const auto *result_right = boost::get<Z3Int>(&right)) {
+            return *result_left == *result_right;
+        }
+    }
+    P4C_UNIMPLEMENTED("Storing reference not supported");
+}
+
 }  // namespace TOZ3
 
 #endif  // TOZ3_COMMON_TYPE_SIMPLE_H_

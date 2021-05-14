@@ -313,6 +313,8 @@ class EnumBase : public StructBase, public ValContainer {
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
+    Z3Result operator&(const P4Z3Instance &other) const override;
+    Z3Result operator|(const P4Z3Instance &other) const override;
     void set_enum_val(const z3::expr &enum_input);
     EnumBase(const EnumBase &other);
     // overload = operator
@@ -387,6 +389,8 @@ class SerEnumInstance : public EnumBase {
     }
     // TODO: SerEnumInstance is static, so no copy allowed
     SerEnumInstance *copy() const override;
+    Z3Result operator&(const P4Z3Instance &other) const override;
+    Z3Result operator|(const P4Z3Instance &other) const override;
 };
 
 class ListInstance : public StructBase {

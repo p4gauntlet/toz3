@@ -620,7 +620,7 @@ Z3Result Z3Int::operator&(const P4Z3Instance &other) const {
         return Z3Bitvector(state, other_val->get_p4_type(),
                            cast_val & *other_val->get_val());
     }
-    P4C_UNIMPLEMENTED("| not implemented for %s.", other.get_static_type());
+    P4C_UNIMPLEMENTED("& not implemented for %s.", other.get_static_type());
 }
 
 Z3Result Z3Int::operator|(const P4Z3Instance &other) const {

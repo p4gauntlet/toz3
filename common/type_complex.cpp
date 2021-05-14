@@ -734,6 +734,13 @@ z3::expr EnumBase::operator!=(const P4Z3Instance &other) const {
     return !(*this == other);
 }
 
+Z3Result EnumBase::operator&(const P4Z3Instance &other) const {
+    return Z3Bitvector(state, &P4_STD_BIT_TYPE, val, false) & other;
+}
+Z3Result EnumBase::operator|(const P4Z3Instance &other) const {
+    return Z3Bitvector(state, &P4_STD_BIT_TYPE, val, false) | other;
+}
+
 void EnumBase::set_enum_val(const z3::expr &enum_input) { val = enum_input; }
 
 void EnumBase::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
@@ -828,6 +835,19 @@ SerEnumInstance::SerEnumInstance(
 
 SerEnumInstance *SerEnumInstance::copy() const {
     return new SerEnumInstance(*this);
+}
+
+Z3Result SerEnumInstance::operator&(const P4Z3Instance &other) const {
+    // TODO: Kind of crazy, should I really do this?
+    const auto *tb = p4_type->checkedTo<IR::Type_SerEnum>()
+                         ->type->checkedTo<IR::Type_Bits>();
+    return Z3Bitvector(state, tb, val, tb->isSigned) & other;
+}
+Z3Result SerEnumInstance::operator|(const P4Z3Instance &other) const {
+    // TODO: Kind of crazy, should I really do this?
+    const auto *tb = p4_type->checkedTo<IR::Type_SerEnum>()
+                         ->type->checkedTo<IR::Type_Bits>();
+    return Z3Bitvector(state, tb, val, tb->isSigned) | other;
 }
 
 /***
@@ -995,267 +1015,6 @@ P4Z3Instance *TupleInstance::get_member(const z3::expr &index) const {
     }
     P4C_UNIMPLEMENTED("Runtime indices not supported for %s",
                       get_static_type());
-}
-
-/***
-===============================================================================
-P4TableInstance
-===============================================================================
-***/
-
-void process_table_properties(const IR::P4Table *p4t,
-                              TableProperties *table_props) {
-    if (const auto *key_prop = p4t->getKey()) {
-        for (const auto *ke : key_prop->keyElements) {
-            table_props->keys.push_back(ke);
-        }
-    }
-    if (const auto *action_list = p4t->getActionList()) {
-        for (const auto *act : action_list->actionList) {
-            for (const auto *anno : act->getAnnotations()->annotations) {
-                if (anno->name.name == "defaultonly") {
-                    continue;
-                }
-            }
-            if (const auto *method_call =
-                    act->expression->to<IR::MethodCallExpression>()) {
-                table_props->actions.push_back(method_call);
-            } else if (act->expression->is<IR::PathExpression>()) {
-                table_props->actions.push_back(
-                    new IR::MethodCallExpression(act->expression));
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported action entry %s of type %s", act,
-                                  act->expression->node_type_name());
-            }
-        }
-    }
-    if (const auto *default_expr = p4t->getDefaultAction()) {
-        // resolve a default action
-        if (const auto *method_call =
-                default_expr->to<IR::MethodCallExpression>()) {
-            table_props->default_action = method_call;
-        } else if (default_expr->is<IR::PathExpression>()) {
-            table_props->default_action =
-                new IR::MethodCallExpression(default_expr);
-        } else {
-            P4C_UNIMPLEMENTED("Unsupported expression value %s of type %s",
-                              default_expr, default_expr->node_type_name());
-        }
-    }
-    if (const auto *entries = p4t->getEntries()) {
-        // If the entries properties is constant it means the entries are fixed
-        // We cannot add or remove table entries
-        table_props->immutable =
-            p4t->properties->getProperty("entries")->isConstant;
-        table_props->entries = entries;
-    }
-}
-
-P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
-    : P4Declaration(p4t), state(state),
-      hit(state->get_z3_ctx()->bool_val(false)) {
-    members.insert({"action_run", this});
-    members.insert({"hit", new Z3Bitvector(state, &BOOL_TYPE, hit)});
-    members.insert({"miss", new Z3Bitvector(state, &BOOL_TYPE, !hit)});
-    cstring apply_str = "apply";
-    if (const auto *table = decl->to<IR::P4Table>()) {
-        apply_str += std::to_string(table->getApplyParameters()->size());
-    }
-    member_functions[apply_str] = [this](Visitor *visitor,
-                                         const IR::Vector<IR::Argument> *args) {
-        apply(visitor, args);
-    };
-
-    table_props.table_name = infer_name(p4t->getAnnotations(), p4t->name.name);
-    // We first collect all the necessary properties
-    process_table_properties(p4t, &table_props);
-    // Also check if the table is invisible to the control plane.
-    // This also implies that it cannot be modified.
-    auto annos = p4t->getAnnotations()->annotations;
-    if (std::any_of(annos.begin(), annos.end(), [](const IR::Annotation *anno) {
-            return anno->name.name == "hidden";
-        })) {
-        table_props.immutable = true;
-    }
-}
-
-P4TableInstance::P4TableInstance(P4State *state, const IR::Declaration *decl,
-                                 const z3::expr &hit,
-                                 TableProperties table_props)
-    : P4Declaration(decl), state(state), hit(hit),
-      table_props(std::move(table_props)) {
-    members.insert({"action_run", this});
-    members.insert({"hit", new Z3Bitvector(state, &BOOL_TYPE, hit)});
-    members.insert({"miss", new Z3Bitvector(state, &BOOL_TYPE, !hit)});
-    cstring apply_str = "apply";
-    if (const auto *table = decl->to<IR::P4Table>()) {
-        apply_str += std::to_string(table->getApplyParameters()->size());
-    }
-    member_functions[apply_str] = [this](Visitor *visitor,
-                                         const IR::Vector<IR::Argument> *args) {
-        apply(visitor, args);
-    };
-}
-
-z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
-                           const std::vector<const IR::KeyElement *> &keys) {
-    auto *ctx = state->get_z3_ctx();
-    z3::expr hit = ctx->bool_val(false);
-    for (std::size_t idx = 0; idx < keys.size(); ++idx) {
-        const auto *key = keys.at(idx);
-        // TODO: Actually look up the match type here. Not sure why needed...
-        visitor->visit(key->expression);
-        const auto *key_eval = state->get_expr_result();
-        const auto *val_container = key_eval->to<ValContainer>();
-        BUG_CHECK(val_container,
-                  "Key type %s not "
-                  "supported for tables.",
-                  key_eval->get_static_type());
-        cstring key_name = table_name + "_table_key_" + std::to_string(idx);
-        const auto key_eval_z3 = val_container->get_val()->simplify();
-        const auto key_z3_sort = key_eval_z3.get_sort();
-        const auto key_match = ctx->constant(key_name, key_z3_sort);
-        // It is actually possible to use a variety of types as key.
-        // So we have to stay generic and produce a corresponding variable.
-        cstring key_string = key->matchType->toString();
-        if (key_string == "exact") {
-            hit = hit || (key_eval_z3 == key_match);
-        } else if (key_string == "lpm") {
-            cstring mask_name =
-                table_name + "_table_mask_" + std::to_string(idx);
-            const auto mask_var = ctx->constant(mask_name, key_z3_sort);
-            auto max_return = ctx->bv_val(get_max_bv_val(key_z3_sort.bv_size()),
-                                          key_z3_sort.bv_size());
-            auto lpm_mask = z3::shl(max_return, mask_var).simplify();
-            hit = hit || (key_eval_z3 & lpm_mask) == (key_match & lpm_mask);
-        } else if (key_string == "ternary") {
-            cstring mask_name =
-                table_name + "_table_mask_" + std::to_string(idx);
-            const auto mask_var = ctx->constant(mask_name, key_z3_sort);
-            hit = hit || (key_eval_z3 & mask_var) == (key_match & mask_var);
-        } else if (key_string == "range") {
-            cstring min_name = table_name + "_table_min_" + std::to_string(idx);
-            cstring max_name = table_name + "_table_max_" + std::to_string(idx);
-            auto *min_key =
-                state->gen_instance(min_name, key_eval->get_p4_type());
-            auto *max_key =
-                state->gen_instance(max_name, key_eval->get_p4_type());
-            hit = hit || ((*min_key < *max_key) && (*min_key <= *key_eval) &&
-                          (*key_eval <= *max_key));
-        } else if (key_string == "optional" || key_string == "selector") {
-            // TODO: Not sure what to do with these?
-        } else {
-            P4C_UNIMPLEMENTED("Match type %s not implemented for table keys.",
-                              key_string);
-        }
-    }
-    return hit;
-}
-
-void handle_table_action(Visitor *visitor, P4State *state, cstring table_name,
-                         const IR::MethodCallExpression *act,
-                         cstring action_label) {
-    const IR::Expression *call_name = nullptr;
-    IR::Vector<IR::Argument> ctrl_args;
-    const IR::ParameterList *method_params = nullptr;
-
-    if (const auto *path = act->method->to<IR::PathExpression>()) {
-        call_name = path;
-        cstring identifier_path =
-            path->path->name + std::to_string(act->arguments->size());
-        const auto *action_decl = state->get_static_decl(identifier_path);
-        if (const auto *action = action_decl->decl->to<IR::P4Action>()) {
-            method_params = action->getParameters();
-        } else {
-            BUG("Unexpected action call %s of type %s in table.",
-                action_decl->decl, action_decl->decl->node_type_name());
-        }
-    } else {
-        P4C_UNIMPLEMENTED("Unsupported action %s of type %s", act,
-                          act->method->node_type_name());
-    }
-    for (const auto &arg : *act->arguments) {
-        ctrl_args.push_back(arg);
-    }
-    // At this stage, we synthesize control plane arguments
-    // TODO: Simplify this.
-    auto args_len = act->arguments->size();
-    auto ctrl_idx = 0;
-    for (size_t idx = 0; idx < method_params->size(); ++idx) {
-        const auto *param = method_params->getParameter(idx);
-        if (args_len <= idx && param->direction == IR::Direction::None) {
-            cstring arg_name =
-                table_name + action_label + std::to_string(ctrl_idx);
-            auto *ctrl_arg = state->gen_instance(arg_name, param->type);
-            // TODO: This is a bug waiting to happen. How to handle fresh
-            // arguments and their source?
-            state->declare_var(arg_name, ctrl_arg, param->type);
-            ctrl_args.push_back(
-                new IR::Argument(new IR::PathExpression(arg_name)));
-            ctrl_idx++;
-        }
-    }
-
-    const auto *action_with_ctrl_args =
-        new IR::MethodCallExpression(call_name, &ctrl_args);
-    visitor->visit(action_with_ctrl_args);
-}
-
-void P4TableInstance::apply(Visitor *visitor,
-                            const IR::Vector<IR::Argument> *args) {
-    auto *ctx = state->get_z3_ctx();
-    auto table_action_name = table_props.table_name + "action_idx";
-    auto table_action = ctx->int_const(table_action_name.c_str());
-    const auto *table_decl = decl->checkedTo<IR::P4Table>();
-    const auto *params = table_decl->getApplyParameters();
-    const auto *type_params =
-        table_decl->getApplyMethodType()->getTypeParameters();
-    const ParamInfo param_info = {*params, *args, *type_params, {}};
-    state->copy_in(visitor, param_info);
-
-    z3::expr tmp_hit = compute_table_hit(visitor, state, table_props.table_name,
-                                         table_props.keys);
-
-    std::vector<std::pair<z3::expr, VarMap>> action_vars;
-    bool has_exited = true;
-
-    z3::expr matches = ctx->bool_val(false);
-    for (size_t idx = 0; idx < table_props.actions.size(); ++idx) {
-        const auto *action = table_props.actions.at(idx);
-        auto cond = tmp_hit && (table_action == ctx->int_val(idx));
-        auto old_vars = state->clone_vars();
-        state->push_forward_cond(cond);
-        handle_table_action(visitor, state, table_props.table_name, action,
-                            std::to_string(idx));
-        state->pop_forward_cond();
-        auto call_has_exited = state->has_exited();
-        if (!call_has_exited) {
-            action_vars.emplace_back(cond, state->get_vars());
-        }
-        has_exited = has_exited && call_has_exited;
-        state->set_exit(false);
-        state->restore_vars(old_vars);
-        matches = matches || cond;
-    }
-
-    if (table_props.default_action != nullptr) {
-        auto old_vars = state->clone_vars();
-        state->push_forward_cond(!matches);
-        handle_table_action(visitor, state, table_props.table_name,
-                            table_props.default_action, "default");
-        state->pop_forward_cond();
-        if (state->has_exited()) {
-            state->restore_vars(old_vars);
-        }
-    }
-    state->set_exit(has_exited && state->has_exited());
-
-    for (auto it = action_vars.rbegin(); it != action_vars.rend(); ++it) {
-        state->merge_vars(it->first, it->second);
-    }
-    state->set_expr_result(new P4TableInstance(state, decl, hit, table_props));
-
-    state->copy_out();
 }
 
 /***
