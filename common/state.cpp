@@ -96,17 +96,12 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor,
             tmp_target = a->left;
             visitor->visit(a->right);
             const auto *index = state->get_expr_result();
-            // TODO: Dummy expression, find a  better way
-            z3::expr expr(*state->get_z3_ctx());
-            if (const auto *num_val = index->to<NumericVal>()) {
-                expr = num_val->get_val()->simplify();
-            } else if (const auto *enum_val = index->to<EnumBase>()) {
-                expr = enum_val->get_enum_val().simplify();
-            } else {
-                P4C_UNIMPLEMENTED("Setting with an index of type %s not "
-                                  "implemented for stacks.",
-                                  index->get_static_type());
-            }
+            const auto *val_container = index->to<ValContainer>();
+            BUG_CHECK(val_container,
+                      "Setting with an index of type %s not "
+                      "implemented for stacks.",
+                      index->get_static_type());
+            const auto expr = val_container->get_val()->simplify();
             if (is_first) {
                 member_struct.target_member = expr;
                 is_first = false;

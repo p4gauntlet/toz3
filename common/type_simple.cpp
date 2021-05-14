@@ -108,9 +108,8 @@ Z3Result Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
     auto no_overflow = z3::bvadd_no_overflow(val, other_expr, false);
     auto no_underflow = z3::bvadd_no_underflow(val, other_expr);
     auto sort = val.get_sort();
-    big_int max_return = pow((big_int)2, sort.bv_size()) - 1;
     auto *ctx = &sort.ctx();
-    cstring big_str = Util::toString(max_return, 0, false);
+    auto big_str = get_max_bv_val(sort.bv_size());
     z3::expr max_val = ctx->bv_val(big_str.c_str(), sort.bv_size());
     return Z3Bitvector(
         state, p4_type,
@@ -490,10 +489,8 @@ Z3Result Z3Int::operatorAddSat(const P4Z3Instance &other) const {
         auto no_underflow =
             z3::bvadd_no_underflow(cast_val, *other_val->get_val());
         auto sort = cast_val.get_sort();
-        big_int max_return = pow((big_int)2, sort.bv_size()) - 1;
-        auto *ctx = &sort.ctx();
-        cstring big_str = Util::toString(max_return, 0, false);
-        z3::expr max_val = ctx->bv_val(big_str.c_str(), sort.bv_size());
+        cstring big_str = get_max_bv_val(sort.bv_size());
+        auto max_val = state->get_z3_ctx()->bv_val(big_str, sort.bv_size());
         return Z3Bitvector(state, other_val->get_p4_type(),
                            z3::ite(no_underflow && no_overflow,
                                    cast_val + *other_val->get_val(), max_val));

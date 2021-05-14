@@ -74,17 +74,23 @@ class ControlState : public P4Z3Instance {
     }
 };
 
-class NumericVal : public P4Z3Instance {
+class ValContainer {
+ protected:
+    z3::expr val;
+
+ public:
+    explicit ValContainer(const z3::expr &val) : val(val) {}
+    const z3::expr *get_val() const { return &val; }
+};
+
+class NumericVal : public P4Z3Instance, public ValContainer {
  protected:
     const P4State *state;
-    z3::expr val;
 
  public:
     explicit NumericVal(const P4State *state, const IR::Type *p4_type,
                         const z3::expr &val)
-        : P4Z3Instance(p4_type), state(state), val(val) {}
-
-    const z3::expr *get_val() const { return &val; }
+        : P4Z3Instance(p4_type), ValContainer(val), state(state) {}
 
     cstring get_static_type() const override { return "NumericVal"; }
     cstring to_string() const override {
@@ -97,7 +103,7 @@ class NumericVal : public P4Z3Instance {
         val = ctx->constant(UNDEF_LABEL, sort);
     }
     NumericVal(const NumericVal &other)
-        : P4Z3Instance(other), state(other.state), val(other.val) {}
+        : P4Z3Instance(other), ValContainer(other.val), state(other.state) {}
 };
 
 class Z3Bitvector : public NumericVal {

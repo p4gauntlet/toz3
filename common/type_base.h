@@ -72,6 +72,15 @@ struct ParamInfo {
     const IR::Vector<IR::Type> type_args;
 };
 
+struct TableProperties {
+    cstring table_name;
+    std::vector<const IR::KeyElement *> keys;
+    std::vector<const IR::MethodCallExpression *> actions;
+    const IR::MethodCallExpression *default_action = nullptr;
+    const IR::EntriesList *entries;
+    bool immutable;
+};
+
 class P4Z3Node {
  public:
     template <typename T> bool is() const { return to<T>() != nullptr; }

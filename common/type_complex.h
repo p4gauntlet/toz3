@@ -281,11 +281,10 @@ class HeaderUnionInstance : public StructBase {
     HeaderUnionInstance &operator=(const HeaderUnionInstance &other);
 };
 
-class EnumBase : public StructBase {
+class EnumBase : public StructBase, public ValContainer {
     using StructBase::StructBase;
 
  protected:
-    z3::expr enum_val;
     const IR::Type_Bits *member_type = &P4_STD_BIT_TYPE;
 
  public:
@@ -314,7 +313,6 @@ class EnumBase : public StructBase {
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
-    virtual z3::expr get_enum_val() const;
     void set_enum_val(const z3::expr &enum_input);
     EnumBase(const EnumBase &other);
     // overload = operator
@@ -486,24 +484,18 @@ class P4TableInstance : public P4Declaration {
     std::map<cstring, P4Z3Function> member_functions;
     // A wrapper class for table declarations
  public:
-    cstring table_name;
-    const z3::expr hit;
-    std::vector<const IR::KeyElement *> keys;
-    std::vector<const IR::MethodCallExpression *> actions;
-    bool immutable;
+    z3::expr hit;
+    TableProperties table_props;
     // constructor
-    explicit P4TableInstance(P4State *state, const IR::Declaration *decl);
-    explicit P4TableInstance(
-        P4State *state, const IR::Declaration *decl, cstring table_name,
-        const z3::expr hit, std::vector<const IR::KeyElement *> keys,
-        std::vector<const IR::MethodCallExpression *> actions, bool immutable);
+    explicit P4TableInstance(P4State *state, const IR::P4Table *p4t);
+    explicit P4TableInstance(P4State *state, const IR::Declaration *decl,
+                             const z3::expr &hit, TableProperties table_props);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override {}
-    // TODO: This is a little pointless....
+
     P4TableInstance *copy() const override {
-        return new P4TableInstance(state, decl, table_name, hit, keys, actions,
-                                   immutable);
+        return new P4TableInstance(state, decl, hit, table_props);
     }
 
     P4Z3Instance *get_member(cstring name) const override {
