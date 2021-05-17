@@ -99,7 +99,7 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
     }
 }
 
-P4TableInstance::P4TableInstance(P4State *state, const IR::Declaration *decl,
+P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl,
                                  z3::expr hit, TableProperties table_props)
     : P4Declaration(decl), state(state), hit(hit),
       table_props(std::move(table_props)) {

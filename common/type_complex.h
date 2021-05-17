@@ -44,7 +44,7 @@ class StructBase : public P4Z3Instance {
         }
         BUG("Name %s not found in member map.", name);
     }
-    const IR::Type *get_member_type(cstring name) const {
+    virtual const IR::Type *get_member_type(cstring name) const {
         auto it = member_types.find(name);
         if (it != member_types.end()) {
             return it->second;
@@ -53,7 +53,7 @@ class StructBase : public P4Z3Instance {
             get_static_type());
     }
 
-    void update_member(cstring name, P4Z3Instance *val) {
+    virtual void update_member(cstring name, P4Z3Instance *val) {
         members.at(name) = val;
     }
     void insert_member(cstring name, P4Z3Instance *val) {
@@ -193,6 +193,8 @@ class StackInstance : public IndexableInstance {
 
     P4Z3Instance *get_member(const z3::expr &index) const override;
     P4Z3Instance *get_member(cstring name) const override;
+    const IR::Type *get_member_type(cstring name) const override;
+    void update_member(cstring name, P4Z3Instance *val) override;
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
                 const z3::expr *valid_expr = nullptr) const override;
@@ -464,10 +466,10 @@ class P4Declaration : public P4Z3Instance {
     ordered_map<cstring, P4Z3Instance *> members;
 
  public:
-    const IR::Declaration *decl;
+    const IR::StatOrDecl *decl;
     // constructor
     // TODO: This is a declaration, not an object. Distinguish!
-    explicit P4Declaration(const IR::Declaration *decl)
+    explicit P4Declaration(const IR::StatOrDecl *decl)
         : P4Z3Instance(nullptr), decl(decl) {}
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
@@ -492,7 +494,7 @@ class P4TableInstance : public P4Declaration {
     TableProperties table_props;
     // constructor
     explicit P4TableInstance(P4State *state, const IR::P4Table *p4t);
-    explicit P4TableInstance(P4State *state, const IR::Declaration *decl,
+    explicit P4TableInstance(P4State *state, const IR::StatOrDecl *decl,
                              z3::expr hit, TableProperties table_props);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,

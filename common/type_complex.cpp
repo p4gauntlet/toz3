@@ -451,22 +451,43 @@ StackInstance &StackInstance::operator=(const StackInstance &other) {
 
 P4Z3Instance *StackInstance::get_member(cstring name) const {
     if (name == "size") {
-        return &this->size;
+        return &size;
     }
     if (name == "nextIndex") {
-        return &this->nextIndex;
+        return &nextIndex;
     }
-    if (name == "nextIndex") {
-        return &this->lastIndex;
+    if (name == "lastIndex") {
+        return &lastIndex;
+    }
+    if (name == "next") {
+        // TODO: Move this into extract as functionality
+        lastIndex = nextIndex;
+        // nextIndex = Z3Int(state, *nextIndex.get_val() + 1);
+        return get_member(*lastIndex.get_val());
+    }
+    if (name == "last") {
+        return get_member(*lastIndex.get_val());
     }
     return StructBase::get_member(name);
+}
+
+const IR::Type *StackInstance::get_member_type(cstring /*name*/) const {
+    return elem_type;
+}
+
+void StackInstance::update_member(cstring name, P4Z3Instance *val) {
+    if (name == "size" || name == "nextIndex" || name == "lastIndex" ||
+        name == "next") {
+        return;
+    }
+    members.at(name) = val;
 }
 
 P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     auto val = index.simplify();
     std::string val_str;
     if (val.is_numeral(val_str, 0)) {
-        return get_member(val_str);
+        return StructBase::get_member(val_str);
     }
     // We create a new header that we return
     // This header is the merge of all the sub headers of this stack
@@ -976,6 +997,13 @@ z3::expr ListInstance::operator==(const P4Z3Instance &other) const {
         }
         return is_eq;
     }
+    if (const auto *other_struct = other.to<NumericVal>()) {
+        if (members.size() != 1) {
+            return state->get_z3_ctx()->bool_val(false);
+        }
+        // Compare the first element in the list
+        return *members.begin()->second == other;
+    }
     P4C_UNIMPLEMENTED("Comparing a struct base to %s is not supported.",
                       other.get_static_type());
 }
@@ -1070,12 +1098,27 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     }
 }
 
+void handle_parser(Visitor *visitor, P4State *state,
+                   const IR::IndexedVector<IR::ParserState> *parser_states) {
+    std::map<cstring, const IR::ParserState *> state_map;
+    state->declare_static_decl(
+        "accept", new P4Declaration(new IR::ReturnStatement(nullptr)));
+    state->declare_static_decl("reject",
+                               new P4Declaration(new IR::ExitStatement()));
+    for (const auto &parser_state : *parser_states) {
+        state->declare_static_decl(parser_state->name.name,
+                                   new P4Declaration(parser_state));
+    }
+    visitor->visit(state->get_static_decl("start")->decl);
+}
+
 void ControlInstance::apply(Visitor *visitor,
                             const IR::Vector<IR::Argument> *args) {
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     IR::IndexedVector<IR::Declaration> local_decls;
     const IR::BlockStatement *body = nullptr;
+    const IR::IndexedVector<IR::ParserState> *parser_states = nullptr;
     if (const auto *control = p4_type->to<IR::P4Control>()) {
         params = control->getApplyParameters();
         type_params = control->getApplyMethodType()->getTypeParameters();
@@ -1085,6 +1128,7 @@ void ControlInstance::apply(Visitor *visitor,
         params = parser->getApplyParameters();
         type_params = parser->getApplyMethodType()->getTypeParameters();
         local_decls = parser->parserLocals;
+        parser_states = &parser->states;
     }
     for (auto &local_type : local_type_map) {
         state->add_type(local_type.first, local_type.second);
@@ -1100,7 +1144,11 @@ void ControlInstance::apply(Visitor *visitor,
     for (const auto *local_decl : local_decls) {
         local_decl->apply(map_builder);
     }
-    visitor->visit(body);
+    if (parser_states != nullptr) {
+        handle_parser(visitor, state, parser_states);
+    } else {
+        visitor->visit(body);
+    }
     state->copy_out();
 }
 

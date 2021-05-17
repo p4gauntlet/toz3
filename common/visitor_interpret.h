@@ -1,6 +1,7 @@
 #ifndef TOZ3_COMMON_VISITOR_INTERPRET_H_
 #define TOZ3_COMMON_VISITOR_INTERPRET_H_
 #include <map>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -13,6 +14,15 @@ namespace TOZ3 {
 
 class Z3Visitor : public Inspector {
  private:
+    std::set<cstring> visited_states;
+    void add_visited_state(cstring state_name) {
+        visited_states.insert(state_name);
+    }
+    void clear_visited_states() { visited_states.clear(); }
+    bool state_is_visited(cstring state_name) {
+        return visited_states.count(state_name) > 0;
+    }
+
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
         P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
@@ -32,10 +42,9 @@ class Z3Visitor : public Inspector {
 
     /***** Parser *****/
     // bool preorder(const IR::P4Parser *p) override;
-    // bool preorder(const IR::ParserState *ps) override;
+    bool preorder(const IR::ParserState *ps) override;
     // bool preorder(const IR::P4ValueSet *pvs) override;
-    // bool preorder(const IR::SelectExpression *se) override;
-    // bool preorder(const IR::SelectCase *se) override;
+    bool preorder(const IR::SelectExpression *se) override;
     /***** Methods *****/
     // bool preorder(const IR::P4Control *c) override;
     bool preorder(const IR::P4Action *a) override;
@@ -45,15 +54,6 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Argument *param) override;
     bool preorder(const IR::Method *m) override;
     bool preorder(const IR::Function *f) override;
-
-    /***** Tables *****/
-    // bool preorder(const IR::Property *p) override;
-    // bool preorder(const IR::ActionList *acl) override;
-    // bool preorder(const IR::Entry *e) override;
-    // bool preorder(const IR::EntriesList *el) override;
-    // bool preorder(const IR::Key *key) override;
-    // bool preorder(const IR::KeyElement *ke) override;
-    // bool preorder(const IR::ExpressionValue *ev) override;
 
     /***** Expressions *****/
     bool preorder(const IR::Member *m) override;

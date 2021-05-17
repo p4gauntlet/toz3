@@ -12,6 +12,7 @@ set (TOZ3V2_COMMON_SRCS
     common/visitor_fill_type.cpp
     common/visitor_interpret.cpp
     common/visitor_specialize.cpp
+    common/parser.cpp
     common/expressions.cpp
     common/operands.cpp
     )
