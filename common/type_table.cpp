@@ -53,7 +53,21 @@ void process_table_properties(const IR::P4Table *p4t,
         // We cannot add or remove table entries
         table_props->immutable =
             p4t->properties->getProperty("entries")->isConstant;
-        table_props->entries = entries->entries;
+        for (const auto *entry : entries->entries) {
+            const auto *action_expr = entry->getAction();
+            const IR::MethodCallExpression *action = nullptr;
+            if (const auto *method_call =
+                    action_expr->to<IR::MethodCallExpression>()) {
+                action = method_call;
+            } else if (action_expr->is<IR::PathExpression>()) {
+                action = new IR::MethodCallExpression(action_expr);
+            } else {
+                P4C_UNIMPLEMENTED(
+                    "Unsupported constant action entry %s of type %s",
+                    action_expr, action_expr->node_type_name());
+            }
+            table_props->entries.emplace_back(entry->getKeys(), action);
+        }
     }
 }
 
@@ -86,8 +100,7 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
 }
 
 P4TableInstance::P4TableInstance(P4State *state, const IR::Declaration *decl,
-                                 const z3::expr &hit,
-                                 TableProperties table_props)
+                                 z3::expr hit, TableProperties table_props)
     : P4Declaration(decl), state(state), hit(hit),
       table_props(std::move(table_props)) {
     members.insert({"action_run", this});
@@ -160,7 +173,7 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
     return hit;
 }
 
-void handle_table_action(Visitor *visitor, P4State *state, cstring table_name,
+void handle_table_action(Visitor *visitor, P4State *state,
                          const IR::MethodCallExpression *act,
                          cstring action_label) {
     const IR::Expression *call_name = nullptr;
@@ -192,8 +205,7 @@ void handle_table_action(Visitor *visitor, P4State *state, cstring table_name,
     for (size_t idx = 0; idx < method_params->size(); ++idx) {
         const auto *param = method_params->getParameter(idx);
         if (args_len <= idx && param->direction == IR::Direction::None) {
-            cstring arg_name =
-                table_name + action_label + std::to_string(ctrl_idx);
+            cstring arg_name = action_label + std::to_string(ctrl_idx);
             auto *ctrl_arg = state->gen_instance(arg_name, param->type);
             // TODO: This is a bug waiting to happen. How to handle fresh
             // arguments and their source?
@@ -209,9 +221,9 @@ void handle_table_action(Visitor *visitor, P4State *state, cstring table_name,
     visitor->visit(action_with_ctrl_args);
 }
 
-z3::expr produce_const_match(P4State *state, Visitor *visitor,
-                             std::vector<const P4Z3Instance *> *evaluated_keys,
-                             const IR::ListExpression *entry_keys) {
+z3::expr P4TableInstance::produce_const_match(
+    Visitor *visitor, std::vector<const P4Z3Instance *> *evaluated_keys,
+    const IR::ListExpression *entry_keys) const {
     z3::expr match = state->get_z3_ctx()->bool_val(true);
     for (size_t idx = 0; idx < evaluated_keys->size(); ++idx) {
         const auto *key_eval = evaluated_keys->at(idx);
@@ -250,7 +262,7 @@ void P4TableInstance::apply(Visitor *visitor,
     state->copy_in(visitor, param_info);
 
     std::vector<const P4Z3Instance *> evaluated_keys;
-    z3::expr tmp_hit = compute_table_hit(visitor, state, table_props.table_name,
+    z3::expr new_hit = compute_table_hit(visitor, state, table_props.table_name,
                                          table_props.keys, &evaluated_keys)
                            .simplify();
 
@@ -259,29 +271,19 @@ void P4TableInstance::apply(Visitor *visitor,
 
     z3::expr matches = state->get_z3_ctx()->bool_val(false);
     // Skip all of this if we do not even match
-    if (!tmp_hit.is_false()) {
+    if (!new_hit.is_false()) {
         size_t idx = 0;
         // First the constant entries
-        for (const auto *entry : table_props.entries) {
-            const auto *action_expr = entry->getAction();
-            const IR::MethodCallExpression *action = nullptr;
-            if (const auto *method_call =
-                    action_expr->to<IR::MethodCallExpression>()) {
-                action = method_call;
-            } else if (action_expr->is<IR::PathExpression>()) {
-                action = new IR::MethodCallExpression(action_expr);
-            } else {
-                P4C_UNIMPLEMENTED(
-                    "Unsupported constant action entry %s of type %s",
-                    action_expr, action_expr->node_type_name());
-            }
-            auto key_match = produce_const_match(
-                state, visitor, &evaluated_keys, entry->getKeys());
-            auto cond = tmp_hit && (key_match);
+        for (const auto &entry : table_props.entries) {
+            const auto *keys = entry.first;
+            const auto *action = entry.second;
+            auto key_match =
+                produce_const_match(visitor, &evaluated_keys, keys);
+            auto cond = new_hit && (key_match);
             auto old_vars = state->clone_vars();
             state->push_forward_cond(cond);
-            handle_table_action(visitor, state, table_props.table_name, action,
-                                std::to_string(idx));
+            auto action_label = table_props.table_name + std::to_string(idx);
+            handle_table_action(visitor, state, action, action_label);
             state->pop_forward_cond();
             auto call_has_exited = state->has_exited();
             if (!call_has_exited) {
@@ -293,35 +295,38 @@ void P4TableInstance::apply(Visitor *visitor,
             matches = matches || cond;
             idx++;
         }
-
         // Then the actions
-        auto table_action_name = table_props.table_name + "action_idx";
-        auto table_action = ctx->int_const(table_action_name.c_str());
-        for (const auto *action : table_props.actions) {
-            auto cond =
-                tmp_hit && (table_action == state->get_z3_ctx()->int_val(idx));
-            auto old_vars = state->clone_vars();
-            state->push_forward_cond(cond);
-            handle_table_action(visitor, state, table_props.table_name, action,
-                                std::to_string(idx));
-            state->pop_forward_cond();
-            auto call_has_exited = state->has_exited();
-            if (!call_has_exited) {
-                action_vars.emplace_back(cond, state->get_vars());
+        if (!table_props.immutable) {
+            auto table_action_name = table_props.table_name + "action_idx";
+            auto table_action = ctx->int_const(table_action_name.c_str());
+            for (const auto *action : table_props.actions) {
+                auto cond = new_hit &&
+                            (table_action == state->get_z3_ctx()->int_val(idx));
+                auto old_vars = state->clone_vars();
+                state->push_forward_cond(cond);
+                auto action_label =
+                    table_props.table_name + std::to_string(idx);
+                handle_table_action(visitor, state, action, action_label);
+                state->pop_forward_cond();
+                auto call_has_exited = state->has_exited();
+                if (!call_has_exited) {
+                    action_vars.emplace_back(cond, state->get_vars());
+                }
+                has_exited = has_exited && call_has_exited;
+                state->set_exit(false);
+                state->restore_vars(old_vars);
+                matches = matches || cond;
+                idx++;
             }
-            has_exited = has_exited && call_has_exited;
-            state->set_exit(false);
-            state->restore_vars(old_vars);
-            matches = matches || cond;
-            idx++;
         }
     }
 
     if (table_props.default_action != nullptr) {
         auto old_vars = state->clone_vars();
-        state->push_forward_cond(!matches);
-        handle_table_action(visitor, state, table_props.table_name,
-                            table_props.default_action, "default");
+        state->push_forward_cond(!hit || !matches);
+        auto action_label = table_props.table_name + "default";
+        handle_table_action(visitor, state, table_props.default_action,
+                            action_label);
         state->pop_forward_cond();
         if (state->has_exited()) {
             state->restore_vars(old_vars);
@@ -332,7 +337,8 @@ void P4TableInstance::apply(Visitor *visitor,
     for (auto it = action_vars.rbegin(); it != action_vars.rend(); ++it) {
         state->merge_vars(it->first, it->second);
     }
-    state->set_expr_result(new P4TableInstance(state, decl, hit, table_props));
+    state->set_expr_result(
+        new P4TableInstance(state, decl, new_hit, table_props));
 
     state->copy_out();
 }

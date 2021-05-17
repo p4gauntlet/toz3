@@ -77,7 +77,10 @@ struct TableProperties {
     std::vector<const IR::KeyElement *> keys;
     std::vector<const IR::MethodCallExpression *> actions;
     const IR::MethodCallExpression *default_action = nullptr;
-    IR::Vector<IR::Entry> entries;
+    // TODO: Simplify
+    std::vector<
+        std::pair<const IR::ListExpression *, const IR::MethodCallExpression *>>
+        entries;
     bool immutable;
 };
 

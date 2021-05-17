@@ -493,7 +493,7 @@ class P4TableInstance : public P4Declaration {
     // constructor
     explicit P4TableInstance(P4State *state, const IR::P4Table *p4t);
     explicit P4TableInstance(P4State *state, const IR::Declaration *decl,
-                             const z3::expr &hit, TableProperties table_props);
+                             z3::expr hit, TableProperties table_props);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override {}
@@ -523,6 +523,10 @@ class P4TableInstance : public P4Declaration {
         cstring ret = "P4TableInstance(";
         return ret + decl->toString() + ")";
     }
+    z3::expr
+    produce_const_match(Visitor *visitor,
+                        std::vector<const P4Z3Instance *> *evaluated_keys,
+                        const IR::ListExpression *entry_keys) const;
 };
 
 class ExternInstance : public P4Z3Instance {

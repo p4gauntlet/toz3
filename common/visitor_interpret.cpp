@@ -130,80 +130,188 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     return false;
 }
 
-void handle_table_match(P4State *state, Z3Visitor *visitor,
-                        const P4TableInstance *table,
-                        const IR::Vector<IR::SwitchCase> &cases) {
+std::vector<std::pair<z3::expr, const IR::Statement *>>
+collect_stmt_vec_table(Z3Visitor *visitor, const P4TableInstance *table,
+                       const IR::Vector<IR::SwitchCase> &cases) {
+    auto *state = visitor->state;
     auto *ctx = state->get_z3_ctx();
-    auto table_action_name = table->table_props.table_name + "action_idx";
-    auto action_taken = ctx->int_const(table_action_name.c_str());
-    std::map<cstring, int> action_mapping;
-    size_t idx = 0;
-    for (const auto *action : table->table_props.actions) {
-        const auto *method_expr = action->method;
-        const auto *path = method_expr->to<IR::PathExpression>();
-        CHECK_NULL(path);
-        action_mapping[path->path->name.name] = idx;
-        idx++;
-    }
-    std::vector<std::pair<z3::expr, VarMap>> case_states;
-    const IR::SwitchCase *default_case = nullptr;
-    // now actually map all the statements together
-    bool has_exited = true;
-    bool has_returned = true;
+    std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
     z3::expr fall_through = ctx->bool_val(false);
     z3::expr matches = ctx->bool_val(false);
-    for (const auto *switch_case : cases) {
-        if (const auto *label = switch_case->label->to<IR::PathExpression>()) {
-            auto mapped_idx = action_mapping[label->path->name.name];
-            auto cond = action_taken == mapped_idx;
-            // There is no block for the switch.
-            // This expressions falls through to the next switch case.
-            if (switch_case->statement == nullptr) {
+    bool has_default = false;
+    if (table->table_props.immutable) {
+        std::vector<const P4Z3Instance *> evaluated_keys;
+        for (const auto *key : table->table_props.keys) {
+            // TODO: This should not be necessary
+            // We have this information already
+            visitor->visit(key->expression);
+            const auto *key_eval = state->copy_expr_result();
+            evaluated_keys.push_back(key_eval);
+        }
+        auto new_entries = table->table_props.entries;
+        for (const auto *switch_case : cases) {
+            if (const auto *label =
+                    switch_case->label->to<IR::PathExpression>()) {
+                z3::expr cond = ctx->bool_val(false);
+                for (auto it = new_entries.begin(); it != new_entries.end();) {
+                    auto entry = *it;
+                    const auto *keys = entry.first;
+                    const auto *action = entry.second;
+                    if (label->toString() != action->method->toString()) {
+                        ++it;
+                        continue;
+                    }
+                    cond = cond || table->produce_const_match(
+                                       visitor, &evaluated_keys, keys);
+                    it = new_entries.erase(it);
+                }
+                // There is no block for the switch.
+                // This expressions falls through to the next switch case.
                 fall_through = fall_through || cond;
-                continue;
+                if (switch_case->statement == nullptr) {
+                    continue;
+                }
+                auto case_match = fall_through;
+                // If the entries are empty we exhausted all possible matches
+                // TODO: Not sure if this is a good idea?
+                if (new_entries.empty()) {
+                    case_match = ctx->bool_val(true);
+                }
+                // Matches the condition OR all the other fall-through switches
+                fall_through = ctx->bool_val(false);
+                matches = matches || case_match;
+                stmt_vector.emplace_back(case_match, switch_case->statement);
+            } else if (switch_case->label->is<IR::DefaultExpression>()) {
+                has_default = true;
+                stmt_vector.emplace_back(!matches, switch_case->statement);
+            } else {
+                P4C_UNIMPLEMENTED(
+                    "Case expression %s of type %s not supported.",
+                    switch_case->label, switch_case->label->node_type_name());
             }
-            // Matches the condition OR all the other fall-through switches
-            auto case_match = fall_through || cond;
-            fall_through = ctx->bool_val(false);
-            auto old_vars = state->clone_vars();
-            state->push_forward_cond(case_match);
-            visitor->visit(switch_case->statement);
-            state->pop_forward_cond();
-            auto call_has_exited = state->has_exited();
-            auto stmt_has_returned = state->has_returned();
-            if (!(call_has_exited || stmt_has_returned)) {
-                case_states.emplace_back(case_match, state->get_vars());
+        }
+    } else {
+        auto table_action_name = table->table_props.table_name + "action_idx";
+        auto action_taken = ctx->int_const(table_action_name.c_str());
+        std::map<cstring, int> action_mapping;
+        size_t idx = 0;
+        for (const auto *action : table->table_props.actions) {
+            const auto *method_expr = action->method;
+            const auto *path = method_expr->checkedTo<IR::PathExpression>();
+            action_mapping[path->path->name.name] = idx;
+            idx++;
+        }
+        // now actually map all the statements together
+        z3::expr fall_through = ctx->bool_val(false);
+        for (const auto *switch_case : cases) {
+            if (const auto *label =
+                    switch_case->label->to<IR::PathExpression>()) {
+                auto mapped_idx = action_mapping[label->path->name.name];
+                auto cond = action_taken == mapped_idx;
+                // There is no block for the switch.
+                // This expressions falls through to the next switch case.
+                fall_through = fall_through || cond;
+                if (switch_case->statement == nullptr) {
+                    continue;
+                }
+                auto case_match = fall_through;
+                // Matches the condition OR all the other fall-through switches
+                fall_through = ctx->bool_val(false);
+                matches = matches || case_match;
+                stmt_vector.emplace_back(case_match, switch_case->statement);
+            } else if (switch_case->label->is<IR::DefaultExpression>()) {
+                has_default = true;
+                stmt_vector.emplace_back(!matches, switch_case->statement);
+                break;
+            } else {
+                P4C_UNIMPLEMENTED(
+                    "Case expression %s of type %s not supported.",
+                    switch_case->label, switch_case->label->node_type_name());
             }
-            has_exited = has_exited && call_has_exited;
-            has_returned = has_returned && stmt_has_returned;
-            state->set_exit(false);
-            state->set_returned(false);
-            state->restore_vars(old_vars);
-            matches = matches || case_match;
-        } else if (switch_case->label->is<IR::DefaultExpression>()) {
-            default_case = switch_case;
-        } else {
-            P4C_UNIMPLEMENTED("Case expression %s of type %s not supported.",
-                              switch_case->label,
-                              switch_case->label->node_type_name());
         }
     }
-    if (default_case != nullptr) {
+    // If we did not encounter a default statement, implicitly add it
+    if (!has_default) {
+        stmt_vector.emplace_back(!matches, nullptr);
+    }
+    return stmt_vector;
+}
+
+std::vector<std::pair<z3::expr, const IR::Statement *>>
+collect_stmt_vec_expr(Z3Visitor *visitor, const P4Z3Instance *switch_expr,
+                      const IR::Vector<IR::SwitchCase> &cases) {
+    auto *state = visitor->state;
+    auto *ctx = state->get_z3_ctx();
+    std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
+    z3::expr fall_through = ctx->bool_val(false);
+    z3::expr matches = ctx->bool_val(false);
+    bool has_default = false;
+    for (const auto *switch_case : cases) {
+        z3::expr cond = ctx->bool_val(true);
+        if (switch_case->label->is<IR::DefaultExpression>()) {
+            has_default = true;
+            stmt_vector.emplace_back(!matches, switch_case->statement);
+            break;
+        }
+        visitor->visit(switch_case->label);
+        const auto *matched_expr = state->get_expr_result();
+        cond = *switch_expr == *matched_expr;
+        // There is no block for the switch.
+        // This expressions falls through to the next switch case.
+        fall_through = fall_through || cond;
+        if (switch_case->statement == nullptr) {
+            continue;
+        }
+        auto case_match = fall_through;
+        // Matches the condition OR all the other fall-through switches
+        fall_through = ctx->bool_val(false);
+        matches = matches || case_match;
+        stmt_vector.emplace_back(case_match, switch_case->statement);
+    }
+    // If we did not encounter a default statement, implicitly add it
+    if (!has_default) {
+        stmt_vector.emplace_back(!matches, nullptr);
+    }
+    return stmt_vector;
+}
+
+bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
+    visit(ss->expression);
+    const auto *switch_expr = state->get_expr_result();
+    std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
+
+    // First map the individual statement blocks to their respective matches
+    // Tables are a little complicated so we have to take special care
+    if (const auto *table = switch_expr->to<P4TableInstance>()) {
+        stmt_vector = collect_stmt_vec_table(this, table, ss->cases);
+    } else {
+        stmt_vector =
+            collect_stmt_vec_expr(this, switch_expr->copy(), ss->cases);
+    }
+
+    // Once this is done we can use our usual ite-execution technique
+    // We always add a default statement, so we can set exit/return to true
+    bool has_exited = true;
+    bool has_returned = true;
+    std::vector<std::pair<z3::expr, VarMap>> case_states;
+    BUG_CHECK(!stmt_vector.empty(), "Statement vector can not be empty.");
+    for (auto &stmt : stmt_vector) {
+        auto case_match = stmt.first;
+        const auto *case_stmt = stmt.second;
         auto old_vars = state->clone_vars();
-        state->push_forward_cond(!matches);
-        visitor->visit(default_case->statement);
+        state->push_forward_cond(case_match);
+        visit(case_stmt);
         state->pop_forward_cond();
         auto call_has_exited = state->has_exited();
         auto stmt_has_returned = state->has_returned();
-        if (call_has_exited || stmt_has_returned) {
-            state->restore_vars(old_vars);
+        if (!(call_has_exited || stmt_has_returned)) {
+            case_states.emplace_back(case_match, state->get_vars());
         }
         has_exited = has_exited && call_has_exited;
         has_returned = has_returned && stmt_has_returned;
-    } else {
-        // the empty default switch neither exits nor returns
-        has_exited = false;
-        has_returned = false;
+        state->set_exit(false);
+        state->set_returned(false);
+        state->restore_vars(old_vars);
     }
     state->set_exit(has_exited);
     state->set_returned(has_returned);
@@ -211,15 +319,6 @@ void handle_table_match(P4State *state, Z3Visitor *visitor,
     for (auto it = case_states.rbegin(); it != case_states.rend(); ++it) {
         state->merge_vars(it->first, it->second);
     }
-}
-
-bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
-    visit(ss->expression);
-    const auto *table = state->copy_expr_result<P4TableInstance>();
-    handle_table_match(state, this, table, ss->cases);
-    // P4C_UNIMPLEMENTED("Unsupported switch expression %s of type %s.", result,
-    //                   result->get_static_type());
-
     return false;
 }
 
