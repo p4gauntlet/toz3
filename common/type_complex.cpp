@@ -1099,13 +1099,13 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
 }
 
 void handle_parser(Visitor *visitor, P4State *state,
-                   const IR::IndexedVector<IR::ParserState> *parser_states) {
+                   const IR::IndexedVector<IR::ParserState> &parser_states) {
     std::map<cstring, const IR::ParserState *> state_map;
     state->declare_static_decl(
         "accept", new P4Declaration(new IR::ReturnStatement(nullptr)));
     state->declare_static_decl("reject",
                                new P4Declaration(new IR::ExitStatement()));
-    for (const auto &parser_state : *parser_states) {
+    for (const auto &parser_state : parser_states) {
         state->declare_static_decl(parser_state->name.name,
                                    new P4Declaration(parser_state));
     }
@@ -1118,7 +1118,7 @@ void ControlInstance::apply(Visitor *visitor,
     const IR::TypeParameters *type_params = nullptr;
     IR::IndexedVector<IR::Declaration> local_decls;
     const IR::BlockStatement *body = nullptr;
-    const IR::IndexedVector<IR::ParserState> *parser_states = nullptr;
+    IR::IndexedVector<IR::ParserState> parser_states;
     if (const auto *control = p4_type->to<IR::P4Control>()) {
         params = control->getApplyParameters();
         type_params = control->getApplyMethodType()->getTypeParameters();
@@ -1128,7 +1128,7 @@ void ControlInstance::apply(Visitor *visitor,
         params = parser->getApplyParameters();
         type_params = parser->getApplyMethodType()->getTypeParameters();
         local_decls = parser->parserLocals;
-        parser_states = &parser->states;
+        parser_states = parser->states;
     }
     for (auto &local_type : local_type_map) {
         state->add_type(local_type.first, local_type.second);
@@ -1142,11 +1142,12 @@ void ControlInstance::apply(Visitor *visitor,
     }
     TypeVisitor map_builder = TypeVisitor(state);
     for (const auto *local_decl : local_decls) {
-        local_decl->apply(map_builder);
+        map_builder.visit(local_decl);
     }
-    if (parser_states != nullptr) {
+    if (!parser_states.empty()) {
         handle_parser(visitor, state, parser_states);
-    } else {
+    }
+    if (body != nullptr) {
         visitor->visit(body);
     }
     state->copy_out();

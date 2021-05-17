@@ -31,6 +31,8 @@ class TypeVisitor : public Inspector {
     explicit TypeVisitor(P4State *state)
         : state(state), resolve_expr(Z3Visitor(state)) {
         visitDagOnce = false;
+        const auto ctx = Context();
+        Visitor::init_apply(nullptr, &ctx);
     }
 
     /***** Unimplemented *****/
