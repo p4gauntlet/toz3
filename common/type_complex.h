@@ -319,6 +319,8 @@ class EnumBase : public StructBase, public ValContainer {
     Z3Result operator|(const P4Z3Instance &other) const override;
     void set_enum_val(const z3::expr &enum_input);
     EnumBase(const EnumBase &other);
+    virtual EnumBase *instantiate(const NumericVal &enum_val) const = 0;
+
     // overload = operator
 };
 
@@ -345,6 +347,7 @@ class EnumInstance : public EnumBase {
     EnumInstance(const EnumInstance &other);
     // overload = operator
     EnumInstance &operator=(const EnumInstance &other);
+    EnumInstance *instantiate(const NumericVal &enum_val) const override;
 };
 
 class ErrorInstance : public EnumBase {
@@ -367,6 +370,7 @@ class ErrorInstance : public EnumBase {
         ret += ")";
         return ret;
     }
+    ErrorInstance *instantiate(const NumericVal &enum_val) const override;
 };
 
 class SerEnumInstance : public EnumBase {
@@ -391,6 +395,7 @@ class SerEnumInstance : public EnumBase {
     }
     // TODO: SerEnumInstance is static, so no copy allowed
     SerEnumInstance *copy() const override;
+    SerEnumInstance *instantiate(const NumericVal &enum_val) const override;
     Z3Result operator&(const P4Z3Instance &other) const override;
     Z3Result operator|(const P4Z3Instance &other) const override;
 };
@@ -405,6 +410,14 @@ class ListInstance : public StructBase {
     cstring get_static_type() const override { return "ListInstance"; }
     cstring to_string() const override {
         cstring ret = "ListInstance(";
+        bool first = true;
+        for (auto tuple : members) {
+            if (!first) {
+                ret += ", ";
+            }
+            ret += tuple.first + ": " + tuple.second->to_string();
+            first = false;
+        }
         ret += ")";
         return ret;
     }

@@ -650,6 +650,7 @@ VarMap Z3Visitor::gen_state_from_instance(const IR::Declaration_Instance *di) {
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
+    auto instance_name = di->name.name;
     const IR::Type *resolved_type = state->resolve_type(di->type);
 
     if (const auto *instance_decl = resolved_type->to<IR::Type_Declaration>()) {
@@ -668,7 +669,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
         auto var_map = state->merge_args_with_params(this, *di->arguments,
                                                      *params, *type_params);
         state->declare_var(
-            di->name.name,
+            instance_name,
             new ControlInstance(state, instance_decl, var_map.second),
             resolved_type);
     } else {

@@ -28,11 +28,13 @@ class TypeVisitor : public Inspector {
     Z3Visitor resolve_expr;
 
  public:
-    explicit TypeVisitor(P4State *state)
+    explicit TypeVisitor(P4State *state,  bool gen_ctx = true)
         : state(state), resolve_expr(Z3Visitor(state)) {
         visitDagOnce = false;
-        const auto ctx = Context();
-        Visitor::init_apply(nullptr, &ctx);
+        if (gen_ctx) {
+            const auto ctx = Context();
+            Visitor::init_apply(nullptr, &ctx);
+        }
     }
 
     /***** Unimplemented *****/
@@ -82,6 +84,7 @@ class TypeVisitor : public Inspector {
     bool preorder(const IR::Declaration_Constant *dc) override;
     bool preorder(const IR::Declaration_MatchKind *dm) override;
     bool preorder(const IR::P4ValueSet *pvs) override;
+    bool preorder(const IR::IndexedVector<IR::Declaration> *decls) override;
 };
 }  // namespace TOZ3
 

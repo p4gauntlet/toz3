@@ -12,7 +12,6 @@
 #include "type_simple.h"
 #include "util.h"
 #include "visitor_fill_type.h"
-#include "visitor_interpret.h"
 #include "visitor_specialize.h"
 
 namespace TOZ3 {
@@ -797,6 +796,19 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
 
 EnumInstance *EnumInstance::copy() const { return new EnumInstance(*this); }
 
+EnumInstance *EnumInstance::instantiate(const NumericVal &enum_val) const {
+    auto enum_copy = new EnumInstance(*this);
+    auto cast_val = enum_val.cast(&P4_STD_BIT_TYPE);
+    if (auto *result_expr = boost::get<Z3Bitvector>(&cast_val)) {
+        enum_copy->set_enum_val(*result_expr->get_val());
+    } else if (auto *result_expr = boost::get<Z3Int>(&cast_val)) {
+        enum_copy->set_enum_val(*result_expr->get_val());
+    } else {
+        P4C_UNIMPLEMENTED("Enum instantiation not supported.");
+    }
+    return enum_copy;
+}
+
 EnumInstance::EnumInstance(const EnumInstance &other) : EnumBase(other) {}
 
 EnumInstance &EnumInstance::operator=(const EnumInstance &other) {
@@ -830,6 +842,19 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
 
 ErrorInstance *ErrorInstance::copy() const { return new ErrorInstance(*this); }
 
+ErrorInstance *ErrorInstance::instantiate(const NumericVal &enum_val) const {
+    auto enum_copy = new ErrorInstance(*this);
+    auto cast_val = enum_val.cast(&P4_STD_BIT_TYPE);
+    if (auto *result_expr = boost::get<Z3Bitvector>(&cast_val)) {
+        enum_copy->set_enum_val(*result_expr->get_val());
+    } else if (auto *result_expr = boost::get<Z3Int>(&cast_val)) {
+        enum_copy->set_enum_val(*result_expr->get_val());
+    } else {
+        P4C_UNIMPLEMENTED("Enum instantiation not supported.");
+    }
+    return enum_copy;
+}
+
 /***
 ===============================================================================
 SerEnumInstance
@@ -856,6 +881,21 @@ SerEnumInstance::SerEnumInstance(
 
 SerEnumInstance *SerEnumInstance::copy() const {
     return new SerEnumInstance(*this);
+}
+
+SerEnumInstance *
+SerEnumInstance::instantiate(const NumericVal &enum_val) const {
+    // TODO: Get rid of a bunch of stuff here
+    auto enum_copy = new SerEnumInstance(*this);
+    auto cast_val = enum_val.cast(p4_type->checkedTo<IR::Type_SerEnum>()->type);
+    if (auto *result_expr = boost::get<Z3Bitvector>(&cast_val)) {
+        enum_copy->set_enum_val(*result_expr->get_val());
+    } else if (auto *result_expr = boost::get<Z3Int>(&cast_val)) {
+        enum_copy->set_enum_val(*result_expr->get_val());
+    } else {
+        P4C_UNIMPLEMENTED("Enum instantiation not supported.");
+    }
+    return enum_copy;
 }
 
 Z3Result SerEnumInstance::operator&(const P4Z3Instance &other) const {
@@ -976,24 +1016,33 @@ std::vector<P4Z3Instance *> ListInstance::get_val_list() const {
     return val_list;
 }
 
+void unroll_list_2(const StructBase *input_struct,
+                 std::vector<P4Z3Instance *> *target_list) {
+    for (const auto &member : *input_struct->get_member_map()) {
+        auto *member_instance = member.second;
+        if (const auto *sb = member_instance->to<StructBase>()) {
+            unroll_list_2(sb, target_list);
+        } else {
+            target_list->push_back(member_instance);
+        }
+    }
+}
+
 z3::expr ListInstance::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
     if (const auto *other_struct = other.to<StructBase>()) {
-        // TODO: Make more precise, use width
-        if (members.size() != other_struct->get_member_map()->size()) {
+        std::vector<P4Z3Instance *> member_list;
+        unroll_list_2(this, &member_list);
+        std::vector<P4Z3Instance *> other_list;
+        unroll_list_2(other_struct, &other_list);
+        if (member_list.size() != other_list.size()) {
             return state->get_z3_ctx()->bool_val(false);
         }
         // From here on out we assume equal member size.
-        // TODO: What about flat lists and structures?
-        auto this_it = members.begin();
-        auto this_end = members.end();
-        auto others_it = other_struct->get_member_map()->begin();
-        while (this_it != this_end) {
-            const auto *member_val = this_it->second;
-            const auto *other_val = others_it->second;
+        for (size_t idx = 0; idx < member_list.size(); ++idx) {
+            const auto *member_val = member_list.at(idx);
+            const auto *other_val = other_list.at(idx);
             is_eq = is_eq && (member_val->operator==(*other_val));
-            this_it++;
-            others_it++;
         }
         return is_eq;
     }
@@ -1004,7 +1053,7 @@ z3::expr ListInstance::operator==(const P4Z3Instance &other) const {
         // Compare the first element in the list
         return *members.begin()->second == other;
     }
-    P4C_UNIMPLEMENTED("Comparing a struct base to %s is not supported.",
+    P4C_UNIMPLEMENTED("Comparing a ListInstance to %s is not supported.",
                       other.get_static_type());
 }
 

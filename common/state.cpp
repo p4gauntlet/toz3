@@ -593,15 +593,12 @@ const IR::Type *P4State::get_type(cstring type_name) const {
 const IR::Type *P4State::resolve_type(const IR::Type *type) const {
     if (const auto *tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
-        // TODO: For now catch these exceptions, but this should be solved
         type = get_type(type_name);
     }
     if (const auto *ts = type->to<IR::Type_Specialized>()) {
         TypeSpecializer specializer(*this, *ts->arguments);
-        const auto *resolved_node = ts->baseType->clone()->apply(specializer);
-        const auto *resolved_type = resolved_node->to<IR::Type>();
-        CHECK_NULL(resolved_type);
-        return resolved_type;
+        const auto *resolved_node = ts->baseType->apply(specializer);
+        return resolved_node->checkedTo<IR::Type>();
     }
     return type;
 }

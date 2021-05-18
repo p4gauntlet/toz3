@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "ir/ir.h"
-
 #include "ir/visitor.h"
 #include "type_complex.h"
 

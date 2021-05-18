@@ -79,13 +79,13 @@ const IR::Node *TypeSpecializer::preorder(IR::Type_Parser *tp) {
 const IR::Node *TypeSpecializer::preorder(IR::Type_Name *tn) {
     prune();
     auto *resolved_type = state.get_type(tn->path->name)->clone();
-    return resolved_type->apply_visitor_preorder(*this);
+    return apply_visitor(resolved_type);
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Var *tv) {
     prune();
     auto *resolved_type = state.get_type(tv->name.name)->clone();
-    return resolved_type->apply_visitor_preorder(*this);
+    return apply_visitor(resolved_type);
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_StructLike *ts) {

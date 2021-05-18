@@ -327,29 +327,24 @@ Z3Result Z3Bitvector::cast(const IR::Type *dest_type) const {
             return Z3Bitvector(state, &BOOL_TYPE, val > 0);
         }
     }
-    if (const auto *te = dest_type->to<IR::Type_Enum>()) {
-        auto new_enum = *state->find_var(te->name.name)->to<EnumInstance>();
-        // TODO: Cast.
-        new_enum.set_enum_val(val);
-        return new_enum;
-    }
-    if (const auto *te = dest_type->to<IR::Type_Error>()) {
-        auto new_enum = *state->find_var(te->name.name)->to<ErrorInstance>();
-        // TODO: Cast.
-        new_enum.set_enum_val(val);
-        return new_enum;
-    }
-    if (const auto *te = dest_type->to<IR::Type_SerEnum>()) {
-        auto new_enum = *state->find_var(te->name.name)->to<SerEnumInstance>();
-        // TODO: Cast.
-        new_enum.set_enum_val(val);
-        return new_enum;
-    }
     P4C_UNIMPLEMENTED("cast to %s not implemented for %s.",
                       dest_type->node_type_name(), get_static_type());
 }
 
 P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
+    if (const auto *te = dest_type->to<IR::Type_Enum>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<EnumInstance>();
+        return new_enum.instantiate(*this);
+    }
+    if (const auto *te = dest_type->to<IR::Type_Error>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<ErrorInstance>();
+        return new_enum.instantiate(*this);
+    }
+    if (const auto *te = dest_type->to<IR::Type_SerEnum>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<SerEnumInstance>();
+        return new_enum.instantiate(*this);
+    }
+
     auto cast_result = cast(dest_type);
     if (auto *z3_bit = boost::get<Z3Bitvector>(&cast_result)) {
         return z3_bit->copy();
@@ -669,11 +664,23 @@ Z3Result Z3Int::cast(const IR::Type *dest_type) const {
         // nothing to do, return a copy
         return *this;
     }
-    P4C_UNIMPLEMENTED("cast_allocate not implemented for %s to type %s.",
+    P4C_UNIMPLEMENTED("cast not implemented for %s to type %s.",
                       get_static_type(), dest_type->node_type_name());
 }
 
 P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
+    if (const auto *te = dest_type->to<IR::Type_Enum>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<EnumInstance>();
+        return new_enum.instantiate(*this);
+    }
+    if (const auto *te = dest_type->to<IR::Type_Error>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<ErrorInstance>();
+        return new_enum.instantiate(*this);
+    }
+    if (const auto *te = dest_type->to<IR::Type_SerEnum>()) {
+        auto new_enum = *state->find_var(te->name.name)->to<SerEnumInstance>();
+        return new_enum.instantiate(*this);
+    }
     auto cast_result = cast(dest_type);
     if (auto *z3_bit = boost::get<Z3Bitvector>(&cast_result)) {
         return z3_bit->copy();

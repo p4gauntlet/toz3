@@ -19,6 +19,7 @@ bool TypeVisitor::preorder(const IR::P4Program *p) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_StructLike *t) {
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_StructLike>();
     state->add_type(t->name.name, t);
     return false;
 }
@@ -103,6 +104,7 @@ bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_Extern *t) {
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_Extern>();
     state->add_type(t->name.name, t);
 
     return false;
@@ -123,17 +125,20 @@ bool TypeVisitor::preorder(const IR::Type_Newtype *t) {
 }
 
 bool TypeVisitor::preorder(const IR::Type_Package *t) {
-    state->add_type(t->name.name, t);
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_Package>();
+    state->add_type(t->name.name, state->resolve_type(t));
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Type_Parser *t) {
-    state->add_type(t->name.name, t);
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_Parser>();
+    state->add_type(t->name.name, state->resolve_type(t));
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Type_Control *t) {
-    state->add_type(t->name.name, t);
+    t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_Control>();
+    state->add_type(t->name.name, state->resolve_type(t));
     return false;
 }
 
@@ -146,9 +151,9 @@ bool TypeVisitor::preorder(const IR::P4Parser *p) {
 }
 
 bool TypeVisitor::preorder(const IR::P4Control *c) {
-    state->add_type(c->name.name, c);
     // Controls can be both a decl and a type
     // FIXME: Take a closer look at this...
+    state->add_type(c->name.name, c);
     state->declare_var(c->name.name, new ControlInstance(state, c, {}), c);
 
     return false;
@@ -304,13 +309,20 @@ bool TypeVisitor::preorder(const IR::P4ValueSet *pvs) {
     const auto *resolved_type = state->resolve_type(pvs->elementType);
     auto pvs_name = infer_name(pvs->getAnnotations(), pvs->name.name);
     auto *instance = state->gen_instance(pvs_name, resolved_type);
-    state->declare_var(pvs_name, instance, resolved_type);
+    state->declare_var(pvs->name.name, instance, resolved_type);
     return false;
 }
 
 bool TypeVisitor::preorder(const IR::Declaration_MatchKind * /*dm */) {
     // TODO: Figure out purpose of Declaration_MatchKind
     // state->add_decl(dm->name.name, dm);
+    return false;
+}
+
+bool TypeVisitor::preorder(const IR::IndexedVector<IR::Declaration> *decls) {
+    for (const auto *local_decl : *decls) {
+        visit(local_decl);
+    }
     return false;
 }
 

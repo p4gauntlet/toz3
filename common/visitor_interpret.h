@@ -19,6 +19,10 @@ class Z3Visitor : public Inspector {
         visited_states.insert(state_name);
     }
     void clear_visited_states() { visited_states.clear(); }
+    std::set<cstring> get_visited_states() { return visited_states; }
+    void set_visited_states(std::set<cstring> new_states) {
+        visited_states = std::move(new_states);
+    }
     bool state_is_visited(cstring state_name) {
         return visited_states.count(state_name) > 0;
     }
@@ -113,6 +117,7 @@ class Z3Visitor : public Inspector {
 
  public:
     P4State *state;
+    P4State *get_state() const { return state; }
     explicit Z3Visitor(P4State *state, bool gen_ctx = true) : state(state) {
         visitDagOnce = false;
         if (gen_ctx) {
