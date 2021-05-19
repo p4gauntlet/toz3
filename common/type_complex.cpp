@@ -1016,12 +1016,12 @@ std::vector<P4Z3Instance *> ListInstance::get_val_list() const {
     return val_list;
 }
 
-void unroll_list_2(const StructBase *input_struct,
+void unroll_list(const StructBase *input_struct,
                  std::vector<P4Z3Instance *> *target_list) {
     for (const auto &member : *input_struct->get_member_map()) {
         auto *member_instance = member.second;
         if (const auto *sb = member_instance->to<StructBase>()) {
-            unroll_list_2(sb, target_list);
+            unroll_list(sb, target_list);
         } else {
             target_list->push_back(member_instance);
         }
@@ -1032,9 +1032,9 @@ z3::expr ListInstance::operator==(const P4Z3Instance &other) const {
     auto is_eq = state->get_z3_ctx()->bool_val(true);
     if (const auto *other_struct = other.to<StructBase>()) {
         std::vector<P4Z3Instance *> member_list;
-        unroll_list_2(this, &member_list);
+        unroll_list(this, &member_list);
         std::vector<P4Z3Instance *> other_list;
-        unroll_list_2(other_struct, &other_list);
+        unroll_list(other_struct, &other_list);
         if (member_list.size() != other_list.size()) {
             return state->get_z3_ctx()->bool_val(false);
         }

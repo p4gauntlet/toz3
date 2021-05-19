@@ -421,9 +421,13 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(
         auto direction = param->direction;
         if (direction == IR::Direction::Out ||
             direction == IR::Direction::InOut) {
-            auto member_struct = get_member_struct(this, visitor, arg_expr);
-            resolved_args.push_back({member_struct, param->name.name});
-            arg_result = get_member(this, member_struct);
+            // If the expression is default, we can not save a copy
+            // TODO: Is this the right way? This can only work with out params
+            if (!arg_expr->is<IR::DefaultExpression>()) {
+                auto member_struct = get_member_struct(this, visitor, arg_expr);
+                resolved_args.push_back({member_struct, param->name.name});
+                arg_result = get_member(this, member_struct);
+            }
         } else {
             visitor->visit(arg_expr);
             arg_result = get_expr_result();

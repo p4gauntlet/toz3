@@ -9,18 +9,6 @@
 
 namespace TOZ3 {
 
-void unroll_list(const StructBase *input_struct,
-                 std::vector<P4Z3Instance *> *target_list) {
-    for (const auto &member : *input_struct->get_member_map()) {
-        auto *member_instance = member.second;
-        if (const auto *sb = member_instance->to<StructBase>()) {
-            unroll_list(sb, target_list);
-        } else {
-            target_list->push_back(member_instance);
-        }
-    }
-}
-
 std::vector<P4Z3Instance *> get_vec_from_map(const StructBase *input_struct) {
     std::vector<P4Z3Instance *> target_list;
     for (const auto &member : *input_struct->get_member_map()) {
@@ -78,7 +66,6 @@ z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
 
     for (size_t idx = 0; idx < list_expr->size(); ++idx) {
         const auto *match_key = list_expr->components.at(idx);
-        // TODO: tostringy no likey
         const auto *select_eval = select_members.at(idx);
         match_cond = match_cond && check_cond(visitor, select_eval, match_key);
     }
@@ -92,22 +79,20 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
     for (const auto *select_case : se->selectCases) {
         if (select_case->keyset->is<IR::DefaultExpression>()) {
             select_vector.emplace_back(!matches, select_case->state);
+            break;
+        }
+        BUG_CHECK(!se->selectCases.empty(), "Case vector can not be empty.");
+        visit(se->select);
+        const auto *list_instance = state->copy_expr_result<ListInstance>();
+        if (const auto *list_expr =
+                select_case->keyset->to<IR::ListExpression>()) {
+            auto cond = handle_select_cond(this, list_instance, list_expr);
+            select_vector.emplace_back(cond, select_case->state);
+            matches = matches || cond;
         } else {
-            BUG_CHECK(!se->selectCases.empty(),
-                      "Case vector can not be empty.");
-            visit(se->select);
-            const auto *list_instance = state->copy_expr_result<ListInstance>();
-            if (const auto *list_expr =
-                    select_case->keyset->to<IR::ListExpression>()) {
-                auto cond = handle_select_cond(this, list_instance, list_expr);
-                select_vector.emplace_back(cond, select_case->state);
-                matches = matches || cond;
-            } else {
-                auto cond =
-                    check_cond(this, list_instance, select_case->keyset);
-                select_vector.emplace_back(cond, select_case->state);
-                matches = matches || cond;
-            }
+            auto cond = check_cond(this, list_instance, select_case->keyset);
+            select_vector.emplace_back(cond, select_case->state);
+            matches = matches || cond;
         }
     }
     // Now evaluate all the select cases
@@ -121,11 +106,11 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
         state->push_forward_cond(cond);
         auto path_name = se_state->path->name.name;
         const auto *decl = state->get_static_decl(path_name);
-        auto old_visited_states = get_visited_states();
-        if (!state_is_visited(path_name)) {
+        auto old_visited_states = state->get_visited_states();
+        if (!state->state_is_visited(path_name)) {
             visit(decl->decl);
         }
-        set_visited_states(old_visited_states);
+        state->set_visited_states(old_visited_states);
         state->pop_forward_cond();
         auto call_has_exited = state->has_exited();
         auto stmt_has_returned = state->has_returned();
@@ -148,7 +133,7 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
 
 bool Z3Visitor::preorder(const IR::ParserState *ps) {
     auto state_name = ps->name.name;
-    add_visited_state(state_name);
+    state->add_visited_state(state_name);
     for (const auto *component : ps->components) {
         visit(component);
     }
@@ -161,7 +146,7 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
     if (const auto *path = ps->selectExpression->to<IR::PathExpression>()) {
         auto path_name = path->path->name.name;
         const auto *decl = state->get_static_decl(path_name);
-        if (!state_is_visited(path_name)) {
+        if (!state->state_is_visited(path_name)) {
             visit(decl->decl);
         }
     } else if (const auto *se =

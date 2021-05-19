@@ -14,19 +14,6 @@ namespace TOZ3 {
 
 class Z3Visitor : public Inspector {
  private:
-    std::set<cstring> visited_states;
-    void add_visited_state(cstring state_name) {
-        visited_states.insert(state_name);
-    }
-    void clear_visited_states() { visited_states.clear(); }
-    std::set<cstring> get_visited_states() { return visited_states; }
-    void set_visited_states(std::set<cstring> new_states) {
-        visited_states = std::move(new_states);
-    }
-    bool state_is_visited(cstring state_name) {
-        return visited_states.count(state_name) > 0;
-    }
-
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
         P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
@@ -39,23 +26,15 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::MethodCallStatement *mcs) override;
     bool preorder(const IR::IfStatement *ifs) override;
     bool preorder(const IR::SwitchStatement *ss) override;
-    // bool preorder(const IR::SwitchCase *sc) override;
     bool preorder(const IR::EmptyStatement *es) override;
     bool preorder(const IR::ExitStatement *es) override;
     bool preorder(const IR::ReturnStatement *rs) override;
 
     /***** Parser *****/
-    // bool preorder(const IR::P4Parser *p) override;
     bool preorder(const IR::ParserState *ps) override;
-    // bool preorder(const IR::P4ValueSet *pvs) override;
     bool preorder(const IR::SelectExpression *se) override;
     /***** Methods *****/
-    // bool preorder(const IR::P4Control *c) override;
     bool preorder(const IR::P4Action *a) override;
-    // bool preorder(const IR::Parameter *param) override;
-    // bool preorder(const IR::ParameterList *p) override;
-    // bool preorder(const IR::TypeParameters *tp) override;
-    // bool preorder(const IR::Argument *param) override;
     bool preorder(const IR::Method *m) override;
     bool preorder(const IR::Function *f) override;
 

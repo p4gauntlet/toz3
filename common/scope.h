@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include <map>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,7 @@ class P4Scope {
     std::vector<z3::expr> forward_conds;
     std::vector<z3::expr> return_conds;
     CopyArgs copy_out_args;
+    std::set<cstring> visited_states;
 
  public:
     /****** STATIC DECLS ******/
@@ -92,6 +94,19 @@ class P4Scope {
             return get_type(type_name);
         }
         return ret_type;
+    }
+    /****** PARSER STATES ******/
+    void add_visited_state(cstring state_name) {
+        visited_states.insert(state_name);
+    }
+    void clear_visited_states() { visited_states.clear(); }
+    std::set<cstring> get_visited_states() { return visited_states; }
+    void set_visited_states(const std::set<cstring> &new_states) {
+        visited_states.clear();
+        visited_states.insert(new_states.begin(), new_states.end());
+    }
+    bool state_is_visited(cstring state_name) {
+        return visited_states.count(state_name) > 0;
     }
     /****** RETURN AND EXIT MANAGEMENT ******/
     void set_copy_out_args(const CopyArgs &input_args) {

@@ -84,6 +84,27 @@ class P4State {
         auto scope = get_current_scope();
         return scope.get_copy_out_args();
     }
+    /****** PARSER STATES ******/
+    void add_visited_state(cstring state_name) {
+        auto *scope = get_mut_current_scope();
+        scope->add_visited_state(state_name);
+    }
+    void clear_visited_states() {
+        auto *scope = get_mut_current_scope();
+        scope->clear_visited_states();
+    }
+    std::set<cstring> get_visited_states() {
+        auto *scope = get_mut_current_scope();
+        return scope->get_visited_states();
+    }
+    void set_visited_states(const std::set<cstring> &new_states) {
+        auto *scope = get_mut_current_scope();
+        scope->set_visited_states(new_states);
+    }
+    bool state_is_visited(cstring state_name) {
+        auto *scope = get_mut_current_scope();
+        return scope->state_is_visited(state_name);
+    }
     /****** SCOPES AND STATES ******/
     void push_scope();
     void pop_scope();

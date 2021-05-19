@@ -107,11 +107,14 @@ class NumericVal : public P4Z3Instance, public ValContainer {
 };
 
 class Z3Bitvector : public NumericVal {
+ private:
+    uint64_t width = 0;
+
  public:
     bool is_signed;
     explicit Z3Bitvector(const P4State *state, const IR::Type *p4_type,
-                         const z3::expr &val, bool is_signed = false)
-        : NumericVal(state, p4_type, val), is_signed(is_signed) {}
+                         const z3::expr &val, bool is_signed = false);
+    uint64_t get_width() const { return width; }
 
     /****** UNARY OPERANDS ******/
     Z3Result operator-() const override;
@@ -151,7 +154,9 @@ class Z3Bitvector : public NumericVal {
         cstring ret = "Z3Bitvector(";
         return ret + val.to_string().c_str() + ")";
     }
-    Z3Bitvector(const Z3Bitvector &other) = default;
+    Z3Bitvector(const Z3Bitvector &other)
+        : NumericVal(other.state, other.p4_type, other.val), width(other.width),
+          is_signed(other.is_signed) {}
     // overload = operator
     Z3Bitvector &operator=(const Z3Bitvector &other) {
         if (this == &other) {

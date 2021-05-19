@@ -63,6 +63,22 @@ z3::expr align_bitvectors(const P4Z3Instance *target, const z3::sort &bv_cast,
 Z3Bitvector
 ===============================================================================
 ***/
+Z3Bitvector::Z3Bitvector(const P4State *state, const IR::Type *p4_type,
+                         const z3::expr &val, bool is_signed)
+    : NumericVal(state, p4_type, val), is_signed(is_signed) {
+    if (p4_type->is<IR::Type_Bits>()) {
+        width = p4_type->width_bits();
+    } else if (const auto *tvb = p4_type->to<IR::Type_Varbits>()) {
+        width = tvb->size;
+    } else if (p4_type->is<IR::Type_Boolean>() ||
+               p4_type->is<IR::Type_String>()) {
+        // What does a type string mean?
+        width = 1;
+    } else {
+        P4C_UNIMPLEMENTED("Unknown bit type %s", p4_type->node_type_name());
+    }
+    BUG_CHECK(width, "Width can not be zero.");
+}
 
 /****** UNARY OPERANDS ******/
 
