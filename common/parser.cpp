@@ -45,7 +45,7 @@ z3::expr check_cond(Z3Visitor *visitor, const P4Z3Instance *select_eval,
         visitor->visit(mask_expr->right);
         const auto *mask = state->get_expr_result();
         // TODO: Check_eq is a hack. Replace
-        return check_eq(*select_eval & *mask, *val & *mask);
+        return *(*select_eval & *mask) == *(*val & *mask);
     }
     if (const auto *match_list_expr = match_key->to<IR::ListExpression>()) {
         const auto *struct_select_eval = select_eval->to<StructBase>();

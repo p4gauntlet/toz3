@@ -16,14 +16,14 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->bv_val(val_string, tb->size);
-        auto wrapper = Z3Bitvector(state, tb, expr, tb->isSigned);
+        auto wrapper = new Z3Bitvector(state, tb, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
     }
     if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->int_val(val_string);
-        auto var = Z3Int(state, expr);
+        auto var =  new Z3Int(state, expr);
         state->set_expr_result(var);
         return false;
     }
@@ -33,14 +33,14 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     auto expr = state->get_z3_ctx()->bool_val(bl->value);
-    Z3Bitvector wrapper = Z3Bitvector(state, &BOOL_TYPE, expr);
+    auto wrapper = new Z3Bitvector(state, &BOOL_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::StringLiteral *sl) {
     auto expr = state->get_z3_ctx()->string_val(sl->value);
-    Z3Bitvector wrapper = Z3Bitvector(state, &STRING_TYPE, expr);
+    auto wrapper = new Z3Bitvector(state, &STRING_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }

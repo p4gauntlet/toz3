@@ -117,19 +117,19 @@ class Z3Bitvector : public NumericVal {
     uint64_t get_width() const { return width; }
 
     /****** UNARY OPERANDS ******/
-    Z3Result operator-() const override;
-    Z3Result operator~() const override;
-    Z3Result operator!() const override;
+    P4Z3Instance * operator-() const override;
+    P4Z3Instance * operator~() const override;
+    P4Z3Instance * operator!() const override;
     /****** BINARY OPERANDS ******/
-    Z3Result operator*(const P4Z3Instance &other) const override;
-    Z3Result operator/(const P4Z3Instance &other) const override;
-    Z3Result operator%(const P4Z3Instance &other) const override;
-    Z3Result operator+(const P4Z3Instance &other) const override;
-    Z3Result operatorAddSat(const P4Z3Instance &other) const override;
-    Z3Result operator-(const P4Z3Instance &other) const override;
-    Z3Result operatorSubSat(const P4Z3Instance &other) const override;
-    Z3Result operator>>(const P4Z3Instance &other) const override;
-    Z3Result operator<<(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator*(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator/(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator%(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator+(const P4Z3Instance &other) const override;
+    P4Z3Instance * operatorAddSat(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator-(const P4Z3Instance &other) const override;
+    P4Z3Instance * operatorSubSat(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator>>(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator<<(const P4Z3Instance &other) const override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
     z3::expr operator<(const P4Z3Instance &other) const override;
@@ -138,14 +138,14 @@ class Z3Bitvector : public NumericVal {
     z3::expr operator>=(const P4Z3Instance &other) const override;
     z3::expr operator&&(const P4Z3Instance &other) const override;
     z3::expr operator||(const P4Z3Instance &other) const override;
-    Z3Result operator&(const P4Z3Instance &other) const override;
-    Z3Result operator|(const P4Z3Instance &other) const override;
-    Z3Result operator^(const P4Z3Instance &other) const override;
-    Z3Result concat(const P4Z3Instance &other) const override;
-    Z3Result cast(const IR::Type *dest_type) const override;
+    P4Z3Instance * operator&(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator|(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator^(const P4Z3Instance &other) const override;
+    P4Z3Instance * concat(const P4Z3Instance &other) const override;
+    P4Z3Instance * cast(const IR::Type *dest_type) const override;
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
-    Z3Result slice(const z3::expr &hi, const z3::expr &lo) const override;
+    P4Z3Instance * slice(const z3::expr &hi, const z3::expr &lo) const override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     Z3Bitvector *copy() const override;
 
@@ -178,27 +178,27 @@ class Z3Int : public NumericVal {
     explicit Z3Int(const P4State *state, big_int int_val);
     explicit Z3Int(const P4State *state);
 
-    Z3Result operator-() const override;
+    P4Z3Instance * operator-() const override;
     /****** BINARY OPERANDS ******/
-    Z3Result operator*(const P4Z3Instance &other) const override;
-    Z3Result operator/(const P4Z3Instance &other) const override;
-    Z3Result operator%(const P4Z3Instance &other) const override;
-    Z3Result operator+(const P4Z3Instance &other) const override;
-    Z3Result operatorAddSat(const P4Z3Instance &other) const override;
-    Z3Result operator-(const P4Z3Instance &other) const override;
-    Z3Result operatorSubSat(const P4Z3Instance &other) const override;
-    Z3Result operator>>(const P4Z3Instance &other) const override;
-    Z3Result operator<<(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator*(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator/(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator%(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator+(const P4Z3Instance &other) const override;
+    P4Z3Instance * operatorAddSat(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator-(const P4Z3Instance &other) const override;
+    P4Z3Instance * operatorSubSat(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator>>(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator<<(const P4Z3Instance &other) const override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
     z3::expr operator<(const P4Z3Instance &other) const override;
     z3::expr operator<=(const P4Z3Instance &other) const override;
     z3::expr operator>(const P4Z3Instance &other) const override;
     z3::expr operator>=(const P4Z3Instance &other) const override;
-    Z3Result operator&(const P4Z3Instance &other) const override;
-    Z3Result operator|(const P4Z3Instance &other) const override;
-    Z3Result operator^(const P4Z3Instance &other) const override;
-    Z3Result cast(const IR::Type *dest_type) const override;
+    P4Z3Instance * operator&(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator|(const P4Z3Instance &other) const override;
+    P4Z3Instance * operator^(const P4Z3Instance &other) const override;
+    P4Z3Instance * cast(const IR::Type *dest_type) const override;
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
@@ -224,25 +224,6 @@ class Z3Int : public NumericVal {
     }
 };
 
-// Guess I can only go so far with variants...
-inline z3::expr check_eq(const Z3Result &left, const Z3Result &right) {
-    if (const auto *result_left = boost::get<Z3Bitvector>(&left)) {
-        if (const auto *result_right = boost::get<Z3Bitvector>(&right)) {
-            return *result_left == *result_right;
-        }
-        if (const auto *result_right = boost::get<Z3Int>(&right)) {
-            return *result_left == *result_right;
-        }
-    } else if (const auto *result_left = boost::get<Z3Int>(&left)) {
-        if (const auto *result_right = boost::get<Z3Bitvector>(&right)) {
-            return *result_left == *result_right;
-        }
-        if (const auto *result_right = boost::get<Z3Int>(&right)) {
-            return *result_left == *result_right;
-        }
-    }
-    P4C_UNIMPLEMENTED("Storing reference not supported");
-}
 
 }  // namespace TOZ3
 

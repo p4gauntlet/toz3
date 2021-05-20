@@ -243,7 +243,7 @@ z3::expr P4TableInstance::produce_const_match(
             visitor->visit(mask_expr->right);
             const auto *mask = state->get_expr_result();
             // TODO: Check_eq is a hack. Replace
-            match = match && (check_eq(*key_eval & *mask, *val & *mask));
+            match = match && (*(*key_eval & *mask) == *(*val & *mask));
         } else {
             visitor->visit(c_key);
             match = match && (*key_eval == *state->get_expr_result());

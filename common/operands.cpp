@@ -161,7 +161,7 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
     const auto *right = state->get_expr_result();
 
     auto &&result = *left == *right;
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, result));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, result));
 
     return false;
 }
@@ -172,7 +172,7 @@ bool Z3Visitor::preorder(const IR::Neq *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, *left != *right));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left != *right));
 
     return false;
 }
@@ -183,7 +183,7 @@ bool Z3Visitor::preorder(const IR::Lss *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, *left < *right));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left < *right));
 
     return false;
 }
@@ -194,7 +194,7 @@ bool Z3Visitor::preorder(const IR::Leq *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, *left <= *right));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left <= *right));
 
     return false;
 }
@@ -205,7 +205,7 @@ bool Z3Visitor::preorder(const IR::Grt *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, *left > *right));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left > *right));
 
     return false;
 }
@@ -216,7 +216,7 @@ bool Z3Visitor::preorder(const IR::Geq *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, *left >= *right));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left >= *right));
 
     return false;
 }
@@ -254,7 +254,7 @@ bool Z3Visitor::preorder(const IR::LAnd *expr) {
     visit(expr->left);
     auto *left = state->copy_expr_result<Z3Bitvector>();
     if (left->get_val()->simplify().is_false() || state->has_exited()) {
-        state->set_expr_result(*left);
+        state->set_expr_result(left);
         return false;
     }
     auto old_vars = state->clone_vars();
@@ -264,7 +264,7 @@ bool Z3Visitor::preorder(const IR::LAnd *expr) {
     auto land_expr = *left && *state->get_expr_result();
     state->merge_vars(!*left->get_val(), old_vars);
 
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, land_expr));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, land_expr));
 
     return false;
 }
@@ -273,7 +273,7 @@ bool Z3Visitor::preorder(const IR::LOr *expr) {
     visit(expr->left);
     auto *left = state->copy_expr_result<Z3Bitvector>();
     if (left->get_val()->simplify().is_true() || state->has_exited()) {
-        state->set_expr_result(*left);
+        state->set_expr_result(left);
         return false;
     }
     auto old_vars = state->clone_vars();
@@ -283,7 +283,7 @@ bool Z3Visitor::preorder(const IR::LOr *expr) {
     auto lor_expr = *left || *state->get_expr_result();
     state->merge_vars(*left->get_val(), old_vars);
 
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, lor_expr));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, lor_expr));
 
     return false;
 }

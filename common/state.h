@@ -31,9 +31,7 @@ class P4State {
     ProgState scopes;
     P4Scope main_scope;
     z3::context *ctx;
-    Z3Bitvector z3_expr_buffer;
-    Z3Int z3_int_buffer;
-    P4Z3Instance *expr_result;
+    P4Z3Instance *expr_result = nullptr;
     // Exit vars
     bool is_exited = false;
     std::vector<std::pair<z3::expr, VarMap>> exit_states;
@@ -50,10 +48,7 @@ class P4State {
     bool has_exited() const { return is_exited; }
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
-    explicit P4State(z3::context *context)
-        : ctx(context),
-          z3_expr_buffer(this, &P4_STD_BIT_TYPE, context->bool_val(false)),
-          z3_int_buffer(this, context->bool_val(false)) {}
+    explicit P4State(z3::context *context) : ctx(context) {}
 
     /****** GETTERS ******/
     ProgState get_state() const { return scopes; }
@@ -219,17 +214,6 @@ class P4State {
         BUG("Could not cast to type %s.", typeid(T).name());
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
-    void set_expr_result(Z3Result result) {
-        if (auto *result_expr = boost::get<Z3Bitvector>(&result)) {
-            z3_expr_buffer = *result_expr;
-            expr_result = &z3_expr_buffer;
-        } else if (auto *result_expr = boost::get<Z3Int>(&result)) {
-            z3_int_buffer = *result_expr;
-            expr_result = &z3_int_buffer;
-        } else {
-            P4C_UNIMPLEMENTED("Storing reference not supported");
-        }
-    }
     friend inline std::ostream &operator<<(std::ostream &out,
                                            const TOZ3::P4State &state) {
         auto var_map = state.get_state();

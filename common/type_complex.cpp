@@ -353,7 +353,7 @@ void HeaderInstance::setInvalid(Visitor *, const IR::Vector<IR::Argument> *) {
 }
 
 void HeaderInstance::isValid(Visitor *, const IR::Vector<IR::Argument> *) {
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, valid));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, valid));
 }
 
 void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
@@ -676,7 +676,7 @@ z3::expr HeaderUnionInstance::get_valid() const {
 }
 
 void HeaderUnionInstance::isValid(Visitor *, const IR::Vector<IR::Argument> *) {
-    state->set_expr_result(Z3Bitvector(state, &BOOL_TYPE, get_valid()));
+    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, get_valid()));
 }
 
 HeaderUnionInstance *HeaderUnionInstance::copy() const {
@@ -762,10 +762,10 @@ z3::expr EnumBase::operator!=(const P4Z3Instance &other) const {
     return !(*this == other);
 }
 
-Z3Result EnumBase::operator&(const P4Z3Instance &other) const {
+P4Z3Instance * EnumBase::operator&(const P4Z3Instance &other) const {
     return Z3Bitvector(state, &P4_STD_BIT_TYPE, val, false) & other;
 }
-Z3Result EnumBase::operator|(const P4Z3Instance &other) const {
+P4Z3Instance * EnumBase::operator|(const P4Z3Instance &other) const {
     return Z3Bitvector(state, &P4_STD_BIT_TYPE, val, false) | other;
 }
 
@@ -807,9 +807,7 @@ EnumInstance *EnumInstance::copy() const { return new EnumInstance(*this); }
 EnumInstance *EnumInstance::instantiate(const NumericVal &enum_val) const {
     auto enum_copy = new EnumInstance(*this);
     auto cast_val = enum_val.cast(&P4_STD_BIT_TYPE);
-    if (auto *result_expr = boost::get<Z3Bitvector>(&cast_val)) {
-        enum_copy->set_enum_val(*result_expr->get_val());
-    } else if (auto *result_expr = boost::get<Z3Int>(&cast_val)) {
+    if (auto *result_expr = cast_val->to<NumericVal>()) {
         enum_copy->set_enum_val(*result_expr->get_val());
     } else {
         P4C_UNIMPLEMENTED("Enum instantiation not supported.");
@@ -851,11 +849,9 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
 ErrorInstance *ErrorInstance::copy() const { return new ErrorInstance(*this); }
 
 ErrorInstance *ErrorInstance::instantiate(const NumericVal &enum_val) const {
-    auto enum_copy = new ErrorInstance(*this);
-    auto cast_val = enum_val.cast(&P4_STD_BIT_TYPE);
-    if (auto *result_expr = boost::get<Z3Bitvector>(&cast_val)) {
-        enum_copy->set_enum_val(*result_expr->get_val());
-    } else if (auto *result_expr = boost::get<Z3Int>(&cast_val)) {
+    auto *enum_copy = new ErrorInstance(*this);
+    auto *cast_val = enum_val.cast(&P4_STD_BIT_TYPE);
+    if (const auto *result_expr = cast_val->to<NumericVal>()) {
         enum_copy->set_enum_val(*result_expr->get_val());
     } else {
         P4C_UNIMPLEMENTED("Enum instantiation not supported.");
@@ -896,9 +892,8 @@ SerEnumInstance::instantiate(const NumericVal &enum_val) const {
     // TODO: Get rid of a bunch of stuff here
     auto enum_copy = new SerEnumInstance(*this);
     auto cast_val = enum_val.cast(p4_type->checkedTo<IR::Type_SerEnum>()->type);
-    if (auto *result_expr = boost::get<Z3Bitvector>(&cast_val)) {
-        enum_copy->set_enum_val(*result_expr->get_val());
-    } else if (auto *result_expr = boost::get<Z3Int>(&cast_val)) {
+
+    if (auto *result_expr = cast_val->to<NumericVal>()) {
         enum_copy->set_enum_val(*result_expr->get_val());
     } else {
         P4C_UNIMPLEMENTED("Enum instantiation not supported.");
@@ -906,13 +901,13 @@ SerEnumInstance::instantiate(const NumericVal &enum_val) const {
     return enum_copy;
 }
 
-Z3Result SerEnumInstance::operator&(const P4Z3Instance &other) const {
+P4Z3Instance * SerEnumInstance::operator&(const P4Z3Instance &other) const {
     // TODO: Kind of crazy, should I really do this?
     const auto *tb = p4_type->checkedTo<IR::Type_SerEnum>()
                          ->type->checkedTo<IR::Type_Bits>();
     return Z3Bitvector(state, tb, val, tb->isSigned) & other;
 }
-Z3Result SerEnumInstance::operator|(const P4Z3Instance &other) const {
+P4Z3Instance * SerEnumInstance::operator|(const P4Z3Instance &other) const {
     // TODO: Kind of crazy, should I really do this?
     const auto *tb = p4_type->checkedTo<IR::Type_SerEnum>()
                          ->type->checkedTo<IR::Type_Bits>();
