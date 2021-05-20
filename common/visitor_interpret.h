@@ -107,7 +107,6 @@ class Z3Visitor : public Inspector {
             Visitor::init_apply(nullptr, &ctx);
         }
     }
-
 };
 }  // namespace TOZ3
 

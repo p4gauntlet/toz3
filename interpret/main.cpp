@@ -48,7 +48,7 @@ int main(int argc, char *const argv[]) {
             return EXIT_SKIPPED;
         }
         TOZ3::Z3Visitor to_z3(&state);
-        const auto decl_result = gen_state_from_instance(&to_z3, decl);
+        auto decl_result = gen_state_from_instance(&to_z3, decl);
         for (const auto &pipe_state : decl_result) {
             cstring pipe_name = pipe_state.first;
             const auto pipe_vars = pipe_state.second.first;

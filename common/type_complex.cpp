@@ -1192,9 +1192,9 @@ void ControlInstance::apply(Visitor *visitor,
         state->declare_var(const_arg.first, const_arg.second.first,
                            const_arg.second.second);
     }
-    TypeVisitor map_builder = TypeVisitor(state);
+    TypeVisitor map_builder(state);
     for (const auto *local_decl : local_decls) {
-        map_builder.visit(local_decl);
+        local_decl->apply_visitor_preorder(map_builder);
     }
     if (!parser_states.empty()) {
         handle_parser(visitor, state, parser_states);
