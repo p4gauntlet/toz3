@@ -19,8 +19,6 @@
 
 namespace TOZ3 {
 
-cstring infer_name(const IR::Annotations *annots, cstring default_name);
-
 MemberStruct get_member_struct(P4State *state, Visitor *visitor,
                                const IR::Expression *target);
 std::vector<std::pair<z3::expr, P4Z3Instance *>>

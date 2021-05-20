@@ -17,4 +17,8 @@ inline cstring get_max_bv_val(uint64_t bv_width) {
     return Util::toString(max_return, 0, false);
 }
 
+namespace TOZ3 {
+cstring infer_name(const IR::Annotations *annots, cstring default_name);
+}  // namespace TOZ3
+
 #endif  // TOZ3_COMMON_UTIL_H_

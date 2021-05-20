@@ -12,6 +12,7 @@
 
 namespace TOZ3 {
 
+
 class Z3Visitor : public Inspector {
  private:
     /***** Unimplemented *****/
@@ -107,7 +108,6 @@ class Z3Visitor : public Inspector {
         }
     }
 
-    VarMap gen_state_from_instance(const IR::Declaration_Instance *di);
 };
 }  // namespace TOZ3
 

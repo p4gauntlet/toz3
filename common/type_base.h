@@ -216,7 +216,11 @@ class P4Z3Instance : public P4Z3Node {
     P4Z3Instance(const P4Z3Instance &other) { p4_type = other.p4_type; }
 };
 
-using VarMap = std::map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
+using VarMap =
+    ordered_map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
+using MainResult =
+    ordered_map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>,
+                                   const IR::Type *>>;
 
 }  // namespace TOZ3
 

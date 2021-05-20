@@ -1,37 +1,8 @@
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <iomanip>
-#include <iterator>
-#include <ostream>
 
-#include "frontends/common/applyOptionsPragmas.h"
-#include "frontends/common/constantFolding.h"
 #include "frontends/common/parseInput.h"
-#include "frontends/common/resolveReferences/resolveReferences.h"
-#include "frontends/p4/createBuiltins.h"
-#include "frontends/p4/directCalls.h"
-#include "frontends/p4/evaluator/evaluator.h"
-#include "frontends/p4/frontend.h"
-#include "frontends/p4/parseAnnotations.h"
-#include "frontends/p4/specialize.h"
-#include "frontends/p4/specializeGenericFunctions.h"
-#include "frontends/p4/typeChecking/bindVariables.h"
-#include "frontends/p4/typeMap.h"
-#include "frontends/p4/validateParsedProgram.h"
-
-#include "frontends/p4/fromv1.0/v1model.h"
-#include "frontends/p4/toP4/toP4.h"
-
-#include "ir/ir.h"
-#include "lib/error.h"
-#include "lib/exceptions.h"
-#include "lib/gc.h"
-#include "lib/log.h"
-#include "lib/nullstream.h"
 
 #include "options.h"
+#include "toz3/common/create_z3.h"
 #include "toz3/common/visitor_fill_type.h"
 #include "toz3/common/visitor_interpret.h"
 
@@ -53,21 +24,19 @@ const IR::Declaration_Instance *get_main_decl(P4State *state) {
     return nullptr;
 }
 
-VarMap get_z3_repr(cstring prog_name, const IR::P4Program *program,
-                   z3::context *ctx) {
-    VarMap z3_return;
-
+MainResult get_z3_repr(cstring prog_name, const IR::P4Program *program,
+                       z3::context *ctx) {
     try {
         // convert the P4 program to Z3
-        P4State state(ctx);
-        TypeVisitor map_builder = TypeVisitor(&state);
+        TOZ3::P4State state(ctx);
+        TOZ3::TypeVisitor map_builder(&state);
         program->apply(map_builder);
-        Z3Visitor to_z3 = Z3Visitor(&state);
         const auto *decl = get_main_decl(&state);
         if (decl == nullptr) {
-            return z3_return;
+            return {};
         }
-        return to_z3.gen_state_from_instance(decl);
+        TOZ3::Z3Visitor to_z3(&state);
+        return gen_state_from_instance(&to_z3, decl);
     } catch (const Util::P4CExceptionBase &bug) {
         std::cerr << "Failed to interpret pass \"" << prog_name << "\"."
                   << std::endl;
@@ -79,23 +48,17 @@ VarMap get_z3_repr(cstring prog_name, const IR::P4Program *program,
         std::cerr << "Z3 exception: " << ex << std::endl;
         exit(EXIT_FAILURE);
     }
-    return z3_return;
+    return {};
 }
 
-void unroll_result(const VarMap &z3_repr_prog,
+void unroll_result(const MainResult &z3_repr_prog,
                    std::vector<std::pair<cstring, z3::expr>> *result_vec) {
     for (const auto &result_tuple : z3_repr_prog) {
         auto name = result_tuple.first;
-        auto z3_result = result_tuple.second;
-        if (const auto *num_var = z3_result.first->to<NumericVal>()) {
-            result_vec->push_back({name, *num_var->get_val()});
-        } else if (const auto *ctrl_var = z3_result.first->to<ControlState>()) {
-            for (const auto &sub_tuple : ctrl_var->state_vars) {
-                auto sub_name = name + "_" + sub_tuple.first;
-                result_vec->push_back({sub_name, sub_tuple.second});
-            }
-        } else {
-            P4C_UNIMPLEMENTED("Unsupported result type.");
+        auto z3_result = result_tuple.second.first;
+        for (const auto &sub_tuple : z3_result) {
+            auto sub_name = name + "_" + sub_tuple.first;
+            result_vec->push_back({sub_name, sub_tuple.second});
         }
     }
 }
@@ -195,8 +158,6 @@ std::vector<cstring> split_input_progs(cstring input_progs) {
 }
 
 int main(int argc, char *const argv[]) {
-    setup_gc_logging();
-
     AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
     auto &options = TOZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
@@ -209,8 +170,6 @@ int main(int argc, char *const argv[]) {
     if (::errorCount() > 0) {
         return EXIT_FAILURE;
     }
-
-    auto hook = options.getDebugHook();
 
     // check input file
     if (options.file == nullptr) {
@@ -231,10 +190,7 @@ int main(int argc, char *const argv[]) {
     for (auto prog : prog_list) {
         options.file = prog;
         const auto *prog_parsed = P4::parseP4File(options);
-        if (prog_parsed != nullptr && ::errorCount() == 0) {
-            P4::P4COptionPragmaParser optionsPragmaParser;
-            prog_parsed->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
-        } else {
+        if (prog_parsed == nullptr || ::errorCount() > 0) {
             std::cerr << "Unable to parse program." << std::endl;
             return EXIT_FAILURE;
         }

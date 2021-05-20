@@ -130,7 +130,7 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
                 extract_var = extract_var > 0;
             }
             auto bind_bv = new Z3Bitvector(state, z3_var->get_p4_type(),
-                                           extract_var, z3_var->is_signed);
+                                           extract_var, z3_var->bv_is_signed());
             update_member(member_name, bind_bv);
             bit_idx -= var_width;
         } else {
@@ -762,10 +762,10 @@ z3::expr EnumBase::operator!=(const P4Z3Instance &other) const {
     return !(*this == other);
 }
 
-P4Z3Instance * EnumBase::operator&(const P4Z3Instance &other) const {
+P4Z3Instance *EnumBase::operator&(const P4Z3Instance &other) const {
     return Z3Bitvector(state, &P4_STD_BIT_TYPE, val, false) & other;
 }
-P4Z3Instance * EnumBase::operator|(const P4Z3Instance &other) const {
+P4Z3Instance *EnumBase::operator|(const P4Z3Instance &other) const {
     return Z3Bitvector(state, &P4_STD_BIT_TYPE, val, false) | other;
 }
 
@@ -901,13 +901,13 @@ SerEnumInstance::instantiate(const NumericVal &enum_val) const {
     return enum_copy;
 }
 
-P4Z3Instance * SerEnumInstance::operator&(const P4Z3Instance &other) const {
+P4Z3Instance *SerEnumInstance::operator&(const P4Z3Instance &other) const {
     // TODO: Kind of crazy, should I really do this?
     const auto *tb = p4_type->checkedTo<IR::Type_SerEnum>()
                          ->type->checkedTo<IR::Type_Bits>();
     return Z3Bitvector(state, tb, val, tb->isSigned) & other;
 }
-P4Z3Instance * SerEnumInstance::operator|(const P4Z3Instance &other) const {
+P4Z3Instance *SerEnumInstance::operator|(const P4Z3Instance &other) const {
     // TODO: Kind of crazy, should I really do this?
     const auto *tb = p4_type->checkedTo<IR::Type_SerEnum>()
                          ->type->checkedTo<IR::Type_Bits>();
@@ -1103,9 +1103,10 @@ ControlInstance
 ***/
 
 ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
-                                 VarMap resolved_const_args)
-    : P4Z3Instance(decl), state(state),
-      resolved_const_args(std::move(resolved_const_args)) {
+                                 const VarMap &input_const_args)
+    : P4Z3Instance(decl), state(state) {
+    resolved_const_args.insert(input_const_args.begin(),
+                               input_const_args.end());
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     const IR::ParameterList *const_params = nullptr;
