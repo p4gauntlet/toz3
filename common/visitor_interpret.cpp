@@ -58,7 +58,10 @@ bool Z3Visitor::preorder(const IR::Method *m) {
                 si->bind();
                 si->propagate_validity();
             }
-            state->update_var(param_name, instance);
+            // Sometimes the parameter does not exist because of optional
+            if (state->find_var(param_name) != nullptr) {
+                state->update_var(param_name, instance);
+            }
         }
     }
     auto *return_instance = state->gen_instance(method_name, method_type, 0);
