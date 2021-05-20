@@ -517,16 +517,16 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
 }
 
 P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
-                                    uint64_t id, cstring prefix) {
+                                    uint64_t id) {
     P4Z3Instance *instance = nullptr;
     if (const auto *tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
     }
     // TODO: Split this up to not muddle things.
     if (const auto *t = type->to<IR::Type_Struct>()) {
-        instance = new StructInstance(this, t, id, prefix);
+        instance = new StructInstance(this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Header>()) {
-        instance = new HeaderInstance(this, t, id, prefix);
+        instance = new HeaderInstance(this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Enum>()) {
         // TODO: Clean this up
         // For Enums we just return a copy of the declaration
@@ -547,13 +547,13 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type,
         enum_instance->set_enum_val(gen_z3_expr(name, resolve_type(t->type)));
         instance = enum_instance;
     } else if (const auto *t = type->to<IR::Type_Stack>()) {
-        instance = new StackInstance(this, t, id, prefix);
+        instance = new StackInstance(this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {
-        instance = new HeaderUnionInstance(this, t, id, prefix);
+        instance = new HeaderUnionInstance(this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_List>()) {
-        instance = new ListInstance(this, t, id, prefix);
+        instance = new ListInstance(this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Tuple>()) {
-        instance = new TupleInstance(this, t, id, prefix);
+        instance = new TupleInstance(this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Extern>()) {
         instance = new ExternInstance(this, t);
     } else if (type->is<IR::Type_Void>()) {

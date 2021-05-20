@@ -68,7 +68,7 @@ class P4State {
     /****** ALLOCATIONS ******/
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type,
-                               uint64_t id = 0, cstring prefix = "");
+                               uint64_t id = 0);
 
     /****** COPY-IN/COPY-OUT ******/
     std::pair<CopyArgs, VarMap> merge_args_with_params(

@@ -143,7 +143,7 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
             hit = hit || (key_eval_z3 == key_match);
         } else if (key_string == "lpm") {
             cstring mask_name =
-                table_name + "_table_mask_" + std::to_string(idx);
+                table_name + "_table_key_" + std::to_string(idx);
             const auto mask_var = ctx->constant(mask_name, key_z3_sort);
             auto max_return = ctx->bv_val(get_max_bv_val(key_z3_sort.bv_size()),
                                           key_z3_sort.bv_size());
@@ -151,7 +151,7 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
             hit = hit || (key_eval_z3 & lpm_mask) == (key_match & lpm_mask);
         } else if (key_string == "ternary") {
             cstring mask_name =
-                table_name + "_table_mask_" + std::to_string(idx);
+                table_name + "_table_key_" + std::to_string(idx);
             const auto mask_var = ctx->constant(mask_name, key_z3_sort);
             hit = hit || (key_eval_z3 & mask_var) == (key_match & mask_var);
         } else if (key_string == "range") {

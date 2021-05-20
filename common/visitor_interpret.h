@@ -19,6 +19,8 @@ class Z3Visitor : public Inspector {
         P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
                           expr->node_type_name());
     }
+    // This is used for some specific behavior in exit statements
+    bool in_parser = false;
 
     /***** Statements *****/
     bool preorder(const IR::BlockStatement *b) override;

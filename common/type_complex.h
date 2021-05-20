@@ -25,8 +25,8 @@ class StructBase : public P4Z3Instance {
     cstring instance_name;
 
  public:
-    StructBase(P4State *state, const IR::Type *type, uint64_t member_id,
-               cstring prefix);
+    StructBase(P4State *state, const IR::Type *type, cstring name,
+               uint64_t member_id);
 
     uint64_t get_width() const { return width; }
 
@@ -64,7 +64,7 @@ class StructBase : public P4Z3Instance {
     }
     void set_undefined() override;
     virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
-    virtual void bind(uint64_t member_id = 0, cstring prefix = "");
+    virtual void bind(const z3::expr *bind_var = nullptr, uint64_t offset = 0);
     virtual void set_list(std::vector<P4Z3Instance *>);
 
     // copy constructor
@@ -82,7 +82,7 @@ class StructInstance : public StructBase {
 
  public:
     StructInstance(P4State *state, const IR::Type_StructLike *type,
-                   uint64_t member_id, cstring prefix);
+                   cstring name, uint64_t member_id);
     StructInstance *copy() const override;
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
@@ -118,8 +118,8 @@ class HeaderInstance : public StructInstance {
     HeaderUnionInstance *parent_union = nullptr;
 
  public:
-    HeaderInstance(P4State *state, const IR::Type_Header *type,
-                   uint64_t member_id, cstring prefix);
+    HeaderInstance(P4State *state, const IR::Type_Header *type, cstring name,
+                   uint64_t member_id);
     void set_valid(const z3::expr &valid_val);
     const z3::expr *get_valid() const;
     void setValid(Visitor *, const IR::Vector<IR::Argument> *);
@@ -181,7 +181,7 @@ class StackInstance : public IndexableInstance {
 
  public:
     explicit StackInstance(P4State *state, const IR::Type_Stack *type,
-                           uint64_t member_id, cstring prefix);
+                           cstring name, uint64_t member_id);
 
     P4Z3Function get_function(cstring name) const {
         auto it = member_functions.find(name);
@@ -225,8 +225,8 @@ class StackInstance : public IndexableInstance {
 
 class TupleInstance : public IndexableInstance {
  public:
-    TupleInstance(P4State *state, const IR::Type_Tuple *type,
-                  uint64_t member_id, cstring prefix);
+    TupleInstance(P4State *state, const IR::Type_Tuple *type, cstring name,
+                  uint64_t member_id);
 
     cstring get_static_type() const override { return "TupleInstance"; }
     cstring to_string() const override {
@@ -246,8 +246,8 @@ class HeaderUnionInstance : public StructBase {
 
  public:
     explicit HeaderUnionInstance(P4State *state,
-                                 const IR::Type_HeaderUnion *type,
-                                 uint64_t member_id, cstring prefix);
+                                 const IR::Type_HeaderUnion *type, cstring name,
+                                 uint64_t member_id);
 
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
@@ -290,8 +290,8 @@ class EnumBase : public StructBase, public ValContainer {
     const IR::Type_Bits *member_type = &P4_STD_BIT_TYPE;
 
  public:
-    EnumBase(P4State *state, const IR::Type *type, uint64_t member_id,
-             cstring prefix);
+    EnumBase(P4State *state, const IR::Type *type, cstring name,
+             uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
     get_z3_vars(cstring prefix = "",
                 const z3::expr *valid_expr = nullptr) const override;
@@ -311,7 +311,7 @@ class EnumBase : public StructBase, public ValContainer {
     }
     void set_undefined() override;
     void add_enum_member(cstring error_name);
-    void bind(uint64_t member_id, cstring prefix) override;
+    void bind(const z3::expr *bind_var = nullptr, uint64_t offset = 0) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
@@ -326,8 +326,8 @@ class EnumBase : public StructBase, public ValContainer {
 
 class EnumInstance : public EnumBase {
  public:
-    EnumInstance(P4State *state, const IR::Type_Enum *type, uint64_t member_id,
-                 cstring prefix);
+    EnumInstance(P4State *state, const IR::Type_Enum *type, cstring name,
+                 uint64_t member_id);
     cstring get_static_type() const override { return "EnumInstance"; }
     cstring to_string() const override {
         cstring ret = "EnumInstance(";
@@ -352,8 +352,8 @@ class EnumInstance : public EnumBase {
 
 class ErrorInstance : public EnumBase {
  public:
-    ErrorInstance(P4State *state, const IR::Type_Error *type,
-                  uint64_t member_id, cstring prefix);
+    ErrorInstance(P4State *state, const IR::Type_Error *type, cstring name,
+                  uint64_t member_id);
     cstring get_static_type() const override { return "ErrorInstance"; }
     ErrorInstance *copy() const override;
 
@@ -377,8 +377,8 @@ class SerEnumInstance : public EnumBase {
  public:
     SerEnumInstance(P4State *state,
                     const ordered_map<cstring, P4Z3Instance *> &input_members,
-                    const IR::Type_SerEnum *type, uint64_t member_id,
-                    cstring prefix);
+                    const IR::Type_SerEnum *type, cstring name,
+                    uint64_t member_id);
     cstring get_static_type() const override { return "SerEnumInstance"; }
     cstring to_string() const override {
         cstring ret = "SerSerEnumInstance(";
@@ -406,7 +406,7 @@ class ListInstance : public StructBase {
                           const std::vector<P4Z3Instance *> &val_list,
                           const IR::Type *type);
     explicit ListInstance(P4State *state, const IR::Type_List *list_type,
-                          uint64_t member_id, cstring prefix);
+                          cstring name, uint64_t member_id);
     cstring get_static_type() const override { return "ListInstance"; }
     cstring to_string() const override {
         cstring ret = "ListInstance(";

@@ -51,12 +51,23 @@ bool Z3Visitor::preorder(const IR::Method *m) {
         cstring merged_param_name = method_name + "_" + param_name;
         if (param->direction == IR::Direction::Out ||
             param->direction == IR::Direction::InOut) {
-            auto *instance = state->gen_instance(merged_param_name, param->type,
-                                                 0, method_name);
+            auto *instance =
+                state->gen_instance(merged_param_name, param->type, 0);
+            // TODO: Clean up, this should not be necessary
+            if (auto *si = instance->to_mut<StructBase>()) {
+                si->bind();
+                si->propagate_validity();
+            }
             state->update_var(param_name, instance);
         }
     }
-    state->set_expr_result(state->gen_instance(method_name, method_type));
+    auto *return_instance = state->gen_instance(method_name, method_type, 0);
+    // TODO: Clean up, this should not be necessary
+    if (auto *si = return_instance->to_mut<StructBase>()) {
+        si->bind();
+        si->propagate_validity();
+    }
+    state->set_expr_result(return_instance);
     return false;
 }
 
@@ -99,17 +110,24 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
 
     auto scopes = state->get_state();
     auto old_state = state->clone_state();
-    // Note the lack of leq in the i > 1 comparison.
-    // We do not want to pop the last two scopes
+    // Note the lack of leq in the i > 0 comparison.
+    // We do not want to pop the last scope
     // FIXME: There has to be a cleaner way here...
     // Ideally we should track the input/output variables
-    for (int64_t i = scopes.size() - 1; i > 1; --i) {
+    for (int64_t i = scopes.size() - 1; i > 0; --i) {
         const auto *scope = &scopes.at(i);
         auto copy_out_args = scope->get_copy_out_args();
         std::vector<P4Z3Instance *> copy_out_vals;
         for (const auto &arg_tuple : copy_out_args) {
             auto source = arg_tuple.second;
             auto *val = state->get_var(source);
+            // Exit in parsers means that everything is invalid
+            if (in_parser) {
+                if (auto *si = val->to_mut<StructBase>()) {
+                    auto invalid_bool = state->get_z3_ctx()->bool_val(false);
+                    si->propagate_validity(&invalid_bool);
+                }
+            }
             copy_out_vals.push_back(val);
         }
 
@@ -133,7 +151,7 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
 std::vector<std::pair<z3::expr, const IR::Statement *>>
 collect_stmt_vec_table(Z3Visitor *visitor, const P4TableInstance *table,
                        const IR::Vector<IR::SwitchCase> &cases) {
-    auto *state = visitor->state;
+    auto *state = visitor->get_state();
     auto *ctx = state->get_z3_ctx();
     std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
     z3::expr fall_through = ctx->bool_val(false);
@@ -240,7 +258,7 @@ collect_stmt_vec_table(Z3Visitor *visitor, const P4TableInstance *table,
 std::vector<std::pair<z3::expr, const IR::Statement *>>
 collect_stmt_vec_expr(Z3Visitor *visitor, const P4Z3Instance *switch_expr,
                       const IR::Vector<IR::SwitchCase> &cases) {
-    auto *state = visitor->state;
+    auto *state = visitor->get_state();
     auto *ctx = state->get_z3_ctx();
     std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
     z3::expr fall_through = ctx->bool_val(false);
@@ -466,9 +484,9 @@ specialize_arch_blocks(const IR::Type *src_type, const IR::Type *dest_type) {
 
 P4Z3Instance *run_arch_block(Z3Visitor *visitor,
                              const IR::ConstructorCallExpression *cce,
-                             const IR::Type *param_type,
+                             const IR::Type *param_type, cstring param_name,
                              const IR::TypeParameters &meta_params) {
-    auto *state = visitor->state;
+    auto *state = visitor->get_state();
 
     visitor->visit(cce);
     const IR::ParameterList *params = nullptr;
@@ -483,10 +501,10 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
                 specialize_arch_blocks(param_type, resolved_type);
             for (const auto &mapped_type : type_mapping) {
                 if (meta_params.getDeclByName(mapped_type.first) != nullptr &&
-                    visitor->state->check_for_type(mapped_type.first) ==
+                    visitor->get_state()->check_for_type(mapped_type.first) ==
                         nullptr) {
-                    visitor->state->add_type(mapped_type.first,
-                                             mapped_type.second);
+                    visitor->get_state()->add_type(mapped_type.first,
+                                                   mapped_type.second);
                 }
             }
             params = c->getApplyParameters();
@@ -497,10 +515,10 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
                 specialize_arch_blocks(param_type, resolved_type);
             for (const auto &mapped_type : type_mapping) {
                 if (meta_params.getDeclByName(mapped_type.first) != nullptr &&
-                    visitor->state->check_for_type(mapped_type.first) ==
+                    visitor->get_state()->check_for_type(mapped_type.first) ==
                         nullptr) {
-                    visitor->state->add_type(mapped_type.first,
-                                             mapped_type.second);
+                    visitor->get_state()->add_type(mapped_type.first,
+                                                   mapped_type.second);
                 }
             }
             params = p->getApplyParameters();
@@ -527,11 +545,12 @@ P4Z3Instance *run_arch_block(Z3Visitor *visitor,
     IR::Vector<IR::Argument> synthesized_args;
     for (const auto *param : *params) {
         const auto *par_type = state->resolve_type(param->type);
+        cstring instance_name = param_name + "." + param->name.name;
         if (!par_type->is<IR::Type_Package>()) {
-            auto *var = state->gen_instance(param->name.name, par_type);
+            auto *var = state->gen_instance(instance_name, par_type);
             if (param->direction != IR::Direction::Out) {
                 if (auto *z3_var = var->to_mut<StructBase>()) {
-                    z3_var->bind(0, param->name.name);
+                    z3_var->bind();
                     z3_var->propagate_validity();
                 }
             }
@@ -592,6 +611,8 @@ VarMap create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
 
     for (const auto &mapping : param_mapping) {
         const auto *param = mapping.first;
+        cstring param_name = param->name.name;
+        const auto *param_type = param->type;
         const auto *arg_expr = mapping.second;
         // Ignore empty optional parameters, they can not be used properly
         if (param->isOptional() && arg_expr == nullptr) {
@@ -600,17 +621,17 @@ VarMap create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
         CHECK_NULL(arg_expr);
         if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
             auto *state_result = run_arch_block(
-                visitor, cce, visitor->state->resolve_type(param->type),
-                param_info.type_params);
-            merged_vec.insert({param->name.name, {state_result, param->type}});
+                visitor, cce, visitor->get_state()->resolve_type(param_type),
+                param_name, param_info.type_params);
+            merged_vec.insert({param_name, {state_result, param_type}});
         } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
             const auto *decl =
-                visitor->state->get_static_decl(path->path->name.name);
+                visitor->get_state()->get_static_decl(path->path->name.name);
             const auto *di = decl->decl->to<IR::Declaration_Instance>();
             CHECK_NULL(di);
             auto sub_results = visitor->gen_state_from_instance(di);
             for (const auto &sub_result : sub_results) {
-                auto merged_name = param->name.name + sub_result.first;
+                auto merged_name = param_name + sub_result.first;
                 auto variables = sub_result.second;
                 merged_vec.insert({merged_name, variables});
             }
@@ -618,7 +639,7 @@ VarMap create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
             visitor->visit(cst);
             merged_vec.insert(
                 {param->name.name,
-                 {visitor->state->copy_expr_result(), param->type}});
+                 {visitor->get_state()->copy_expr_result(), param_type}});
         } else {
             P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s",
                               arg_expr, arg_expr->node_type_name());

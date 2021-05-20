@@ -20,12 +20,11 @@ namespace TOZ3 {
 StructBase
 ===============================================================================
 ***/
-StructBase::StructBase(P4State *state, const IR::Type *type, uint64_t member_id,
-                       cstring prefix)
+StructBase::StructBase(P4State *state, const IR::Type *type, cstring name,
+                       uint64_t member_id)
     : P4Z3Instance(type), state(state),
-      valid(state->get_z3_ctx()->bool_val(true)) {
+      valid(state->get_z3_ctx()->bool_val(true)), instance_name(name) {
     width = 0;
-    instance_name = prefix + std::to_string(member_id);
 }
 
 StructBase::StructBase(const StructBase &other)
@@ -104,21 +103,36 @@ void StructBase::propagate_validity(const z3::expr *valid_expr) {
     }
 }
 
-void StructBase::bind(uint64_t member_id, cstring prefix) {
-    instance_name = prefix + std::to_string(member_id);
-    auto flat_id = member_id;
+void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
+    auto var_width = get_width();
+    // This struct is empty, we can not do anything here...
+    if (var_width == 0) {
+        return;
+    }
+    z3::expr tmp_var = state->get_z3_ctx()->bv_const(instance_name, var_width);
+    if (bind_var == nullptr) {
+        bind_var = &tmp_var;
+        offset = var_width;
+    }
+    auto bit_idx = offset;
     for (auto type_tuple : members) {
         auto member_name = type_tuple.first;
         auto *member_var = type_tuple.second;
-        cstring name = prefix + std::to_string(flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
-            si->bind(flat_id, prefix);
-            flat_id += si->get_width();
+            si->bind(bind_var, bit_idx);
+            bit_idx -= si->get_width();
         } else if (const auto *z3_var = member_var->to<Z3Bitvector>()) {
-            update_member(member_name,
-                          state->gen_instance(name, z3_var->get_p4_type()));
-            // TODO: Fix this, all elements should have a bit width
-            flat_id += z3_var->get_p4_type()->width_bits();
+            auto var_width = z3_var->get_width();
+            // TODO: Better casting
+            auto extract_var =
+                bind_var->extract(bit_idx - 1, bit_idx - var_width);
+            if (z3_var->get_p4_type()->is<IR::Type_Boolean>()) {
+                extract_var = extract_var > 0;
+            }
+            auto bind_bv = new Z3Bitvector(state, z3_var->get_p4_type(),
+                                           extract_var, z3_var->is_signed);
+            update_member(member_name, bind_bv);
+            bit_idx -= var_width;
         } else {
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
                               member_var->get_static_type());
@@ -156,25 +170,19 @@ StructInstance
 ***/
 
 StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type,
-                               uint64_t member_id, cstring prefix)
-    : StructBase(state, type, member_id, prefix) {
+                               cstring name, uint64_t member_id)
+    : StructBase(state, type, name, member_id) {
     auto flat_id = member_id;
     for (const auto *field : type->fields) {
         const IR::Type *resolved_type = state->resolve_type(field->type);
-        auto *member_var =
-            state->gen_instance(UNDEF_LABEL, resolved_type, flat_id);
+        auto *member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
             flat_id += si->get_width();
-        } else if (const auto *tbi = resolved_type->to<IR::Type_Bits>()) {
-            width += tbi->size;
-            flat_id += tbi->size;
-        } else if (const auto *tvb = resolved_type->to<IR::Type_Varbits>()) {
-            width += tvb->size;
-            flat_id += tvb->size;
-        } else if (resolved_type->is<IR::Type_Boolean>()) {
-            width++;
-            flat_id++;
+        } else if (auto *num_val = member_var->to_mut<Z3Bitvector>()) {
+            width += num_val->get_width();
+            flat_id += num_val->get_width();
+            num_val->set_undefined();
         } else {
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.", field->type);
         }
@@ -259,8 +267,8 @@ HeaderInstance
 ***/
 
 HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type,
-                               uint64_t member_id, cstring prefix)
-    : StructInstance(state, type, member_id, prefix) {
+                               cstring name, uint64_t member_id)
+    : StructInstance(state, type, name, member_id) {
     valid = state->get_z3_ctx()->bool_val(false);
     member_functions["setValid0"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
@@ -358,7 +366,7 @@ void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
     }
     for (auto member_tuple : members) {
         auto *member = member_tuple.second;
-        if (auto *z3_var = member->to_mut<StructInstance>()) {
+        if (auto *z3_var = member->to_mut<StructBase>()) {
             z3_var->propagate_validity(valid_expr);
         }
     }
@@ -393,16 +401,15 @@ StackInstance
 ***/
 
 StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
-                             uint64_t member_id, cstring prefix)
-    : IndexableInstance(state, type, member_id, prefix),
+                             cstring name, uint64_t member_id)
+    : IndexableInstance(state, type, name, member_id),
       nextIndex(Z3Int(state, 0)), lastIndex(Z3Int(state, 0)),
       size(Z3Int(state, type->getSize())), int_size(type->getSize()),
       elem_type(type->elementType) {
     auto flat_id = member_id;
     const IR::Type *resolved_type = state->resolve_type(type->elementType);
     for (size_t idx = 0; idx < int_size; ++idx) {
-        auto *member_var =
-            state->gen_instance(UNDEF_LABEL, resolved_type, flat_id);
+        auto *member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
             flat_id += si->get_width();
@@ -588,14 +595,14 @@ HeaderUnionInstance
 
 HeaderUnionInstance::HeaderUnionInstance(P4State *state,
                                          const IR::Type_HeaderUnion *type,
-                                         uint64_t member_id, cstring prefix)
-    : StructBase(state, type, member_id, prefix) {
+                                         cstring name, uint64_t member_id)
+    : StructBase(state, type, name, member_id) {
     auto flat_id = member_id;
     for (const auto *field : type->fields) {
         const IR::Type *resolved_type = state->resolve_type(field->type);
         if (resolved_type->is<IR::Type_Header>()) {
-            auto *member_var =
-                state->gen_instance(UNDEF_LABEL, resolved_type, flat_id);
+            auto *member_var = state->gen_instance(
+                name + std::to_string(flat_id), resolved_type, flat_id);
             const auto *si = member_var->to<HeaderInstance>();
             BUG_CHECK(si, "Unexpected generated instance %s",
                       member_var->to_string());
@@ -695,9 +702,9 @@ EnumBase
 ===============================================================================
 ***/
 
-EnumBase::EnumBase(P4State *state, const IR::Type *type, uint64_t member_id,
-                   cstring prefix)
-    : StructBase(state, type, member_id, prefix),
+EnumBase::EnumBase(P4State *state, const IR::Type *type, cstring name,
+                   uint64_t member_id)
+    : StructBase(state, type, name, member_id),
       ValContainer(state->gen_z3_expr(UNDEF_LABEL, &P4_STD_BIT_TYPE)) {}
 
 std::vector<std::pair<cstring, z3::expr>>
@@ -720,17 +727,18 @@ EnumBase::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
 }
 
 void EnumBase::add_enum_member(cstring error_name) {
-    auto *member_var = new Z3Bitvector(state, member_type, val);
-    insert_member(error_name, member_var);
+    insert_member(error_name, new Z3Bitvector(state, member_type, val));
 }
 
 void EnumBase::set_undefined() {
     val = state->gen_z3_expr(UNDEF_LABEL, member_type);
 }
 
-void EnumBase::bind(uint64_t member_id, cstring prefix) {
-    instance_name = prefix + std::to_string(member_id);
-    val = state->gen_z3_expr(instance_name, member_type);
+void EnumBase::bind(const z3::expr *bind_var, uint64_t offset) {
+    if (bind_var != nullptr) {
+        auto var_width = get_width();
+        val = bind_var->extract(offset - 1, offset - var_width);
+    }
 }
 
 z3::expr EnumBase::operator==(const P4Z3Instance &other) const {
@@ -780,8 +788,8 @@ EnumInstance
 ***/
 
 EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
-                           uint64_t ext_member_id, cstring prefix)
-    : EnumBase(p4_state, type, ext_member_id, prefix) {
+                           cstring name, uint64_t member_id)
+    : EnumBase(p4_state, type, name, member_id) {
     // FIXME: Enums should not be a struct base, actually
     width = 32;
     size_t idx = 0;
@@ -826,8 +834,8 @@ ErrorInstance
 ***/
 
 ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
-                             uint64_t ext_member_id, cstring prefix)
-    : EnumBase(p4_state, type, ext_member_id, prefix) {
+                             cstring name, uint64_t member_id)
+    : EnumBase(p4_state, type, name, member_id) {
     // FIXME: Enums should not be a struct base, actually
     width = 32;
     size_t idx = 0;
@@ -864,8 +872,8 @@ SerEnumInstance
 SerEnumInstance::SerEnumInstance(
     P4State *p4_state,
     const ordered_map<cstring, P4Z3Instance *> &input_members,
-    const IR::Type_SerEnum *type, uint64_t ext_member_id, cstring prefix)
-    : EnumBase(p4_state, type, ext_member_id, prefix) {
+    const IR::Type_SerEnum *type, cstring name, uint64_t member_id)
+    : EnumBase(p4_state, type, name, member_id) {
     members.clear();
     members.insert(input_members.begin(), input_members.end());
     const auto *resolved_type = state->resolve_type(type->type);
@@ -956,7 +964,7 @@ ListInstance
 ListInstance::ListInstance(P4State *state,
                            const std::vector<P4Z3Instance *> &val_list,
                            const IR::Type *type_list)
-    : StructBase(state, type_list, 0, "") {
+    : StructBase(state, type_list, "", 0) {
     IR::Vector<IR::Type> components;
     for (size_t idx = 0; idx < val_list.size(); ++idx) {
         auto *val = val_list[idx];
@@ -971,14 +979,13 @@ ListInstance::ListInstance(P4State *state,
 }
 
 ListInstance::ListInstance(P4State *state, const IR::Type_List *list_type,
-                           uint64_t member_id, cstring prefix)
-    : StructBase(state, list_type, member_id, prefix) {
+                           cstring name, uint64_t member_id)
+    : StructBase(state, list_type, name, member_id) {
     auto flat_id = member_id;
     for (size_t idx = 0; idx < list_type->components.size(); ++idx) {
         const auto *type = list_type->components[idx];
         cstring name = std::to_string(idx);
-        insert_member(
-            name, state->gen_instance(prefix + std::to_string(flat_id), type));
+        insert_member(name, state->gen_instance(name, type));
         member_types.insert({name, type});
         flat_id++;
     }
@@ -1046,7 +1053,7 @@ z3::expr ListInstance::operator==(const P4Z3Instance &other) const {
         }
         return is_eq;
     }
-    if (const auto *other_struct = other.to<NumericVal>()) {
+    if (other.is<NumericVal>()) {
         if (members.size() != 1) {
             return state->get_z3_ctx()->bool_val(false);
         }
@@ -1068,13 +1075,13 @@ TupleInstance
 ***/
 
 TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type,
-                             uint64_t member_id, cstring prefix)
-    : IndexableInstance(state, type, member_id, prefix) {
+                             cstring name, uint64_t member_id)
+    : IndexableInstance(state, type, name, member_id) {
     size_t idx = 0;
     for (const auto &field_type : type->components) {
         const IR::Type *resolved_type = state->resolve_type(field_type);
         auto *member_var =
-            state->gen_instance(UNDEF_LABEL, resolved_type, member_id + idx);
+            state->gen_instance(name, resolved_type, member_id + idx);
         cstring name = std::to_string(idx);
         insert_member(name, member_var);
         member_types.insert({name, resolved_type});

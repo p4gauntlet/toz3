@@ -75,10 +75,13 @@ z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
 bool Z3Visitor::preorder(const IR::SelectExpression *se) {
     // First gather the right conditions
     z3::expr matches = state->get_z3_ctx()->bool_val(false);
-    std::vector<std::pair<z3::expr, const IR::PathExpression *>> select_vector;
+    std::vector<std::pair<z3::expr, cstring>> select_vector;
+    bool has_default = false;
     for (const auto *select_case : se->selectCases) {
+        auto state_name = select_case->state->path->name.name;
         if (select_case->keyset->is<IR::DefaultExpression>()) {
-            select_vector.emplace_back(!matches, select_case->state);
+            select_vector.emplace_back(!matches, state_name);
+            has_default = true;
             break;
         }
         BUG_CHECK(!se->selectCases.empty(), "Case vector can not be empty.");
@@ -87,13 +90,17 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
         if (const auto *list_expr =
                 select_case->keyset->to<IR::ListExpression>()) {
             auto cond = handle_select_cond(this, list_instance, list_expr);
-            select_vector.emplace_back(cond, select_case->state);
+            select_vector.emplace_back(cond, state_name);
             matches = matches || cond;
         } else {
             auto cond = check_cond(this, list_instance, select_case->keyset);
-            select_vector.emplace_back(cond, select_case->state);
+            select_vector.emplace_back(cond, state_name);
             matches = matches || cond;
         }
+    }
+    // We have to insert a reject if the default expression is missing
+    if (!has_default) {
+        select_vector.emplace_back(!matches, "reject");
     }
     // Now evaluate all the select cases
     bool has_exited = true;
@@ -101,14 +108,19 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
     std::vector<std::pair<z3::expr, VarMap>> case_states;
     for (auto &select : select_vector) {
         const auto cond = select.first;
-        const auto *se_state = select.second;
+        auto path_name = select.second;
         auto old_vars = state->clone_vars();
         state->push_forward_cond(cond);
-        auto path_name = se_state->path->name.name;
         const auto *decl = state->get_static_decl(path_name);
         auto old_visited_states = state->get_visited_states();
-        if (!state->state_is_visited(path_name)) {
+        if (path_name == "reject") {
+            in_parser = true;
             visit(decl->decl);
+            in_parser = false;
+        } else {
+            if (!state->state_is_visited(path_name)) {
+                visit(decl->decl);
+            }
         }
         state->set_visited_states(old_visited_states);
         state->pop_forward_cond();
@@ -137,17 +149,24 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
     for (const auto *component : ps->components) {
         visit(component);
     }
-    // If there is no select expression we automatically transition to
-    // reject
+    // If there is no select expression we automatically transition to reject
     if (ps->selectExpression == nullptr) {
+        in_parser = true;
         visit(state->get_static_decl("reject")->decl);
+        in_parser = false;
         return false;
     }
     if (const auto *path = ps->selectExpression->to<IR::PathExpression>()) {
         auto path_name = path->path->name.name;
         const auto *decl = state->get_static_decl(path_name);
-        if (!state->state_is_visited(path_name)) {
+        if (path_name == "reject") {
+            in_parser = true;
             visit(decl->decl);
+            in_parser = false;
+        } else {
+            if (!state->state_is_visited(path_name)) {
+                visit(decl->decl);
+            }
         }
     } else if (const auto *se =
                    ps->selectExpression->to<IR::SelectExpression>()) {

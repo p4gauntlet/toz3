@@ -42,7 +42,7 @@ bool TypeVisitor::preorder(const IR::Type_Enum *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, new EnumInstance(state, t, 0, ""), t);
+        state->declare_var(name, new EnumInstance(state, t, "", 0), t);
     }
     return false;
 }
@@ -64,7 +64,7 @@ bool TypeVisitor::preorder(const IR::Type_Error *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, new ErrorInstance(state, t, 0, ""), t);
+        state->declare_var(name, new ErrorInstance(state, t, "", 0), t);
     }
     return false;
 }
@@ -98,7 +98,7 @@ bool TypeVisitor::preorder(const IR::Type_SerEnum *t) {
         }
         state->add_type(name, t);
         state->declare_var(
-            name, new SerEnumInstance(state, input_members, t, 0, ""), t);
+            name, new SerEnumInstance(state, input_members, t, "", 0), t);
     }
     return false;
 }
