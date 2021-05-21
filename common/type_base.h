@@ -42,6 +42,7 @@ struct Z3Slice {
     z3::expr lo;
 };
 
+// Some static type definitions we can exploit when generating Z3 expressions
 static const IR::Type_Boolean BOOL_TYPE{};
 static const IR::Type_String STRING_TYPE{};
 static const IR::Type_Void VOID_TYPE{};
@@ -49,6 +50,7 @@ static const IR::Type_InfInt INT_TYPE{};
 static const IR::Type_Bits P4_STD_BIT_TYPE{32, false};
 
 using NameOrIndex = boost::variant<cstring, z3::expr>;
+// These structures are used to cleanly resolve references for copy in and out
 struct MemberStruct {
     cstring main_member = nullptr;
     std::vector<NameOrIndex> mid_members;
@@ -176,9 +178,6 @@ class P4Z3Instance : public P4Z3Node {
     }
     virtual P4Z3Instance *concat(const P4Z3Instance & /*other*/) const {
         P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
-    }
-    virtual P4Z3Instance *cast(const IR::Type * /*dest_sort*/) const {
-        P4C_UNIMPLEMENTED("cast not implemented for %s.", get_static_type());
     }
     virtual P4Z3Instance *cast_allocate(const IR::Type * /*dest_sort*/) const {
         P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",

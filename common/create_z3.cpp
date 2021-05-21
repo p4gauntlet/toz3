@@ -101,8 +101,7 @@ run_arch_block(Z3Visitor *visitor, const IR::ConstructorCallExpression *cce,
             P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                               resolved_type, resolved_type->node_type_name());
         }
-    } else if (const auto *extern_instance =
-                   constructed_expr->to<ExternInstance>()) {
+    } else if (constructed_expr->is<ExternInstance>()) {
         // Not sure what to do here yet...
         return {};
     } else {

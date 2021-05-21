@@ -122,9 +122,9 @@ class HeaderInstance : public StructInstance {
                    uint64_t member_id);
     void set_valid(const z3::expr &valid_val);
     const z3::expr *get_valid() const;
-    void setValid(Visitor *, const IR::Vector<IR::Argument> *);
-    void setInvalid(Visitor *, const IR::Vector<IR::Argument> *);
-    void isValid(Visitor *, const IR::Vector<IR::Argument> *);
+    void setValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
+    void setInvalid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
+    void isValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
     void propagate_validity(const z3::expr *valid_expr = nullptr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     void set_list(std::vector<P4Z3Instance *> input_list) override;
@@ -275,9 +275,9 @@ class HeaderUnionInstance : public StructBase {
     }
     void update_validity(const HeaderInstance *child,
                          const z3::expr &valid_val);
-    void isValid(Visitor *, const IR::Vector<IR::Argument> *);
-    // copy constructor
+    void isValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
     HeaderUnionInstance *copy() const override;
+    // copy constructor
     HeaderUnionInstance(const HeaderUnionInstance &other);
     // overload = operator
     HeaderUnionInstance &operator=(const HeaderUnionInstance &other);

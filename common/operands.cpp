@@ -1,10 +1,7 @@
 
-#include <cstdio>
-#include <iostream>
 #include <utility>
 
 #include "../contrib/z3/z3++.h"
-#include "lib/exceptions.h"
 
 #include "visitor_interpret.h"
 
@@ -310,20 +307,22 @@ bool Z3Visitor::preorder(const IR::Slice *sl) {
 }
 
 bool Z3Visitor::preorder(const IR::Cast *c) {
-    // resolve expression
+    // Resolve the type.
     const auto *resolved_type = state->resolve_type(c->destType);
+    // Resolve the expression.
     visit(c->expr);
     const auto *resolved_expr = state->get_expr_result();
+    // This creates a new copy. More reliable this way.
     state->set_expr_result(resolved_expr->cast_allocate(resolved_type));
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::Mux *m) {
-    // resolve condition first
+    // Resolve condition first.
     visit(m->e0);
     auto resolved_condition =
         state->get_expr_result<Z3Bitvector>()->get_val()->simplify();
-    // short circuit here
+    // Short circuit here.
     if (resolved_condition.is_true()) {
         visit(m->e1);
         return false;
@@ -332,7 +331,7 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
         visit(m->e2);
         return false;
     }
-    // otherwise we need to merge
+    // Otherwise we need to merge.
     auto old_vars = state->clone_vars();
     state->push_forward_cond(resolved_condition);
     visit(m->e1);
@@ -349,7 +348,7 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
     auto *then_expr = state->copy_expr_result();
     state->restore_vars(old_vars);
 
-    // visit else expression
+    // Visit else expression.
     state->push_forward_cond(!resolved_condition);
     visit(m->e2);
     state->pop_forward_cond();
@@ -357,7 +356,7 @@ bool Z3Visitor::preorder(const IR::Mux *m) {
     if (else_has_exited) {
         state->restore_vars(old_vars);
     }
-    // merge the copy we received (note the NOT here)
+    // Merge the copy we received (note the ! here).
     then_expr->merge(!resolved_condition, *state->get_expr_result());
 
     state->merge_vars(resolved_condition, then_vars);

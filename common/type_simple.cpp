@@ -8,7 +8,7 @@
 namespace TOZ3 {
 
 z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
-    // TODO: Clean this up
+    // TODO: Clean this up.
     uint64_t expr_size = 0;
     auto cast_expr = expr;
     if (expr.is_bv()) {
@@ -23,18 +23,18 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
         BUG("Casting %s to a bit vector is not supported.",
             expr.to_string().c_str());
     }
-    // At this point we are only dealing with expr bit vectors
+    // At this point we are only dealing with expr bit vectors.
     auto dest_size = dest_type.bv_size();
 
     if (expr_size < dest_size) {
-        // The target value is larger, extend with zeros
+        // The target value is larger, extend with zeros.
         return z3::zext(cast_expr, dest_size - expr_size);
     }
     if (expr_size > dest_size) {
-        // The target value is smaller, truncate everything on the right
+        // The target value is smaller, truncate everything on the right.
         return cast_expr.extract(dest_size - 1, 0);
     }
-    // Nothing to do just return
+    // Nothing to do just return.
     return cast_expr;
 }
 
@@ -307,7 +307,7 @@ P4Z3Instance *Z3Bitvector::concat(const P4Z3Instance &other) const {
                       other.get_static_type());
 }
 
-P4Z3Instance *Z3Bitvector::cast(const IR::Type *dest_type) const {
+P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
     }
@@ -345,11 +345,6 @@ P4Z3Instance *Z3Bitvector::cast(const IR::Type *dest_type) const {
             return new Z3Bitvector(state, &BOOL_TYPE, val > 0);
         }
     }
-    P4C_UNIMPLEMENTED("cast to %s not implemented for %s.",
-                      dest_type->node_type_name(), get_static_type());
-}
-
-P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
     if (const auto *te = dest_type->to<IR::Type_Enum>()) {
         auto new_enum = *state->find_var(te->name.name)->to<EnumInstance>();
         return new_enum.instantiate(*this);
@@ -362,17 +357,15 @@ P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
         auto new_enum = *state->find_var(te->name.name)->to<SerEnumInstance>();
         return new_enum.instantiate(*this);
     }
-
-    return cast(dest_type);
-
-    BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
+    P4C_UNIMPLEMENTED("cast to %s not implemented for %s.",
+                      dest_type->node_type_name(), get_static_type());
 }
 
 /****** TERNARY OPERANDS ******/
-
 P4Z3Instance *Z3Bitvector::slice(const z3::expr &hi, const z3::expr &lo) const {
-    auto hi_int = hi.simplify().get_numeral_uint64();
-    auto lo_int = lo.simplify().get_numeral_uint64();
+    // We have to use int here because Type_Bits uses int
+    auto hi_int = hi.simplify().get_numeral_int();
+    auto lo_int = lo.simplify().get_numeral_int();
     const auto *slice_type = new IR::Type_Bits(hi_int - lo_int + 1, false);
     return new Z3Bitvector(state, slice_type,
                            val.extract(hi_int, lo_int).simplify(), is_signed);
@@ -516,10 +509,11 @@ P4Z3Instance *Z3Int::operatorSubSat(const P4Z3Instance &) const {
 
 P4Z3Instance *Z3Int::operator>>(const P4Z3Instance &other) const {
     if (const auto *other_int = other.to<Z3Int>()) {
-        // TODO: Figure out big int here, why is that not supported?
-        auto left = val.simplify().get_numeral_int64();
+        auto left = val.simplify().get_decimal_string(0);
+        auto big_int_left = big_int(left);
+        // Big int does not support huge shifts
         auto right = other_int->val.simplify().get_numeral_int64();
-        auto result = left >> right;
+        auto result = big_int_left >> right;
         return new Z3Int(state, result);
     }
     if (const auto *other_val = other.to<Z3Bitvector>()) {
@@ -532,10 +526,11 @@ P4Z3Instance *Z3Int::operator>>(const P4Z3Instance &other) const {
 
 P4Z3Instance *Z3Int::operator<<(const P4Z3Instance &other) const {
     if (const auto *other_int = other.to<Z3Int>()) {
-        // TODO: Figure out big int here, why is that not supported?
-        auto left = val.simplify().get_numeral_int64();
-        auto right = other_int->val.simplify().get_numeral_int64();
-        auto result = left << right;
+        auto left = val.simplify().get_decimal_string(0);
+        auto big_int_left = big_int(left);
+        // Big int does not support huge shifts
+        auto right = other_int->val.simplify().get_numeral_uint64();
+        auto result = big_int_left << right;
         return new Z3Int(state, result);
     }
     if (const auto *other_val = other.to<Z3Bitvector>()) {
@@ -653,7 +648,7 @@ P4Z3Instance *Z3Int::operator^(const P4Z3Instance &other) const {
     P4C_UNIMPLEMENTED("^ not implemented for %s.", other.get_static_type());
 }
 
-P4Z3Instance *Z3Int::cast(const IR::Type *dest_type) const {
+P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
     if (const auto *tn = dest_type->to<IR::Type_Name>()) {
         dest_type = state->resolve_type(tn);
     }
@@ -665,15 +660,6 @@ P4Z3Instance *Z3Int::cast(const IR::Type *dest_type) const {
     if (const auto *tb = dest_type->to<IR::Type_Boolean>()) {
         return new Z3Bitvector(state, tb, val != 0);
     }
-    if (dest_type->is<IR::Type_InfInt>()) {
-        // nothing to do, return a copy
-        return this->copy();
-    }
-    P4C_UNIMPLEMENTED("cast not implemented for %s to type %s.",
-                      get_static_type(), dest_type->node_type_name());
-}
-
-P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
     if (const auto *te = dest_type->to<IR::Type_Enum>()) {
         auto new_enum = *state->find_var(te->name.name)->to<EnumInstance>();
         return new_enum.instantiate(*this);
@@ -686,9 +672,12 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
         auto new_enum = *state->find_var(te->name.name)->to<SerEnumInstance>();
         return new_enum.instantiate(*this);
     }
-    return cast(dest_type);
-
-    BUG("Unexpected cast result for type %s!", dest_type->node_type_name());
+    if (dest_type->is<IR::Type_InfInt>()) {
+        // nothing to do, return a copy
+        return this->copy();
+    }
+    P4C_UNIMPLEMENTED("cast not implemented for %s to type %s.",
+                      get_static_type(), dest_type->node_type_name());
 }
 
 }  // namespace TOZ3

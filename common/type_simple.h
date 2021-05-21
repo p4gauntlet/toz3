@@ -1,6 +1,5 @@
 #ifndef TOZ3_COMMON_TYPE_SIMPLE_H_
 #define TOZ3_COMMON_TYPE_SIMPLE_H_
-#include <cstdio>
 
 #include <map>      // std::map
 #include <string>   // std::to_string
@@ -23,20 +22,18 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type);
 class VoidResult : public P4Z3Instance {
  public:
     VoidResult() : P4Z3Instance(new IR::Type_Void()) {}
-    void merge(const z3::expr &, const P4Z3Instance &) override{
+    void merge(const z3::expr & /*cond*/,
+               const P4Z3Instance & /*then_expr*/) override {
         // Merge is a no-op here.
-    };
-    // TODO: This is a little pointless....
+    }
     VoidResult *copy() const override { return new VoidResult(); }
-
     cstring get_static_type() const override { return "VoidResult"; }
     cstring to_string() const override {
         cstring ret = "VoidResult(";
         ret += ")";
         return ret;
     }
-    P4Z3Instance *cast_allocate(const IR::Type *) const override {
-        // TODO: This should not be necessary.
+    P4Z3Instance *cast_allocate(const IR::Type * /*dest_type*/) const override {
         return new VoidResult();
     }
 };
@@ -84,19 +81,19 @@ class Z3Bitvector : public NumericVal {
     uint64_t get_width() const { return width; }
     bool bv_is_signed() const { return is_signed; }
     /****** UNARY OPERANDS ******/
-    P4Z3Instance * operator-() const override;
-    P4Z3Instance * operator~() const override;
-    P4Z3Instance * operator!() const override;
+    P4Z3Instance *operator-() const override;
+    P4Z3Instance *operator~() const override;
+    P4Z3Instance *operator!() const override;
     /****** BINARY OPERANDS ******/
-    P4Z3Instance * operator*(const P4Z3Instance &other) const override;
-    P4Z3Instance * operator/(const P4Z3Instance &other) const override;
-    P4Z3Instance * operator%(const P4Z3Instance &other) const override;
-    P4Z3Instance * operator+(const P4Z3Instance &other) const override;
-    P4Z3Instance * operatorAddSat(const P4Z3Instance &other) const override;
-    P4Z3Instance * operator-(const P4Z3Instance &other) const override;
-    P4Z3Instance * operatorSubSat(const P4Z3Instance &other) const override;
-    P4Z3Instance * operator>>(const P4Z3Instance &other) const override;
-    P4Z3Instance * operator<<(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator*(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator/(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator%(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator+(const P4Z3Instance &other) const override;
+    P4Z3Instance *operatorAddSat(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator-(const P4Z3Instance &other) const override;
+    P4Z3Instance *operatorSubSat(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator>>(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator<<(const P4Z3Instance &other) const override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
     z3::expr operator<(const P4Z3Instance &other) const override;
@@ -109,7 +106,6 @@ class Z3Bitvector : public NumericVal {
     P4Z3Instance *operator|(const P4Z3Instance &other) const override;
     P4Z3Instance *operator^(const P4Z3Instance &other) const override;
     P4Z3Instance *concat(const P4Z3Instance &other) const override;
-    P4Z3Instance *cast(const IR::Type *dest_type) const override;
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
     P4Z3Instance *slice(const z3::expr &hi, const z3::expr &lo) const override;
@@ -166,7 +162,6 @@ class Z3Int : public NumericVal {
     P4Z3Instance *operator&(const P4Z3Instance &other) const override;
     P4Z3Instance *operator|(const P4Z3Instance &other) const override;
     P4Z3Instance *operator^(const P4Z3Instance &other) const override;
-    P4Z3Instance *cast(const IR::Type *dest_type) const override;
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;

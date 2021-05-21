@@ -3,7 +3,6 @@
 #include <utility>
 
 #include "../contrib/z3/z3++.h"
-#include "lib/exceptions.h"
 
 #include "type_base.h"
 #include "util.h"
@@ -16,31 +15,31 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->bv_val(val_string, tb->size);
-        auto wrapper = new Z3Bitvector(state, tb, expr, tb->isSigned);
+        auto *wrapper = new Z3Bitvector(state, tb, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
     }
     if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->int_val(val_string);
-        auto var = new Z3Int(state, expr);
+        auto *var = new Z3Int(state, expr);
         state->set_expr_result(var);
         return false;
     }
-    P4C_UNIMPLEMENTED("Constant Node %s not implemented!",
+    P4C_UNIMPLEMENTED("Constant of type %s not implemented!",
                       c->type->node_type_name());
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     auto expr = state->get_z3_ctx()->bool_val(bl->value);
-    auto wrapper = new Z3Bitvector(state, &BOOL_TYPE, expr);
+    auto *wrapper = new Z3Bitvector(state, &BOOL_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::StringLiteral *sl) {
     auto expr = state->get_z3_ctx()->string_val(sl->value);
-    auto wrapper = new Z3Bitvector(state, &STRING_TYPE, expr);
+    auto *wrapper = new Z3Bitvector(state, &STRING_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
@@ -91,6 +90,12 @@ bool Z3Visitor::preorder(const IR::TypeNameExpression *t) {
     state->set_expr_result(state->get_var(t->typeName->path->name));
     return false;
 }
+
+/***
+===============================================================================
+MethodCallExpression
+===============================================================================
+***/
 
 FunOrMethod get_function(const P4Z3Instance *parent_class,
                          cstring member_identifier) {
@@ -291,8 +296,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     } else {
         P4C_UNIMPLEMENTED("Method call %s not supported.", mce);
     }
-
-    // At this point, we assume we are dealing with a Declaration
+    // At this point, we assume we are dealing with a declaration
     TypeSpecializer specializer(*state, *mce->typeArguments);
     callable = callable->clone()->apply(specializer);
 
@@ -303,7 +307,9 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const ParamInfo param_info = {*params, *arguments, *type_params,
                                   *mce->typeArguments};
 
+    // Now we set all the inputs we have mapped.
     state->copy_in(this, param_info);
+    // Switch based on the dynamic callable type. The visitor is too cumbersome.
     P4Z3Instance *return_expr = nullptr;
     if (const auto *a = callable->to<IR::P4Action>()) {
         return_expr = exec_action(this, a);
@@ -315,26 +321,30 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         P4C_UNIMPLEMENTED("Can not call callable %s.",
                           callable->node_type_name());
     }
+    // Set the result.
     state->set_expr_result(return_expr);
+    // Copy back the inputs that matter.
     state->copy_out();
     return false;
 }
 
+/***
+===============================================================================
+ConstructorCallExpression
+===============================================================================
+***/
+
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     const IR::ParameterList *params = nullptr;
+    const IR::TypeParameters *type_params = nullptr;
     const auto *arguments = cce->arguments;
-    // TODO: At this point we need to bind the types...
     if (const auto *c = resolved_type->to<IR::P4Control>()) {
         params = c->getConstructorParameters();
-        auto var_map = state->merge_args_with_params(this, *arguments, *params,
-                                                     *c->getTypeParameters());
-        state->set_expr_result(new ControlInstance(state, c, var_map.second));
+        type_params = c->getTypeParameters();
     } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
         params = p->getConstructorParameters();
-        auto var_map = state->merge_args_with_params(this, *arguments, *params,
-                                                     *p->getTypeParameters());
-        state->set_expr_result(new ControlInstance(state, p, var_map.second));
+        type_params = p->getTypeParameters();
     } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
         // TODO: How to cleanly resolve this?
         params = new IR::ParameterList();
@@ -346,6 +356,10 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());
     }
+    auto var_map =
+        state->merge_args_with_params(this, *arguments, *params, *type_params);
+    state->set_expr_result(
+        new ControlInstance(state, resolved_type, var_map.second));
     return false;
 }
 }  // namespace TOZ3

@@ -46,7 +46,14 @@ class P4State {
     bool has_exited() const { return is_exited; }
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
-    explicit P4State(z3::context *context) : ctx(context) {}
+    explicit P4State(z3::context *context) : ctx(context) {
+        // These two labels are part of the built in declarations.
+        // We only need to add them once.
+        declare_static_decl(
+            "accept", new P4Declaration(new IR::ReturnStatement(nullptr)));
+        declare_static_decl("reject",
+                            new P4Declaration(new IR::ExitStatement()));
+    }
 
     /****** GETTERS ******/
     ProgState get_state() const { return scopes; }

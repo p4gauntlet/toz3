@@ -338,20 +338,23 @@ void HeaderInstance::set_valid(const z3::expr &valid_val) {
 }
 const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
-void HeaderInstance::setValid(Visitor *, const IR::Vector<IR::Argument> *) {
+void HeaderInstance::setValid(Visitor * /*visitor*/,
+                              const IR::Vector<IR::Argument> * /*args*/) {
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
     state->set_expr_result(new VoidResult());
 }
 
-void HeaderInstance::setInvalid(Visitor *, const IR::Vector<IR::Argument> *) {
+void HeaderInstance::setInvalid(Visitor * /*visitor*/,
+                                const IR::Vector<IR::Argument> * /*args*/) {
     valid = state->get_z3_ctx()->bool_val(false);
     propagate_validity(&valid);
     set_undefined();
     state->set_expr_result(new VoidResult());
 }
 
-void HeaderInstance::isValid(Visitor *, const IR::Vector<IR::Argument> *) {
+void HeaderInstance::isValid(Visitor * /*visitor*/,
+                             const IR::Vector<IR::Argument> * /*args*/) {
     state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, valid));
 }
 
@@ -404,11 +407,10 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
     : IndexableInstance(state, type, name, member_id),
       nextIndex(Z3Int(state, 0)), lastIndex(Z3Int(state, 0)),
       size(Z3Int(state, type->getSize())), int_size(type->getSize()),
-      elem_type(type->elementType) {
+      elem_type(state->resolve_type(type->elementType)) {
     auto flat_id = member_id;
-    const IR::Type *resolved_type = state->resolve_type(type->elementType);
     for (size_t idx = 0; idx < int_size; ++idx) {
-        auto *member_var = state->gen_instance(name, resolved_type, flat_id);
+        auto *member_var = state->gen_instance(name, elem_type, flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
             flat_id += si->get_width();
@@ -418,7 +420,7 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
         }
         cstring member_name = std::to_string(idx);
         insert_member(member_name, member_var);
-        member_types.insert({member_name, resolved_type});
+        member_types.insert({member_name, elem_type});
     }
     member_functions["push_front1"] =
         [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
@@ -674,7 +676,8 @@ z3::expr HeaderUnionInstance::get_valid() const {
     return valid_var;
 }
 
-void HeaderUnionInstance::isValid(Visitor *, const IR::Vector<IR::Argument> *) {
+void HeaderUnionInstance::isValid(Visitor * /*visitor*/,
+                                  const IR::Vector<IR::Argument> * /*args*/) {
     state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, get_valid()));
 }
 
@@ -682,14 +685,15 @@ HeaderUnionInstance *HeaderUnionInstance::copy() const {
     return new HeaderUnionInstance(*this);
 }
 
-void HeaderUnionInstance::update_validity(const HeaderInstance *child,
+void HeaderUnionInstance::update_validity(const HeaderInstance * /*child*/,
                                           const z3::expr &valid_val) {
     for (auto &member : members) {
         auto *hi = member.second->to_mut<HeaderInstance>();
         BUG_CHECK(hi, "Unexpected instance %s", member.second->to_string());
         const auto *old_valid = hi->get_valid();
-        // This is kind of stup but works, I have no means to check child
-        // equality yet
+        // This is kind of stupid but works,
+        // I have no means to check child equality yet
+        // TODO: Test this...
         hi->valid = z3::ite(valid_val, state->get_z3_ctx()->bool_val(false),
                             *old_valid);
     }
@@ -804,13 +808,9 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
 EnumInstance *EnumInstance::copy() const { return new EnumInstance(*this); }
 
 EnumInstance *EnumInstance::instantiate(const NumericVal &enum_val) const {
-    auto enum_copy = new EnumInstance(*this);
-    auto cast_val = enum_val.cast(&P4_STD_BIT_TYPE);
-    if (auto *result_expr = cast_val->to<NumericVal>()) {
-        enum_copy->set_enum_val(*result_expr->get_val());
-    } else {
-        P4C_UNIMPLEMENTED("Enum instantiation not supported.");
-    }
+    auto *enum_copy = new EnumInstance(*this);
+    auto current_sort = val.get_sort();
+    enum_copy->set_enum_val(pure_bv_cast(*enum_val.get_val(), current_sort));
     return enum_copy;
 }
 
@@ -849,12 +849,8 @@ ErrorInstance *ErrorInstance::copy() const { return new ErrorInstance(*this); }
 
 ErrorInstance *ErrorInstance::instantiate(const NumericVal &enum_val) const {
     auto *enum_copy = new ErrorInstance(*this);
-    auto *cast_val = enum_val.cast(&P4_STD_BIT_TYPE);
-    if (const auto *result_expr = cast_val->to<NumericVal>()) {
-        enum_copy->set_enum_val(*result_expr->get_val());
-    } else {
-        P4C_UNIMPLEMENTED("Enum instantiation not supported.");
-    }
+    auto current_sort = val.get_sort();
+    enum_copy->set_enum_val(pure_bv_cast(*enum_val.get_val(), current_sort));
     return enum_copy;
 }
 
@@ -888,15 +884,9 @@ SerEnumInstance *SerEnumInstance::copy() const {
 
 SerEnumInstance *
 SerEnumInstance::instantiate(const NumericVal &enum_val) const {
-    // TODO: Get rid of a bunch of stuff here
-    auto enum_copy = new SerEnumInstance(*this);
-    auto cast_val = enum_val.cast(p4_type->checkedTo<IR::Type_SerEnum>()->type);
-
-    if (auto *result_expr = cast_val->to<NumericVal>()) {
-        enum_copy->set_enum_val(*result_expr->get_val());
-    } else {
-        P4C_UNIMPLEMENTED("Enum instantiation not supported.");
-    }
+    auto *enum_copy = new SerEnumInstance(*this);
+    auto current_sort = val.get_sort();
+    enum_copy->set_enum_val(pure_bv_cast(*enum_val.get_val(), current_sort));
     return enum_copy;
 }
 
@@ -1000,12 +990,6 @@ P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
 }
 
 ListInstance *ListInstance::copy() const {
-    // std::vector<P4Z3Instance *> val_list_copy;
-    // for (auto val : val_list) {
-    //     val_list_copy.push_back(val->copy());
-    // }
-    // we perform a copy any time we assign a list instance
-    // so cloning is not needed here
     return new ListInstance(state, get_val_list(), p4_type);
 }
 
@@ -1149,20 +1133,6 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     }
 }
 
-void handle_parser(Visitor *visitor, P4State *state,
-                   const IR::IndexedVector<IR::ParserState> &parser_states) {
-    std::map<cstring, const IR::ParserState *> state_map;
-    state->declare_static_decl(
-        "accept", new P4Declaration(new IR::ReturnStatement(nullptr)));
-    state->declare_static_decl("reject",
-                               new P4Declaration(new IR::ExitStatement()));
-    for (const auto &parser_state : parser_states) {
-        state->declare_static_decl(parser_state->name.name,
-                                   new P4Declaration(parser_state));
-    }
-    visitor->visit(state->get_static_decl("start")->decl);
-}
-
 void ControlInstance::apply(Visitor *visitor,
                             const IR::Vector<IR::Argument> *args) {
     const IR::ParameterList *params = nullptr;
@@ -1195,7 +1165,11 @@ void ControlInstance::apply(Visitor *visitor,
         visitor->visit(local_decl);
     }
     if (!parser_states.empty()) {
-        handle_parser(visitor, state, parser_states);
+        for (const auto &parser_state : parser_states) {
+            state->declare_static_decl(parser_state->name.name,
+                                       new P4Declaration(parser_state));
+        }
+        visitor->visit(state->get_static_decl("start")->decl);
     }
     if (body != nullptr) {
         visitor->visit(body);
@@ -1210,7 +1184,7 @@ get_type_mapping(const IR::ParameterList *src_params,
     std::map<cstring, const IR::Type *> type_mapping;
     auto dest_params_size = dest_params->size();
     for (size_t idx = 0; idx < src_params->size(); ++idx) {
-        // Ignore optional params
+        // Ignore optional parameters.
         if (idx >= dest_params_size) {
             continue;
         }

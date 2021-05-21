@@ -1,15 +1,11 @@
 #ifndef TOZ3_COMMON_SCOPE_H_
 #define TOZ3_COMMON_SCOPE_H_
 
-#include <cstdio>
+#include <map>      // std::map
+#include <set>      // std::set
+#include <utility>  // std::pair
+#include <vector>   // std::vector
 
-#include <map>
-#include <set>
-#include <utility>
-#include <vector>
-
-#include "ir/ir.h"
-#include "ir/visitor.h"
 #include "type_complex.h"
 
 namespace TOZ3 {

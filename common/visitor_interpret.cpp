@@ -1,9 +1,5 @@
-#include <cstdio>
 #include <utility>
 
-#include "lib/error.h"
-#include "lib/exceptions.h"
-#include "lib/log.h"
 #include "type_complex.h"
 #include "type_simple.h"
 #include "visitor_interpret.h"
@@ -21,7 +17,7 @@ bool Z3Visitor::preorder(const IR::P4Program *p) {
 
 bool Z3Visitor::preorder(const IR::Type_StructLike *t) {
     t = t->apply(DoBitFolding(state))->checkedTo<IR::Type_StructLike>();
-    state->add_type(t->name.name, t);
+    state->add_type(t->name.name, state->resolve_type(t));
     return false;
 }
 
@@ -143,7 +139,7 @@ bool Z3Visitor::preorder(const IR::Type_Control *t) {
 
 bool Z3Visitor::preorder(const IR::P4Parser *p) {
     // Parsers can be both a var and a type
-    // FIXME: Take a closer look at this...
+    // TODO: Take a closer look at this...
     state->add_type(p->name.name, p);
     state->declare_var(p->name.name, new ControlInstance(state, p, {}), p);
     return false;
@@ -151,7 +147,7 @@ bool Z3Visitor::preorder(const IR::P4Parser *p) {
 
 bool Z3Visitor::preorder(const IR::P4Control *c) {
     // Controls can be both a decl and a type
-    // FIXME: Take a closer look at this...
+    // TODO: Take a closer look at this...
     state->add_type(c->name.name, c);
     state->declare_var(c->name.name, new ControlInstance(state, c, {}), c);
 
@@ -159,7 +155,7 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
 }
 
 bool Z3Visitor::preorder(const IR::Function *f) {
-    // FIXME: Overloading uses num of parameters, it should use types
+    // TODO: Overloading uses num of parameters, it should use types
     cstring overloaded_name = f->name.name;
     auto num_params = 0;
     auto num_optional_params = 0;
@@ -173,7 +169,7 @@ bool Z3Visitor::preorder(const IR::Function *f) {
     auto *decl = new P4Declaration(f);
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         // The IR has bizarre side effects when storing pointers in a map
-        // FIXME: Think about how to simplify this, maybe use their vector
+        // TODO: Think about how to simplify this, maybe use their vector
         auto name = overloaded_name + std::to_string(num_params + idx);
         state->declare_static_decl(name, decl);
     }
@@ -181,7 +177,7 @@ bool Z3Visitor::preorder(const IR::Function *f) {
 }
 
 bool Z3Visitor::preorder(const IR::Method *m) {
-    // FIXME: Overloading uses num of parameters, it should use types
+    // TODO: Overloading uses num of parameters, it should use types
     cstring overloaded_name = m->name.name;
     auto num_params = 0;
     auto num_optional_params = 0;
@@ -195,7 +191,7 @@ bool Z3Visitor::preorder(const IR::Method *m) {
     auto *decl = new P4Declaration(m);
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         // The IR has bizarre side effects when storing pointers in a map
-        // FIXME: Think about how to simplify this, maybe use their vector
+        // TODO: Think about how to simplify this, maybe use their vector
         auto name = overloaded_name + std::to_string(num_params + idx);
         state->declare_static_decl(name, decl);
     }
@@ -203,7 +199,7 @@ bool Z3Visitor::preorder(const IR::Method *m) {
 }
 
 bool Z3Visitor::preorder(const IR::P4Action *a) {
-    // FIXME: Overloading uses num of parameters, it should use types
+    // TODO: Overloading uses num of parameters, it should use types
     cstring overloaded_name = a->name.name;
     auto num_params = 0;
     auto num_optional_params = 0;
@@ -219,7 +215,7 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
     cstring name_basic = overloaded_name + std::to_string(num_params);
     state->declare_static_decl(name_basic, decl);
     // The IR has bizarre side effects when storing pointers in a map
-    // FIXME: Think about how to simplify this, maybe use their vector
+    // TODO: Think about how to simplify this, maybe use their vector
     if (num_optional_params != 0) {
         cstring name_opt =
             overloaded_name + std::to_string(num_params + num_optional_params);
@@ -237,40 +233,40 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     auto instance_name = di->name.name;
     const IR::Type *resolved_type = state->resolve_type(di->type);
     // TODO: Figure out a way to process packages
-    if (instance_name == "main" || resolved_type->is<IR::Type_Package>()) {
-        // Do not execute main here just yet.
+    if (resolved_type->is<IR::Type_Package>()) {
         state->declare_static_decl(instance_name, new P4Declaration(di));
-    } else if (const auto *te = resolved_type->to<IR::Type_Extern>()) {
+        return false;
+    }
+    if (const auto *te = resolved_type->to<IR::Type_Extern>()) {
         // TODO: Clean this mess up.
-        const auto *ext_const = te->lookupConstructor(di->arguments);
-        const IR::ParameterList *params = nullptr;
-        params = ext_const->getParameters();
+        // const auto *ext_const = te->lookupConstructor(di->arguments);
+        // const IR::ParameterList *params = nullptr;
+        // params = ext_const->getParameters();
         state->declare_var(instance_name, new ExternInstance(state, te), te);
-    } else if (const auto *instance_decl =
-                   resolved_type->to<IR::Type_Declaration>()) {
+        return false;
+    }
+    if (const auto *ctrl_decl = resolved_type->to<IR::Type_Declaration>()) {
         const IR::ParameterList *params = nullptr;
         const IR::TypeParameters *type_params = nullptr;
-        if (const auto *c = instance_decl->to<IR::P4Control>()) {
+        if (const auto *c = ctrl_decl->to<IR::P4Control>()) {
             params = c->getConstructorParameters();
             type_params = c->getTypeParameters();
-        } else if (const auto *p = instance_decl->to<IR::P4Parser>()) {
+        } else if (const auto *p = ctrl_decl->to<IR::P4Parser>()) {
             params = p->getConstructorParameters();
             type_params = p->getTypeParameters();
         } else {
             P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
-                              resolved_type, resolved_type->node_type_name());
+                              ctrl_decl, ctrl_decl->node_type_name());
         }
         auto var_map = state->merge_args_with_params(this, *di->arguments,
                                                      *params, *type_params);
         state->declare_var(
-            di->name.name,
-            new ControlInstance(state, instance_decl, var_map.second),
-            resolved_type);
-    } else {
-        P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
-                          resolved_type, resolved_type->node_type_name());
+            instance_name,
+            new ControlInstance(state, ctrl_decl, var_map.second), ctrl_decl);
+        return false;
     }
-    return false;
+    P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ",
+                      resolved_type, resolved_type->node_type_name());
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
@@ -324,6 +320,8 @@ bool Z3Visitor::preorder(const IR::IndexedVector<IR::Declaration> *decls) {
 }
 
 void DoBitFolding::postorder(IR::Type_Bits *tb) {
+    // We need to resolve any bits that have an expression as size
+    // We assume that the result is a constant, otherwise this will fail
     if (tb->expression != nullptr) {
         tb->expression->apply(Z3Visitor(state, false));
         const auto *result = state->get_expr_result<NumericVal>();
@@ -343,7 +341,19 @@ void DoBitFolding::postorder(IR::Type_Varbits *tb) {
     }
 }
 
-bool Z3Visitor::preorder(const IR::EmptyStatement *) { return false; }
+/***
+===============================================================================
+EmptyStatement
+===============================================================================
+***/
+
+bool Z3Visitor::preorder(const IR::EmptyStatement * /*e*/) { return false; }
+
+/***
+===============================================================================
+ReturnStatement
+===============================================================================
+***/
 
 bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     auto forward_conds = state->get_forward_conds();
@@ -356,7 +366,7 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
         cond = cond && sub_cond;
     }
     auto exit_cond = state->get_exit_cond();
-    // if we do not even return do not bother with collecting results
+    // If we do not even return do not bother with collecting results.
     if (r->expression != nullptr) {
         visit(r->expression);
         state->push_return_expr(cond && exit_cond, state->copy_expr_result());
@@ -368,7 +378,13 @@ bool Z3Visitor::preorder(const IR::ReturnStatement *r) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::ExitStatement *) {
+/***
+===============================================================================
+ExitStatement
+===============================================================================
+***/
+
+bool Z3Visitor::preorder(const IR::ExitStatement * /*e*/) {
     auto forward_conds = state->get_forward_conds();
     auto return_conds = state->get_return_conds();
     auto cond = state->get_z3_ctx()->bool_val(true);
@@ -383,8 +399,8 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     auto scopes = state->get_state();
     auto old_state = state->clone_state();
     // Note the lack of leq in the i > 0 comparison.
-    // We do not want to pop the last scope
-    // FIXME: There has to be a cleaner way here...
+    // We do not want to pop the last scope since we use it to get state
+    // TODO: There has to be a cleaner way here...
     // Ideally we should track the input/output variables
     for (int64_t i = scopes.size() - 1; i > 0; --i) {
         const auto *scope = &scopes.at(i);
@@ -420,104 +436,70 @@ bool Z3Visitor::preorder(const IR::ExitStatement *) {
     return false;
 }
 
-std::vector<std::pair<z3::expr, const IR::Statement *>>
-collect_stmt_vec_table(Z3Visitor *visitor, const P4TableInstance *table,
-                       const IR::Vector<IR::SwitchCase> &cases) {
+/***
+===============================================================================
+SwitchStatement
+===============================================================================
+***/
+
+using SwitchCasePairs = std::vector<std::pair<z3::expr, const IR::Statement *>>;
+
+SwitchCasePairs
+handle_immutable_table_switch(Z3Visitor *visitor, const P4TableInstance *table,
+                              const IR::Vector<IR::SwitchCase> &cases) {
     auto *state = visitor->get_state();
     auto *ctx = state->get_z3_ctx();
-    std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
+    SwitchCasePairs stmt_vector;
     z3::expr fall_through = ctx->bool_val(false);
     z3::expr matches = ctx->bool_val(false);
     bool has_default = false;
-    if (table->table_props.immutable) {
-        std::vector<const P4Z3Instance *> evaluated_keys;
-        for (const auto *key : table->table_props.keys) {
-            // TODO: This should not be necessary
-            // We have this information already
-            visitor->visit(key->expression);
-            const auto *key_eval = state->copy_expr_result();
-            evaluated_keys.push_back(key_eval);
-        }
-        auto new_entries = table->table_props.entries;
-        for (const auto *switch_case : cases) {
-            if (const auto *label =
-                    switch_case->label->to<IR::PathExpression>()) {
-                z3::expr cond = ctx->bool_val(false);
-                for (auto it = new_entries.begin(); it != new_entries.end();) {
-                    auto entry = *it;
-                    const auto *keys = entry.first;
-                    const auto *action = entry.second;
-                    if (label->toString() != action->method->toString()) {
-                        ++it;
-                        continue;
-                    }
-                    cond = cond || table->produce_const_match(
-                                       visitor, &evaluated_keys, keys);
-                    it = new_entries.erase(it);
-                }
-                // There is no block for the switch.
-                // This expressions falls through to the next switch case.
-                fall_through = fall_through || cond;
-                if (switch_case->statement == nullptr) {
+    std::vector<const P4Z3Instance *> evaluated_keys;
+    for (const auto *key : table->table_props.keys) {
+        // TODO: This should not be necessary
+        // We have this information already
+        visitor->visit(key->expression);
+        const auto *key_eval = state->copy_expr_result();
+        evaluated_keys.push_back(key_eval);
+    }
+    auto new_entries = table->table_props.entries;
+    for (const auto *switch_case : cases) {
+        if (const auto *label = switch_case->label->to<IR::PathExpression>()) {
+            z3::expr cond = ctx->bool_val(false);
+            for (auto it = new_entries.begin(); it != new_entries.end();) {
+                auto entry = *it;
+                const auto *keys = entry.first;
+                const auto *action = entry.second;
+                if (label->toString() != action->method->toString()) {
+                    ++it;
                     continue;
                 }
-                auto case_match = fall_through;
-                // If the entries are empty we exhausted all possible matches
-                // TODO: Not sure if this is a good idea?
-                if (new_entries.empty()) {
-                    case_match = ctx->bool_val(true);
-                }
-                // Matches the condition OR all the other fall-through switches
-                fall_through = ctx->bool_val(false);
-                matches = matches || case_match;
-                stmt_vector.emplace_back(case_match, switch_case->statement);
-            } else if (switch_case->label->is<IR::DefaultExpression>()) {
-                has_default = true;
-                stmt_vector.emplace_back(!matches, switch_case->statement);
-            } else {
-                P4C_UNIMPLEMENTED(
-                    "Case expression %s of type %s not supported.",
-                    switch_case->label, switch_case->label->node_type_name());
+                cond = cond || table->produce_const_match(
+                                   visitor, &evaluated_keys, keys);
+                it = new_entries.erase(it);
             }
-        }
-    } else {
-        auto table_action_name = table->table_props.table_name + "action_idx";
-        auto action_taken = ctx->int_const(table_action_name.c_str());
-        std::map<cstring, int> action_mapping;
-        size_t idx = 0;
-        for (const auto *action : table->table_props.actions) {
-            const auto *method_expr = action->method;
-            const auto *path = method_expr->checkedTo<IR::PathExpression>();
-            action_mapping[path->path->name.name] = idx;
-            idx++;
-        }
-        // now actually map all the statements together
-        z3::expr fall_through = ctx->bool_val(false);
-        for (const auto *switch_case : cases) {
-            if (const auto *label =
-                    switch_case->label->to<IR::PathExpression>()) {
-                auto mapped_idx = action_mapping[label->path->name.name];
-                auto cond = action_taken == mapped_idx;
-                // There is no block for the switch.
-                // This expressions falls through to the next switch case.
-                fall_through = fall_through || cond;
-                if (switch_case->statement == nullptr) {
-                    continue;
-                }
-                auto case_match = fall_through;
-                // Matches the condition OR all the other fall-through switches
-                fall_through = ctx->bool_val(false);
-                matches = matches || case_match;
-                stmt_vector.emplace_back(case_match, switch_case->statement);
-            } else if (switch_case->label->is<IR::DefaultExpression>()) {
-                has_default = true;
-                stmt_vector.emplace_back(!matches, switch_case->statement);
-                break;
-            } else {
-                P4C_UNIMPLEMENTED(
-                    "Case expression %s of type %s not supported.",
-                    switch_case->label, switch_case->label->node_type_name());
+            // There is no block for the switch.
+            // This expressions falls through to the next switch case.
+            fall_through = fall_through || cond;
+            if (switch_case->statement == nullptr) {
+                continue;
             }
+            auto case_match = fall_through;
+            // If the entries are empty we exhausted all possible matches
+            // TODO: Not sure if this is a good idea?
+            if (new_entries.empty()) {
+                case_match = ctx->bool_val(true);
+            }
+            // Matches the condition OR all the other fall-through switches
+            fall_through = ctx->bool_val(false);
+            matches = matches || case_match;
+            stmt_vector.emplace_back(case_match, switch_case->statement);
+        } else if (switch_case->label->is<IR::DefaultExpression>()) {
+            has_default = true;
+            stmt_vector.emplace_back(!matches, switch_case->statement);
+        } else {
+            P4C_UNIMPLEMENTED("Case expression %s of type %s not supported.",
+                              switch_case->label,
+                              switch_case->label->node_type_name());
         }
     }
     // If we did not encounter a default statement, implicitly add it
@@ -527,12 +509,64 @@ collect_stmt_vec_table(Z3Visitor *visitor, const P4TableInstance *table,
     return stmt_vector;
 }
 
-std::vector<std::pair<z3::expr, const IR::Statement *>>
-collect_stmt_vec_expr(Z3Visitor *visitor, const P4Z3Instance *switch_expr,
-                      const IR::Vector<IR::SwitchCase> &cases) {
+SwitchCasePairs handle_table_switch(Z3Visitor *visitor,
+                                    const P4TableInstance *table,
+                                    const IR::Vector<IR::SwitchCase> &cases) {
     auto *state = visitor->get_state();
     auto *ctx = state->get_z3_ctx();
-    std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
+    SwitchCasePairs stmt_vector;
+    z3::expr fall_through = ctx->bool_val(false);
+    z3::expr matches = ctx->bool_val(false);
+    bool has_default = false;
+    auto table_action_name = table->table_props.table_name + "action_idx";
+    auto action_taken = ctx->int_const(table_action_name.c_str());
+    std::map<cstring, int> action_mapping;
+    size_t idx = 0;
+    for (const auto *action : table->table_props.actions) {
+        const auto *method_expr = action->method;
+        const auto *path = method_expr->checkedTo<IR::PathExpression>();
+        action_mapping[path->path->name.name] = idx;
+        idx++;
+    }
+    // now actually map all the statements together
+    for (const auto *switch_case : cases) {
+        if (const auto *label = switch_case->label->to<IR::PathExpression>()) {
+            auto mapped_idx = action_mapping[label->path->name.name];
+            auto cond = action_taken == mapped_idx;
+            // There is no block for the switch.
+            // This expressions falls through to the next switch case.
+            fall_through = fall_through || cond;
+            if (switch_case->statement == nullptr) {
+                continue;
+            }
+            auto case_match = fall_through;
+            // Matches the condition OR all the other fall-through switches
+            fall_through = ctx->bool_val(false);
+            matches = matches || case_match;
+            stmt_vector.emplace_back(case_match, switch_case->statement);
+        } else if (switch_case->label->is<IR::DefaultExpression>()) {
+            has_default = true;
+            stmt_vector.emplace_back(!matches, switch_case->statement);
+            break;
+        } else {
+            P4C_UNIMPLEMENTED("Case expression %s of type %s not supported.",
+                              switch_case->label,
+                              switch_case->label->node_type_name());
+        }
+    }
+    // If we did not encounter a default statement, implicitly add it
+    if (!has_default) {
+        stmt_vector.emplace_back(!matches, nullptr);
+    }
+    return stmt_vector;
+}
+
+SwitchCasePairs collect_stmt_vec_expr(Z3Visitor *visitor,
+                                      const P4Z3Instance *switch_expr,
+                                      const IR::Vector<IR::SwitchCase> &cases) {
+    auto *state = visitor->get_state();
+    auto *ctx = state->get_z3_ctx();
+    SwitchCasePairs stmt_vector;
     z3::expr fall_through = ctx->bool_val(false);
     z3::expr matches = ctx->bool_val(false);
     bool has_default = false;
@@ -568,23 +602,26 @@ collect_stmt_vec_expr(Z3Visitor *visitor, const P4Z3Instance *switch_expr,
 bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
     visit(ss->expression);
     const auto *switch_expr = state->get_expr_result();
-    std::vector<std::pair<z3::expr, const IR::Statement *>> stmt_vector;
+    SwitchCasePairs stmt_vector;
 
     // First map the individual statement blocks to their respective matches
     // Tables are a little complicated so we have to take special care
     if (const auto *table = switch_expr->to<P4TableInstance>()) {
-        stmt_vector = collect_stmt_vec_table(this, table, ss->cases);
+        if (table->table_props.immutable) {
+            stmt_vector = handle_immutable_table_switch(this, table, ss->cases);
+        } else {
+            stmt_vector = handle_table_switch(this, table, ss->cases);
+        }
     } else {
         stmt_vector =
             collect_stmt_vec_expr(this, switch_expr->copy(), ss->cases);
     }
-
     // Once this is done we can use our usual ite-execution technique
     // We always add a default statement, so we can set exit/return to true
+    BUG_CHECK(!stmt_vector.empty(), "Statement vector can not be empty.");
     bool has_exited = true;
     bool has_returned = true;
     std::vector<std::pair<z3::expr, VarMap>> case_states;
-    BUG_CHECK(!stmt_vector.empty(), "Statement vector can not be empty.");
     for (auto &stmt : stmt_vector) {
         auto case_match = stmt.first;
         const auto *case_stmt = stmt.second;
@@ -611,6 +648,12 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
     }
     return false;
 }
+
+/***
+===============================================================================
+IfStatement
+===============================================================================
+***/
 
 bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     visit(ifs->condition);
@@ -657,6 +700,12 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     return false;
 }
 
+/***
+===============================================================================
+BlockStatement
+===============================================================================
+***/
+
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     for (const auto *c : b->components) {
         visit(c);
@@ -667,10 +716,22 @@ bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     return false;
 }
 
+/***
+===============================================================================
+MethodCallStatement
+===============================================================================
+***/
+
 bool Z3Visitor::preorder(const IR::MethodCallStatement *mcs) {
     visit(mcs->methodCall);
     return false;
 }
+
+/***
+===============================================================================
+AssignmentStatement
+===============================================================================
+***/
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     state->set_var(this, as->left, as->right);
