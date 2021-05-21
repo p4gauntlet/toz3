@@ -11,7 +11,6 @@
 #include "type_base.h"
 #include "type_simple.h"
 #include "util.h"
-#include "visitor_fill_type.h"
 #include "visitor_specialize.h"
 
 namespace TOZ3 {
@@ -1192,9 +1191,8 @@ void ControlInstance::apply(Visitor *visitor,
         state->declare_var(const_arg.first, const_arg.second.first,
                            const_arg.second.second);
     }
-    TypeVisitor map_builder(state);
     for (const auto *local_decl : local_decls) {
-        local_decl->apply_visitor_preorder(map_builder);
+        visitor->visit(local_decl);
     }
     if (!parser_states.empty()) {
         handle_parser(visitor, state, parser_states);

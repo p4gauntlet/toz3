@@ -1,7 +1,6 @@
 #include "create_z3.h"
 
 #include "state.h"
-#include "visitor_fill_type.h"
 #include "visitor_specialize.h"
 
 namespace TOZ3 {
@@ -230,7 +229,8 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
 
 MainResult gen_state_from_instance(Z3Visitor *visitor,
                                    const IR::Declaration_Instance *di) {
-    const IR::Type *resolved_type = visitor->state->resolve_type(di->type);
+    const IR::Type *resolved_type =
+        visitor->get_state()->resolve_type(di->type);
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     if (const auto *control = resolved_type->to<IR::P4Control>()) {

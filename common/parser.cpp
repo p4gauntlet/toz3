@@ -23,7 +23,7 @@ z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
 
 z3::expr check_cond(Z3Visitor *visitor, const P4Z3Instance *select_eval,
                     const IR::Expression *match_key) {
-    auto *state = visitor->state;
+    auto *state = visitor->get_state();
     if (const auto *range = match_key->to<IR::Range>()) {
         // TODO: A hack to deal with mismatch between lists and ranges
         if (const auto *li = select_eval->to<ListInstance>()) {
@@ -60,7 +60,7 @@ z3::expr check_cond(Z3Visitor *visitor, const P4Z3Instance *select_eval,
 
 z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
                             const IR::ListExpression *list_expr) {
-    auto *state = visitor->state;
+    auto *state = visitor->get_state();
     z3::expr match_cond = state->get_z3_ctx()->bool_val(true);
     const auto select_members = get_vec_from_map(select_list);
 

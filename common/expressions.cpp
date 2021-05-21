@@ -23,7 +23,7 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
     if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->int_val(val_string);
-        auto var =  new Z3Int(state, expr);
+        auto var = new Z3Int(state, expr);
         state->set_expr_result(var);
         return false;
     }
@@ -197,6 +197,66 @@ void set_params(const IR::Node *callable, const IR::ParameterList **params,
                       callable, callable->node_type_name());
 }
 
+P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
+    auto *state = visitor->get_state();
+    visitor->visit(f->body);
+
+    // We start with the last return expression, which is the final return.
+    // The final return may not have a condition, so this is a good fit.
+    auto return_exprs = state->get_return_exprs();
+    auto begin = return_exprs.rbegin();
+    auto end = return_exprs.rend();
+    if (begin != end) {
+        const auto *return_type = f->type->returnType;
+        auto *merged_return = begin->second->cast_allocate(return_type);
+        for (auto it = std::next(begin); it != end; ++it) {
+            z3::expr cond = it->first;
+            const auto *then_var = it->second->cast_allocate(return_type);
+            merged_return->merge(cond, *then_var);
+        }
+        return merged_return;
+    }
+    // If there are no return expressions, return a void result
+    return new VoidResult();
+}
+
+P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
+    auto *state = visitor->get_state();
+    auto method_name = infer_name(m->getAnnotations(), m->name.name);
+    const auto *method_type = state->resolve_type(m->type->returnType);
+    // TODO: Different types of arguments and multiple calls
+    for (const auto *param : *m->getParameters()) {
+        cstring param_name = param->name.name;
+        cstring merged_param_name = method_name + "_" + param_name;
+        if (param->direction == IR::Direction::Out ||
+            param->direction == IR::Direction::InOut) {
+            auto *instance =
+                state->gen_instance(merged_param_name, param->type, 0);
+            // TODO: Clean up, this should not be necessary
+            if (auto *si = instance->to_mut<StructBase>()) {
+                si->bind();
+                si->propagate_validity();
+            }
+            // Sometimes the parameter does not exist because of optional
+            if (state->find_var(param_name) != nullptr) {
+                state->update_var(param_name, instance);
+            }
+        }
+    }
+    auto *return_instance = state->gen_instance(method_name, method_type, 0);
+    // TODO: Clean up, this should not be necessary
+    if (auto *si = return_instance->to_mut<StructBase>()) {
+        si->bind();
+        si->propagate_validity();
+    }
+    return return_instance;
+}
+
+P4Z3Instance *exec_action(Z3Visitor *visitor, const IR::P4Action *a) {
+    visitor->visit(a->body);
+    return new VoidResult();
+}
+
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const IR::Node *callable = nullptr;
     const auto *arguments = mce->arguments;
@@ -244,7 +304,18 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
                                   *mce->typeArguments};
 
     state->copy_in(this, param_info);
-    visit(callable);
+    P4Z3Instance *return_expr = nullptr;
+    if (const auto *a = callable->to<IR::P4Action>()) {
+        return_expr = exec_action(this, a);
+    } else if (const auto *a = callable->to<IR::Function>()) {
+        return_expr = exec_function(this, a);
+    } else if (const auto *a = callable->to<IR::Method>()) {
+        return_expr = exec_method(this, a);
+    } else {
+        P4C_UNIMPLEMENTED("Can not call callable %s.",
+                          callable->node_type_name());
+    }
+    state->set_expr_result(return_expr);
     state->copy_out();
     return false;
 }
@@ -275,10 +346,6 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.",
                           resolved_type, resolved_type->node_type_name());
     }
-    // const ParamInfo param_info = {*params, *arguments, {}, {}};
-    // state->copy_in(this, param_info);
-    // visit(resolved_type);
-    // state->copy_out();
     return false;
 }
 }  // namespace TOZ3

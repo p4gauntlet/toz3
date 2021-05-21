@@ -12,9 +12,23 @@
 
 namespace TOZ3 {
 
+class DoBitFolding : public Modifier {
+ private:
+    P4State *state;
+    void postorder(IR::Type_Bits *tb) override;
+    void postorder(IR::Type_Varbits *tb) override;
+
+ public:
+    using Modifier::postorder;
+    explicit DoBitFolding(P4State *state) : state(state) {
+        visitDagOnce = false;
+    }
+};
 
 class Z3Visitor : public Inspector {
  private:
+    P4State *state;
+
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
         P4C_UNIMPLEMENTED("Node %s of type %s not implemented!", expr,
@@ -23,6 +37,37 @@ class Z3Visitor : public Inspector {
     // This is used for some specific behavior in exit statements
     bool in_parser = false;
 
+    /***** Declarations *****/
+
+    bool preorder(const IR::P4Program *prog) override;
+    /***** Types *****/
+    bool preorder(const IR::Type_Package *tp) override;
+
+    bool preorder(const IR::Type_StructLike *ts) override;
+    bool preorder(const IR::Type_Enum *te) override;
+    bool preorder(const IR::Type_Error *te) override;
+    bool preorder(const IR::Type_SerEnum *tse) override;
+    bool preorder(const IR::Type_Parser *tp) override;
+    bool preorder(const IR::Type_Control *tc) override;
+
+    bool preorder(const IR::Type_Extern *t) override;
+    bool preorder(const IR::Type_Typedef *t) override;
+    bool preorder(const IR::Type_Newtype *t) override;
+
+    bool preorder(const IR::P4Parser *p) override;
+    bool preorder(const IR::P4Control *c) override;
+
+    /***** Declarations *****/
+    bool preorder(const IR::Function *f) override;
+    bool preorder(const IR::Method *m) override;
+    bool preorder(const IR::P4Action *a) override;
+    bool preorder(const IR::P4Table *t) override;
+    bool preorder(const IR::Declaration_Instance *di) override;
+    bool preorder(const IR::Declaration_Variable *dv) override;
+    bool preorder(const IR::Declaration_Constant *dc) override;
+    bool preorder(const IR::Declaration_MatchKind *dm) override;
+    bool preorder(const IR::P4ValueSet *pvs) override;
+    bool preorder(const IR::IndexedVector<IR::Declaration> *decls) override;
     /***** Statements *****/
     bool preorder(const IR::BlockStatement *b) override;
     bool preorder(const IR::AssignmentStatement *as) override;
@@ -36,18 +81,12 @@ class Z3Visitor : public Inspector {
     /***** Parser *****/
     bool preorder(const IR::ParserState *ps) override;
     bool preorder(const IR::SelectExpression *se) override;
-    /***** Methods *****/
-    bool preorder(const IR::P4Action *a) override;
-    bool preorder(const IR::Method *m) override;
-    bool preorder(const IR::Function *f) override;
 
     /***** Expressions *****/
     bool preorder(const IR::Member *m) override;
     bool preorder(const IR::ArrayIndex *ai) override;
-    // bool preorder(const IR::SerEnumMember *m) override;
     bool preorder(const IR::PathExpression *p) override;
     bool preorder(const IR::Constant *c) override;
-    // bool preorder(const IR::DefaultExpression *) override;
     bool preorder(const IR::ListExpression *le) override;
     bool preorder(const IR::TypeNameExpression *tne) override;
     bool preorder(const IR::NamedExpression *ne) override;
@@ -56,6 +95,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::MethodCallExpression *mce) override;
     bool preorder(const IR::BoolLiteral *bl) override;
     bool preorder(const IR::StringLiteral *sl) override;
+    // bool preorder(const IR::DefaultExpression *) override;
 
     /****** UNARY OPERANDS ******/
     bool preorder(const IR::Neg *expr) override;
@@ -90,15 +130,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Slice *s) override;
     bool preorder(const IR::Mux *m) override;
 
-    /***** Declarations *****/
-    bool preorder(const IR::Declaration_Instance *di) override;
-    // bool preorder(const IR::Declaration_ID *di) override;
-    bool preorder(const IR::Declaration_Variable *dv) override;
-    bool preorder(const IR::Declaration_Constant *dc) override;
-    // bool preorder(const IR::Declaration_MatchKind *) override;
-
  public:
-    P4State *state;
     P4State *get_state() const { return state; }
     explicit Z3Visitor(P4State *state, bool gen_ctx = true) : state(state) {
         visitDagOnce = false;

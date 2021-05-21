@@ -100,7 +100,7 @@ class P4Z3Instance : public P4Z3Node {
 
  public:
     explicit P4Z3Instance(const IR::Type *p4_type) : p4_type(p4_type) {}
-    ~P4Z3Instance() {}
+    ~P4Z3Instance() = default;
 
     const IR::Type *get_p4_type() const { return p4_type; }
     /****** UNARY OPERANDS ******/

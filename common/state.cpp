@@ -8,7 +8,6 @@
 #include <string>
 #include <tuple>
 
-#include "ir/ir-generated.h"
 #include "ir/node.h"
 #include "ir/visitor.h"
 #include "lib/exceptions.h"

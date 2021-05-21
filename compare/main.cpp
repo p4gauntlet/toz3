@@ -3,7 +3,6 @@
 
 #include "options.h"
 #include "toz3/common/create_z3.h"
-#include "toz3/common/visitor_fill_type.h"
 #include "toz3/common/visitor_interpret.h"
 
 using Z3Prog = std::pair<cstring, std::vector<std::pair<cstring, z3::expr>>>;
@@ -27,16 +26,16 @@ const IR::Declaration_Instance *get_main_decl(P4State *state) {
 MainResult get_z3_repr(cstring prog_name, const IR::P4Program *program,
                        z3::context *ctx) {
     try {
-        // convert the P4 program to Z3
+        // Convert the P4 program to Z3
         TOZ3::P4State state(ctx);
-        TOZ3::TypeVisitor map_builder(&state);
-        program->apply(map_builder);
+        TOZ3::Z3Visitor to_z3(&state, false);
+        program->apply(to_z3);
         const auto *decl = get_main_decl(&state);
         if (decl == nullptr) {
             return {};
         }
-        TOZ3::Z3Visitor to_z3(&state);
-        return gen_state_from_instance(&to_z3, decl);
+        TOZ3::Z3Visitor to_z3_second(&state);
+        return gen_state_from_instance(&to_z3_second, decl);
     } catch (const Util::P4CExceptionBase &bug) {
         std::cerr << "Failed to interpret pass \"" << prog_name << "\"."
                   << std::endl;

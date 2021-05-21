@@ -2,7 +2,6 @@
 
 #include "options.h"
 #include "toz3/common/create_z3.h"
-#include "toz3/common/visitor_fill_type.h"
 #include "toz3/common/visitor_interpret.h"
 
 const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state) {
@@ -40,15 +39,15 @@ int main(int argc, char *const argv[]) {
     z3::context ctx;
     try {
         TOZ3::P4State state(&ctx);
-        TOZ3::TypeVisitor map_builder(&state);
-        program->apply(map_builder);
+        TOZ3::Z3Visitor to_z3(&state, false);
+        program->apply(to_z3);
 
         const auto *decl = get_main_decl(&state);
         if (decl == nullptr) {
             return EXIT_SKIPPED;
         }
-        TOZ3::Z3Visitor to_z3(&state);
-        auto decl_result = gen_state_from_instance(&to_z3, decl);
+        TOZ3::Z3Visitor to_z3_second(&state);
+        auto decl_result = gen_state_from_instance(&to_z3_second, decl);
         for (const auto &pipe_state : decl_result) {
             cstring pipe_name = pipe_state.first;
             const auto pipe_vars = pipe_state.second.first;
