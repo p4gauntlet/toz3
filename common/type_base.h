@@ -96,6 +96,10 @@ class P4Z3Node {
     }
 };
 
+struct ParserError : public std::exception {
+    const char *what() const noexcept override { return "Parserexception"; }
+};
+
 class P4Z3Instance : public P4Z3Node {
  protected:
     const IR::Type *p4_type = nullptr;

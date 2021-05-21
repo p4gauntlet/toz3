@@ -63,7 +63,7 @@ run_arch_block(Z3Visitor *visitor, const IR::ConstructorCallExpression *cce,
 
     visitor->visit(cce);
     const IR::ParameterList *params = nullptr;
-    P4Z3Function fun_call = nullptr;
+    FunOrMethod fun_call = nullptr;
     // TODO: Refactor all of this into a separate pass
     const auto *constructed_expr =
         state->get_expr_result()->cast_allocate(param_type);
@@ -132,7 +132,12 @@ run_arch_block(Z3Visitor *visitor, const IR::ConstructorCallExpression *cce,
             new IR::Argument(new IR::PathExpression(param->name.name));
         synthesized_args.push_back(arg);
     }
-    fun_call(visitor, &synthesized_args);
+    // Call the apply function of the pipeline
+    if (const auto *function = boost::get<P4Z3Function>(&fun_call)) {
+        (*function)(visitor, &synthesized_args);
+    } else {
+        BUG("Unexpected main function.");
+    }
     // Merge the exit states
     state->merge_exit_states();
 
@@ -198,8 +203,8 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
         } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
             const auto *decl =
                 visitor->get_state()->get_static_decl(path->path->name.name);
-            const auto *di = decl->decl->to<IR::Declaration_Instance>();
-            CHECK_NULL(di);
+            const auto *di =
+                decl->get_decl()->checkedTo<IR::Declaration_Instance>();
             auto sub_results = gen_state_from_instance(visitor, di);
             for (const auto &sub_result : sub_results) {
                 auto merged_name = param_name + sub_result.first;
@@ -249,4 +254,19 @@ MainResult gen_state_from_instance(Z3Visitor *visitor,
     ParamInfo param_info{*params, *di->arguments, *type_params, {}};
     return create_state(visitor, param_info);
 }
+
+const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state) {
+    const auto *main = state->find_static_decl("main");
+    if (main != nullptr) {
+        if (const auto *main_pkg =
+                main->get_decl()->to<IR::Declaration_Instance>()) {
+            return main_pkg;
+        }
+        P4C_UNIMPLEMENTED("Main node %s not implemented!",
+                          main->get_decl()->node_type_name());
+    }
+    warning("No main declaration found in program.");
+    return nullptr;
+}
+
 }  // namespace TOZ3

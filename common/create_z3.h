@@ -15,6 +15,7 @@ using MainResult =
 namespace TOZ3 {
 MainResult gen_state_from_instance(Z3Visitor *visitor,
                                    const IR::Declaration_Instance *di);
+const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state);
 
 }  // namespace TOZ3
 

@@ -15,6 +15,23 @@
 
 namespace TOZ3 {
 
+class FunctionClass {
+ private:
+    std::map<cstring, P4Z3Function> member_functions;
+
+ public:
+    virtual FunOrMethod get_function(cstring name) const {
+        auto it = member_functions.find(name);
+        if (it != member_functions.end()) {
+            return it->second;
+        }
+        BUG("Name %s not found in function map.", name);
+    }
+    virtual void add_function(cstring name, P4Z3Function function) {
+        member_functions.emplace(name, function);
+    }
+};
+
 class StructBase : public P4Z3Instance {
  protected:
     P4State *state;
@@ -107,14 +124,13 @@ class StructInstance : public StructBase {
     StructInstance &operator=(const StructInstance &other);
 };
 
-class HeaderInstance : public StructInstance {
+class HeaderInstance : public StructInstance, public FunctionClass {
     using StructInstance::StructInstance;
     // HeaderUnionInstances are friend classes because they need direct var
     // access outside the API
     friend HeaderUnionInstance;
 
  private:
-    std::map<cstring, P4Z3Function> member_functions;
     HeaderUnionInstance *parent_union = nullptr;
 
  public:
@@ -129,14 +145,6 @@ class HeaderInstance : public StructInstance {
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     void set_list(std::vector<P4Z3Instance *> input_list) override;
     void bind_to_union(HeaderUnionInstance *union_parent);
-
-    P4Z3Function get_function(cstring name) const {
-        auto it = member_functions.find(name);
-        if (it != member_functions.end()) {
-            return it->second;
-        }
-        BUG("Name %s not found in function map.", name);
-    }
 
     cstring get_static_type() const override { return "HeaderInstance"; }
     cstring to_string() const override {
@@ -170,9 +178,8 @@ class IndexableInstance : public StructBase {
     virtual size_t get_int_size() const = 0;
 };
 
-class StackInstance : public IndexableInstance {
+class StackInstance : public IndexableInstance, public FunctionClass {
  private:
-    std::map<cstring, P4Z3Function> member_functions;
     mutable Z3Int nextIndex;
     mutable Z3Int lastIndex;
     mutable Z3Int size;
@@ -182,14 +189,6 @@ class StackInstance : public IndexableInstance {
  public:
     explicit StackInstance(P4State *state, const IR::Type_Stack *type,
                            cstring name, uint64_t member_id);
-
-    P4Z3Function get_function(cstring name) const {
-        auto it = member_functions.find(name);
-        if (it != member_functions.end()) {
-            return it->second;
-        }
-        BUG("Name %s not found in function map.", name);
-    }
 
     P4Z3Instance *get_member(const z3::expr &index) const override;
     P4Z3Instance *get_member(cstring name) const override;
@@ -239,9 +238,8 @@ class TupleInstance : public IndexableInstance {
     P4Z3Instance *get_member(const z3::expr &index) const override;
 };
 
-class HeaderUnionInstance : public StructBase {
+class HeaderUnionInstance : public StructBase, public FunctionClass {
  private:
-    std::map<cstring, P4Z3Function> member_functions;
     z3::expr get_valid() const;
 
  public:
@@ -265,13 +263,6 @@ class HeaderUnionInstance : public StructBase {
         }
         ret += ")";
         return ret;
-    }
-    P4Z3Function get_function(cstring name) const {
-        auto it = member_functions.find(name);
-        if (it != member_functions.end()) {
-            return it->second;
-        }
-        BUG("Name %s not found in function map.", name);
     }
     void update_validity(const HeaderInstance *child,
                          const z3::expr &valid_val);
@@ -428,11 +419,9 @@ class ListInstance : public StructBase {
     z3::expr operator!=(const P4Z3Instance &other) const override;
 };
 
-class ControlInstance : public P4Z3Instance {
+class ControlInstance : public P4Z3Instance, public FunctionClass {
  private:
     P4State *state;
-    std::map<cstring, P4Z3Function> member_functions;
-    ordered_map<cstring, P4Z3Instance *> members;
     VarMap resolved_const_args;
     std::map<cstring, const IR::Type *> local_type_map;
     // A wrapper class for table declarations
@@ -443,24 +432,8 @@ class ControlInstance : public P4Z3Instance {
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/,
                const P4Z3Instance & /*then_expr*/) override{};
-    // TODO: This is a little pointless....
     ControlInstance *copy() const override {
         return new ControlInstance(state, p4_type, resolved_const_args);
-    }
-
-    P4Z3Instance *get_member(cstring name) const override {
-        auto it = members.find(name);
-        if (it != members.end()) {
-            return it->second;
-        }
-        BUG("Name %s not found in member map.", name);
-    }
-    P4Z3Function get_function(cstring name) const {
-        auto it = member_functions.find(name);
-        if (it != member_functions.end()) {
-            return it->second;
-        }
-        BUG("Name %s not found in function map.", name);
     }
 
     void apply(Visitor *, const IR::Vector<IR::Argument> *);
@@ -475,11 +448,10 @@ class ControlInstance : public P4Z3Instance {
 
 class P4Declaration : public P4Z3Instance {
     // A wrapper class for declarations
- protected:
-    ordered_map<cstring, P4Z3Instance *> members;
+ private:
+    const IR::StatOrDecl *decl;
 
  public:
-    const IR::StatOrDecl *decl;
     // constructor
     // TODO: This is a declaration, not an object. Distinguish!
     explicit P4Declaration(const IR::StatOrDecl *decl)
@@ -495,13 +467,15 @@ class P4Declaration : public P4Z3Instance {
         cstring ret = "P4Declaration(";
         return ret + decl->toString() + ")";
     }
+    const IR::StatOrDecl *get_decl() const { return decl; }
 };
 
-class P4TableInstance : public P4Declaration {
+class P4TableInstance : public P4Declaration, public FunctionClass {
+    // A wrapper class for table declarations
  private:
     P4State *state;
-    std::map<cstring, P4Z3Function> member_functions;
-    // A wrapper class for table declarations
+    ordered_map<cstring, P4Z3Instance *> members;
+
  public:
     z3::expr hit;
     TableProperties table_props;
@@ -514,7 +488,7 @@ class P4TableInstance : public P4Declaration {
                const P4Z3Instance & /*then_expr*/) override {}
 
     P4TableInstance *copy() const override {
-        return new P4TableInstance(state, decl, hit, table_props);
+        return new P4TableInstance(state, get_decl(), hit, table_props);
     }
 
     P4Z3Instance *get_member(cstring name) const override {
@@ -524,19 +498,12 @@ class P4TableInstance : public P4Declaration {
         }
         BUG("Name %s not found in member map.", name);
     }
-    P4Z3Function get_function(cstring name) const {
-        auto it = member_functions.find(name);
-        if (it != member_functions.end()) {
-            return it->second;
-        }
-        BUG("Name %s not found in function map.", name);
-    }
     void apply(Visitor *, const IR::Vector<IR::Argument> *);
 
     cstring get_static_type() const override { return "P4TableInstance"; }
     cstring to_string() const override {
         cstring ret = "P4TableInstance(";
-        return ret + decl->toString() + ")";
+        return ret + get_decl()->toString() + ")";
     }
     z3::expr
     produce_const_match(Visitor *visitor,
@@ -544,7 +511,7 @@ class P4TableInstance : public P4Declaration {
                         const IR::ListExpression *entry_keys) const;
 };
 
-class ExternInstance : public P4Z3Instance {
+class ExternInstance : public P4Z3Instance, public FunctionClass {
  private:
     std::map<cstring, const IR::Method *> methods;
     P4State *state;
@@ -561,12 +528,12 @@ class ExternInstance : public P4Z3Instance {
         ret += ")";
         return ret;
     }
-    const IR::Method *get_function(cstring method_name) const {
-        if (methods.count(method_name) > 0) {
-            return methods.at(method_name);
+
+    FunOrMethod get_function(cstring name) const override {
+        if (methods.count(name) > 0) {
+            return methods.at(name);
         }
-        error("Extern %s has no method %s.", p4_type, method_name);
-        exit(1);
+        return FunctionClass::get_function(name);
     }
     // TODO: This is a little pointless....
     ExternInstance *copy() const override {

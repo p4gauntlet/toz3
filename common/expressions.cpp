@@ -272,7 +272,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         // FIXME: This is a very rough version of overloading...
         auto path_identifier =
             path_expr->path->name.name + std::to_string(arg_size);
-        callable = state->get_static_decl(path_identifier)->decl;
+        callable = state->get_static_decl(path_identifier)->get_decl();
     } else if (const auto *member = method_type->to<IR::Member>()) {
         auto member_struct = get_member_struct(state, this, member);
         // try to resolve and find a function pointer

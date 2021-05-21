@@ -4,19 +4,6 @@
 #include "toz3/common/create_z3.h"
 #include "toz3/common/visitor_interpret.h"
 
-const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state) {
-    const auto *main = state->find_static_decl("main");
-    if (main != nullptr) {
-        if (const auto *main_pkg = main->decl->to<IR::Declaration_Instance>()) {
-            return main_pkg;
-        }
-        P4C_UNIMPLEMENTED("Main node %s not implemented!",
-                          main->decl->node_type_name());
-    }
-    warning("No main declaration found in program.");
-    return nullptr;
-}
-
 int main(int argc, char *const argv[]) {
     AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
     auto &options = TOZ3::P4toZ3Context::get().options();
@@ -42,7 +29,7 @@ int main(int argc, char *const argv[]) {
         TOZ3::Z3Visitor to_z3(&state, false);
         program->apply(to_z3);
 
-        const auto *decl = get_main_decl(&state);
+        const auto *decl = TOZ3::get_main_decl(&state);
         if (decl == nullptr) {
             return EXIT_SKIPPED;
         }

@@ -269,34 +269,34 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type,
                                cstring name, uint64_t member_id)
     : StructInstance(state, type, name, member_id) {
     valid = state->get_z3_ctx()->bool_val(false);
-    member_functions["setValid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            setValid(visitor, args);
-        };
-    member_functions["setInvalid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            setInvalid(visitor, args);
-        };
-    member_functions["isValid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            isValid(visitor, args);
-        };
+    add_function("setValid0", [this](Visitor *visitor,
+                                     const IR::Vector<IR::Argument> *args) {
+        setValid(visitor, args);
+    });
+    add_function("setInvalid0", [this](Visitor *visitor,
+                                       const IR::Vector<IR::Argument> *args) {
+        setInvalid(visitor, args);
+    });
+    add_function("isValid0", [this](Visitor *visitor,
+                                    const IR::Vector<IR::Argument> *args) {
+        isValid(visitor, args);
+    });
 }
 
 HeaderInstance::HeaderInstance(const HeaderInstance &other)
     : StructInstance(other) {
-    member_functions["setValid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            setValid(visitor, args);
-        };
-    member_functions["setInvalid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            setInvalid(visitor, args);
-        };
-    member_functions["isValid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            isValid(visitor, args);
-        };
+    add_function("setValid0", [this](Visitor *visitor,
+                                     const IR::Vector<IR::Argument> *args) {
+        setValid(visitor, args);
+    });
+    add_function("setInvalid0", [this](Visitor *visitor,
+                                       const IR::Vector<IR::Argument> *args) {
+        setInvalid(visitor, args);
+    });
+    add_function("isValid0", [this](Visitor *visitor,
+                                    const IR::Vector<IR::Argument> *args) {
+        isValid(visitor, args);
+    });
 }
 
 HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
@@ -422,14 +422,14 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type,
         insert_member(member_name, member_var);
         member_types.insert({member_name, elem_type});
     }
-    member_functions["push_front1"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            push_front(visitor, args);
-        };
-    member_functions["pop_front1"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            pop_front(visitor, args);
-        };
+    add_function("push_front1", [this](Visitor *visitor,
+                                       const IR::Vector<IR::Argument> *args) {
+        push_front(visitor, args);
+    });
+    add_function("pop_front1", [this](Visitor *visitor,
+                                      const IR::Vector<IR::Argument> *args) {
+        pop_front(visitor, args);
+    });
 }
 
 StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
@@ -438,14 +438,14 @@ StackInstance::StackInstance(const StackInstance &other)
     : IndexableInstance(other), nextIndex(other.nextIndex),
       lastIndex(other.lastIndex), size(other.size), int_size(other.int_size),
       elem_type(other.elem_type) {
-    member_functions["push_front1"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            push_front(visitor, args);
-        };
-    member_functions["pop_front1"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            pop_front(visitor, args);
-        };
+    add_function("push_front1", [this](Visitor *visitor,
+                                       const IR::Vector<IR::Argument> *args) {
+        push_front(visitor, args);
+    });
+    add_function("pop_front1", [this](Visitor *visitor,
+                                      const IR::Vector<IR::Argument> *args) {
+        pop_front(visitor, args);
+    });
 }
 
 StackInstance &StackInstance::operator=(const StackInstance &other) {
@@ -615,18 +615,18 @@ HeaderUnionInstance::HeaderUnionInstance(P4State *state,
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!", field->type);
         }
     }
-    member_functions["isValid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            isValid(visitor, args);
-        };
+    add_function("isValid0", [this](Visitor *visitor,
+                                    const IR::Vector<IR::Argument> *args) {
+        isValid(visitor, args);
+    });
 }
 
 HeaderUnionInstance::HeaderUnionInstance(const HeaderUnionInstance &other)
     : StructBase(other) {
-    member_functions["isValid0"] =
-        [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            isValid(visitor, args);
-        };
+    add_function("isValid0", [this](Visitor *visitor,
+                                    const IR::Vector<IR::Argument> *args) {
+        isValid(visitor, args);
+    });
 }
 
 HeaderUnionInstance &
@@ -1115,10 +1115,10 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     }
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         cstring apply_str = "apply" + std::to_string(num_params + idx);
-        member_functions[apply_str] =
-            [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-                apply(visitor, args);
-            };
+        add_function(apply_str, [this](Visitor *visitor,
+                                       const IR::Vector<IR::Argument> *args) {
+            apply(visitor, args);
+        });
     }
     for (const auto &arg : resolved_const_args) {
         const auto arg_name = arg.first;
@@ -1169,7 +1169,7 @@ void ControlInstance::apply(Visitor *visitor,
             state->declare_static_decl(parser_state->name.name,
                                        new P4Declaration(parser_state));
         }
-        visitor->visit(state->get_static_decl("start")->decl);
+        visitor->visit(state->get_static_decl("start")->get_decl());
     }
     if (body != nullptr) {
         visitor->visit(body);

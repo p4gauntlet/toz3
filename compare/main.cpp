@@ -10,19 +10,6 @@ constexpr auto COLUMN_WIDTH = 40;
 
 namespace TOZ3 {
 
-const IR::Declaration_Instance *get_main_decl(P4State *state) {
-    const auto *main = state->find_static_decl("main");
-    if (main != nullptr) {
-        if (const auto *main_pkg = main->decl->to<IR::Declaration_Instance>()) {
-            return main_pkg;
-        }
-        P4C_UNIMPLEMENTED("Main node %s not implemented!",
-                          main->decl->node_type_name());
-    }
-    warning("No main declaration found in program.");
-    return nullptr;
-}
-
 MainResult get_z3_repr(cstring prog_name, const IR::P4Program *program,
                        z3::context *ctx) {
     try {

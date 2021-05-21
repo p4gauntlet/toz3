@@ -9,6 +9,9 @@
 
 namespace TOZ3 {
 
+z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
+                            const IR::ListExpression *list_expr);
+
 std::vector<P4Z3Instance *> get_vec_from_map(const StructBase *input_struct) {
     std::vector<P4Z3Instance *> target_list;
     for (const auto &member : *input_struct->get_member_map()) {
@@ -17,9 +20,6 @@ std::vector<P4Z3Instance *> get_vec_from_map(const StructBase *input_struct) {
     }
     return target_list;
 }
-
-z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
-                            const IR::ListExpression *list_expr);
 
 z3::expr check_cond(Z3Visitor *visitor, const P4Z3Instance *select_eval,
                     const IR::Expression *match_key) {
@@ -44,7 +44,6 @@ z3::expr check_cond(Z3Visitor *visitor, const P4Z3Instance *select_eval,
         const auto *val = state->copy_expr_result();
         visitor->visit(mask_expr->right);
         const auto *mask = state->get_expr_result();
-        // TODO: Check_eq is a hack. Replace
         return *(*select_eval & *mask) == *(*val & *mask);
     }
     if (const auto *match_list_expr = match_key->to<IR::ListExpression>()) {
@@ -115,11 +114,11 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
         auto old_visited_states = state->get_visited_states();
         if (path_name == "reject") {
             in_parser = true;
-            visit(decl->decl);
+            visit(decl->get_decl());
             in_parser = false;
         } else {
             if (!state->state_is_visited(path_name)) {
-                visit(decl->decl);
+                visit(decl->get_decl());
             }
         }
         state->set_visited_states(old_visited_states);
@@ -146,34 +145,43 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
 bool Z3Visitor::preorder(const IR::ParserState *ps) {
     auto state_name = ps->name.name;
     state->add_visited_state(state_name);
-    for (const auto *component : ps->components) {
-        visit(component);
-    }
-    // If there is no select expression we automatically transition to reject
-    if (ps->selectExpression == nullptr) {
+    try {
+        for (const auto *component : ps->components) {
+            visit(component);
+        }
+        // If there is no select expression we automatically transition to
+        // reject
+        if (ps->selectExpression == nullptr) {
+            in_parser = true;
+            visit(state->get_static_decl("reject")->get_decl());
+            in_parser = false;
+            return false;
+        }
+        if (const auto *path = ps->selectExpression->to<IR::PathExpression>()) {
+            auto path_name = path->path->name.name;
+            const auto *decl = state->get_static_decl(path_name);
+            if (path_name == "reject") {
+                in_parser = true;
+                visit(decl->get_decl());
+                in_parser = false;
+            } else {
+                if (!state->state_is_visited(path_name)) {
+                    visit(decl->get_decl());
+                }
+            }
+        } else if (const auto *se =
+                       ps->selectExpression->to<IR::SelectExpression>()) {
+            visit(se);
+        } else {
+            P4C_UNIMPLEMENTED("SelectExpression of type %s not implemented.",
+                              ps->selectExpression->node_type_name());
+        }
+    } catch (const ParserError &error) {
+        // We hit a parser error, move to exit
         in_parser = true;
-        visit(state->get_static_decl("reject")->decl);
+        visit(state->get_static_decl("reject")->get_decl());
         in_parser = false;
         return false;
-    }
-    if (const auto *path = ps->selectExpression->to<IR::PathExpression>()) {
-        auto path_name = path->path->name.name;
-        const auto *decl = state->get_static_decl(path_name);
-        if (path_name == "reject") {
-            in_parser = true;
-            visit(decl->decl);
-            in_parser = false;
-        } else {
-            if (!state->state_is_visited(path_name)) {
-                visit(decl->decl);
-            }
-        }
-    } else if (const auto *se =
-                   ps->selectExpression->to<IR::SelectExpression>()) {
-        visit(se);
-    } else {
-        P4C_UNIMPLEMENTED("SelectExpression of type %s not implemented.",
-                          ps->selectExpression->node_type_name());
     }
     return false;
 }

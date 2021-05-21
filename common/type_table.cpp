@@ -78,13 +78,11 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
     members.insert({"hit", new Z3Bitvector(state, &BOOL_TYPE, hit)});
     members.insert({"miss", new Z3Bitvector(state, &BOOL_TYPE, !hit)});
     cstring apply_str = "apply";
-    if (const auto *table = decl->to<IR::P4Table>()) {
-        apply_str += std::to_string(table->getApplyParameters()->size());
-    }
-    member_functions[apply_str] = [this](Visitor *visitor,
-                                         const IR::Vector<IR::Argument> *args) {
+    apply_str += std::to_string(p4t->getApplyParameters()->size());
+    add_function(apply_str, [this](Visitor *visitor,
+                                   const IR::Vector<IR::Argument> *args) {
         apply(visitor, args);
-    };
+    });
 
     table_props.table_name = infer_name(p4t->getAnnotations(), p4t->name.name);
     // We first collect all the necessary properties
@@ -110,10 +108,10 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl,
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str += std::to_string(table->getApplyParameters()->size());
     }
-    member_functions[apply_str] = [this](Visitor *visitor,
-                                         const IR::Vector<IR::Argument> *args) {
+    add_function(apply_str, [this](Visitor *visitor,
+                                   const IR::Vector<IR::Argument> *args) {
         apply(visitor, args);
-    };
+    });
 }
 
 z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
@@ -185,11 +183,12 @@ void handle_table_action(Visitor *visitor, P4State *state,
         cstring identifier_path =
             path->path->name + std::to_string(act->arguments->size());
         const auto *action_decl = state->get_static_decl(identifier_path);
-        if (const auto *action = action_decl->decl->to<IR::P4Action>()) {
+        if (const auto *action = action_decl->get_decl()->to<IR::P4Action>()) {
             method_params = action->getParameters();
         } else {
             BUG("Unexpected action call %s of type %s in table.",
-                action_decl->decl, action_decl->decl->node_type_name());
+                action_decl->get_decl(),
+                action_decl->get_decl()->node_type_name());
         }
     } else {
         P4C_UNIMPLEMENTED("Unsupported action %s of type %s", act,
@@ -242,7 +241,6 @@ z3::expr P4TableInstance::produce_const_match(
             const auto *val = state->copy_expr_result();
             visitor->visit(mask_expr->right);
             const auto *mask = state->get_expr_result();
-            // TODO: Check_eq is a hack. Replace
             match = match && (*(*key_eval & *mask) == *(*val & *mask));
         } else {
             visitor->visit(c_key);
@@ -254,7 +252,7 @@ z3::expr P4TableInstance::produce_const_match(
 void P4TableInstance::apply(Visitor *visitor,
                             const IR::Vector<IR::Argument> *args) {
     auto *ctx = state->get_z3_ctx();
-    const auto *table_decl = decl->checkedTo<IR::P4Table>();
+    const auto *table_decl = get_decl()->checkedTo<IR::P4Table>();
     const auto *params = table_decl->getApplyParameters();
     const auto *type_params =
         table_decl->getApplyMethodType()->getTypeParameters();
@@ -338,7 +336,7 @@ void P4TableInstance::apply(Visitor *visitor,
         state->merge_vars(it->first, it->second);
     }
     state->set_expr_result(
-        new P4TableInstance(state, decl, new_hit, table_props));
+        new P4TableInstance(state, get_decl(), new_hit, table_props));
 
     state->copy_out();
 }
