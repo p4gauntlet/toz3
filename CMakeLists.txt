@@ -58,6 +58,7 @@ set (TOZ3V2_VALIDATE_HDRS
     )
 
 find_package (Boost REQUIRED COMPONENTS filesystem)
+find_package (Boost REQUIRED COMPONENTS system)
 
 build_unified(TOZ3V2_COMMON_SRCS)
 add_library(p4toz3lib ${TOZ3V2_COMMON_SRCS})
@@ -82,7 +83,7 @@ install(TARGETS p4compare RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
 build_unified(TOZ3V2_VALIDATE_SRCS)
 add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})
-target_link_libraries (p4validate p4toz3lib -lboost_filesystem)
+target_link_libraries (p4validate p4toz3lib -lboost_system -lboost_filesystem)
 install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
 add_custom_target(linkp4toz3
