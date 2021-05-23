@@ -152,8 +152,8 @@ run_arch_block(Z3Visitor *visitor, const IR::ConstructorCallExpression *cce,
             state_vars.insert(state_vars.end(), z3_sub_vars.begin(),
                               z3_sub_vars.end());
         } else if (var->is<ExternInstance>()) {
-            warning("Skipping extern because we do not know how to represent "
-                    "it.");
+            // warning("Skipping extern because we do not know how to represent
+            // "it.");
         } else {
             BUG("Var is neither type z3::expr nor P4Z3Instance!");
         }

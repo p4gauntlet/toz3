@@ -35,4 +35,5 @@ cstring infer_name(const IR::Annotations *annots, cstring default_name) {
 
     return default_name;
 }
+
 }  // namespace TOZ3

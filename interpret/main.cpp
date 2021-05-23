@@ -23,6 +23,9 @@ int main(int argc, char *const argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Initialize our logger
+    TOZ3::Logger::init();
+
     z3::context ctx;
     try {
         TOZ3::P4State state(&ctx);
