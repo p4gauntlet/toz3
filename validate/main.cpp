@@ -65,7 +65,8 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file,
 }
 
 int validate_translation(const fs::path &p4_file, const fs::path &dump_dir,
-                         const fs::path &compiler_bin, ParserOptions *options) {
+                         const fs::path &compiler_bin,
+                         ValidateOptions *options) {
     TOZ3::Logger::log_msg(0, "Analyzing %s", p4_file);
     std::chrono::steady_clock::time_point begin =
         std::chrono::steady_clock::now();
@@ -74,7 +75,8 @@ int validate_translation(const fs::path &p4_file, const fs::path &dump_dir,
         std::cerr << "P4 file did not generate enough passes." << std::endl;
         return EXIT_SKIPPED;
     }
-    int result = TOZ3::process_programs(prog_list, options);
+    int result =
+        TOZ3::process_programs(prog_list, options, options->undefined_is_ok);
     std::chrono::steady_clock::time_point end =
         std::chrono::steady_clock::now();
     auto time_elapsed =

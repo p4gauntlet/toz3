@@ -11,8 +11,8 @@ namespace TOZ3 {
 class CompareOptions : public CompilerOptions {
  public:
     CompareOptions();
-    // The P4 program we want to compare against
-    cstring compare_file = nullptr;
+    // Toggle this to allow differences in undefined behavior.
+    bool undefined_is_ok = false;
 };
 
 using P4toZ3Context = P4CContextWithOptions<CompareOptions>;

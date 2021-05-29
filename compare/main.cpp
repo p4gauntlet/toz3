@@ -47,5 +47,5 @@ int main(int argc, char *const argv[]) {
         options.usage();
         return EXIT_FAILURE;
     }
-    return TOZ3::process_programs(prog_list, &options);
+    return TOZ3::process_programs(prog_list, &options, options.undefined_is_ok);
 }

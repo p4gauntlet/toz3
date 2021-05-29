@@ -12,7 +12,7 @@ namespace TOZ3 {
 using Z3Prog = std::pair<cstring, std::vector<std::pair<cstring, z3::expr>>>;
 constexpr auto COLUMN_WIDTH = 40;
 int process_programs(const std::vector<cstring> &prog_list,
-                     ParserOptions *options);
+                     ParserOptions *options, bool allow_undefined = false);
 
 }  // namespace TOZ3
 

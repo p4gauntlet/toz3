@@ -15,4 +15,11 @@ ValidateOptions::ValidateOptions() {
             return true;
         },
         "Specifies the binary to compile a p4 file.");
+    registerOption(
+        "--allow-undefined", nullptr,
+        [this](const char *) {
+            undefined_is_ok = true;
+            return true;
+        },
+        "Toggle to tolerate undefined behavior in comparison.");
 }
