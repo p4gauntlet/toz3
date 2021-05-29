@@ -119,7 +119,7 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs) {
         s.pop();
         prog_before = prog_after;
     }
-    Logger::log_msg(1, "Passed all checks.");
+    Logger::log_msg(0, "Passed all checks.");
     return EXIT_SUCCESS;
 }
 

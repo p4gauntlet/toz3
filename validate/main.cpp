@@ -10,50 +10,11 @@ namespace fs = boost::filesystem;
 
 static const auto FILE_DIR = fs::path(__FILE__).parent_path();
 static const auto COMPILER_BIN = FILE_DIR / "../../p4c/build/p4test";
-static const auto DUMP_DIR = fs::current_path().append("validated");
+static const auto DUMP_DIR = fs::path("/tmp/validated");
 
 static constexpr auto PASSES = "--top4 FrontEnd,MidEnd,PassManager ";
 
-int exec(const char *cmd, std::stringstream &output) {
-    TOZ3::Logger::log_msg(1, "Executing command %s", cmd);
-    constexpr int chunk_size = 128;
-    std::array<char, chunk_size> buffer{};
-
-    auto *pipe = popen(cmd, "r");
-
-    if (pipe == nullptr) {
-        throw std::runtime_error("popen() failed!");
-    }
-    while (feof(pipe) == 0) {
-        if (fgets(buffer.data(), chunk_size, pipe) != nullptr) {
-            output << buffer.data();
-        }
-    }
-    return pclose(pipe);
-}
-
-bool compare_files(const cstring &filename1, const cstring &filename2) {
-    std::ifstream file1(filename1,
-                        std::ifstream::ate |
-                            std::ifstream::binary);  // open file at the end
-    std::ifstream file2(filename2,
-                        std::ifstream::ate |
-                            std::ifstream::binary);  // open file at the end
-    const std::ifstream::pos_type fileSize = file1.tellg();
-
-    if (fileSize != file2.tellg()) {
-        return false;  // different file size
-    }
-
-    file1.seekg(0);  // rewind
-    file2.seekg(0);  // rewind
-
-    std::istreambuf_iterator<char> begin1(file1);
-    std::istreambuf_iterator<char> begin2(file2);
-
-    return std::equal(begin1, std::istreambuf_iterator<char>(),
-                      begin2);  // Second argument is end-of-range iterator
-}
+static constexpr auto SEC_TO_MS = 1000000.0;
 
 std::vector<cstring> generate_pass_list(const fs::path &p4_file,
                                         const fs::path &dump_dir,
@@ -63,7 +24,7 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file,
     cmd += cstring("--dump ") + dump_dir.c_str() + " " + p4_file.c_str();
     cmd += " 2>&1";
     std::stringstream output;
-    exec(cmd, output);
+    TOZ3::exec(cmd, output);
     std::vector<cstring> pass_list;
     cstring cmd1 = compiler_bin.c_str();
     cmd1 += cstring(" --Wdisable  -v ") + p4_file.c_str();
@@ -71,7 +32,7 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file,
     cmd1 += "| sed -e '/FrontEnd\\|MidEnd\\|PassManager/!d' | ";
     cmd1 += "sed -e '/Writing program to/d' ";
     std::stringstream passes;
-    exec(cmd1, passes);
+    TOZ3::exec(cmd1, passes);
     std::string pass;
     while (std::getline(passes, pass, '\n')) {
         cstring pass_path =
@@ -92,7 +53,7 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file,
     std::advance(it, 1);
     for (; it != pass_list.end(); ++it) {
         auto pass_after = *it;
-        if (compare_files(pass_before, pass_after)) {
+        if (TOZ3::compare_files(pass_before, pass_after)) {
             fs::detail::remove(pass_after.c_str());
         } else {
             pruned_pass_list.emplace_back(pass_after);
@@ -119,7 +80,7 @@ int validate_translation(const fs::path &p4_file, const fs::path &dump_dir,
     auto time_elapsed =
         std::chrono::duration_cast<std::chrono::microseconds>(end - begin)
             .count() /
-        1000000.0;
+        SEC_TO_MS;
     TOZ3::Logger::log_msg(0, "Validation took %s seconds.", time_elapsed);
     return result;
 }

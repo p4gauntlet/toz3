@@ -7,7 +7,7 @@
 
 // The program is empty, there is nothing to do here
 #define EXIT_SKIPPED 10
-// When comparing two programs, they are unequal
+// When comparing two programs, they are not equal
 #define EXIT_VIOLATION 20
 // Comparing two programs, they have undefined behavior that makes them unequal
 #define EXIT_UNDEF 30
@@ -21,12 +21,10 @@
 
 namespace TOZ3 {
 
-inline cstring get_max_bv_val(uint64_t bv_width) {
-    big_int max_return = pow((big_int)2, bv_width) - 1;
-    return Util::toString(max_return, 0, false);
-}
-
+cstring get_max_bv_val(uint64_t bv_width);
 cstring infer_name(const IR::Annotations *annots, cstring default_name);
+bool compare_files(const cstring &filename1, const cstring &filename2);
+int exec(const char *cmd, std::stringstream &output);
 
 class Logger {
  public:
@@ -44,6 +42,7 @@ class Logger {
         LOGN(level, boost::str(f));
     }
 };
+
 
 }  // namespace TOZ3
 
