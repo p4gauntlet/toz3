@@ -69,81 +69,6 @@ create_z3_struct(z3::context *ctx,
     return before_sort(z3_vec);
 }
 
-z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
-                          std::set<z3::expr> *taint_vars) {
-    auto decl = z3_var.decl();
-    auto z3_sort = z3_var.get_sort();
-    if (decl.decl_kind() == Z3_OP_ITE) {
-        auto cond_expr = z3_var.arg(0);
-        auto then_expr = z3_var.arg(1);
-        auto else_expr = z3_var.arg(2);
-        std::set<z3::expr> cond_taint_vars;
-        cond_expr = substitute_taint(ctx, cond_expr, &cond_taint_vars);
-        // Check if the cond expr is an ite statement after substitution.
-        // If the condition is tainted, do not even bother to evaluate the rest.
-        if (cond_expr.decl().decl_kind() != Z3_OP_ITE &&
-            !cond_taint_vars.empty()) {
-            auto taint_const = ctx->constant("taint", z3_sort);
-            taint_vars->insert(taint_const);
-            return taint_const;
-        }
-        // Evaluate the branches.
-        std::set<z3::expr> then_taint_vars;
-        then_expr = substitute_taint(ctx, then_expr, &then_taint_vars);
-        std::set<z3::expr> else_taint_vars;
-        else_expr = substitute_taint(ctx, else_expr, &else_taint_vars);
-        // Check if the branches are an ite statement after substitution.
-        if ((then_expr.decl().decl_kind() != Z3_OP_ITE &&
-             else_expr.decl().decl_kind() != Z3_OP_ITE) &&
-            (!then_taint_vars.empty() && !else_taint_vars.empty())) {
-            // Both branches are fully tainted. Replace and return.
-            auto taint_const = ctx->constant("taint", z3_sort);
-            taint_vars->insert(taint_const);
-            return taint_const;
-        }
-        // Merge taints and create a new ite statement
-        taint_vars->insert(cond_taint_vars.begin(), cond_taint_vars.end());
-        taint_vars->insert(then_taint_vars.begin(), then_taint_vars.end());
-        taint_vars->insert(else_taint_vars.begin(), else_taint_vars.end());
-        if (!taint_vars->empty()) {
-            return z3::ite(cond_expr, then_expr, else_expr);
-        }
-        return z3_var;
-    }
-    if (z3_var.is_const() &&
-        z3_var.to_string().find("undefined") != std::string::npos) {
-        // The expression is tainted replace it.
-        // Really dumb check, do not need anything else.
-        auto taint_const = ctx->constant("taint", z3_sort);
-        taint_vars->insert(taint_const);
-        return taint_const;
-    }
-    // Remaining expressions are more complex, need to evaluate children.
-    auto arg_num = z3_var.num_args();
-    z3::expr_vector new_child_vars(*ctx);
-    for (size_t idx = 0; idx < arg_num; ++idx) {
-        auto child = z3_var.arg(idx);
-        std::set<z3::expr> child_taint_vars;
-        child = substitute_taint(ctx, child, &child_taint_vars);
-        // Replace entire expression if one non-ite member is tainted.
-        if (child.decl().decl_kind() != Z3_OP_ITE &&
-            !child_taint_vars.empty()) {
-            // The expression is tained. Replace it.
-            auto taint_const = ctx->constant("taint", z3_sort);
-            taint_vars->insert(taint_const);
-            return taint_const;
-        }
-        taint_vars->insert(child_taint_vars.begin(), child_taint_vars.end());
-        new_child_vars.push_back(child);
-    }
-    // We have taint.
-    if (!taint_vars->empty()) {
-        return decl(new_child_vars);
-        // These are unfortunately necessary because AND/OR are "special"
-    }
-    return z3_var;
-}
-
 void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
                            const Z3Prog &prog_after) {
     std::cerr << "Found validation error.\n";
@@ -170,6 +95,84 @@ void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
     }
 }
 
+z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
+                          std::set<z3::expr> *taint_vars) {
+    auto decl = z3_var.decl();
+    auto z3_sort = z3_var.get_sort();
+    if (decl.decl_kind() == Z3_OP_ITE) {
+        auto cond_expr = z3_var.arg(0);
+        auto then_expr = z3_var.arg(1);
+        auto else_expr = z3_var.arg(2);
+        std::set<z3::expr> cond_taint_vars;
+        cond_expr = substitute_taint(ctx, cond_expr, &cond_taint_vars);
+        // Check if the cond expr is an ite statement after substitution.
+        // If the condition is tainted, do not even bother to evaluate the rest.
+        if (cond_expr.decl().decl_kind() != Z3_OP_ITE &&
+            !cond_taint_vars.empty()) {
+            auto taint_const =
+                z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
+            taint_vars->insert(taint_const);
+            return taint_const;
+        }
+        // Evaluate the branches.
+        std::set<z3::expr> then_taint_vars;
+        then_expr = substitute_taint(ctx, then_expr, &then_taint_vars);
+        std::set<z3::expr> else_taint_vars;
+        else_expr = substitute_taint(ctx, else_expr, &else_taint_vars);
+        // Check if the branches are an ite statement after substitution.
+        if (then_expr.decl().decl_kind() != Z3_OP_ITE &&
+            else_expr.decl().decl_kind() != Z3_OP_ITE &&
+            !then_taint_vars.empty() && !else_taint_vars.empty()) {
+            // Both branches are fully tainted. Replace and return.
+            auto taint_const =
+                z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
+            taint_vars->insert(taint_const);
+            return taint_const;
+        }
+        // Merge taints and create a new ite statement
+        taint_vars->insert(cond_taint_vars.begin(), cond_taint_vars.end());
+        taint_vars->insert(then_taint_vars.begin(), then_taint_vars.end());
+        taint_vars->insert(else_taint_vars.begin(), else_taint_vars.end());
+        if (!taint_vars->empty()) {
+            return z3::ite(cond_expr, then_expr, else_expr);
+        }
+        return z3_var;
+    }
+    if (z3_var.is_const() &&
+        z3_var.to_string().find("undefined") != std::string::npos) {
+        // The expression is tainted replace it.
+        // Really dumb check, do not need anything else.
+        auto taint_const =
+            z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
+        taint_vars->insert(taint_const);
+        return taint_const;
+    }
+    // Remaining expressions are more complex, need to evaluate children.
+    auto arg_num = z3_var.num_args();
+    z3::expr_vector new_child_vars(*ctx);
+    for (size_t idx = 0; idx < arg_num; ++idx) {
+        auto child = z3_var.arg(idx);
+        std::set<z3::expr> child_taint_vars;
+        child = substitute_taint(ctx, child, &child_taint_vars);
+        // Replace entire expression if one non-ite member is tainted.
+        if (child.decl().decl_kind() != Z3_OP_ITE &&
+            !child_taint_vars.empty()) {
+            // The expression is tained. Replace it.
+            auto taint_const =
+                z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
+            taint_vars->insert(taint_const);
+            return taint_const;
+        }
+        taint_vars->insert(child_taint_vars.begin(), child_taint_vars.end());
+        new_child_vars.push_back(child);
+    }
+    // We have taint, return a new expression.
+    if (!taint_vars->empty()) {
+        return decl(new_child_vars);
+    }
+    return z3_var;
+}
+
 z3::check_result check_undefined(z3::context *ctx, z3::solver *s,
                                  const z3::expr &z3_prog_before,
                                  const z3::expr &z3_prog_after) {
@@ -177,10 +180,10 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s,
     s->reset();
     for (size_t idx = 0; idx < arg_num; ++idx) {
         s->push();
-        auto m_before = z3_prog_before.arg(idx);
+        auto m_before = z3_prog_before.arg(idx).simplify();
         auto m_after = z3_prog_after.arg(idx).simplify();
         std::set<z3::expr> taint_vars;
-        m_before = substitute_taint(ctx, m_before, &taint_vars).simplify();
+        m_before = substitute_taint(ctx, m_before, &taint_vars);
         z3::expr tv_equiv = (m_before != m_after);
         for (const auto &taint_var : taint_vars) {
             if (m_before.get_sort().sort_kind() ==
@@ -189,9 +192,9 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s,
             }
         }
         // Check the equivalence of the modified clause.
-        Logger::log_msg(0, "Checking member %s... ", idx);
+        Logger::log_msg(1, "Checking member %s... ", idx);
         cstring equ = tv_equiv.to_string().c_str();
-        Logger::log_msg(0, "Equation:\n%s", equ);
+        Logger::log_msg(1, "Equation:\n%s", equ);
         s->add(tv_equiv);
         auto ret = s->check();
         s->pop();
@@ -210,7 +213,7 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs,
     auto prog_before = z3_progs[0];
     auto z3_prog_before = create_z3_struct(ctx, prog_before.second);
     for (size_t i = 1; i < z3_progs.size(); ++i) {
-        Logger::log_msg(1, "Comparing %s and %s.", prog_before.first,
+        Logger::log_msg(1, "\nComparing %s and %s.", prog_before.first,
                         z3_progs[i].first);
         auto prog_after = z3_progs[i];
         auto z3_prog_after = create_z3_struct(ctx, z3_progs[i].second);
@@ -222,7 +225,7 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs,
         Logger::log_msg(1, "Result: %s", ret);
         if (ret == z3::sat) {
             s.pop();
-            std::cerr << "\nPrograms are not equal!" << std::endl;
+            std::cerr << "Programs are not equal!" << std::endl;
             if (allow_undefined) {
                 std::cerr << "Rechecking whether violation is caused by "
                              "undefined behavior."
@@ -232,6 +235,8 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs,
                     print_violation_error(s, prog_before, prog_after);
                     return EXIT_VIOLATION;
                 }
+                prog_before = prog_after;
+                z3_prog_before = z3_prog_after;
                 continue;
             }
             print_violation_error(s, prog_before, prog_after);
@@ -244,6 +249,7 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs,
         }
         s.pop();
         prog_before = prog_after;
+        z3_prog_before = z3_prog_after;
     }
     Logger::log_msg(0, "Passed all checks.");
     return EXIT_SUCCESS;

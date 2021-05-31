@@ -377,11 +377,23 @@ Z3Bitvector *Z3Bitvector::copy() const {
 
 void Z3Bitvector::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
     if (const auto *then_expr_var = then_expr.to<Z3Bitvector>()) {
-        val = z3::ite(cond, then_expr_var->val, val);
+        if (cond.is_false()) {
+            val = val;
+        } else if (cond.is_true()) {
+            val = then_expr_var->val;
+        } else {
+            val = z3::ite(cond, then_expr_var->val, val);
+        }
     } else if (const auto *then_expr_var = then_expr.to<Z3Int>()) {
         z3::expr cast_val =
             pure_bv_cast(*then_expr_var->get_val(), val.get_sort());
-        val = z3::ite(cond, cast_val, val);
+        if (cond.is_false()) {
+            val = val;
+        } else if (cond.is_true()) {
+            val = cast_val;
+        } else {
+            val = z3::ite(cond, cast_val, val);
+        }
     } else {
         P4C_UNIMPLEMENTED(
             "Z3Bitvector: Merge with %s of type %s not supported.",
