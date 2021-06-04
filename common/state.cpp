@@ -279,7 +279,6 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
 
 void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     if (!member_struct.end_slices.empty()) {
-
         auto end_slices = member_struct.end_slices;
         auto slice_less_member_struct = member_struct;
         slice_less_member_struct.end_slices.clear();
@@ -680,7 +679,7 @@ void P4State::update_var(cstring name, P4Z3Instance *var) {
 void P4State::declare_var(cstring name, P4Z3Instance *var,
                           const IR::Type *decl_type) {
     if (scopes.empty()) {
-        // assume we insert into the global scope
+        // Assume we insert into the global scope.
         main_scope.declare_var(name, var, decl_type);
     } else {
         get_mut_current_scope()->declare_var(name, var, decl_type);

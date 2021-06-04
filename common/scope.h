@@ -35,7 +35,7 @@ class P4Scope {
         BUG("Key %s not found in static declaration map.", name);
     }
     void declare_static_decl(cstring name, P4Declaration *val) {
-        static_decls.insert({name, val});
+        static_decls[name] = val;
     }
     bool has_static_decl(cstring name) const {
         return static_decls.count(name) > 0;
@@ -63,7 +63,8 @@ class P4Scope {
     }
     void declare_var(cstring name, P4Z3Instance *val,
                      const IR::Type *decl_type) {
-        var_map.insert({name, {val, decl_type}});
+        // If the variable already exists, we override.
+        var_map[name] = {val, decl_type};
     }
     bool has_var(cstring name) const { return var_map.count(name) > 0; }
     const VarMap &get_var_map() const { return var_map; }
