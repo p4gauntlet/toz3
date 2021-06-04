@@ -18,25 +18,32 @@
 namespace TOZ3 {
 
 z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
-                       const z3::expr &hi, const z3::expr &lo) {
+                       const std::vector<Z3Slice> &end_slices) {
     auto *ctx = &lval.get_sort().ctx();
     auto lval_max = lval.get_sort().bv_size() - 1ULL;
     auto lval_min = 0ULL;
-    auto hi_int = hi.simplify().get_numeral_uint64();
-    auto lo_int = lo.simplify().get_numeral_uint64();
-    if (hi_int == lval_max && lo_int == lval_min) {
+    auto slice_l = lval_max;
+    auto slice_r = 0ULL;
+    for (auto sl = end_slices.rbegin(); sl != end_slices.rend(); ++sl) {
+        auto hi_int = sl->hi.simplify().get_numeral_uint64();
+        auto lo_int = sl->lo.simplify().get_numeral_uint64();
+        slice_l = hi_int + slice_r;
+        slice_r += lo_int;
+    }
+    if (slice_l == lval_max && slice_r == lval_min) {
         return rval;
     }
+
     z3::expr_vector assemble(*ctx);
-    if (hi_int < lval_max) {
-        assemble.push_back(lval.extract(lval_max, hi_int + 1));
+    if (slice_l < lval_max) {
+        assemble.push_back(lval.extract(lval_max, slice_l + 1));
     }
-    auto middle_size = ctx->bv_sort(hi_int + 1 - lo_int);
+    auto middle_size = ctx->bv_sort(slice_l + 1 - slice_r);
     auto cast_val = pure_bv_cast(rval, middle_size);
     assemble.push_back(cast_val);
 
-    if (lo_int > lval_min) {
-        assemble.push_back(lval.extract(lo_int - 1, lval_min));
+    if (slice_r > lval_min) {
+        assemble.push_back(lval.extract(slice_r - 1, lval_min));
     }
 
     return z3::concat(assemble);
@@ -232,6 +239,7 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
     if (member_struct.is_flat) {
         return parent_class;
     }
+
     for (auto it = member_struct.mid_members.rbegin();
          it != member_struct.mid_members.rend(); ++it) {
         auto mid_member = *it;
@@ -246,31 +254,44 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
             P4C_UNIMPLEMENTED("Member type not implemented.");
         }
     }
+    P4Z3Instance *end_var = nullptr;
+
     if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
-        return parent_class->get_member(*name);
-    }
-    if (const auto *z3_expr =
-            boost::get<z3::expr>(&member_struct.target_member)) {
+        end_var = parent_class->get_member(*name);
+    } else if (const auto *z3_expr =
+                   boost::get<z3::expr>(&member_struct.target_member)) {
         auto *stack_class = parent_class->to_mut<StackInstance>();
         BUG_CHECK(stack_class, "Expected Stack, got %s",
                   stack_class->get_static_type());
-        return stack_class->get_member(*z3_expr);
+        end_var = stack_class->get_member(*z3_expr);
+    } else {
+        P4C_UNIMPLEMENTED("Member type not implemented.");
     }
-    P4C_UNIMPLEMENTED("Member type not implemented.");
+    // Finally, the member structure may also have slices attached to it.
+    if (!member_struct.end_slices.empty()) {
+        for (auto sl = member_struct.end_slices.rbegin();
+             sl != member_struct.end_slices.rend(); ++sl) {
+            end_var = end_var->slice(sl->hi, sl->lo);
+        }
+    }
+    return end_var;
 }
 
 void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     if (!member_struct.end_slices.empty()) {
-        const z3::expr *target_lval = nullptr;
+
+        auto end_slices = member_struct.end_slices;
+        auto slice_less_member_struct = member_struct;
+        slice_less_member_struct.end_slices.clear();
         z3::expr target_rval(*get_z3_ctx());
-        const auto *lval = get_member(this, member_struct);
+        z3::expr target_lval(*get_z3_ctx());
+        const auto *lval = get_member(this, slice_less_member_struct);
         if (const auto *z3_bitvec = lval->to<Z3Bitvector>()) {
-            target_lval = z3_bitvec->get_val();
+            target_lval = *z3_bitvec->get_val();
         } else {
             P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.",
                               lval->get_static_type());
         }
-
         bool is_signed = false;
         if (const auto *z3_bitvec = rval->to<Z3Bitvector>()) {
             target_rval = *z3_bitvec->get_val();
@@ -281,17 +302,14 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
             P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.",
                               rval->get_static_type());
         }
-        for (const auto &sl : member_struct.end_slices) {
-            auto res = compute_slice(*target_lval, target_rval, sl.hi, sl.lo);
-            target_rval = res;
-        }
-        MemberStruct new_member_struct = member_struct;
-        new_member_struct.end_slices.clear();
+        // We progressively slice and merge the lval
+        target_rval =
+            compute_slice(target_lval, target_rval, member_struct.end_slices);
         const auto *bit_type =
             new IR::Type_Bits(target_rval.get_sort().bv_size(), false);
         auto *resolved_rval =
             new Z3Bitvector(this, bit_type, target_rval, is_signed);
-        set_var(new_member_struct, resolved_rval);
+        set_var(slice_less_member_struct, resolved_rval);
         return;
     }
     if (member_struct.is_flat) {
