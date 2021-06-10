@@ -50,8 +50,9 @@ class P4State {
         // These two labels are part of the built in declarations.
         // We only need to add them once.
         declare_static_decl(
-            "accept", new P4Declaration(new IR::ReturnStatement(nullptr)));
-        declare_static_decl("reject",
+            IR::ParserState::accept,
+            new P4Declaration(new IR::ReturnStatement(nullptr)));
+        declare_static_decl(IR::ParserState::reject,
                             new P4Declaration(new IR::ExitStatement()));
     }
 

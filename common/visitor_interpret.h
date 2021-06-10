@@ -80,7 +80,6 @@ class Z3Visitor : public Inspector {
 
     /***** Parser *****/
     bool preorder(const IR::ParserState *ps) override;
-    bool preorder(const IR::SelectExpression *se) override;
 
     /***** Expressions *****/
     bool preorder(const IR::Member *m) override;
@@ -132,6 +131,8 @@ class Z3Visitor : public Inspector {
 
  public:
     P4State *get_state() const { return state; }
+    void set_in_parser(bool is_in_parser) { in_parser = is_in_parser; }
+    bool is_in_parser() const { return in_parser; }
     explicit Z3Visitor(P4State *state, bool gen_ctx = true) : state(state) {
         visitDagOnce = false;
         if (gen_ctx) {

@@ -71,9 +71,9 @@ z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
     return match_cond;
 }
 
-bool Z3Visitor::preorder(const IR::SelectExpression *se) {
-    // First gather the right conditions
-    z3::expr matches = state->get_z3_ctx()->bool_val(false);
+std::vector<std::pair<z3::expr, cstring>>
+gather_select_conds(Z3Visitor *visitor, const IR::SelectExpression *se) {
+    z3::expr matches = visitor->get_state()->get_z3_ctx()->bool_val(false);
     std::vector<std::pair<z3::expr, cstring>> select_vector;
     bool has_default = false;
     for (const auto *select_case : se->selectCases) {
@@ -84,41 +84,48 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
             break;
         }
         BUG_CHECK(!se->selectCases.empty(), "Case vector can not be empty.");
-        visit(se->select);
-        const auto *list_instance = state->copy_expr_result<ListInstance>();
+        visitor->visit(se->select);
+        const auto *list_instance =
+            visitor->get_state()->copy_expr_result<ListInstance>();
         if (const auto *list_expr =
                 select_case->keyset->to<IR::ListExpression>()) {
-            auto cond = handle_select_cond(this, list_instance, list_expr);
+            auto cond = handle_select_cond(visitor, list_instance, list_expr);
             select_vector.emplace_back(cond, state_name);
             matches = matches || cond;
         } else {
-            auto cond = check_cond(this, list_instance, select_case->keyset);
+            auto cond = check_cond(visitor, list_instance, select_case->keyset);
             select_vector.emplace_back(cond, state_name);
             matches = matches || cond;
         }
     }
     // We have to insert a reject if the default expression is missing
     if (!has_default) {
-        select_vector.emplace_back(!matches, "reject");
+        select_vector.emplace_back(!matches, IR::ParserState::reject);
     }
-    // Now evaluate all the select cases
+    return select_vector;
+}
+
+void process_select_cases(
+    Z3Visitor *visitor,
+    const std::vector<std::pair<z3::expr, cstring>> &select_vector) {
+    auto *state = visitor->get_state();
     bool has_exited = true;
     bool has_returned = true;
     std::vector<std::pair<z3::expr, VarMap>> case_states;
-    for (auto &select : select_vector) {
+    for (const auto &select : select_vector) {
         const auto cond = select.first;
         auto path_name = select.second;
         auto old_vars = state->clone_vars();
         state->push_forward_cond(cond);
         const auto *decl = state->get_static_decl(path_name);
         auto old_visited_states = state->get_visited_states();
-        if (path_name == "reject") {
-            in_parser = true;
-            visit(decl->get_decl());
-            in_parser = false;
+        if (path_name == IR::ParserState::reject) {
+            visitor->set_in_parser(true);
+            visitor->visit(decl->get_decl());
+            visitor->set_in_parser(false);
         } else {
             if (!state->state_is_visited(path_name)) {
-                visit(decl->get_decl());
+                visitor->visit(decl->get_decl());
             }
         }
         state->set_visited_states(old_visited_states);
@@ -139,12 +146,12 @@ bool Z3Visitor::preorder(const IR::SelectExpression *se) {
     for (auto it = case_states.rbegin(); it != case_states.rend(); ++it) {
         state->merge_vars(it->first, it->second);
     }
-    return false;
 }
 
 bool Z3Visitor::preorder(const IR::ParserState *ps) {
     auto state_name = ps->name.name;
     state->add_visited_state(state_name);
+    state->push_scope();
     try {
         for (const auto *component : ps->components) {
             visit(component);
@@ -152,18 +159,20 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
         // If there is no select expression we automatically transition to
         // reject
         if (ps->selectExpression == nullptr) {
-            in_parser = true;
-            visit(state->get_static_decl("reject")->get_decl());
-            in_parser = false;
+            state->pop_scope();
+            set_in_parser(true);
+            visit(state->get_static_decl(IR::ParserState::reject)->get_decl());
+            set_in_parser(false);
             return false;
         }
         if (const auto *path = ps->selectExpression->to<IR::PathExpression>()) {
             auto path_name = path->path->name.name;
             const auto *decl = state->get_static_decl(path_name);
-            if (path_name == "reject") {
-                in_parser = true;
+            state->pop_scope();
+            if (path_name == IR::ParserState::reject) {
+                set_in_parser(true);
                 visit(decl->get_decl());
-                in_parser = false;
+                set_in_parser(false);
             } else {
                 if (!state->state_is_visited(path_name)) {
                     visit(decl->get_decl());
@@ -171,16 +180,22 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
             }
         } else if (const auto *se =
                        ps->selectExpression->to<IR::SelectExpression>()) {
-            visit(se);
+            // First, gather the right conditions.
+            const auto select_vector = gather_select_conds(this, se);
+            // Now we can pop the scope of the state.
+            state->pop_scope();
+            // Finally, evaluate all the select cases.
+            process_select_cases(this, select_vector);
         } else {
             P4C_UNIMPLEMENTED("SelectExpression of type %s not implemented.",
                               ps->selectExpression->node_type_name());
         }
     } catch (const ParserError &error) {
         // We hit a parser error, move to exit
-        in_parser = true;
-        visit(state->get_static_decl("reject")->get_decl());
-        in_parser = false;
+        state->pop_scope();
+        set_in_parser(true);
+        visit(state->get_static_decl(IR::ParserState::reject)->get_decl());
+        set_in_parser(false);
         return false;
     }
     return false;
