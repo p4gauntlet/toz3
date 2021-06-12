@@ -4,7 +4,6 @@
 #include <sys/types.h>
 
 #include <alloca.h>
-#include <bits/stdint-uintn.h>
 #include <cstdio>
 
 #include <map>

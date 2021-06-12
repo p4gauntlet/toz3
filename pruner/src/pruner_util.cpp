@@ -21,11 +21,6 @@ int64_t get_rnd_int(int64_t min, int64_t max) {
     return distribution(rng);
 }
 
-big_int get_rnd_big_int(big_int min, big_int max) {
-    boost::random::uniform_int_distribution<big_int> distribution(min, max);
-    return distribution(rng);
-}
-
 double get_rnd_pct() {
     boost::random::uniform_real_distribution<double> distribution(0.0, 1.0);
     return distribution(rng);
@@ -126,8 +121,8 @@ ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
         if (pruner_conf.allow_undef) {
             command += " -u ";
         }
-
-        exit_info.exit_code = WEXITSTATUS(system(command.c_str()));
+        auto exit_code = system(command.c_str());
+        exit_info.exit_code = WEXITSTATUS(exit_code);
         exit_info.err_msg = cstring("");
 
     } else {
@@ -178,7 +173,8 @@ ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
         pclose(pipe);
         throw;
     }
-    exit_info.exit_code = WEXITSTATUS(pclose(pipe));
+    auto exit_code = pclose(pipe);
+    exit_info.exit_code = WEXITSTATUS(exit_code);
     exit_info.err_msg = result;
     return exit_info;
 }
@@ -280,4 +276,4 @@ int check_pruned_program(const IR::P4Program **orig_program,
     }
 }
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER

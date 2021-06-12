@@ -59,7 +59,6 @@ struct PrunerConfig {
 
 void set_seed(int64_t seed);
 int64_t get_rnd_int(int64_t min, int64_t max);
-big_int get_rnd_big_int(big_int min, big_int max);
 double get_rnd_pct();
 
 bool file_exists(cstring file_path);
