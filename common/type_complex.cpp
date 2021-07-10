@@ -499,7 +499,12 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     // We create a new header that we return
     // This header is the merge of all the sub headers of this stack
     auto *base_hdr = state->gen_instance(UNDEF_LABEL, elem_type);
-    for (size_t idx = 0; idx < int_size; ++idx) {
+    // Sometimes the index bitvector is so small, it does not exceed the header
+    // size. So we have to make sure max_idx is computed correctly.
+    auto bv_size = val.get_sort().bv_size();
+    size_t max = (1 << bv_size) - 1;
+    auto max_idx = std::min<size_t>(max, int_size);
+    for (size_t idx = 0; idx < max_idx; ++idx) {
         cstring member_name = std::to_string(idx);
         const auto *hdr = get_member(member_name);
         auto z3_int = state->get_z3_ctx()->num_val(idx, val.get_sort());
