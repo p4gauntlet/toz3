@@ -157,7 +157,7 @@ get_hdr_pairs(P4State *state, const MemberStruct &member_struct) {
                     // Skip anything where the idx is larger then the container
                     auto size = stack_class->get_int_size();
                     auto bv_size = expr->get_sort().bv_size();
-                    int64_t max = (1 << bv_size) - 1;
+                    int64_t max = (1 << bv_size);
                     auto max_idx = std::min<int64_t>(max, size);
                     for (int64_t idx = 0; idx < max_idx; ++idx) {
                         auto z3_val = state->get_z3_ctx()->bv_val(idx, bv_size);

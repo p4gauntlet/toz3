@@ -1,5 +1,6 @@
 #include "type_complex.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <string>
@@ -502,7 +503,7 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     // Sometimes the index bitvector is so small, it does not exceed the header
     // size. So we have to make sure max_idx is computed correctly.
     auto bv_size = val.get_sort().bv_size();
-    size_t max = (1 << bv_size) - 1;
+    size_t max = (1 << bv_size);
     auto max_idx = std::min<size_t>(max, int_size);
     for (size_t idx = 0; idx < max_idx; ++idx) {
         cstring member_name = std::to_string(idx);
