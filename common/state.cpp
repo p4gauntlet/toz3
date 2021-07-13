@@ -235,38 +235,43 @@ void set_stack(P4State *state, const MemberStruct &member_struct,
 }
 
 P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
+    // TODO: Clarify this.
     auto *parent_class = state->get_var(member_struct.main_member);
+    P4Z3Instance *end_var = nullptr;
     if (member_struct.is_flat) {
-        return parent_class;
-    }
+        // This means we are essentially dealing with a path expression.
+        // They may have slices attached to it, so we can not just return.
+        end_var = parent_class;
+    } else {
+        for (auto it = member_struct.mid_members.rbegin();
+             it != member_struct.mid_members.rend(); ++it) {
+            auto mid_member = *it;
+            if (auto *name = boost::get<cstring>(&mid_member)) {
+                parent_class = parent_class->get_member(*name);
+            } else if (auto *z3_expr = boost::get<z3::expr>(&mid_member)) {
+                auto *stack_class = parent_class->to_mut<StackInstance>();
+                BUG_CHECK(stack_class, "Expected Stack, got %s",
+                          stack_class->get_static_type());
+                parent_class = stack_class->get_member(*z3_expr);
+            } else {
+                P4C_UNIMPLEMENTED("Member type not implemented.");
+            }
+        }
 
-    for (auto it = member_struct.mid_members.rbegin();
-         it != member_struct.mid_members.rend(); ++it) {
-        auto mid_member = *it;
-        if (auto *name = boost::get<cstring>(&mid_member)) {
-            parent_class = parent_class->get_member(*name);
-        } else if (auto *z3_expr = boost::get<z3::expr>(&mid_member)) {
+        if (const auto *name =
+                boost::get<cstring>(&member_struct.target_member)) {
+            end_var = parent_class->get_member(*name);
+        } else if (const auto *z3_expr =
+                       boost::get<z3::expr>(&member_struct.target_member)) {
             auto *stack_class = parent_class->to_mut<StackInstance>();
             BUG_CHECK(stack_class, "Expected Stack, got %s",
                       stack_class->get_static_type());
-            parent_class = stack_class->get_member(*z3_expr);
+            end_var = stack_class->get_member(*z3_expr);
         } else {
             P4C_UNIMPLEMENTED("Member type not implemented.");
         }
     }
-    P4Z3Instance *end_var = nullptr;
 
-    if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
-        end_var = parent_class->get_member(*name);
-    } else if (const auto *z3_expr =
-                   boost::get<z3::expr>(&member_struct.target_member)) {
-        auto *stack_class = parent_class->to_mut<StackInstance>();
-        BUG_CHECK(stack_class, "Expected Stack, got %s",
-                  stack_class->get_static_type());
-        end_var = stack_class->get_member(*z3_expr);
-    } else {
-        P4C_UNIMPLEMENTED("Member type not implemented.");
-    }
     // Finally, the member structure may also have slices attached to it.
     if (!member_struct.end_slices.empty()) {
         for (auto sl = member_struct.end_slices.rbegin();

@@ -42,24 +42,18 @@ struct Z3Slice {
     z3::expr lo;
 };
 
+inline std::ostream &operator<<(std::ostream &out,
+                                const TOZ3::Z3Slice &z3_slice) {
+    out << "[" << z3_slice.hi << ":" << z3_slice.lo << "]";
+    return out;
+}
+
 // Some static type definitions we can exploit when generating Z3 expressions
 static const IR::Type_Boolean BOOL_TYPE{};
 static const IR::Type_String STRING_TYPE{};
 static const IR::Type_Void VOID_TYPE{};
 static const IR::Type_InfInt INT_TYPE{};
 static const IR::Type_Bits P4_STD_BIT_TYPE{32, false};
-
-using NameOrIndex = boost::variant<cstring, z3::expr>;
-// These structures are used to cleanly resolve references for copy in and out
-struct MemberStruct {
-    cstring main_member = nullptr;
-    std::vector<NameOrIndex> mid_members;
-    NameOrIndex target_member = nullptr;
-    bool has_stack = false;
-    bool is_flat = false;
-    std::vector<Z3Slice> end_slices;
-};
-using CopyArgs = std::vector<std::pair<MemberStruct, cstring>>;
 
 struct ParamInfo {
     const IR::ParameterList params;
@@ -95,6 +89,41 @@ class P4Z3Node {
         return out << type.to_string();
     }
 };
+
+using NameOrIndex = boost::variant<cstring, z3::expr>;
+// These structures are used to cleanly resolve references for copy in and out
+class MemberStruct {
+ public:
+    cstring main_member = nullptr;
+    std::vector<NameOrIndex> mid_members;
+    NameOrIndex target_member = nullptr;
+    bool has_stack = false;
+    bool is_flat = false;
+    std::vector<Z3Slice> end_slices;
+
+    cstring to_string() const {
+        std::stringstream ret;
+        ret << *this;
+        return ret;
+    }
+    // TODO: Improve printing here.
+    friend inline std::ostream &
+    operator<<(std::ostream &out, const TOZ3::MemberStruct &member_struct) {
+        if (member_struct.main_member != nullptr) {
+            out << member_struct.main_member << ".";
+        }
+        for (const auto &mid_member : member_struct.mid_members) {
+            out << mid_member << ".";
+        }
+        out << member_struct.target_member;
+        for (const auto &end_slice : member_struct.end_slices) {
+            out << end_slice << ".";
+        }
+        return out;
+    }
+};
+
+using CopyArgs = std::vector<std::pair<MemberStruct, cstring>>;
 
 struct ParserError : public std::exception {
     const char *what() const noexcept override { return "Parserexception"; }
