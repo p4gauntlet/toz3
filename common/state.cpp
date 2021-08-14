@@ -432,7 +432,13 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(
             auto *instance = gen_instance(UNDEF_LABEL, resolved_type);
             merged_vec.insert({param->name.name, {instance, resolved_type}});
         } else {
-            auto *cast_val = arg_result->cast_allocate(resolved_type);
+            P4Z3Instance *cast_val = nullptr;
+            // If the type is don't care we just copy the input argument.
+            if (resolved_type->is<IR::Type_Dontcare>()) {
+                cast_val = arg_result->copy();
+            } else {
+                cast_val = arg_result->cast_allocate(resolved_type);
+            }
             merged_vec.insert({param->name.name, {cast_val, resolved_type}});
         }
     }
