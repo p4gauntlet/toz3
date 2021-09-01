@@ -70,9 +70,7 @@ class StructBase : public P4Z3Instance {
             get_static_type());
     }
 
-    virtual void update_member(cstring name, P4Z3Instance *val) {
-        members.at(name) = val;
-    }
+    virtual void update_member(cstring name, P4Z3Instance *val);
     void insert_member(cstring name, P4Z3Instance *val) {
         members.emplace(name, val);
     }

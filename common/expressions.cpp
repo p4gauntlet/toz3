@@ -239,8 +239,8 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
                 state->gen_instance(merged_param_name, param->type, 0);
             // TODO: Clean up, this should not be necessary
             if (auto *si = instance->to_mut<StructBase>()) {
-                si->bind();
                 si->propagate_validity();
+                si->bind();
             }
             // Sometimes the parameter does not exist because of optional
             if (state->find_var(param_name) != nullptr) {
@@ -251,8 +251,8 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
     auto *return_instance = state->gen_instance(method_name, method_type, 0);
     // TODO: Clean up, this should not be necessary
     if (auto *si = return_instance->to_mut<StructBase>()) {
-        si->bind();
         si->propagate_validity();
+        si->bind();
     }
     return return_instance;
 }

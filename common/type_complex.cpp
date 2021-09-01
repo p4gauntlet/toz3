@@ -129,14 +129,22 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
             if (z3_var->get_p4_type()->is<IR::Type_Boolean>()) {
                 extract_var = extract_var > 0;
             }
-            auto bind_bv = new Z3Bitvector(state, z3_var->get_p4_type(),
-                                           extract_var, z3_var->bv_is_signed());
+            auto *bind_bv =
+                new Z3Bitvector(state, z3_var->get_p4_type(), extract_var,
+                                z3_var->bv_is_signed());
             update_member(member_name, bind_bv);
             bit_idx -= var_width;
         } else {
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.",
                               member_var->get_static_type());
         }
+    }
+}
+void StructBase::update_member(cstring name, P4Z3Instance *val) {
+    // Assignments where we clearly know the header is invalid are invalid.
+    // TODO: Handle the case with ambiguous ite valid.
+    if (!valid.simplify().is_false()) {
+        members.at(name) = val;
     }
 }
 
@@ -270,6 +278,8 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type,
                                cstring name, uint64_t member_id)
     : StructInstance(state, type, name, member_id) {
     valid = state->get_z3_ctx()->bool_val(false);
+    // When we first instantiate a header, all its members need to be invalid.
+    propagate_validity(&valid);
     add_function("setValid0", [this](Visitor *visitor,
                                      const IR::Vector<IR::Argument> *args) {
         setValid(visitor, args);
@@ -337,6 +347,7 @@ void HeaderInstance::set_valid(const z3::expr &valid_val) {
         parent_union->update_validity(this, valid_val);
     }
 }
+
 const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
 void HeaderInstance::setValid(Visitor * /*visitor*/,
@@ -348,7 +359,7 @@ void HeaderInstance::setValid(Visitor * /*visitor*/,
 
 void HeaderInstance::setInvalid(Visitor * /*visitor*/,
                                 const IR::Vector<IR::Argument> * /*args*/) {
-    valid = state->get_z3_ctx()->bool_val(false);
+    set_valid(state->get_z3_ctx()->bool_val(false));
     propagate_validity(&valid);
     set_undefined();
     state->set_expr_result(new VoidResult());
@@ -360,12 +371,12 @@ void HeaderInstance::isValid(Visitor * /*visitor*/,
 }
 
 void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
-    if (valid_expr != nullptr) {
-        valid = *valid_expr;
-    } else {
+    if (valid_expr == nullptr) {
         cstring name = instance_name + "_valid";
-        valid = state->get_z3_ctx()->bool_const(name);
+        set_valid(state->get_z3_ctx()->bool_const(name));
         valid_expr = &valid;
+    } else {
+        set_valid(*valid_expr);
     }
     for (auto member_tuple : members) {
         auto *member = member_tuple.second;
@@ -383,14 +394,15 @@ void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &then_var) {
     const auto *then_struct = then_var.to<HeaderInstance>();
 
     BUG_CHECK(then_struct, "Unsupported merge class.");
-    StructBase::merge(cond, then_var);
     auto valid_merge = z3::ite(cond, *then_struct->get_valid(), valid);
     set_valid(valid_merge);
+    StructBase::merge(cond, then_var);
 }
+
 void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
-    StructBase::set_list(input_list);
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
+    StructBase::set_list(input_list);
 }
 
 void HeaderInstance::bind_to_union(HeaderUnionInstance *union_parent) {
