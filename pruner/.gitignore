@@ -177,5 +177,7 @@ example_programs/random/
 
 pruned/
 
+validated/
+
 # Sample config files
 *.json
