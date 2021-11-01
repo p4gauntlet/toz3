@@ -23,6 +23,7 @@ jobs:
         cd $GITHUB_WORKSPACE/../gauntlet/modules/p4c/build
         cmake ..
         make
+        sudo make install # Install the p4c compiler and the headers 
     - name: Test with pytest
       run: |
         cd $GITHUB_WORKSPACE/../gauntlet/modules/toz3/pruner
