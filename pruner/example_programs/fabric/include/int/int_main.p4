@@ -99,8 +99,8 @@ control process_int_main (
     inout standard_metadata_t standard_metadata) {
 
     apply {
-        if (standard_metadata.ingress_port != CPU_PORT &&
-            standard_metadata.egress_port != CPU_PORT &&
+        if (standard_metadata.ingress_port != 255 &&
+            standard_metadata.egress_port != 255 &&
             (hdr.udp.isValid() || hdr.tcp.isValid())) {
 #ifdef WITH_INT_SOURCE
             if (fabric_metadata.int_meta.source == _TRUE) {

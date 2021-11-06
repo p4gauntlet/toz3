@@ -40,7 +40,7 @@ control PacketIoEgress(inout parsed_headers_t hdr,
             // Transmit right away.
             exit;
         }
-        if (standard_metadata.egress_port == CPU_PORT) {
+        if (standard_metadata.egress_port == 255) {
             hdr.packet_in.setValid();
             hdr.packet_in.ingress_port = standard_metadata.ingress_port;
             // No need to process through the rest of the pipeline.

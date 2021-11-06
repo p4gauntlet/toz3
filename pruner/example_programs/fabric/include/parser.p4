@@ -28,7 +28,7 @@ parser FabricParser (packet_in packet,
 
     state start {
         transition select(standard_metadata.ingress_port) {
-            CPU_PORT: check_packet_out;
+            255: check_packet_out;
             default: parse_ethernet;
         }
     }
