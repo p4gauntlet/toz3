@@ -40,11 +40,7 @@ control PacketIoEgress(inout parsed_headers_t hdr,
             // Transmit right away.
             exit;
         }
-<<<<<<< refs/remotes/origin/master
         if (standard_metadata.egress_port == 255) {
-=======
-        if (standard_metadata.egress_port == CPU_PORT) {
->>>>>>> Add fabric.p4
             hdr.packet_in.setValid();
             hdr.packet_in.ingress_port = standard_metadata.ingress_port;
             // No need to process through the rest of the pipeline.

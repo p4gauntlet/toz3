@@ -41,11 +41,7 @@ control bng_ingress_upstream(
     // Punt to CPU for PPPeE control packets.
 
     action punt_to_cpu() {
-<<<<<<< refs/remotes/origin/master
         smeta.egress_spec = 255;
-=======
-        smeta.egress_spec = CPU_PORT;
->>>>>>> Add fabric.p4
         // Clean the multicast group, otherwise multicast decision
         //  will override the punting to CPU action
         smeta.mcast_grp = 0;

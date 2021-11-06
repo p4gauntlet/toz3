@@ -28,11 +28,7 @@ parser FabricParser (packet_in packet,
 
     state start {
         transition select(standard_metadata.ingress_port) {
-<<<<<<< refs/remotes/origin/master
             255: check_packet_out;
-=======
-            CPU_PORT: check_packet_out;
->>>>>>> Add fabric.p4
             default: parse_ethernet;
         }
     }
