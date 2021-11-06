@@ -35,7 +35,11 @@ control Acl (inout parsed_headers_t hdr,
 
     // Send immendiatelly to CPU - skip the rest of ingress.
     action punt_to_cpu() {
+<<<<<<< refs/remotes/origin/master
         standard_metadata.egress_spec = 255;
+=======
+        standard_metadata.egress_spec = CPU_PORT;
+>>>>>>> Add fabric.p4
         fabric_md.skip_next = _TRUE;
         acl_counter.count();
     }
