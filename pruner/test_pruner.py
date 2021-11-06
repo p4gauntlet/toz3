@@ -31,13 +31,13 @@ VALIDATION_DIR = REFERENCE_DIR.joinpath("validation")
 P4C_BIN = TEST_DIR.joinpath(
     "broken_p4c/24895c1b28a35352f1d9ad1f43878c4f7061d3ab")
 
-VALIDATION_BIN = FILE_DIR.parent.parent.joinpath(
+VALIDATION_BIN = FILE_DIR.parent.parent.parent.joinpath(
     "bin").joinpath("validate_p4_translation")
 
 CHECK_PROG_BIN = TEST_DIR.joinpath("check_prog.py")
 
-PRUNER_BIN = FILE_DIR.parent.joinpath('p4c').joinpath('build').joinpath(
-    'extensions').joinpath('pruner').joinpath('p4pruner')
+PRUNER_BIN = FILE_DIR.parent.parent.joinpath('p4c').joinpath('build').joinpath(
+    'extensions').joinpath('toz3').joinpath('pruner').joinpath('p4pruner')
 
 
 def exec_process(cmd, *args, silent=False, **kwargs):

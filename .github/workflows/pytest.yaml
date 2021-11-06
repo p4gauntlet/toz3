@@ -14,16 +14,17 @@ jobs:
         git clone https://github.com/p4gauntlet/gauntlet $GITHUB_WORKSPACE/../gauntlet
         cd $GITHUB_WORKSPACE/../gauntlet
         ./do_install.sh RUN_CI=ON
-    - name: Refresh Pruner
+    - name: Refresh toz3
       run: |
-        rm -rf $GITHUB_WORKSPACE/../gauntlet/modules/pruner
-        mkdir $GITHUB_WORKSPACE/../gauntlet/modules/pruner
-        mv $GITHUB_WORKSPACE/* $GITHUB_WORKSPACE/../gauntlet/modules/pruner
-        ln -sf $GITHUB_WORKSPACE/../gauntlet/modules/pruner $GITHUB_WORKSPACE/../gauntlet/modules/p4c/extensions/pruner
+        rm -rf $GITHUB_WORKSPACE/../gauntlet/modules/toz3
+        mkdir $GITHUB_WORKSPACE/../gauntlet/modules/toz3
+        mv $GITHUB_WORKSPACE/* $GITHUB_WORKSPACE/../gauntlet/modules/toz3
+        ln -sf $GITHUB_WORKSPACE/../gauntlet/modules/toz3 $GITHUB_WORKSPACE/../gauntlet/modules/p4c/extensions/toz3
         cd $GITHUB_WORKSPACE/../gauntlet/modules/p4c/build
         cmake ..
         make
+        sudo make install # Install the p4c compiler and the headers 
     - name: Test with pytest
       run: |
-        cd $GITHUB_WORKSPACE/../gauntlet/modules/pruner
+        cd $GITHUB_WORKSPACE/../gauntlet/modules/toz3/pruner
         python3 -m pytest test_pruner.py  -vrf

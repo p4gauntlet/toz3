@@ -102,7 +102,7 @@ control ingress(inout Headers h) {
     }
     action naNRp(inout bit<64> fyaf, out bit<32> OEEJ, bit<128> KZqQ) {
         bool oDBhFM = true;
-        h.aTcs[max((bit<3>)TFhEvSU({ h.vTHH[9].TeIY, 4w10 }, h.AMIB.LfLO, { 8w10, 4w10 }), 3w2)].src_addr = h.eth_hdr.src_addr;
+        h.aTcs[max((bit<3>)TFhEvSU((Mdpvgb){TeIY = h.vTHH[9].TeIY,LfLO = 4w10}, h.AMIB.LfLO, { 8w10, 4w10 }), 3w2)].src_addr = h.eth_hdr.src_addr;
         const bool XneKsi = false;
     }
     action TtncC(inout bit<4> ClFo, bit<8> xLMh) {
