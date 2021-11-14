@@ -126,7 +126,6 @@ ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
         exit_info.err_msg = cstring("");
 
     } else {
-        INFO("Trying get_crash_exit_info now");
         exit_info = get_crash_exit_info(name, pruner_conf);
     }
     return exit_info;
@@ -262,13 +261,21 @@ int check_pruned_program(const IR::P4Program **orig_program,
         INFO("File has not changed. Skipping analysis.");
         return EXIT_SUCCESS;
     }
-    int exit_code = get_exit_info(out_file, pruner_conf).exit_code;
+    ExitInfo exit_info = get_exit_info(out_file, pruner_conf);
+    int exit_code = exit_info.exit_code;
     // if got the right exit code, then modify the original program, if not
     // then choose a smaller bank of statements to remove now.
     if (exit_code != pruner_conf.exit_code) {
         INFO("FAILED");
         return EXIT_FAILURE;
     } else {
+        // When checking crash bugs, there must be the string Compiler Bug in the 
+        // output (the exit code can remain the same if there is another error)
+        if(pruner_conf.err_type == ErrorType::CrashBug && exit_info.err_msg.find("Compiler Bug") == NULL){
+            // INFO("Compiler bug no longer present");
+            INFO("FAILED");
+            return EXIT_FAILURE;
+        }
         INFO("PASSED: Reduced by " << measure_pct(*orig_program, pruned_program)
                                    << " %")
         *orig_program = pruned_program;
