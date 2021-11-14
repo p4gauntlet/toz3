@@ -22,6 +22,8 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
     if (typeMap->isLeftValue(expr)) {
         return s;
     }
+    // not handling NewType or structs for now 
+    if(type->is<IR::Type_Newtype>() || type->is<IR::Type_Struct>()) return s;
     int bits = type->width_bits();
 
     auto decision = get_rnd_pct();
@@ -34,6 +36,7 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
 
 const IR::P4Program *apply_replace(const IR::P4Program *program,
                                    P4PRUNER::PrunerConfig pruner_conf) {
+
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
     const IR::P4Program *temp;
@@ -42,7 +45,7 @@ const IR::P4Program *apply_replace(const IR::P4Program *program,
                               new P4::TypeInference(&refMap, &typeMap, false)});
 
     temp = program->apply(pass_manager);
-
+    emit_p4_program(temp, "before_replace_vars.p4");
     P4PRUNER::ReplaceVariables *replacer =
         new P4PRUNER::ReplaceVariables(&refMap, &typeMap);
     temp = temp->apply(*replacer);
