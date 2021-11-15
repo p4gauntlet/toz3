@@ -269,9 +269,11 @@ int check_pruned_program(const IR::P4Program **orig_program,
         INFO("FAILED");
         return EXIT_FAILURE;
     } else {
-        // When checking crash bugs, there must be the string Compiler Bug in the 
+        // When checking crash bugs,
+        // there must be the string Compiler Bug in the
         // output (the exit code can remain the same if there is another error)
-        if(pruner_conf.err_type == ErrorType::CrashBug && exit_info.err_msg.find("Compiler Bug") == NULL){
+        if (pruner_conf.err_type == ErrorType::CrashBug &&
+            exit_info.err_msg.find("Compiler Bug") == NULL) {
             // INFO("Compiler bug no longer present");
             INFO("FAILED");
             return EXIT_FAILURE;

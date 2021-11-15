@@ -68,8 +68,7 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
                                       uint64_t prog_size) {
     int same_before_pruning = 0;
     int result;
-    // int max_statements = prog_size / SIZE_BANK_RATIO;
-    int max_statements = 10;
+    int max_statements = prog_size / SIZE_BANK_RATIO;
 
     INFO("\nPruning statements");
     for (int i = 0; i < PRUNE_ITERS; i++) {
@@ -77,7 +76,7 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
         auto temp = program;
         std::vector<const IR::Statement *> to_prune =
             collect_statements(temp, max_statements);
-        
+
 
         temp = remove_statements(temp, to_prune);
         result = check_pruned_program(&program, temp, pruner_conf);

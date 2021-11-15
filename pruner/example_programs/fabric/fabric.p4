@@ -47,51 +47,10 @@
 #endif // WITH_INT
 
 
-//////////////////
-
-#include <pna.p4>
-
-typedef bit<48>  EthernetAddress;
-
-
-
-struct headers_t {
-    ethernet_t ethernet;
-    ipv4_t ipv4;
-}
-
-struct main_metadata_t {
-   PortId_t dst_port;
-}
-
-bool RxPkt (inout ipv4_t istd) {
-    return istd.total_len == 0;
-}
-
-bool TxPkt (inout ipv4_t istd) {
-    return istd.total_len == 1;
-}
-
-bool pass_1st (inout ipv4_t istd) {
-    return istd.total_len == 1;
-}
-
-bool pass_2nd (inout ipv4_t istd) {
-    return istd.total_len == 0;
-}
 
 bit<16> test_func (inout ipv4_t istd){
     return istd.total_len;
 }
-
-
-
-////////////////
-
-
-
-
-
 
 
 control FabricIngress (inout parsed_headers_t hdr,
@@ -115,8 +74,22 @@ control FabricIngress (inout parsed_headers_t hdr,
 #ifdef WITH_SPGW
     SpgwIngress() spgw;
 #endif // WITH_SPGW
-/*
+
+    table clb_pinned_flows {
+        key = {
+         //  SelectByDirection(1, hdr.ipv4.dstAddr, hdr.ipv4.srcAddr): exact @name("ipv4_addr_1") ;
+            test_func(hdr.inner_ipv4): exact @name("ipv4_addr_1");
+        }
+        actions = {
+            NoAction();
+        }
+        const default_action = NoAction();
+    }
+
+
+
     apply {
+
         _PRE_INGRESS
         lkp_md_init.apply(hdr, fabric_metadata.lkp);
         pkt_io_ingress.apply(hdr, fabric_metadata, standard_metadata);
@@ -149,29 +122,13 @@ control FabricIngress (inout parsed_headers_t hdr,
         bng_ingress.apply(hdr, fabric_metadata, standard_metadata);
 #endif // WITH_BNG
         qos.apply(fabric_metadata, standard_metadata);
-    }
-*/
 
-    table clb_pinned_flows {
-        key = {
-         //  SelectByDirection(1, hdr.ipv4.dstAddr, hdr.ipv4.srcAddr): exact @name("ipv4_addr_1") ;
-            test_func(hdr.inner_ipv4): exact @name("ipv4_addr_1");
-        }
-        actions = {
-            NoAction();
-        }
-        const default_action = NoAction();
-    }
-
-    apply {
-        if (TxPkt(hdr.inner_ipv4) && pass_1st(hdr.inner_ipv4)) {
+        // Here is the bug
             clb_pinned_flows.apply();
-        } else if (TxPkt(hdr.inner_ipv4) && pass_2nd(hdr.inner_ipv4)) {
             clb_pinned_flows.apply();
-        }
     
-
     }
+
 }
 
 control FabricEgress (inout parsed_headers_t hdr,

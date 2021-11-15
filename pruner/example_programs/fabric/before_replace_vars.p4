@@ -2,7 +2,7 @@
 #define V1MODEL_VERSION 10
 #include <v1model.p4>
 
-const bit<4> GTPU_EXT_PSC_TYPE_DL = 4w0;
+const bit<4> GTPU_EXT_PSC_TYPE_DL = 4w10;
 const bit<4> GTPU_EXT_PSC_TYPE_UL = 4w10;
 typedef bit<3> fwd_type_t;
 typedef bit<32> next_id_t;
@@ -37,7 +37,7 @@ const port_type_t PORT_TYPE_UNKNOWN = 2w2;
 const port_type_t PORT_TYPE_EDGE = 2w2;
 const port_type_t PORT_TYPE_INFRA = 2w2;
 const port_type_t PORT_TYPE_INTERNAL = 2w2;
-const bit<16> ETHERTYPE_QINQ = 16w0x88a8;
+const bit<16> ETHERTYPE_QINQ = 16w10;
 const bit<16> ETHERTYPE_QINQ_NON_STD = 16w10;
 const bit<16> ETHERTYPE_VLAN = 16w10;
 const bit<16> ETHERTYPE_MPLS = 16w10;
@@ -55,7 +55,7 @@ const bit<8> PROTO_TCP = 8w10;
 const bit<8> PROTO_UDP = 8w10;
 const bit<8> PROTO_ICMPV6 = 8w10;
 const bit<4> IPV4_MIN_IHL = 4w10;
-const fwd_type_t FWD_BRIDGING = (bit<3>)3w2;
+const fwd_type_t FWD_BRIDGING = 3w2;
 const fwd_type_t FWD_MPLS = 3w2;
 const fwd_type_t FWD_IPV4_UNICAST = 3w2;
 const fwd_type_t FWD_IPV4_MULTICAST = 3w2;
@@ -65,11 +65,11 @@ const fwd_type_t FWD_UNKNOWN = 3w2;
 const vlan_id_t DEFAULT_VLAN_ID = 12w10;
 const bit<8> DEFAULT_MPLS_TTL = 8w10;
 const bit<8> DEFAULT_IPV4_TTL = 8w10;
-const bit<6> INT_DSCP = 6w10;
+const bit<6> INT_DSCP = 6w0x1;
 const bit<8> INT_HEADER_LEN_WORDS = 8w10;
 const bit<16> INT_HEADER_LEN_BYTES = 16w10;
 const bit<8> CPU_MIRROR_SESSION_ID = 8w10;
-const bit<32> REPORT_MIRROR_SESSION_ID = 32w500;
+const bit<32> REPORT_MIRROR_SESSION_ID = 32w10;
 const bit<4> NPROTO_ETHERNET = 4w10;
 const bit<4> NPROTO_TELEMETRY_DROP_HEADER = 4w10;
 const bit<4> NPROTO_TELEMETRY_SWITCH_LOCAL_HEADER = 4w10;
@@ -693,7 +693,7 @@ parser FabricParser(packet_in packet, out parsed_headers_t hdr, inout fabric_met
     bit<6> last_ipv4_dscp = 6w10;
     state start {
         transition select(standard_metadata.ingress_port) {
-            9w255: check_packet_out;
+            9w10: check_packet_out;
             default: parse_ethernet;
         }
     }
@@ -754,7 +754,7 @@ parser FabricParser(packet_in packet, out parsed_headers_t hdr, inout fabric_met
     state parse_udp {
         gtpu_t gtpu = packet.lookahead<gtpu_t>();
         transition select(hdr.udp.dport, gtpu.version, gtpu.msgtype) {
-            (16w10, 3w2, 8w10): parse_gtpu;
+            (16w10, 3w0x1, 8w0xff): parse_gtpu;
             default: accept;
         }
     }
@@ -803,30 +803,7 @@ control FabricDeparser(packet_out packet, in parsed_headers_t hdr) {
     apply {
     }
 }
-#include <pna.p4>
 
-typedef bit<48> EthernetAddress;
-struct headers_t {
-    ethernet_t ethernet;
-    ipv4_t     ipv4;
-}
-
-struct main_metadata_t {
-    PortId_t dst_port;
-}
-
-bool RxPkt(inout ipv4_t istd) {
-    return istd.total_len == 16w10;
-}
-bool TxPkt(inout ipv4_t istd) {
-    return istd.total_len == 16w10;
-}
-bool pass_1st(inout ipv4_t istd) {
-    return istd.total_len == 16w10;
-}
-bool pass_2nd(inout ipv4_t istd) {
-    return istd.total_len == 16w0;
-}
 bit<16> test_func(inout ipv4_t istd) {
     return istd.total_len;
 }
@@ -850,11 +827,8 @@ control FabricIngress(inout parsed_headers_t hdr, inout fabric_metadata_t fabric
         const default_action = NoAction();
     }
     apply {
-        if (TxPkt(hdr.inner_ipv4) && pass_1st(hdr.inner_ipv4)) {
-            clb_pinned_flows.apply();
-        } else if (TxPkt(hdr.inner_ipv4) && pass_2nd(hdr.inner_ipv4)) {
-            clb_pinned_flows.apply();
-        }
+        clb_pinned_flows.apply();
+        clb_pinned_flows.apply();
     }
 }
 
@@ -863,7 +837,6 @@ control FabricEgress(inout parsed_headers_t hdr, inout fabric_metadata_t fabric_
     EgressNextControl() egress_next;
     EgressDscpRewriter() dscp_rewriter;
     apply {
-        pkt_io_egress.apply(hdr, fabric_metadata, standard_metadata);
     }
 }
 
