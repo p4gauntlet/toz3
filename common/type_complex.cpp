@@ -514,13 +514,14 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     auto *base_hdr = state->gen_instance(UNDEF_LABEL, elem_type);
     // Sometimes the index bitvector is so small, it does not exceed the header
     // size. So we have to make sure max_idx is computed correctly.
+    auto size = get_int_size();
     auto bv_size = val.get_sort().bv_size();
-    size_t max = (1 << bv_size);
-    auto max_idx = std::min<size_t>(max, int_size);
-    for (size_t idx = 0; idx < max_idx; ++idx) {
-        cstring member_name = std::to_string(idx);
+    big_int max = (big_int(1) << bv_size);
+    auto max_idx = std::min<big_int>(max, size);
+    for (big_int idx = 0; idx < max_idx; ++idx) {
+        auto member_name = Util::toString(idx, 0, false);
         const auto *hdr = get_member(member_name);
-        auto z3_int = state->get_z3_ctx()->num_val(idx, val.get_sort());
+        auto z3_int = state->get_z3_ctx()->bv_val(member_name, bv_size);
         base_hdr->merge(val == z3_int, *hdr);
     }
     return base_hdr;
@@ -942,8 +943,10 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
             }
         }
         for (auto idx = 0; idx <= num_optional_params; ++idx) {
-            // The IR has bizarre side effects when storing pointers in a map
-            // FIXME: Think about how to simplify this, maybe use their vector
+            // The IR has bizarre side effects when storing pointers in a
+            // map
+            // FIXME: Think about how to simplify this, maybe use their
+            // vector
             cstring name = overloaded_name + std::to_string(num_params + idx);
             methods.insert({name, method});
         }

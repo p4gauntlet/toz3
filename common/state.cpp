@@ -157,13 +157,15 @@ get_hdr_pairs(P4State *state, const MemberStruct &member_struct) {
                     // Skip anything where the idx is larger then the container
                     auto size = stack_class->get_int_size();
                     auto bv_size = expr->get_sort().bv_size();
-                    int64_t max = (1 << bv_size);
-                    auto max_idx = std::min<int64_t>(max, size);
-                    for (int64_t idx = 0; idx < max_idx; ++idx) {
-                        auto z3_val = state->get_z3_ctx()->bv_val(idx, bv_size);
+                    big_int max = (big_int(1) << bv_size);
+                    auto max_idx = std::min<big_int>(max, size);
+                    for (big_int idx = 0; idx < max_idx; ++idx) {
+                        auto member_name = Util::toString(idx, 0, false);
+                        auto z3_val =
+                            state->get_z3_ctx()->bv_val(member_name, bv_size);
                         tmp_parent_pairs.emplace_back(
                             parent_cond && *expr == z3_val,
-                            parent_class->get_member(std::to_string(idx)));
+                            parent_class->get_member(member_name));
                     }
                 }
             }
@@ -214,15 +216,16 @@ void set_stack(P4State *state, const MemberStruct &member_struct,
                 // Skip anything where the idx is larger then the container
                 auto size = stack_class->get_int_size();
                 auto bv_size = expr->get_sort().bv_size();
-                int64_t max = (1 << bv_size) - 1;
-                auto max_idx = std::min<int64_t>(max, size);
-                for (int64_t idx = 0; idx < max_idx; ++idx) {
-                    cstring member_name = std::to_string(idx);
+                big_int max = (big_int(1) << bv_size);
+                auto max_idx = std::min<big_int>(max, size);
+                for (big_int idx = 0; idx < max_idx; ++idx) {
+                    auto member_name = Util::toString(idx, 0, false);
                     auto *orig_val = complex_class->get_member(member_name);
                     const auto *dest_type =
                         complex_class->get_member_type(member_name);
                     auto *cast_val = rval->cast_allocate(dest_type);
-                    auto z3_val = state->get_z3_ctx()->bv_val(idx, bv_size);
+                    auto z3_val =
+                        state->get_z3_ctx()->bv_val(member_name, bv_size);
                     cast_val->merge(!(parent_cond && *expr == z3_val),
                                     *orig_val);
                     complex_class->update_member(member_name, cast_val);
