@@ -263,26 +263,19 @@ int check_pruned_program(const IR::P4Program **orig_program,
     }
     ExitInfo exit_info = get_exit_info(out_file, pruner_conf);
     int exit_code = exit_info.exit_code;
-    // if got the right exit code, then modify the original program, if not
+    ErrorType err_type = classify_bug(exit_info);
+    // if got the right exit code and the right error type
+    // then modify the original program, if not
     // then choose a smaller bank of statements to remove now.
-    if (exit_code != pruner_conf.exit_code) {
+    if (exit_code != pruner_conf.exit_code ||
+        err_type != pruner_conf.err_type) {
         INFO("FAILED");
         return EXIT_FAILURE;
-    } else {
-        // When checking crash bugs,
-        // there must be the string Compiler Bug in the
-        // output (the exit code can remain the same if there is another error)
-        if (pruner_conf.err_type == ErrorType::CrashBug &&
-            exit_info.err_msg.find("Compiler Bug") == NULL) {
-            // INFO("Compiler bug no longer present");
-            INFO("FAILED");
-            return EXIT_FAILURE;
-        }
-        INFO("PASSED: Reduced by " << measure_pct(*orig_program, pruned_program)
-                                   << " %")
-        *orig_program = pruned_program;
-        return EXIT_SUCCESS;
     }
-}
 
+    INFO("PASSED: Reduced by " << measure_pct(*orig_program, pruned_program)
+                               << " %")
+    *orig_program = pruned_program;
+    return EXIT_SUCCESS;
+}
 }  // namespace P4PRUNER

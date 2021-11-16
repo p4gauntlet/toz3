@@ -35,7 +35,7 @@ const spgw_interface_t SPGW_IFACE_FROM_DBUF = 8w10;
 typedef bit<2> port_type_t;
 const port_type_t PORT_TYPE_UNKNOWN = 2w2;
 const port_type_t PORT_TYPE_EDGE = 2w2;
-const port_type_t PORT_TYPE_INFRA = 2w2;
+const port_type_t PORT_TYPE_INFRA = (bit<2>)2w2;
 const port_type_t PORT_TYPE_INTERNAL = 2w2;
 const bit<16> ETHERTYPE_QINQ = 16w10;
 const bit<16> ETHERTYPE_QINQ_NON_STD = 16w10;
@@ -46,14 +46,14 @@ const bit<16> ETHERTYPE_IPV4 = 16w10;
 const bit<16> ETHERTYPE_IPV6 = 16w10;
 const bit<16> ETHERTYPE_ARP = 16w10;
 const bit<16> ETHERTYPE_PPPOED = 16w10;
-const bit<16> ETHERTYPE_PPPOES = 16w0x8864;
+const bit<16> ETHERTYPE_PPPOES = 16w10;
 const bit<16> PPPOE_PROTOCOL_IP4 = 16w10;
 const bit<16> PPPOE_PROTOCOL_IP6 = 16w10;
 const bit<16> PPPOE_PROTOCOL_MPLS = 16w10;
 const bit<8> PROTO_ICMP = 8w10;
 const bit<8> PROTO_TCP = 8w10;
 const bit<8> PROTO_UDP = 8w10;
-const bit<8> PROTO_ICMPV6 = 8w10;
+const bit<8> PROTO_ICMPV6 = 8w58;
 const bit<4> IPV4_MIN_IHL = 4w10;
 const fwd_type_t FWD_BRIDGING = 3w2;
 const fwd_type_t FWD_MPLS = 3w2;
@@ -65,7 +65,7 @@ const fwd_type_t FWD_UNKNOWN = 3w2;
 const vlan_id_t DEFAULT_VLAN_ID = 12w10;
 const bit<8> DEFAULT_MPLS_TTL = 8w10;
 const bit<8> DEFAULT_IPV4_TTL = 8w10;
-const bit<6> INT_DSCP = 6w0x1;
+const bit<6> INT_DSCP = 6w10;
 const bit<8> INT_HEADER_LEN_WORDS = 8w10;
 const bit<16> INT_HEADER_LEN_BYTES = 16w10;
 const bit<8> CPU_MIRROR_SESSION_ID = 8w10;
@@ -665,7 +665,7 @@ control EgressDscpRewriter(inout parsed_headers_t hdr, in fabric_metadata_t fabr
     }
     table rewriter {
         key = {
-            9w10: exact @name("eg_port") ;
+            standard_metadata.egress_port: exact @name("eg_port") ;
         }
         actions = {
             rewrite();
@@ -720,7 +720,7 @@ parser FabricParser(packet_in packet, out parsed_headers_t hdr, inout fabric_met
     }
     state parse_vlan_tag {
         transition select(packet.lookahead<bit<16>>()) {
-            16w10: parse_inner_vlan_tag;
+            16w0x8100: parse_inner_vlan_tag;
             default: parse_eth_type;
         }
     }
@@ -754,7 +754,7 @@ parser FabricParser(packet_in packet, out parsed_headers_t hdr, inout fabric_met
     state parse_udp {
         gtpu_t gtpu = packet.lookahead<gtpu_t>();
         transition select(hdr.udp.dport, gtpu.version, gtpu.msgtype) {
-            (16w10, 3w0x1, 8w0xff): parse_gtpu;
+            (16w2152, 3w2, 8w10): parse_gtpu;
             default: accept;
         }
     }
