@@ -46,7 +46,6 @@ const IR::P4Program *apply_replace(const IR::P4Program *program,
                               new P4::TypeInference(&refMap, &typeMap, false)});
 
     temp = program->apply(pass_manager);
-    emit_p4_program(temp, "before_replace_vars.p4");
     P4PRUNER::ReplaceVariables *replacer =
         new P4PRUNER::ReplaceVariables(&refMap, &typeMap);
     temp = temp->apply(*replacer);
