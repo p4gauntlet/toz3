@@ -21,6 +21,19 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
     return s;
 }
 
+const IR::Node *Pruner::preorder(IR::IfStatement *s) {
+    // If ifTrue is only one statement try to replace it with the two 
+    // branches
+    if (!s->ifTrue->is<IR::BlockStatement>()) {
+        IR::IndexedVector<IR::StatOrDecl> vec;
+        vec.push_back(s->ifTrue);
+        vec.push_back(s->ifFalse);
+        return new IR::BlockStatement(vec);
+    }
+    return nullptr;
+}
+
+
 const IR::Node *Pruner::preorder(IR::ReturnStatement *s) {
     // do not prune return statements
     return s;
@@ -70,6 +83,7 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
     int result;
     int max_statements = prog_size / SIZE_BANK_RATIO;
 
+
     INFO("\nPruning statements");
     for (int i = 0; i < PRUNE_ITERS; i++) {
         INFO("Trying with  " << max_statements << " statements");
@@ -86,6 +100,10 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
         } else {
             // successful run, reset short-circuit
             same_before_pruning = 0;
+            cstring out_name = "statement_";
+            out_name += i + 48;
+            out_name += ".p4";
+            emit_p4_program(program, out_name);
             max_statements += AIMD_INCREASE;
         }
         if (same_before_pruning >= NO_CHNG_ITERS) {
