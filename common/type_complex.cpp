@@ -496,9 +496,23 @@ const IR::Type *StackInstance::get_member_type(cstring /*name*/) const {
 }
 
 void StackInstance::update_member(cstring name, P4Z3Instance *val) {
-    if (name == "size" || name == "nextIndex" || name == "lastIndex" ||
-        name == "next") {
+    if (name == "size") {
+        // TODO: What does this mean?
         return;
+    }
+    if (name == "nextIndex") {
+        // TODO: What does this mean?
+        return;
+    }
+    if (name == "lastIndex") {
+        // TODO: What does this mean?
+        return;
+    }
+    if (name == "next") {
+        name  = nextIndex.get_val()->to_string();
+    }
+    if (name == "last") {
+        name  = lastIndex.get_val()->to_string();
     }
     members.at(name) = val;
 }
