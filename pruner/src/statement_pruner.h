@@ -19,7 +19,6 @@ class Pruner : public Transform {
     const IR::Node *preorder(IR::ReturnStatement *s);
     const IR::Node *preorder(IR::BlockStatement *s);
     const IR::Node *preorder(IR::IfStatement *s);
-
 };
 
 class Collector : public Inspector {
