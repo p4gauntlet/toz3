@@ -22,8 +22,8 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
 }
 
 const IR::Node *Pruner::preorder(IR::IfStatement *s) {
-    // If ifTrue is only one statement try to replace it with the two 
-    // branches
+    // If ifTrue is only one statement, try to replace
+    // it with the two branches
     if (!s->ifTrue->is<IR::BlockStatement>()) {
         IR::IndexedVector<IR::StatOrDecl> vec;
         vec.push_back(s->ifTrue);
@@ -100,10 +100,6 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
         } else {
             // successful run, reset short-circuit
             same_before_pruning = 0;
-            cstring out_name = "statement_";
-            out_name += i + 48;
-            out_name += ".p4";
-            emit_p4_program(program, out_name);
             max_statements += AIMD_INCREASE;
         }
         if (same_before_pruning >= NO_CHNG_ITERS) {
