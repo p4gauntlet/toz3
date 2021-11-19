@@ -35,6 +35,11 @@ const IR::Node *pick_side_shift_left(IR::Operation_Binary *s) {
     }
 }
 
+const IR::Node *ExpressionPruner::postorder(IR::SelectExpression *s) {
+    // Reduce the select expression to the first state in this list
+    return s->selectCases.front()->state;
+}
+
 const IR::Node *ExpressionPruner::postorder(IR::Add *s) {
     return pick_side_binary(s);
 }

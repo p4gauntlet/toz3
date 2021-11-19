@@ -32,9 +32,11 @@ class ExpressionPruner : public Transform {
     const IR::Node *postorder(IR::Shl *expr);
     const IR::Node *postorder(IR::Shr *expr);
 
+    // Trying to implement select
+    const IR::Node *postorder(IR::SelectExpression *expr);
+
     // To be Implemented -----------
 
-    // const IR::Node *postorder(const IR::Mask *m);
     // const IR::Node *postorder(const IR::Range *r);
     // const IR::Node *postorder(const IR::Cast *c);
     // const IR::Node *postorder(const IR::Concat *c);
