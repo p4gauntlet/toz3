@@ -22,7 +22,7 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
 }
 
 const IR::Node *Pruner::preorder(IR::IfStatement *s) {
-    // If ifTrue is only one statement, 
+    // If ifTrue is only one statement,
     // prune only the else part
     if (!s->ifTrue->is<IR::BlockStatement>()) {
         IR::IndexedVector<IR::StatOrDecl> vec;
