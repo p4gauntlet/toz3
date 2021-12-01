@@ -22,12 +22,11 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
 }
 
 const IR::Node *Pruner::preorder(IR::IfStatement *s) {
-    // If ifTrue is only one statement, try to replace
-    // it with the two branches
+    // If ifTrue is only one statement, 
+    // prune only the else part
     if (!s->ifTrue->is<IR::BlockStatement>()) {
         IR::IndexedVector<IR::StatOrDecl> vec;
         vec.push_back(s->ifTrue);
-        vec.push_back(s->ifFalse);
         return new IR::BlockStatement(vec);
     }
     return nullptr;
