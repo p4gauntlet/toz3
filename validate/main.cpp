@@ -9,7 +9,7 @@
 namespace fs = boost::filesystem;
 
 static const auto FILE_DIR = fs::path(__FILE__).parent_path();
-static const auto COMPILER_BIN = FILE_DIR / "../../p4c/build/p4test";
+static const auto COMPILER_BIN = FILE_DIR / "../../../../p4c/build/p4test";
 static const auto DUMP_DIR = fs::path("validated");
 
 static constexpr auto PASSES = "--top4 FrontEnd,MidEnd,PassManager ";
@@ -112,6 +112,7 @@ int main(int argc, char *const argv[]) {
     auto compiler_bin = options.compiler_bin != nullptr
                             ? fs::path(options.compiler_bin)
                             : COMPILER_BIN;
+    TOZ3::Logger::log_msg(0, "Using the compiler binary %s.", compiler_bin);
 
     return validate_translation(p4_file, dump_dir, compiler_bin, &options);
 }
