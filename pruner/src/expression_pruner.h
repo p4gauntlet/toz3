@@ -58,6 +58,6 @@ class ExpressionPruner : public Transform {
 const IR::P4Program *prune_expressions(const IR::P4Program *program,
                                        P4PRUNER::PrunerConfig pruner_conf);
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 
 #endif /* _EXPRESSION_PRUNER_H */

@@ -121,8 +121,8 @@ run_arch_block(Z3Visitor *visitor, const IR::ConstructorCallExpression *cce,
             auto *var = state->gen_instance(instance_name, par_type);
             if (param->direction != IR::Direction::Out) {
                 if (auto *z3_var = var->to_mut<StructBase>()) {
-                    z3_var->propagate_validity();
-                    z3_var->bind();
+                    z3_var->propagate_validity(nullptr);
+                    z3_var->bind(nullptr, 0);
                 }
             }
             state->declare_var(param->name.name, var, par_type);

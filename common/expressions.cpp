@@ -239,8 +239,8 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
                 state->gen_instance(merged_param_name, param->type, 0);
             // TODO: Clean up, this should not be necessary
             if (auto *si = instance->to_mut<StructBase>()) {
-                si->propagate_validity();
-                si->bind();
+                si->propagate_validity(nullptr);
+                si->bind(nullptr, 0);
             }
             // Sometimes the parameter does not exist because of optional
             if (state->find_var(param_name) != nullptr) {
@@ -251,8 +251,8 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
     auto *return_instance = state->gen_instance(method_name, method_type, 0);
     // TODO: Clean up, this should not be necessary
     if (auto *si = return_instance->to_mut<StructBase>()) {
-        si->propagate_validity();
-        si->bind();
+        si->propagate_validity(nullptr);
+        si->bind(nullptr, 0);
     }
     return return_instance;
 }
@@ -347,7 +347,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         type_params = p->getTypeParameters();
     } else if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
         // TODO: How to cleanly resolve this?
-        params = new IR::ParameterList();
+        // params = new IR::ParameterList();
         // const auto *ext_const = ext->lookupConstructor(arguments);
         auto *ext_instance = state->gen_instance(UNDEF_LABEL, ext);
         state->set_expr_result(ext_instance);

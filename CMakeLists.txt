@@ -60,6 +60,36 @@ set (TOZ3V2_VALIDATE_HDRS
 find_package (Boost REQUIRED COMPONENTS filesystem)
 find_package (Boost REQUIRED COMPONENTS system)
 
+
+# Enable clang-tidy to force consistent code style across the project.
+# See also: https://gitlab.kitware.com/cmake/cmake/-/issues/18926
+option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy with the compiler." OFF)
+
+if(CMAKE_RUN_CLANG_TIDY)
+  message(STATUS "Enabling clang-tidy checks.")
+  message(STATUS "Exporting compile commands for clang-tidy.")
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+  if(CMake_SOURCE_DIR STREQUAL CMake_BINARY_DIR)
+    message(FATAL_ERROR "CMAKE_RUN_CLANG_TIDY requires an out-of-source build!")
+  endif()
+  set(CLANG_TIDY_COMMAND "${PROJECT_SOURCE_DIR}/scripts/tools/clang-tidy")
+  execute_process(COMMAND ${CLANG_TIDY_COMMAND} --version
+                    OUTPUT_VARIABLE clang_tidy_ver)
+  message(STATUS "clang-tidy: ${clang_tidy_ver}")
+  set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
+  # Create a preprocessor definition that depends on .clang-tidy content so
+  # the compile command will change when .clang-tidy changes.  This ensures
+  # that a subsequent build re-runs clang-tidy on all sources even if they
+  # do not otherwise need to be recompiled.  Nothing actually uses this
+  # definition.  We add it to targets on which we run clang-tidy just to
+  # get the build dependency on the .clang-tidy file.
+  file(SHA1 ${CMAKE_CURRENT_LIST_DIR}/.clang-tidy clang_tidy_sha1)
+  set(CLANG_TIDY_DEFINITIONS "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
+  set(ENABLE_UNIFIED_COMPILATION OFF CACHE BOOL "Merge source files to speed up compilation" FORCE)
+  unset(clang_tidy_sha1)
+endif()
+
+
 build_unified(TOZ3V2_COMMON_SRCS)
 add_library(p4toz3lib ${TOZ3V2_COMMON_SRCS})
 # add the Z3 includes
@@ -78,8 +108,6 @@ build_unified(TOZ3V2_COMPARE_SRCS)
 add_executable(p4compare ${TOZ3V2_COMPARE_SRCS})
 target_link_libraries (p4compare p4toz3lib)
 install(TARGETS p4compare RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
-
-
 
 build_unified(TOZ3V2_VALIDATE_SRCS)
 add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})

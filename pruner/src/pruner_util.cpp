@@ -3,8 +3,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
-
-#include <boost/random.hpp>
+#include <utility>
 
 #include "counter.h"
 #include "frontends/p4/toP4/toP4.h"
@@ -12,45 +11,42 @@
 
 namespace P4PRUNER {
 
-static boost::random::mt19937 rng;
+static boost::random::mt19937 rng;  // NOLINT
 
-void set_seed(int64_t seed) { rng = boost::mt19937(seed); }
+void PrunerRandomGen::set_seed(int64_t seed) { rng = boost::mt19937(seed); }
 
-int64_t get_rnd_int(int64_t min, int64_t max) {
+int64_t PrunerRandomGen::get_rnd_int(int64_t min, int64_t max) {
     boost::random::uniform_int_distribution<int64_t> distribution(min, max);
     return distribution(rng);
 }
 
-double get_rnd_pct() {
+double PrunerRandomGen::get_rnd_pct() {
     boost::random::uniform_real_distribution<double> distribution(0.0, 1.0);
     return distribution(rng);
 }
 
 bool file_exists(cstring file_path) {
-    struct stat buffer;
+    struct stat buffer {};
     INFO("Checking if " << file_path << " exists.");
-    if (stat(file_path, &buffer) != 0) {
-        return false;
-    }
-    return true;
+    return stat(file_path, &buffer) == 0;
 }
 
 void create_dir(cstring folder_path) {
-    int ret;
+    int ret = 0;
     cstring cmd = "mkdir -p ";
     cmd += folder_path;
     ret = system(cmd);
-    if (ret) {
+    if (ret != 0) {
         ::warning("Creating folder %s failed.", folder_path);
     }
 }
 
 void remove_file(cstring file_path) {
-    int ret;
+    int ret = 0;
     cstring cmd = "rm -rf ";
     cmd += file_path;
     ret = system(cmd);
-    if (ret) {
+    if (ret != 0) {
         ::warning("Removing file or folder %s failed.", file_path);
     }
 }
@@ -61,14 +57,15 @@ cstring get_file_stem(cstring file_path) {
 
     const char *pos = stripped_name.findlast('/');
     // check if there even is a parent directory
-    if (!pos) {
+    if (pos == nullptr) {
         return stripped_name;
     }
-    size_t idx = (size_t)(pos - stripped_name);
-    if (idx != std::string::npos)
+    auto idx = static_cast<size_t>(pos - stripped_name);
+    if (idx != std::string::npos) {
         file_stem = stripped_name.substr(idx + 1);
-    else
+    } else {
         file_stem = stripped_name;
+    }
 
     return file_stem;
 }
@@ -79,14 +76,15 @@ cstring get_parent(cstring file_path) {
 
     const char *pos = stripped_name.findlast('/');
     // check if there even is a parent directory
-    if (!pos) {
+    if (pos == nullptr) {
         return stripped_name;
     }
-    size_t idx = (size_t)(pos - stripped_name);
-    if (idx != std::string::npos)
+    auto idx = static_cast<size_t>(pos - stripped_name);
+    if (idx != std::string::npos) {
         file_stem = stripped_name.substr(0, idx);
-    else
+    } else {
         file_stem = "";
+    }
 
     return file_stem;
 }
@@ -95,11 +93,11 @@ cstring remove_extension(cstring file_path) {
     // find the last dot
     const char *last_dot = file_path.findlast('.');
     // there is no dot in this string, just return the full name
-    if (not last_dot) {
+    if (last_dot == nullptr) {
         return file_path;
     }
     // otherwise get the index, remove the dot
-    size_t idx = (size_t)(last_dot - file_path);
+    auto idx = static_cast<size_t>(last_dot - file_path);
     return file_path.substr(0, idx);
 }
 
@@ -131,6 +129,25 @@ ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
     return exit_info;
 }
 
+std::pair<int, cstring> exec(cstring cmd) {
+    std::array<char, 1000> buffer{};
+    std::string output;
+    auto *pipe = popen(cmd, "r");  // get rid of shared_ptr
+
+    if (pipe == nullptr) {
+        throw std::runtime_error("popen() failed!");
+    }
+
+    while (feof(pipe) == 0) {
+        if (fgets(buffer.data(), 128, pipe) != nullptr) {
+            output += buffer.data();
+        }
+    }
+
+    auto err_code = pclose(pipe);
+    return {err_code, output};
+}
+
 ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
     // The crash bugs variant of get_exit_code
     ExitInfo exit_info;
@@ -142,39 +159,9 @@ ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
     // Apparently popen doesn't like stderr hence redirecting stderr to
     // stdout
     command += " 2>&1";
-    // set the include path to the right directory
-    char buffer[1000];
-    cstring result = "";
-    FILE *pipe = popen(command, "r");
-    bool done = false;
-    char *saveptr = NULL;
-    int newlines = 0;
-    try {
-        while (fgets(buffer, sizeof buffer, pipe) != NULL && !done) {
-            for (int i = 0; i < 1000; i++) {
-                if (buffer[i] == '\n') {
-                    newlines++;
-                    break;
-                    if (newlines > 1) {
-                        // ignoring the first line
-                        strtok_r(buffer, "\n", &saveptr);
-                        result += strtok_r(NULL, "\n", &saveptr);
-
-                        done = true;
-                        break;
-                    }
-                }
-            }
-
-            result += buffer;
-        }
-    } catch (...) {
-        pclose(pipe);
-        throw;
-    }
-    auto exit_code = pclose(pipe);
-    exit_info.exit_code = WEXITSTATUS(exit_code);
-    exit_info.err_msg = result;
+    auto result = exec(command);
+    exit_info.exit_code = WEXITSTATUS(result.first);
+    exit_info.err_msg = result.second;
     return exit_info;
 }
 
@@ -183,61 +170,62 @@ ErrorType classify_bug(ExitInfo exit_info) {
 
     if (exit_code == EXIT_TEST_VALIDATION) {
         return ErrorType::SemanticBug;
-    } else if (exit_code == EXIT_TEST_SUCCESS) {
-        return ErrorType::Success;
-    } else if (exit_code == EXIT_TEST_UNDEFINED) {
-        return ErrorType::Undefined;
-    } else {
-        cstring comp = exit_info.err_msg.find("Compiler Bug");
-
-        if (!comp.isNullOrEmpty()) {
-            INFO("Crash bug");
-            return ErrorType::CrashBug;
-        }
-        cstring err_msg = exit_info.err_msg.find("error");
-
-        if (!err_msg.isNullOrEmpty()) {
-            return ErrorType::Error;
-        }
-        return ErrorType::Unknown;
     }
+    if (exit_code == EXIT_TEST_SUCCESS) {
+        return ErrorType::Success;
+    }
+    if (exit_code == EXIT_TEST_UNDEFINED) {
+        return ErrorType::Undefined;
+    }
+    cstring comp = exit_info.err_msg.find("Compiler Bug");
+
+    if (!comp.isNullOrEmpty()) {
+        INFO("Crash bug");
+        return ErrorType::CrashBug;
+    }
+    cstring err_msg = exit_info.err_msg.find("error");
+
+    if (!err_msg.isNullOrEmpty()) {
+        return ErrorType::Error;
+    }
+    return ErrorType::Unknown;
 }
 
 void emit_p4_program(const IR::P4Program *program, cstring prog_name) {
-    auto temp_f = new std::ofstream(prog_name);
-    P4::ToP4 *temp_p4 = new P4::ToP4(temp_f, false);
+    auto *temp_f = new std::ofstream(prog_name);
+    auto *temp_p4 = new P4::ToP4(temp_f, false);
     program->apply(*temp_p4);
     temp_f->close();
 }
 
 void print_p4_program(const IR::P4Program *program) {
-    P4::ToP4 *print_p4 = new P4::ToP4(&std::cout, false);
+    auto *print_p4 = new P4::ToP4(&std::cout, false);
     program->apply(*print_p4);
 }
 
 bool compare_files(const IR::P4Program *prog_before,
                    const IR::P4Program *prog_after) {
-    auto before_stream = new std::stringstream;
-    auto after_stream = new std::stringstream;
+    auto *before_stream = new std::stringstream;
+    auto *after_stream = new std::stringstream;
 
-    P4::ToP4 *before = new P4::ToP4(before_stream, false);
+    auto *before = new P4::ToP4(before_stream, false);
     prog_before->apply(*before);
 
-    P4::ToP4 *after = new P4::ToP4(after_stream, false);
+    auto *after = new P4::ToP4(after_stream, false);
     prog_after->apply(*after);
 
     return before_stream->str() == after_stream->str();
 }
 
 double measure_size(const IR::P4Program *prog) {
-    auto prog_stream = new std::stringstream;
-    P4::ToP4 *toP4 = new P4::ToP4(prog_stream, false);
+    auto *prog_stream = new std::stringstream;
+    auto *toP4 = new P4::ToP4(prog_stream, false);
     prog->apply(*toP4);
     return prog_stream->str().length();
 }
 
 uint64_t count_statements(const IR::P4Program *prog) {
-    Counter *counter = new Counter();
+    auto *counter = new Counter();
     prog->apply(*counter);
     return counter->statements;
 }

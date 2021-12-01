@@ -12,19 +12,19 @@ class BoolExpressionPruner : public Transform {
  public:
     BoolExpressionPruner() { visitDagOnce = true; }
 
-    const IR::Node *postorder(IR::LAnd *);
-    const IR::Node *postorder(IR::Neq *);
-    const IR::Node *postorder(IR::Lss *);
-    const IR::Node *postorder(IR::Leq *);
-    const IR::Node *postorder(IR::Grt *);
-    const IR::Node *postorder(IR::Geq *);
-    const IR::Node *postorder(IR::LOr *);
-    const IR::Node *postorder(IR::Equ *);
+    const IR::Node *postorder(IR::LAnd *expr) override;
+    const IR::Node *postorder(IR::Neq *expr) override;
+    const IR::Node *postorder(IR::Lss *expr) override;
+    const IR::Node *postorder(IR::Leq *expr) override;
+    const IR::Node *postorder(IR::Grt *expr) override;
+    const IR::Node *postorder(IR::Geq *expr) override;
+    const IR::Node *postorder(IR::LOr *expr) override;
+    const IR::Node *postorder(IR::Equ *expr) override;
 };
 
 const IR::P4Program *prune_bool_expressions(const IR::P4Program *program,
                                             P4PRUNER::PrunerConfig pruner_conf);
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 
 #endif /* _BOOLEAN_PASS_H */

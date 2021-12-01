@@ -23,7 +23,6 @@ set (P4PRUNER_HDRS
     src/counter.h
     )
 
-
 # extensions are unpleasant with unified builds
 build_unified(P4PRUNER_SRCS)
 

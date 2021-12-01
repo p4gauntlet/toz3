@@ -5,7 +5,7 @@ namespace P4PRUNER {
 PrunerOptions::PrunerOptions() {
     registerOption(
         "--dry-run", nullptr,
-        [this](const char *) {
+        [this](const char * /*arg*/) {
             dry_run = true;
             return true;
         },
@@ -40,7 +40,7 @@ PrunerOptions::PrunerOptions() {
         "Where to place ephemeral files.");
     registerOption(
         "--print-pruned", nullptr,
-        [this](const char *) {
+        [this](const char * /*arg*/) {
             print_pruned = true;
             return true;
         },
@@ -71,4 +71,4 @@ PrunerOptions::PrunerOptions() {
         "bug");
 }
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER

@@ -19,10 +19,10 @@ class PruneUnused : public P4::RemoveUnusedDeclarations {
         CHECK_NULL(refMap);
         setName("PruneUnused");
     }
-    const IR::Node *preorder(IR::Type_StructLike *type) override;
-    const IR::Node *preorder(IR::Type_Extern *type) override;
-    const IR::Node *preorder(IR::Method *type) override;
-    const IR::Node *preorder(IR::Function *type) override;
+    const IR::Node *preorder(IR::Type_StructLike *ts) override;
+    const IR::Node *preorder(IR::Type_Extern *te) override;
+    const IR::Node *preorder(IR::Method *m) override;
+    const IR::Node *preorder(IR::Function *f) override;
 };
 
 class ExtendedUnusedDeclarations : public PassManager {
@@ -35,6 +35,6 @@ class ExtendedUnusedDeclarations : public PassManager {
     }
 };
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 
 #endif /* _PRUNE_UNUSED_H_ */

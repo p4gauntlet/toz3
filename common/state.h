@@ -114,7 +114,7 @@ class P4State {
     VarMap get_vars() const;
     VarMap clone_vars() const;
     void restore_vars(const VarMap &input_map);
-    void merge_vars(const z3::expr &cond, const VarMap &other);
+    void merge_vars(const z3::expr &cond, const VarMap &then_map) const;
     z3::expr get_exit_cond() const { return exit_cond; }
     void set_exit_cond(const z3::expr &forward_cond) {
         exit_cond = forward_cond;
@@ -202,7 +202,7 @@ class P4State {
     void set_var(const MemberStruct &member_struct, P4Z3Instance *rval);
 
     /****** DECLARATIONS ******/
-    void declare_static_decl(cstring name, P4Declaration *val);
+    void declare_static_decl(cstring name, P4Declaration *decl);
     const P4Declaration *get_static_decl(cstring name) const;
     P4Declaration *find_static_decl(cstring name) const;
     template <typename T> const T *get_static_decl(cstring name) const {

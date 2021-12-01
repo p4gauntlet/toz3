@@ -16,7 +16,7 @@ const IR::P4Program *apply_generic_passes(const IR::P4Program *program,
                                           bool *applied) {
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
-    const IR::P4Program *temp;
+    const IR::P4Program *temp = nullptr;
 
     PassManager pass_manager({new P4::CreateBuiltins(),
                               new P4::ResolveReferences(&refMap, true),
@@ -46,7 +46,7 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
                                         P4PRUNER::PrunerConfig pruner_conf) {
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
-    const IR::P4Program *temp;
+    const IR::P4Program *temp = nullptr;
 
     PassManager pass_manager({new ExtendedUnusedDeclarations(&refMap)});
 
@@ -82,4 +82,4 @@ const IR::P4Program *apply_compiler_passes(const IR::P4Program *program,
     return program;
 }
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER

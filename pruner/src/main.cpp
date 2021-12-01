@@ -26,9 +26,9 @@ const IR::P4Program *prune(const IR::P4Program *program,
     return program;
 }
 
-void process_seed(P4PRUNER::PrunerOptions options) {
-    uint64_t seed;
-    if (options.seed) {
+void process_seed(const P4PRUNER::PrunerOptions &options) {
+    uint64_t seed = 0;
+    if (options.seed != nullptr) {
         std::cerr << "Using provided seed.\n";
         try {
             seed = boost::lexical_cast<uint64_t>(options.seed);
@@ -43,13 +43,12 @@ void process_seed(P4PRUNER::PrunerOptions options) {
         seed = r();
     }
     std::cerr << "Seed:" << seed << "\n";
-    P4PRUNER::set_seed(seed);
+    P4PRUNER::PrunerRandomGen::set_seed(seed);
 }
 
-P4PRUNER::PrunerConfig get_config_from_json(cstring json_path,
-                                            cstring working_dir,
-                                            cstring input_file,
-                                            P4PRUNER::PrunerOptions options) {
+P4PRUNER::PrunerConfig
+get_config_from_json(cstring json_path, cstring working_dir, cstring input_file,
+                     const P4PRUNER::PrunerOptions &options) {
     if (!P4PRUNER::file_exists(json_path)) {
         ::error("Config file %s does not exist! Exiting.", json_path);
         exit(EXIT_FAILURE);
@@ -83,7 +82,8 @@ P4PRUNER::PrunerConfig get_config_from_json(cstring json_path,
     return pruner_conf;
 }
 
-P4PRUNER::PrunerConfig get_conf_from_script(P4PRUNER::PrunerOptions options) {
+P4PRUNER::PrunerConfig
+get_conf_from_script(const P4PRUNER::PrunerOptions &options) {
     INFO("Grabbing config by using the validation script.");
     if (!P4PRUNER::file_exists(options.validation_bin)) {
         ::error("Path to validator binary %s invalid! Exiting.",
@@ -129,7 +129,8 @@ P4PRUNER::PrunerConfig get_conf_from_script(P4PRUNER::PrunerOptions options) {
                                 options);
 }
 
-P4PRUNER::PrunerConfig get_conf_from_compiler(P4PRUNER::PrunerOptions options) {
+P4PRUNER::PrunerConfig
+get_conf_from_compiler(const P4PRUNER::PrunerOptions &options) {
     INFO("Grabbing config by using the compiler binary.");
     if (!P4PRUNER::file_exists(options.compiler_bin)) {
         ::error("Path to compiler binary %s invalid! Exiting.",
@@ -165,12 +166,13 @@ int main(int argc, char *const argv[]) {
     AutoCompileContext autoP4toZ3Context(new P4PRUNER::P4PrunerContext);
     auto &options = P4PRUNER::P4PrunerContext::get().options();
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
-    const IR::P4Program *program;
+    const IR::P4Program *program = nullptr;
     if (options.process(argc, argv) != nullptr) {
         options.setInputFile();
     }
-    if (::errorCount() > 0)
+    if (::errorCount() > 0) {
         exit(EXIT_FAILURE);
+    }
 
     if (options.file == nullptr) {
         options.usage();
@@ -189,7 +191,8 @@ int main(int argc, char *const argv[]) {
         ::error("Please provide a valid bug type or a config file");
         options.usage();
         return EXIT_FAILURE;
-    } else if (options.bug_type == "CRASH") {
+    }
+    if (options.bug_type == "CRASH") {
         INFO("Ignoring validation bin for crash bug");
         options.validation_bin = nullptr;
         error_type = P4PRUNER::ErrorType::CrashBug;
@@ -202,11 +205,12 @@ int main(int argc, char *const argv[]) {
     }
 
     P4PRUNER::PrunerConfig pruner_conf;
-    if (options.config_file) {
+    if (options.config_file != nullptr) {
         pruner_conf = get_config_from_json(
             options.config_file, options.working_dir, options.file, options);
     } else if (error_type == P4PRUNER::ErrorType::SemanticBug) {
-        if (!(options.validation_bin && options.compiler_bin)) {
+        if (!(options.validation_bin != nullptr &&
+              options.compiler_bin != nullptr)) {
             ::error("Need to provide both a validation binary and a compiler "
                     "binary to prune a validation bug");
             options.usage();
@@ -218,7 +222,7 @@ int main(int argc, char *const argv[]) {
         pruner_conf = get_conf_from_script(options);
 
     } else if (error_type == P4PRUNER::ErrorType::CrashBug) {
-        if (!options.compiler_bin) {
+        if (options.compiler_bin == nullptr) {
             ::error("Need to provide a compiler binary to prune a crash bug");
             options.usage();
             return EXIT_FAILURE;
@@ -246,7 +250,7 @@ int main(int argc, char *const argv[]) {
     program = P4::parseP4File(options);
 
     if (program != nullptr && ::errorCount() == 0) {
-        auto original = program;
+        const auto *original = program;
         double prog_size = P4PRUNER::count_statements(original);
         INFO("Size of the program :" << prog_size << " statements");
 
@@ -264,5 +268,5 @@ int main(int argc, char *const argv[]) {
     INFO("Done. Removing ephemeral working directory.");
     // need to wait a little because of race conditions
     P4PRUNER::remove_file(pruner_conf.working_dir);
-    return ::errorCount() > 0;
+    return static_cast<int>(::errorCount() > 0);
 }

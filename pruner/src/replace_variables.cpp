@@ -16,8 +16,8 @@ const IR::Node *ReplaceVariables::postorder(IR::MethodCallExpression *s) {
     return s;
 }
 const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
-    auto expr = getOriginal<IR::Expression>();
-    auto type = typeMap->getType(expr, true);
+    const auto *expr = getOriginal<IR::Expression>();
+    const auto *type = typeMap->getType(expr, true);
 
     if (typeMap->isLeftValue(expr)) {
         return s;
@@ -28,19 +28,19 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
     }
     int bits = type->width_bits();
 
-    auto decision = get_rnd_pct();
+    auto decision = PrunerRandomGen::get_rnd_pct();
     if (decision < 0.5 && type->is<IR::Type_Bits>()) {
-        auto new_elt = new IR::Constant(new IR::Type_Bits(bits, false), 10);
+        auto *new_elt = new IR::Constant(new IR::Type_Bits(bits, false), 10);
         return new_elt;
     }
     return s;
 }
 
 const IR::P4Program *apply_replace(const IR::P4Program *program,
-                                   P4PRUNER::PrunerConfig pruner_conf) {
+                                   P4PRUNER::PrunerConfig /*pruner_conf*/) {
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
-    const IR::P4Program *temp;
+    const IR::P4Program *temp = nullptr;
 
     PassManager pass_manager({new P4::ResolveReferences(&refMap, true),
                               new P4::TypeInference(&refMap, &typeMap, false)});
@@ -55,14 +55,14 @@ const IR::P4Program *apply_replace(const IR::P4Program *program,
 const IR::P4Program *replace_variables(const IR::P4Program *program,
                                        P4PRUNER::PrunerConfig pruner_conf) {
     int same_before_pruning = 0;
-    int result;
+    int result = 0;
     auto prev_action = P4CContext::get().getDefaultWarningDiagnosticAction();
     auto action = DiagnosticAction::Ignore;
     P4CContext::get().setDefaultWarningDiagnosticAction(action);
 
     INFO("Replacing variables with literals");
     for (int i = 0; i < 5; i++) {
-        auto temp = program;
+        const auto *temp = program;
 
         temp = apply_replace(temp, pruner_conf);
 
@@ -85,4 +85,4 @@ const IR::P4Program *replace_variables(const IR::P4Program *program,
     return program;
 }
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
