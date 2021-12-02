@@ -88,6 +88,16 @@ if(CMAKE_RUN_CLANG_TIDY)
   unset(clang_tidy_sha1)
 endif()
 
+if(NOT CMAKE_RUN_CLANG_TIDY)
+  message("Running unified build")
+  # Only build unified if CMAKE_RUN_CLANG_TIDY is not enabled.
+  # clang-tidy does not work well with unified compilation
+  build_unified(TOZ3V2_COMMON_SRCS)
+  build_unified(TOZ3V2_INTERPRET_SRCS)
+  build_unified(TOZ3V2_COMPARE_SRCS)
+  build_unified(TOZ3V2_VALIDATE_SRCS)
+endif()
+
 add_library(p4toz3lib ${TOZ3V2_COMMON_SRCS})
 # add the Z3 includes
 target_include_directories(p4toz3lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3)
@@ -108,14 +118,6 @@ add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})
 target_link_libraries (p4validate p4toz3lib -lboost_system -lboost_filesystem)
 install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
-if(NOT CMAKE_RUN_CLANG_TIDY)
-  # Only build unified if CMAKE_RUN_CLANG_TIDY is not enable.
- # clang-tidy does not work well with unified compilation
-  build_unified(TOZ3V2_COMMON_SRCS)
-  build_unified(TOZ3V2_INTERPRET_SRCS)
-  build_unified(TOZ3V2_COMPARE_SRCS)
-  build_unified(TOZ3V2_VALIDATE_SRCS)
-endif()
 
 add_custom_target(linkp4toz3
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/p4toz3 ${P4C_BINARY_DIR}/p4toz3
