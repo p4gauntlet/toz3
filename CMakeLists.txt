@@ -85,12 +85,9 @@ if(CMAKE_RUN_CLANG_TIDY)
   # get the build dependency on the .clang-tidy file.
   file(SHA1 ${CMAKE_CURRENT_LIST_DIR}/.clang-tidy clang_tidy_sha1)
   set(CLANG_TIDY_DEFINITIONS "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
-  set(ENABLE_UNIFIED_COMPILATION OFF CACHE BOOL "Merge source files to speed up compilation" FORCE)
   unset(clang_tidy_sha1)
 endif()
 
-
-build_unified(TOZ3V2_COMMON_SRCS)
 add_library(p4toz3lib ${TOZ3V2_COMMON_SRCS})
 # add the Z3 includes
 target_include_directories(p4toz3lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3)
@@ -99,20 +96,26 @@ target_link_libraries (p4toz3lib ${P4C_LIBRARIES} ${P4C_LIB_DEPS}
 add_dependencies(p4toz3lib genIR frontend)
 
 
-build_unified(TOZ3V2_INTERPRET_SRCS)
 add_executable(p4toz3 ${TOZ3V2_INTERPRET_SRCS})
 target_link_libraries (p4toz3 p4toz3lib)
 install(TARGETS p4toz3 RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
-build_unified(TOZ3V2_COMPARE_SRCS)
 add_executable(p4compare ${TOZ3V2_COMPARE_SRCS})
 target_link_libraries (p4compare p4toz3lib)
 install(TARGETS p4compare RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
-build_unified(TOZ3V2_VALIDATE_SRCS)
 add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})
 target_link_libraries (p4validate p4toz3lib -lboost_system -lboost_filesystem)
 install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
+
+if(NOT CMAKE_RUN_CLANG_TIDY)
+  # Only build unified if CMAKE_RUN_CLANG_TIDY is not enable.
+ # clang-tidy does not work well with unified compilation
+  build_unified(TOZ3V2_COMMON_SRCS)
+  build_unified(TOZ3V2_INTERPRET_SRCS)
+  build_unified(TOZ3V2_COMPARE_SRCS)
+  build_unified(TOZ3V2_VALIDATE_SRCS)
+endif()
 
 add_custom_target(linkp4toz3
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/p4toz3 ${P4C_BINARY_DIR}/p4toz3
