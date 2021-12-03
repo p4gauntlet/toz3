@@ -22,12 +22,20 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
 }
 
 const IR::Node *Pruner::preorder(IR::IfStatement *s) {
-    // If ifTrue is only one statement,
-    // prune only the else part
-    if (!s->ifTrue->is<IR::BlockStatement>()) {
-        IR::IndexedVector<IR::StatOrDecl> vec;
-        vec.push_back(s->ifTrue);
-        return new IR::BlockStatement(vec);
+    IR::IndexedVector<IR::StatOrDecl> vec;
+    bool decision = get_rnd_pct();
+    // Either we prune the whole statement
+    // or keep one branch
+    if (decision <= 0.5) {
+        if (decision <= 0.25) {
+            // delete the then part and swap it with the else part
+            if (s->ifFalse == NULL) return nullptr; // there is no else part
+            s->ifTrue = s->ifFalse;
+            s->ifFalse = NULL;
+        } else {
+            // delete the else part
+            return s->ifTrue;
+        }
     }
     return nullptr;
 }
