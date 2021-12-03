@@ -34,8 +34,9 @@ const IR::Node *Pruner::preorder(IR::IfStatement *s) {
             s->ifFalse = NULL;
         } else {
             // delete the else part
-            return s->ifTrue;
+            s->ifFalse = NULL;
         }
+        return s;
     }
     return nullptr;
 }
