@@ -78,8 +78,8 @@ class StructBase : public P4Z3Instance {
         return &members;
     }
     void set_undefined() override;
-    virtual void propagate_validity(const z3::expr *valid_expr = nullptr);
-    virtual void bind(const z3::expr *bind_var = nullptr, uint64_t offset = 0);
+    virtual void propagate_validity(const z3::expr *valid_expr);
+    virtual void bind(const z3::expr *bind_var, uint64_t offset);
     virtual void set_list(std::vector<P4Z3Instance *>);
 
     // copy constructor
@@ -100,8 +100,7 @@ class StructInstance : public StructBase {
                    cstring name, uint64_t member_id);
     StructInstance *copy() const override;
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "",
-                const z3::expr *valid_expr = nullptr) const override;
+    get_z3_vars(cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "StructInstance"; }
     cstring to_string() const override {
         cstring ret = "StructInstance(";
@@ -139,7 +138,7 @@ class HeaderInstance : public StructInstance, public FunctionClass {
     void setValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
     void setInvalid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
     void isValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
-    void propagate_validity(const z3::expr *valid_expr = nullptr) override;
+    void propagate_validity(const z3::expr *valid_expr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     void set_list(std::vector<P4Z3Instance *> input_list) override;
     void bind_to_union(HeaderUnionInstance *union_parent);
@@ -193,8 +192,7 @@ class StackInstance : public IndexableInstance, public FunctionClass {
     const IR::Type *get_member_type(cstring name) const override;
     void update_member(cstring name, P4Z3Instance *val) override;
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "",
-                const z3::expr *valid_expr = nullptr) const override;
+    get_z3_vars(cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "StackInstance"; }
     cstring to_string() const override {
         cstring ret = "StackInstance(";
@@ -246,8 +244,7 @@ class HeaderUnionInstance : public StructBase, public FunctionClass {
                                  uint64_t member_id);
 
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "",
-                const z3::expr *valid_expr = nullptr) const override;
+    get_z3_vars(cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "HeaderUnionInstance"; }
     cstring to_string() const override {
         cstring ret = "HeaderUnionInstance(";
@@ -282,8 +279,7 @@ class EnumBase : public StructBase, public ValContainer {
     EnumBase(P4State *state, const IR::Type *type, cstring name,
              uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring prefix = "",
-                const z3::expr *valid_expr = nullptr) const override;
+    get_z3_vars(cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "EnumBase"; }
     cstring to_string() const override {
         cstring ret = "EnumBase(";
@@ -300,7 +296,7 @@ class EnumBase : public StructBase, public ValContainer {
     }
     void set_undefined() override;
     void add_enum_member(cstring error_name);
-    void bind(const z3::expr *bind_var = nullptr, uint64_t offset = 0) override;
+    void bind(const z3::expr *bind_var, uint64_t offset) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;

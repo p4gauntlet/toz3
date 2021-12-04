@@ -1,0 +1,25 @@
+name: build
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build toz3 with P4C
+      run: |
+        git clone https://github.com/p4lang/p4c $GITHUB_WORKSPACE/../p4c
+        cd $GITHUB_WORKSPACE/../p4c
+        git submodule update --init --recursive
+        cd $GITHUB_WORKSPACE
+        ./do_install.sh
+        mkdir -p $GITHUB_WORKSPACE/../p4c/extensions/
+        cp -r $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+        ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+        mkdir $GITHUB_WORKSPACE/../p4c/build
+        cd $GITHUB_WORKSPACE/../p4c/build
+        cmake .. -DCMAKE_RUN_CLANG_TIDY=ON
+        make  -j2

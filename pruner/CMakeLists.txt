@@ -23,9 +23,11 @@ set (P4PRUNER_HDRS
     src/counter.h
     )
 
-
-# extensions are unpleasant with unified builds
-build_unified(P4PRUNER_SRCS)
+if(NOT CMAKE_RUN_CLANG_TIDY)
+  # Only build unified if CMAKE_RUN_CLANG_TIDY is not enable.
+ # clang-tidy does not work well with unified compilation
+  build_unified(P4PRUNER_SRCS)
+endif()
 
 add_executable(p4pruner ${P4PRUNER_SRCS})
 target_link_libraries (p4pruner ${P4C_LIBRARIES} ${P4C_LIB_DEPS})

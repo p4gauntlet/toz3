@@ -26,6 +26,6 @@ class PrunerOptions : public CompilerOptions {
 
 using P4PrunerContext = P4CContextWithOptions<PrunerOptions>;
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 
 #endif /* _P4PRUNER_OPTIONS_H_ */

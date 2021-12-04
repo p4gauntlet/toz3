@@ -38,7 +38,7 @@ class Logger {
             return;
         }
         boost::format f(msg);
-        std::initializer_list<char>{(static_cast<void>(f % args), char{})...};
+        std::initializer_list<char>{(static_cast<void>(f % args), char{})...}; // NOLINT
         LOGN(level, boost::str(f));
     }
 };

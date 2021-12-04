@@ -30,6 +30,6 @@ class ReplaceVariables : public Transform {
 const IR::P4Program *replace_variables(const IR::P4Program *program,
                                        P4PRUNER::PrunerConfig pruner_conf);
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 
 #endif /* _REPLACE_VARIABLES_H */

@@ -60,7 +60,44 @@ set (TOZ3V2_VALIDATE_HDRS
 find_package (Boost REQUIRED COMPONENTS filesystem)
 find_package (Boost REQUIRED COMPONENTS system)
 
-build_unified(TOZ3V2_COMMON_SRCS)
+
+# Enable clang-tidy to force consistent code style across the project.
+# See also: https://gitlab.kitware.com/cmake/cmake/-/issues/18926
+option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy with the compiler." OFF)
+
+if(CMAKE_RUN_CLANG_TIDY)
+  message(STATUS "Enabling clang-tidy checks.")
+  message(STATUS "Exporting compile commands for clang-tidy.")
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+  if(CMake_SOURCE_DIR STREQUAL CMake_BINARY_DIR)
+    message(FATAL_ERROR "CMAKE_RUN_CLANG_TIDY requires an out-of-source build!")
+  endif()
+  set(CLANG_TIDY_COMMAND "${PROJECT_SOURCE_DIR}/scripts/tools/clang-tidy")
+  execute_process(COMMAND ${CLANG_TIDY_COMMAND} --version
+                    OUTPUT_VARIABLE clang_tidy_ver)
+  message(STATUS "clang-tidy: ${clang_tidy_ver}")
+  set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
+  # Create a preprocessor definition that depends on .clang-tidy content so
+  # the compile command will change when .clang-tidy changes.  This ensures
+  # that a subsequent build re-runs clang-tidy on all sources even if they
+  # do not otherwise need to be recompiled.  Nothing actually uses this
+  # definition.  We add it to targets on which we run clang-tidy just to
+  # get the build dependency on the .clang-tidy file.
+  file(SHA1 ${CMAKE_CURRENT_LIST_DIR}/.clang-tidy clang_tidy_sha1)
+  set(CLANG_TIDY_DEFINITIONS "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
+  unset(clang_tidy_sha1)
+endif()
+
+if(NOT CMAKE_RUN_CLANG_TIDY)
+  message("Running unified build")
+  # Only build unified if CMAKE_RUN_CLANG_TIDY is not enabled.
+  # clang-tidy does not work well with unified compilation
+  build_unified(TOZ3V2_COMMON_SRCS)
+  build_unified(TOZ3V2_INTERPRET_SRCS)
+  build_unified(TOZ3V2_COMPARE_SRCS)
+  build_unified(TOZ3V2_VALIDATE_SRCS)
+endif()
+
 add_library(p4toz3lib ${TOZ3V2_COMMON_SRCS})
 # add the Z3 includes
 target_include_directories(p4toz3lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3)
@@ -69,22 +106,18 @@ target_link_libraries (p4toz3lib ${P4C_LIBRARIES} ${P4C_LIB_DEPS}
 add_dependencies(p4toz3lib genIR frontend)
 
 
-build_unified(TOZ3V2_INTERPRET_SRCS)
 add_executable(p4toz3 ${TOZ3V2_INTERPRET_SRCS})
 target_link_libraries (p4toz3 p4toz3lib)
 install(TARGETS p4toz3 RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
-build_unified(TOZ3V2_COMPARE_SRCS)
 add_executable(p4compare ${TOZ3V2_COMPARE_SRCS})
 target_link_libraries (p4compare p4toz3lib)
 install(TARGETS p4compare RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
-
-
-build_unified(TOZ3V2_VALIDATE_SRCS)
 add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})
 target_link_libraries (p4validate p4toz3lib -lboost_system -lboost_filesystem)
 install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
+
 
 add_custom_target(linkp4toz3
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/p4toz3 ${P4C_BINARY_DIR}/p4toz3

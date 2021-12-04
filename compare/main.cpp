@@ -10,8 +10,8 @@ std::vector<cstring> split_input_progs(cstring input_progs) {
     const char *pos = nullptr;
     cstring prog;
 
-    while ((pos = input_progs.find((size_t)',')) != nullptr) {
-        auto idx = (size_t)(pos - input_progs);
+    while ((pos = input_progs.find(static_cast<size_t>(','))) != nullptr) {
+        auto idx = static_cast<size_t>(pos - input_progs);
         prog = input_progs.substr(0, idx);
         prog_list.push_back(prog);
         input_progs = input_progs.substr(idx + 1);

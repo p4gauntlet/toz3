@@ -1,0 +1,42 @@
+---
+Checks:
+'clang-diagnostic-*,
+clang-analyzer-*,
+modernize-*,
+performance-*,
+readability-*,
+bugprone-*,
+cppcoreguidelines-*,
+boost-*,
+hicpp-*,
+misc-*,
+llvm-*,
+google-*,
+-modernize-use-trailing-return-type,
+-readability-function-cognitive-complexity,
+-cppcoreguidelines-owning-memory,
+-google-readability-todo,
+-misc-non-private-member-variables-in-classes,
+-readability-identifier-length,
+-cppcoreguidelines-owning-memory,
+-misc-no-recursion,
+-bugprone-narrowing-conversions,
+-cppcoreguidelines-narrowing-conversions,
+-clang-analyzer-cplusplus.NewDeleteLeaks,
+-readability-magic-numbers,
+-cppcoreguidelines-avoid-magic-numbers
+'
+# These checks will throw an error, if encountered.
+WarningsAsErrors:
+'clang-diagnostic-*,
+misc-*,
+llvm-*,
+google-*,
+modernize-*,
+clang-analyzer-*,
+cppcoreguidelines-*,
+readability-*,
+'
+HeaderFilterRegex: ''
+AnalyzeTemporaryDtors: false
+...

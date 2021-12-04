@@ -2,6 +2,7 @@
 #define _PRUNER_UTIL_H_
 
 #include "ir/ir.h"
+#include <boost/random.hpp>
 
 #include "pruner_options.h"
 
@@ -24,6 +25,14 @@
 
 namespace P4PRUNER {
 
+class PrunerRandomGen {
+ public:
+    static void set_seed(int64_t seed);
+
+    static int64_t get_rnd_int(int64_t min, int64_t max);
+    static double get_rnd_pct();
+};
+
 enum class ErrorType : uint32_t {
     SemanticBug = 0,
     CrashBug = 1,
@@ -34,13 +43,13 @@ enum class ErrorType : uint32_t {
 };
 
 struct ExitInfo {
-    int exit_code;
+    int exit_code = 0;
     cstring err_msg;
-    ExitInfo() : exit_code(0), err_msg(nullptr) {}
+    ExitInfo() : err_msg(nullptr) {}
 };
 
 struct PrunerConfig {
-    int exit_code;
+    int exit_code = 0;
     cstring validation_bin;
     cstring prog_before;
     cstring prog_post;
@@ -48,18 +57,13 @@ struct PrunerConfig {
     cstring working_dir;
     cstring out_file_name;
     cstring err_string;
-    bool allow_undef;
-    ErrorType err_type;
+    bool allow_undef = false;
+    ErrorType err_type = ErrorType::Unknown;
     PrunerConfig()
-        : exit_code(0), validation_bin(nullptr), prog_before{nullptr},
-          prog_post(nullptr), compiler(nullptr), working_dir(nullptr),
-          out_file_name(nullptr), err_string(nullptr), allow_undef(false),
-          err_type(ErrorType::Unknown) {}
+        : validation_bin(nullptr), prog_before{nullptr}, prog_post(nullptr),
+          compiler(nullptr), working_dir(nullptr), out_file_name(nullptr),
+          err_string(nullptr) {}
 };
-
-void set_seed(int64_t seed);
-int64_t get_rnd_int(int64_t min, int64_t max);
-double get_rnd_pct();
 
 bool file_exists(cstring file_path);
 void create_dir(cstring folder_path);
@@ -90,6 +94,6 @@ uint64_t count_statements(const IR::P4Program *prog);
 int check_pruned_program(const IR::P4Program **orig_program,
                          const IR::P4Program *pruned_program,
                          P4PRUNER::PrunerConfig pruner_conf);
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 
 #endif /* _PRUNER_UTIL_H_ */

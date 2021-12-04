@@ -21,7 +21,7 @@ StructBase
 ===============================================================================
 ***/
 StructBase::StructBase(P4State *state, const IR::Type *type, cstring name,
-                       uint64_t member_id)
+                       uint64_t /*member_id*/)
     : P4Z3Instance(type), state(state),
       valid(state->get_z3_ctx()->bool_val(true)), instance_name(name) {
     width = 0;
@@ -257,8 +257,7 @@ StructInstance::get_z3_vars(cstring prefix, const z3::expr *valid_expr) const {
     return z3_vars;
 }
 
-StructInstance::StructInstance(const StructInstance &other)
-    : StructBase(other) {}
+StructInstance::StructInstance(const StructInstance &other) = default;
 
 StructInstance &StructInstance::operator=(const StructInstance &other) {
     if (this == &other) {
@@ -278,8 +277,10 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type,
                                cstring name, uint64_t member_id)
     : StructInstance(state, type, name, member_id) {
     valid = state->get_z3_ctx()->bool_val(false);
+
     // When we first instantiate a header, all its members need to be invalid.
-    propagate_validity(&valid);
+    HeaderInstance::propagate_validity(&valid);
+
     add_function("setValid0", [this](Visitor *visitor,
                                      const IR::Vector<IR::Argument> *args) {
         setValid(visitor, args);
@@ -390,13 +391,14 @@ HeaderInstance *HeaderInstance::copy() const {
     return new HeaderInstance(*this);
 }
 
-void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &then_var) {
-    const auto *then_struct = then_var.to<HeaderInstance>();
+void HeaderInstance::merge(const z3::expr &cond,
+                           const P4Z3Instance &then_expr) {
+    const auto *then_struct = then_expr.to<HeaderInstance>();
 
     BUG_CHECK(then_struct, "Unsupported merge class.");
     auto valid_merge = z3::ite(cond, *then_struct->get_valid(), valid);
     set_valid(valid_merge);
-    StructBase::merge(cond, then_var);
+    StructBase::merge(cond, then_expr);
 }
 
 void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
@@ -509,10 +511,10 @@ void StackInstance::update_member(cstring name, P4Z3Instance *val) {
         return;
     }
     if (name == "next") {
-        name  = nextIndex.get_val()->to_string();
+        name = nextIndex.get_val()->to_string();
     }
     if (name == "last") {
-        name  = lastIndex.get_val()->to_string();
+        name = lastIndex.get_val()->to_string();
     }
     members.at(name) = val;
 }
@@ -847,7 +849,7 @@ EnumInstance *EnumInstance::instantiate(const NumericVal &enum_val) const {
     return enum_copy;
 }
 
-EnumInstance::EnumInstance(const EnumInstance &other) : EnumBase(other) {}
+EnumInstance::EnumInstance(const EnumInstance &other) = default;
 
 EnumInstance &EnumInstance::operator=(const EnumInstance &other) {
     if (this == &other) {

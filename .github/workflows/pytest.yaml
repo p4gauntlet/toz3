@@ -22,7 +22,7 @@ jobs:
         ln -sf $GITHUB_WORKSPACE/../gauntlet/modules/toz3 $GITHUB_WORKSPACE/../gauntlet/modules/p4c/extensions/toz3
         cd $GITHUB_WORKSPACE/../gauntlet/modules/p4c/build
         cmake ..
-        make
+        make  -j2
         sudo make install # Install the p4c compiler and the headers 
     - name: Test with pytest
       run: |

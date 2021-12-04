@@ -4,8 +4,8 @@ Visitor::profile_t Counter::init_apply(const IR::Node *node) {
     return Inspector::init_apply(node);
 }
 
-bool Counter::preorder(const IR::Statement *) {
+bool Counter::preorder(const IR::Statement * /*s*/) {
     statements++;
     return true;
 }
-} // namespace P4PRUNER
+}  // namespace P4PRUNER

@@ -515,7 +515,7 @@ P4Z3Instance *Z3Int::operator-(const P4Z3Instance &other) const {
     P4C_UNIMPLEMENTED("- not implemented for %s.", other.get_static_type());
 }
 
-P4Z3Instance *Z3Int::operatorSubSat(const P4Z3Instance &) const {
+P4Z3Instance *Z3Int::operatorSubSat(const P4Z3Instance & /*other*/) const {
     P4C_UNIMPLEMENTED("|-| not implemented for %s.", get_static_type());
 }
 

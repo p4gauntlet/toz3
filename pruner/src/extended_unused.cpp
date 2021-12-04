@@ -5,7 +5,7 @@
 namespace P4PRUNER {
 
 const IR::Node *PruneUnused::preorder(IR::Type_StructLike *ts) {
-    prune(); // do not remove individual struct members yet
+    prune();  // do not remove individual struct members yet
     if (!unused_refMap->isUsed(getOriginal<IR::IDeclaration>())) {
         return nullptr;
     }
@@ -33,4 +33,4 @@ const IR::Node *PruneUnused::preorder(IR::Function *f) {
     return f;
 }
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER

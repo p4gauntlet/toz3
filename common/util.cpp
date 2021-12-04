@@ -6,7 +6,7 @@
 namespace TOZ3 {
 
 cstring get_max_bv_val(uint64_t bv_width) {
-    big_int max_return = pow((big_int)2, bv_width) - 1;
+    big_int max_return = pow(static_cast<big_int>(2), bv_width) - 1;
     return Util::toString(max_return, 0, false);
 }
 
@@ -31,7 +31,7 @@ cstring infer_name(const IR::Annotations *annots, cstring default_name) {
                     return full_name;
                 }
                 // otherwise get the index, remove the dot
-                auto idx = (size_t)(last_dot - full_name + 1);
+                auto idx = static_cast<size_t>(last_dot - full_name + 1);
                 return token->text.substr(idx);
             }
             // if the annotation is a member just get the root name

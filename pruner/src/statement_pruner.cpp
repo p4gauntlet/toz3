@@ -1,12 +1,17 @@
-#include <algorithm> // std::min
+#include <algorithm>  // std::min
 
 #include "statement_pruner.h"
 
 namespace P4PRUNER {
 
+Pruner::Pruner(const std::vector<const IR::Statement *> &_to_prune)
+    : to_prune(_to_prune) {
+    setName("Pruner");
+}
+
 const IR::Node *Pruner::preorder(IR::Statement *s) {
-    for (uint64_t i = 0; i < to_prune.size(); i++) {
-        if (*to_prune.at(i) == *s) {
+    for (const auto &statement : to_prune) {
+        if (*statement == *s) {
             return nullptr;
         }
     }
@@ -14,7 +19,7 @@ const IR::Node *Pruner::preorder(IR::Statement *s) {
 }
 
 const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
-    for (auto c : s->components) {
+    for (const auto *c : s->components) {
         visit(c);
     }
 
@@ -23,24 +28,25 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
 
 const IR::Node *Pruner::preorder(IR::IfStatement *s) {
     IR::IndexedVector<IR::StatOrDecl> vec;
-    bool decision = get_rnd_pct();
+    auto decision = PrunerRandomGen::get_rnd_pct();
     // Either we prune the whole statement
     // or keep one branch
     if (decision <= 0.5) {
         if (decision <= 0.25) {
             // delete the then part and swap it with the else part
-            if (s->ifFalse == NULL) return nullptr; // there is no else part
+            if (s->ifFalse == nullptr) {
+                return nullptr;  // there is no else part
+            }
             s->ifTrue = s->ifFalse;
-            s->ifFalse = NULL;
+            s->ifFalse = nullptr;
         } else {
             // delete the else part
-            s->ifFalse = NULL;
+            s->ifFalse = nullptr;
         }
         return s;
     }
     return nullptr;
 }
-
 
 const IR::Node *Pruner::preorder(IR::ReturnStatement *s) {
     // do not prune return statements
@@ -52,7 +58,8 @@ Visitor::profile_t Collector::init_apply(const IR::Node *node) {
 }
 
 bool Collector::preorder(const IR::Statement *s) {
-    if (to_prune.size() <= max_statements && (get_rnd_pct() < 0.5)) {
+    if (to_prune.size() <= max_statements &&
+        (PrunerRandomGen::get_rnd_pct() < 0.5)) {
         to_prune.push_back(s);
     }
 
@@ -60,26 +67,26 @@ bool Collector::preorder(const IR::Statement *s) {
 }
 
 bool Collector::preorder(const IR::BlockStatement *s) {
-    for (auto c : s->components) {
+    for (const auto *c : s->components) {
         visit(c);
     }
 
     return true;
 }
 
-const std::vector<const IR::Statement *>
-collect_statements(const IR::P4Program *temp, int max) {
+std::vector<const IR::Statement *> collect_statements(const IR::P4Program *temp,
+                                                      int max) {
     // An inspector that collects some statements at random
-    P4PRUNER::Collector *collector = new P4PRUNER::Collector(max);
+    auto *collector = new P4PRUNER::Collector(max);
     temp->apply(*collector);
     return collector->to_prune;
 }
 
 const IR::P4Program *
 remove_statements(const IR::P4Program *temp,
-                  std::vector<const IR::Statement *> to_prune) {
-    // Removes all the nodes it recieves from the vector
-    P4PRUNER::Pruner *pruner = new P4PRUNER::Pruner(to_prune);
+                  const std::vector<const IR::Statement *> &to_prune) {
+    // Removes all the nodes it receives from the vector
+    auto *pruner = new P4PRUNER::Pruner(to_prune);
     temp = temp->apply(*pruner);
     return temp;
 }
@@ -88,17 +95,15 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
                                       P4PRUNER::PrunerConfig pruner_conf,
                                       uint64_t prog_size) {
     int same_before_pruning = 0;
-    int result;
+    int result = 0;
     int max_statements = prog_size / SIZE_BANK_RATIO;
-
 
     INFO("\nPruning statements");
     for (int i = 0; i < PRUNE_ITERS; i++) {
         INFO("Trying with  " << max_statements << " statements");
-        auto temp = program;
+        const auto *temp = program;
         std::vector<const IR::Statement *> to_prune =
             collect_statements(temp, max_statements);
-
 
         temp = remove_statements(temp, to_prune);
         result = check_pruned_program(&program, temp, pruner_conf);
@@ -118,4 +123,4 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
     return program;
 }
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER

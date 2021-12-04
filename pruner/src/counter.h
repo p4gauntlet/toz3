@@ -12,5 +12,5 @@ class Counter : public Inspector {
 
     Counter() { statements = 0; }
 };
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 #endif /* _PRUNER_SRC_COUNTER_H */

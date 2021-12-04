@@ -10,15 +10,12 @@ namespace P4PRUNER {
 
 class Pruner : public Transform {
  public:
-    std::vector<const IR::Statement *> to_prune;
-    explicit Pruner(std::vector<const IR::Statement *> _to_prune) {
-        setName("Pruner");
-        to_prune = _to_prune;
-    }
-    const IR::Node *preorder(IR::Statement *s);
-    const IR::Node *preorder(IR::ReturnStatement *s);
-    const IR::Node *preorder(IR::BlockStatement *s);
-    const IR::Node *preorder(IR::IfStatement *s);
+    const std::vector<const IR::Statement *> &to_prune;
+    explicit Pruner(const std::vector<const IR::Statement *> &to_prune);
+    const IR::Node *preorder(IR::Statement *s) override;
+    const IR::Node *preorder(IR::ReturnStatement *s) override;
+    const IR::Node *preorder(IR::BlockStatement *s) override;
+    const IR::Node *preorder(IR::IfStatement *s) override;
 };
 
 class Collector : public Inspector {
@@ -38,6 +35,6 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
                                       P4PRUNER::PrunerConfig pruner_conf,
                                       uint64_t prog_size);
 
-} // namespace P4PRUNER
+}  // namespace P4PRUNER
 
 #endif /* _STATEMENT_PRUNER_H */
