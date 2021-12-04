@@ -22,6 +22,10 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
     if (typeMap->isLeftValue(expr)) {
         return s;
     }
+    // not handling NewType or structs for now
+    if (type->is<IR::Type_Newtype>() || type->is<IR::Type_Struct>()) {
+        warning("Not replacing NewType or structs.");
+    }
     int bits = type->width_bits();
 
     auto decision = get_rnd_pct();
@@ -42,7 +46,6 @@ const IR::P4Program *apply_replace(const IR::P4Program *program,
                               new P4::TypeInference(&refMap, &typeMap, false)});
 
     temp = program->apply(pass_manager);
-
     P4PRUNER::ReplaceVariables *replacer =
         new P4PRUNER::ReplaceVariables(&refMap, &typeMap);
     temp = temp->apply(*replacer);

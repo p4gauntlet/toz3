@@ -169,7 +169,7 @@ dmypy.json
 
 # validator analysis
 *.log
-
+*.p4i
 # temp files created by the pruner
 *_stripped.p4
 # Example programs just for testing the pruner

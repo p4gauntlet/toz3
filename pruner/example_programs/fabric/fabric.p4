@@ -46,9 +46,17 @@
 #include "include/int/int_main.p4"
 #endif // WITH_INT
 
+
+
+bit<16> test_func (inout ipv4_t istd){
+    return istd.total_len;
+}
+
+
 control FabricIngress (inout parsed_headers_t hdr,
                        inout fabric_metadata_t fabric_metadata,
-                       inout standard_metadata_t standard_metadata) {
+                       inout standard_metadata_t standard_metadata
+                       ) {
 
     LookupMdInit() lkp_md_init;
     PacketIoIngress() pkt_io_ingress;
@@ -59,6 +67,7 @@ control FabricIngress (inout parsed_headers_t hdr,
     Next() next;
     IngressSliceTcClassifier() slice_tc_classifier;
     IngressQos() qos;
+
 #ifdef WITH_PORT_COUNTER
     PortCountersControl() port_counters_control;
 #endif // WITH_PORT_COUNTER
@@ -66,7 +75,21 @@ control FabricIngress (inout parsed_headers_t hdr,
     SpgwIngress() spgw;
 #endif // WITH_SPGW
 
+    table clb_pinned_flows {
+        key = {
+         //  SelectByDirection(1, hdr.ipv4.dstAddr, hdr.ipv4.srcAddr): exact @name("ipv4_addr_1") ;
+            test_func(hdr.inner_ipv4): exact @name("ipv4_addr_1");
+        }
+        actions = {
+            NoAction();
+        }
+        const default_action = NoAction();
+    }
+
+
+
     apply {
+
         _PRE_INGRESS
         lkp_md_init.apply(hdr, fabric_metadata.lkp);
         pkt_io_ingress.apply(hdr, fabric_metadata, standard_metadata);
@@ -99,7 +122,13 @@ control FabricIngress (inout parsed_headers_t hdr,
         bng_ingress.apply(hdr, fabric_metadata, standard_metadata);
 #endif // WITH_BNG
         qos.apply(fabric_metadata, standard_metadata);
+
+        // Here is the bug
+            clb_pinned_flows.apply();
+            clb_pinned_flows.apply();
+    
     }
+
 }
 
 control FabricEgress (inout parsed_headers_t hdr,

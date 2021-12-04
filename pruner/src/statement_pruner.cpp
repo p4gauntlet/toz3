@@ -21,6 +21,27 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
     return s;
 }
 
+const IR::Node *Pruner::preorder(IR::IfStatement *s) {
+    IR::IndexedVector<IR::StatOrDecl> vec;
+    bool decision = get_rnd_pct();
+    // Either we prune the whole statement
+    // or keep one branch
+    if (decision <= 0.5) {
+        if (decision <= 0.25) {
+            // delete the then part and swap it with the else part
+            if (s->ifFalse == NULL) return nullptr; // there is no else part
+            s->ifTrue = s->ifFalse;
+            s->ifFalse = NULL;
+        } else {
+            // delete the else part
+            s->ifFalse = NULL;
+        }
+        return s;
+    }
+    return nullptr;
+}
+
+
 const IR::Node *Pruner::preorder(IR::ReturnStatement *s) {
     // do not prune return statements
     return s;
@@ -70,12 +91,15 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
     int result;
     int max_statements = prog_size / SIZE_BANK_RATIO;
 
+
     INFO("\nPruning statements");
     for (int i = 0; i < PRUNE_ITERS; i++) {
         INFO("Trying with  " << max_statements << " statements");
         auto temp = program;
         std::vector<const IR::Statement *> to_prune =
             collect_statements(temp, max_statements);
+
+
         temp = remove_statements(temp, to_prune);
         result = check_pruned_program(&program, temp, pruner_conf);
         if (result != EXIT_SUCCESS) {

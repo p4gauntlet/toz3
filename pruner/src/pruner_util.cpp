@@ -126,7 +126,6 @@ ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
         exit_info.err_msg = cstring("");
 
     } else {
-        INFO("Trying get_crash_exit_info now");
         exit_info = get_crash_exit_info(name, pruner_conf);
     }
     return exit_info;
@@ -262,18 +261,21 @@ int check_pruned_program(const IR::P4Program **orig_program,
         INFO("File has not changed. Skipping analysis.");
         return EXIT_SUCCESS;
     }
-    int exit_code = get_exit_info(out_file, pruner_conf).exit_code;
-    // if got the right exit code, then modify the original program, if not
+    ExitInfo exit_info = get_exit_info(out_file, pruner_conf);
+    int exit_code = exit_info.exit_code;
+    ErrorType err_type = classify_bug(exit_info);
+    // if got the right exit code and the right error type
+    // then modify the original program, if not
     // then choose a smaller bank of statements to remove now.
-    if (exit_code != pruner_conf.exit_code) {
+    if (exit_code != pruner_conf.exit_code ||
+        err_type != pruner_conf.err_type) {
         INFO("FAILED");
         return EXIT_FAILURE;
-    } else {
-        INFO("PASSED: Reduced by " << measure_pct(*orig_program, pruned_program)
-                                   << " %")
-        *orig_program = pruned_program;
-        return EXIT_SUCCESS;
     }
-}
 
+    INFO("PASSED: Reduced by " << measure_pct(*orig_program, pruned_program)
+                               << " %")
+    *orig_program = pruned_program;
+    return EXIT_SUCCESS;
+}
 }  // namespace P4PRUNER
