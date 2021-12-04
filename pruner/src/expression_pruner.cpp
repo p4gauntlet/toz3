@@ -35,13 +35,13 @@ const IR::Node *pick_side_shift_left(IR::Operation_Binary *expr) {
     return expr;
 }
 
-const IR::Node *ExpressionPruner::postorder(IR::SelectExpression *s) {
+const IR::Node *ExpressionPruner::postorder(IR::SelectExpression *expr) {
     // Reduce the select expression to the first state in this list
-    return s->selectCases.front()->state;
+    return expr->selectCases.front()->state;
 }
 
-const IR::Node *ExpressionPruner::postorder(IR::Add *s) {
-    return pick_side_binary(s);
+const IR::Node *ExpressionPruner::postorder(IR::Add *expr) {
+    return pick_side_binary(expr);
 }
 const IR::Node *ExpressionPruner::postorder(IR::AddSat *expr) {
     return pick_side_binary(expr);
@@ -99,7 +99,7 @@ const IR::Node *ExpressionPruner::postorder(IR::Shr *expr) {
 }
 
 const IR::P4Program *remove_expressions(const IR::P4Program *temp) {
-    // Removes all the nodes it recieves from the vector
+    // Removes all the nodes it receives from the vector
     auto *expression_pruner = new P4PRUNER::ExpressionPruner();
     temp = temp->apply(*expression_pruner);
     return temp;
