@@ -1,10 +1,12 @@
 #include "boolean_pruner.h"
 
+#include "probabilities.h"
+
 namespace P4PRUNER {
 
 const IR::Node *rand_bool_literal() {
     auto decision = PrunerRandomGen::get_rnd_pct();
-    return new IR::BoolLiteral(decision < 0.5);
+    return new IR::BoolLiteral(decision < BOOL_PROB);
 }
 
 const IR::Node *BoolExpressionPruner::postorder(IR::LAnd * /*expr*/) {

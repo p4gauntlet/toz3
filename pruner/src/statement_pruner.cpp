@@ -1,6 +1,6 @@
-#include <algorithm>  // std::min
-
 #include "statement_pruner.h"
+
+#include <algorithm>  // std::min
 
 namespace P4PRUNER {
 
@@ -31,8 +31,8 @@ const IR::Node *Pruner::preorder(IR::IfStatement *s) {
     auto decision = PrunerRandomGen::get_rnd_pct();
     // Either we prune the whole statement
     // or keep one branch
-    if (decision <= 0.5) {
-        if (decision <= 0.25) {
+    if (decision <= IF_STATEMENT_BRANCH_PROB) {
+        if (decision <= IF_STATEMENT_THEN_PROB) {
             // delete the then part and swap it with the else part
             if (s->ifFalse == nullptr) {
                 return nullptr;  // there is no else part
@@ -59,7 +59,7 @@ Visitor::profile_t Collector::init_apply(const IR::Node *node) {
 
 bool Collector::preorder(const IR::Statement *s) {
     if (to_prune.size() <= max_statements &&
-        (PrunerRandomGen::get_rnd_pct() < 0.5)) {
+        (PrunerRandomGen::get_rnd_pct() < STATEMENT_PROB)) {
         to_prune.push_back(s);
     }
 
@@ -96,10 +96,10 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
                                       uint64_t prog_size) {
     int same_before_pruning = 0;
     int result = 0;
-    int max_statements = prog_size / SIZE_BANK_RATIO;
+    int max_statements = prog_size / STATEMENT_SIZE_BANK_RATIO;
 
     INFO("\nPruning statements");
-    for (int i = 0; i < PRUNE_ITERS; i++) {
+    for (int i = 0; i < PRUNER_MAX_ITERS; i++) {
         INFO("Trying with  " << max_statements << " statements");
         const auto *temp = program;
         std::vector<const IR::Statement *> to_prune =

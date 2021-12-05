@@ -4,11 +4,11 @@ namespace P4PRUNER {
 
 const IR::Node *pick_side_binary(IR::Operation_Binary *expr) {
     auto decision = PrunerRandomGen::get_rnd_pct();
-    if (decision < 0.33) {
+    if (decision < BINARY_EXPR_LEFT_PROB) {
         // return the left-hand side of the expression
         return expr->left;
     }
-    if (decision < 0.66) {
+    if (decision < BINARY_EXPR_RIGHT_PROB) {
         // return the right-hand side of the expression
         return expr->right;
     }
@@ -18,7 +18,7 @@ const IR::Node *pick_side_binary(IR::Operation_Binary *expr) {
 
 const IR::Node *pick_side_unary(IR::Operation_Unary *expr) {
     auto decision = PrunerRandomGen::get_rnd_pct();
-    if (decision < 0.5) {
+    if (decision < UNARY_EXPR_PROB) {
         // return the expression inside the operation
         return expr->expr;
     }
@@ -27,7 +27,7 @@ const IR::Node *pick_side_unary(IR::Operation_Unary *expr) {
 
 const IR::Node *pick_side_shift_left(IR::Operation_Binary *expr) {
     auto decision = PrunerRandomGen::get_rnd_pct();
-    if (decision < 0.5) {
+    if (decision < SHIFT_LEFT_PROB) {
         // return the left side of the shift
         return expr->left;
     }
@@ -110,7 +110,7 @@ const IR::P4Program *prune_expressions(const IR::P4Program *program,
     int same_before_pruning = 0;
     int result = 0;
     INFO("\nPruning expressions");
-    for (int i = 0; i < PRUNE_ITERS; i++) {
+    for (int i = 0; i < PRUNER_MAX_ITERS; i++) {
         const auto *temp = program;
         temp = remove_expressions(program);
         result = check_pruned_program(&program, temp, pruner_conf);
