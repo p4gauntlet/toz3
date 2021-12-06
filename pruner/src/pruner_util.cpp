@@ -130,7 +130,10 @@ ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
 }
 
 std::pair<int, cstring> exec(cstring cmd) {
-    std::array<char, 1000> buffer{};
+    constexpr int BUF_SIZE = 1000;
+    constexpr int CHUNK_SIZE = 128;
+
+    std::array<char, BUF_SIZE> buffer{};
     std::string output;
     auto *pipe = popen(cmd, "r");  // get rid of shared_ptr
 
@@ -139,7 +142,7 @@ std::pair<int, cstring> exec(cstring cmd) {
     }
 
     while (feof(pipe) == 0) {
-        if (fgets(buffer.data(), 128, pipe) != nullptr) {
+        if (fgets(buffer.data(), CHUNK_SIZE, pipe) != nullptr) {
             output += buffer.data();
         }
     }

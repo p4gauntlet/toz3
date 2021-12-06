@@ -1,7 +1,5 @@
 #include "boolean_pruner.h"
 
-#include "probabilities.h"
-
 namespace P4PRUNER {
 
 const IR::Node *rand_bool_literal() {
@@ -49,7 +47,7 @@ prune_bool_expressions(const IR::P4Program *program,
     int same_before_pruning = 0;
     int result = 0;
     INFO("\nReducing boolean expressions")
-    for (int i = 0; i < PRUNE_ITERS; i++) {
+    for (int i = 0; i < PRUNER_MAX_ITERS; i++) {
         const auto *temp = program;
         temp = remove_bool_expressions(temp);
         result = check_pruned_program(&program, temp, pruner_conf);
