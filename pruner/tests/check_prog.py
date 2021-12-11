@@ -42,26 +42,26 @@ def main(args):
 
     if not shutil.which(COMPILER_BIN):
         log.error("Please provide the path to a valid compiler binary")
-        return(EXIT_FAILURE)
+        return EXIT_FAILURE
 
     if not shutil.which(VALIDATION_BIN):
         log.error("Please provide the path to a valid validation binary")
-        return(EXIT_FAILURE)
+        return EXIT_FAILURE
 
     if not shutil.which(PRUNER_BIN):
         log.error("Please provide a valid path to the pruner")
-        return(EXIT_FAILURE)
+        return EXIT_FAILURE
 
     if not P4_PROG.is_file():
         log.error("Please provide the path to a valid p4 program")
-        return(EXIT_FAILURE)
+        return EXIT_FAILURE
 
     cmd_args = f"{PRUNER_BIN} --seed {SEED} --compiler-bin {COMPILER_BIN} --validation-bin {VALIDATION_BIN} {P4_PROG} --bug-type {args.type}"
 
     pruner_result = exec_process(cmd_args)
 
-    if(pruner_result.returncode == EXIT_FAILURE):
-        return(EXIT_FAILURE)
+    if pruner_result.returncode == EXIT_FAILURE:
+        return EXIT_FAILURE
 
     PRUNED_FILE = pathlib.PosixPath(
         ".".join(str(P4_PROG).split('.')[:-1]) + '_stripped.p4')
@@ -79,14 +79,13 @@ def main(args):
         if exec_process(f"diff {PRUNED_FILE} {REFERENCE_FILE}").returncode == EXIT_FAILURE:
             log.error("Test failed")
             PRUNED_FILE.unlink()
-            return(EXIT_FAILURE)
+            return EXIT_FAILURE
         else:
             log.info("Test passed")
             PRUNED_FILE.unlink()
-            return(EXIT_SUCCESS)
-    else:
-        log.error("Reference file not found")
-        return(EXIT_FAILURE)
+            return EXIT_SUCCESS
+    log.error("Reference file not found")
+    return EXIT_FAILURE
 
 
 if __name__ == '__main__':
