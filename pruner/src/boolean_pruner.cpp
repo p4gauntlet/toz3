@@ -3,7 +3,7 @@
 namespace P4PRUNER {
 
 const IR::Node *rand_bool_literal() {
-    auto decision = PrunerRandomGen::get_rnd_pct();
+    auto decision = get_rnd_pct();
     return new IR::BoolLiteral(decision < BOOL_PROB);
 }
 

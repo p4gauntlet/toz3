@@ -43,7 +43,7 @@ void process_seed(const P4PRUNER::PrunerOptions &options) {
         seed = r();
     }
     std::cerr << "Seed:" << seed << "\n";
-    P4PRUNER::PrunerRandomGen::set_seed(seed);
+    P4PRUNER::rng.seed(seed);
 }
 
 P4PRUNER::PrunerConfig

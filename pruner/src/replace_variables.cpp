@@ -29,7 +29,7 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
     }
     int bits = type->width_bits();
 
-    auto decision = PrunerRandomGen::get_rnd_pct();
+    auto decision = get_rnd_pct();
     if (decision < REPLACE_VARS_PROB && type->is<IR::Type_Bits>()) {
         auto *new_elt = new IR::Constant(new IR::Type_Bits(bits, false),
                                          REPLACE_VARS_CONST);

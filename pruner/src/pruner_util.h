@@ -11,13 +11,11 @@
 
 namespace P4PRUNER {
 
-class PrunerRandomGen {
- public:
-    static void set_seed(int64_t seed);
+static boost::random::mt19937 rng;  // NOLINT
 
-    static int64_t get_rnd_int(int64_t min, int64_t max);
-    static double get_rnd_pct();
-};
+int64_t get_rnd_int(int64_t min, int64_t max);
+
+double get_rnd_pct();
 
 enum class ErrorType : uint32_t {
     SemanticBug = 0,

@@ -28,7 +28,7 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
 
 const IR::Node *Pruner::preorder(IR::IfStatement *s) {
     IR::IndexedVector<IR::StatOrDecl> vec;
-    auto decision = PrunerRandomGen::get_rnd_pct();
+    auto decision = get_rnd_pct();
     // Either we prune the whole statement
     // or keep one branch
     if (decision <= IF_STATEMENT_BRANCH_PROB) {
@@ -59,7 +59,7 @@ Visitor::profile_t Collector::init_apply(const IR::Node *node) {
 
 bool Collector::preorder(const IR::Statement *s) {
     if (to_prune.size() <= max_statements &&
-        (PrunerRandomGen::get_rnd_pct() < STATEMENT_PROB)) {
+        (get_rnd_pct() < STATEMENT_PROB)) {
         to_prune.push_back(s);
     }
 

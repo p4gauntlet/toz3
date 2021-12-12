@@ -11,16 +11,12 @@
 
 namespace P4PRUNER {
 
-static boost::random::mt19937 rng;  // NOLINT
-
-void PrunerRandomGen::set_seed(int64_t seed) { rng = boost::mt19937(seed); }
-
-int64_t PrunerRandomGen::get_rnd_int(int64_t min, int64_t max) {
+int64_t get_rnd_int(int64_t min, int64_t max) {
     boost::random::uniform_int_distribution<int64_t> distribution(min, max);
     return distribution(rng);
 }
 
-double PrunerRandomGen::get_rnd_pct() {
+double get_rnd_pct() {
     boost::random::uniform_real_distribution<double> distribution(0.0, 1.0);
     return distribution(rng);
 }
