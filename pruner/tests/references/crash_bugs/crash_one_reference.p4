@@ -1,5 +1,8 @@
 #include <core.p4>
 
+bit<3> max(in bit<3> val, in bit<3> bound) {
+    return 3w2;
+}
 header ethernet_t {
     bit<48> dst_addr;
     bit<48> src_addr;
@@ -26,6 +29,9 @@ struct Headers {
     gPTIia        oWtO;
 }
 
+bit<16> SaTkzAX(PguzcJ Oofi) {
+    return 16w10;
+}
 parser p(packet_in pkt, out Headers hdr) {
     state start {
         transition parse_hdrs;
@@ -37,6 +43,7 @@ parser p(packet_in pkt, out Headers hdr) {
 
 control ingress(inout Headers h) {
     apply {
+        h.gvFM[max((bit<3>)SaTkzAX({ 4w6, 32w10, 16w10 }), 3w2)].src_addr = 48w10;
     }
 }
 

@@ -12,12 +12,8 @@ Pruner::Pruner(const std::vector<const IR::Statement *> &_to_prune)
 const IR::Node *Pruner::preorder(IR::Statement *s) {
     for (const auto &statement : to_prune) {
         if (*statement == *s) {
-            std::cout << "Removing:" << std::endl;
-            statement->dbprint(std::cout);
-            std::cout <<  std::endl;
-            std::cout << "Parent:" << std::endl;
-            this->getParent<IR::Node>()->dbprint(std::cout);
-            std::cout <<  std::endl;
+            // If the parent is an if statement, replace with an empty
+            // statement. This is needed to avoid assertion errors.
             if (this->getParent<IR::IfStatement>() != nullptr) {
                 return new IR::EmptyStatement();
             }
@@ -32,6 +28,11 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
         visit(c);
     }
     return s;
+}
+
+const IR::Node *Pruner::preorder(IR::EmptyStatement * /*e*/) {
+    // Always remove empty statements.
+    return nullptr;
 }
 
 const IR::Node *Pruner::preorder(IR::ReturnStatement *s) {
