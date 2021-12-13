@@ -15,7 +15,6 @@ class Pruner : public Transform {
     const IR::Node *preorder(IR::Statement *s) override;
     const IR::Node *preorder(IR::ReturnStatement *s) override;
     const IR::Node *preorder(IR::BlockStatement *s) override;
-    const IR::Node *preorder(IR::IfStatement *s) override;
 };
 
 class Collector : public Inspector {

@@ -243,29 +243,34 @@ int main(int argc, char *const argv[]) {
     // this should probably become part of the initial setup later
     pruner_conf.err_type = P4PRUNER::classify_bug(exit_info);
 
-    // if a seed was provided, use it
-    // otherwise generate a random seed and set it
-    process_seed(options);
-    // parse the input P4 program<
-    program = P4::parseP4File(options);
+    try {
+        // if a seed was provided, use it
+        // otherwise generate a random seed and set it
+        process_seed(options);
+        // parse the input P4 program<
+        program = P4::parseP4File(options);
 
-    if (program != nullptr && ::errorCount() == 0) {
-        const auto *original = program;
-        double prog_size = P4PRUNER::count_statements(original);
-        INFO("Size of the program :" << prog_size << " statements");
+        if (program != nullptr && ::errorCount() == 0) {
+            const auto *original = program;
+            double prog_size = P4PRUNER::count_statements(original);
+            INFO("Size of the program :" << prog_size << " statements");
 
-        program = prune(program, pruner_conf, prog_size);
-        if (options.print_pruned) {
-            P4PRUNER::print_p4_program(program);
+            program = prune(program, pruner_conf, prog_size);
+            if (options.print_pruned) {
+                P4PRUNER::print_p4_program(program);
+            }
+            // sometimes we do not want to emit the final file
+            if (!options.dry_run) {
+                P4PRUNER::emit_p4_program(program, pruner_conf.out_file_name);
+            }
+            INFO("Total reduction percentage = "
+                 << P4PRUNER::measure_pct(original, program) << " %");
         }
-        // sometimes we do not want to emit the final file
-        if (!options.dry_run) {
-            P4PRUNER::emit_p4_program(program, pruner_conf.out_file_name);
-        }
-        INFO("Total reduction percentage = "
-             << P4PRUNER::measure_pct(original, program) << " %");
+        INFO("Done.");
+    } catch (const std::exception &bug) {
+        std::cerr << bug.what() << std::endl;
     }
-    INFO("Done. Removing ephemeral working directory.");
+    INFO("Removing ephemeral working directory.");
     // need to wait a little because of race conditions
     P4PRUNER::remove_file(pruner_conf.working_dir);
     return static_cast<int>(::errorCount() > 0);

@@ -12,6 +12,15 @@ Pruner::Pruner(const std::vector<const IR::Statement *> &_to_prune)
 const IR::Node *Pruner::preorder(IR::Statement *s) {
     for (const auto &statement : to_prune) {
         if (*statement == *s) {
+            std::cout << "Removing:" << std::endl;
+            statement->dbprint(std::cout);
+            std::cout <<  std::endl;
+            std::cout << "Parent:" << std::endl;
+            this->getParent<IR::Node>()->dbprint(std::cout);
+            std::cout <<  std::endl;
+            if (this->getParent<IR::IfStatement>() != nullptr) {
+                return new IR::EmptyStatement();
+            }
             return nullptr;
         }
     }
@@ -22,34 +31,11 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
     for (const auto *c : s->components) {
         visit(c);
     }
-
     return s;
 }
 
-const IR::Node *Pruner::preorder(IR::IfStatement *s) {
-    IR::IndexedVector<IR::StatOrDecl> vec;
-    auto decision = get_rnd_pct();
-    // Either we prune the whole statement
-    // or keep one branch
-    if (decision <= IF_STATEMENT_BRANCH_PROB) {
-        if (decision <= IF_STATEMENT_THEN_PROB) {
-            // delete the then part and swap it with the else part
-            if (s->ifFalse == nullptr) {
-                return nullptr;  // there is no else part
-            }
-            s->ifTrue = s->ifFalse;
-            s->ifFalse = nullptr;
-        } else {
-            // delete the else part
-            s->ifFalse = nullptr;
-        }
-        return s;
-    }
-    return nullptr;
-}
-
 const IR::Node *Pruner::preorder(IR::ReturnStatement *s) {
-    // do not prune return statements
+    // Do not prune return statements.
     return s;
 }
 
@@ -58,8 +44,7 @@ Visitor::profile_t Collector::init_apply(const IR::Node *node) {
 }
 
 bool Collector::preorder(const IR::Statement *s) {
-    if (to_prune.size() <= max_statements &&
-        (get_rnd_pct() < STATEMENT_PROB)) {
+    if (to_prune.size() <= max_statements && (get_rnd_pct() < STATEMENT_PROB)) {
         to_prune.push_back(s);
     }
 
@@ -70,13 +55,12 @@ bool Collector::preorder(const IR::BlockStatement *s) {
     for (const auto *c : s->components) {
         visit(c);
     }
-
     return true;
 }
 
 std::vector<const IR::Statement *> collect_statements(const IR::P4Program *temp,
                                                       int max) {
-    // An inspector that collects some statements at random
+    // An inspector that collects some statements at random.
     auto *collector = new P4PRUNER::Collector(max);
     temp->apply(*collector);
     return collector->to_prune;
@@ -85,7 +69,7 @@ std::vector<const IR::Statement *> collect_statements(const IR::P4Program *temp,
 const IR::P4Program *
 remove_statements(const IR::P4Program *temp,
                   const std::vector<const IR::Statement *> &to_prune) {
-    // Removes all the nodes it receives from the vector
+    // Removes all the nodes it receives from the vector.
     auto *pruner = new P4PRUNER::Pruner(to_prune);
     temp = temp->apply(*pruner);
     return temp;
@@ -111,7 +95,7 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
             same_before_pruning++;
             max_statements = std::max(1, max_statements / AIMD_DECREASE);
         } else {
-            // successful run, reset short-circuit
+            // Successful run, reset short-circuit.
             same_before_pruning = 0;
             max_statements += AIMD_INCREASE;
         }
@@ -119,7 +103,7 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
             break;
         }
     }
-    // Done pruning
+    // Done pruning.
     return program;
 }
 
