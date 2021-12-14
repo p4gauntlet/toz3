@@ -13,12 +13,12 @@ namespace P4PRUNER {
 
 int64_t PrunerRng::get_rnd_int(int64_t min, int64_t max) {
     boost::random::uniform_int_distribution<int64_t> distribution(min, max);
-    return distribution(rng);
+    return distribution(instance().rng);
 }
 
 double PrunerRng::get_rnd_pct() {
     boost::random::uniform_real_distribution<double> distribution(0.0, 1.0);
-    return distribution(rng);
+    return distribution(instance().rng);
 }
 
 bool file_exists(cstring file_path) {

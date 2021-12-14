@@ -13,15 +13,18 @@ namespace P4PRUNER {
 
 class PrunerRng {
  private:
-    static boost::random::mt19937 rng;  // NOLINT
+    boost::random::mt19937 rng;
 
  public:
-    static void seed(int s) { rng.seed(s); }
+    static PrunerRng &instance() {
+        static PrunerRng instance;
+
+        return instance;
+    }
+    static void seed(int s) { instance().rng.seed(s); }
     static int64_t get_rnd_int(int64_t min, int64_t max);
     static double get_rnd_pct();
 };
-
-boost::random::mt19937 PrunerRng::rng;  // NOLINT
 
 enum class ErrorType : uint32_t {
     SemanticBug = 0,
