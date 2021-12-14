@@ -30,7 +30,7 @@ struct Headers {
 }
 
 bit<16> SaTkzAX(PguzcJ Oofi) {
-    return 16w54365;
+    return 16w10;
 }
 parser p(packet_in pkt, out Headers hdr) {
     state start {
@@ -43,7 +43,7 @@ parser p(packet_in pkt, out Headers hdr) {
 
 control ingress(inout Headers h) {
     apply {
-        h.gvFM[max((bit<3>)SaTkzAX({ 4w6, 32w10, 16w30993 }), 3w2)].src_addr = 48w181433741;
+        h.gvFM[max((bit<3>)SaTkzAX({ 4w6, 32w10, 16w10 }), 3w5)].src_addr = 48w10;
     }
 }
 

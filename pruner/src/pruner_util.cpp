@@ -17,8 +17,12 @@ int64_t PrunerRng::get_rnd_int(int64_t min, int64_t max) {
 }
 
 double PrunerRng::get_rnd_pct() {
-    boost::random::uniform_real_distribution<double> distribution(0.0, 1.0);
-    return distribution(instance().rng);
+    // Do not use boosts uniform_real_distribution, instead round coarsely by
+    // dividing by a 100. This is not as precise but avoids floating point
+    // inconsistencies.
+    boost::random::uniform_int_distribution<uint8_t> distribution(
+        0, 100);  // NOLINT
+    return distribution(instance().rng) / 100.0;
 }
 
 bool file_exists(cstring file_path) {

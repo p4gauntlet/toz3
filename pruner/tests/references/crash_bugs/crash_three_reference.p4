@@ -51,12 +51,12 @@ bit<8> TFhEvSU(in Mdpvgb Mkfw, out bit<4> VPgh, Mdpvgb kemL) {
     return 8w10;
 }
 bool AuSgrSB() {
-    bool WEVbSq = false;
+    bool WEVbSq = true;
     const bool lOSVgE = false;
     bool aBhMJQ = true;
     bit<8> hVBtEn = 8w10;
-    vNUuQP hBKPvL = (vNUuQP){ETrI = hVBtEn,bUKc = 64w1076755964400003411,yxiq = 64w10,JyBT = 4w10};
-    return false;
+    vNUuQP hBKPvL = (vNUuQP){ETrI = hVBtEn,bUKc = 64w10,yxiq = 64w10,JyBT = 4w10};
+    return true;
 }
 bit<16> mMjjrfi(bit<32> XROz) {
     const bit<4> DTLpkP = 4w10;
@@ -102,8 +102,8 @@ control ingress(inout Headers h) {
     }
     action naNRp(inout bit<64> fyaf, out bit<32> OEEJ, bit<128> KZqQ) {
         bool oDBhFM = true;
-        h.aTcs[max((bit<3>)TFhEvSU((Mdpvgb){TeIY = h.vTHH[9].TeIY,LfLO = 4w10}, h.AMIB.LfLO, { 8w49, 4w10 }), 3w2)].src_addr = h.eth_hdr.src_addr;
-        const bool XneKsi = true;
+        h.aTcs[max((bit<3>)TFhEvSU((Mdpvgb){TeIY = h.vTHH[9].TeIY,LfLO = 4w10}, h.AMIB.LfLO, { 8w10, 4w10 }), 3w2)].src_addr = h.eth_hdr.src_addr;
+        const bool XneKsi = false;
     }
     action TtncC(inout bit<4> ClFo, bit<8> xLMh) {
         return;
@@ -123,7 +123,7 @@ control ingress(inout Headers h) {
     apply {
         bit<32> SYepnh = 32w10;
         bit<16> VFoVmL = 16w10;
-        const bit<128> Puozzm = 128w192834410761076224328844976095370041044;
+        const bit<128> Puozzm = 128w10;
         bit<8> oHqKvN = h.vTHH[9].TeIY;
         bit<16> CcxgjE = 16w10;
     }
