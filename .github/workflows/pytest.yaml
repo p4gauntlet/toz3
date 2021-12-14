@@ -21,7 +21,7 @@ jobs:
         mv $GITHUB_WORKSPACE/* $GITHUB_WORKSPACE/../gauntlet/modules/toz3
         ln -sf $GITHUB_WORKSPACE/../gauntlet/modules/toz3 $GITHUB_WORKSPACE/../gauntlet/modules/p4c/extensions/toz3
         cd $GITHUB_WORKSPACE/../gauntlet/modules/p4c/build
-        cmake .. -DCMAKE_RUN_CLANG_TIDY=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
         make  -j2
         sudo make install # Install the p4c compiler and the headers 
     - name: Test with pytest
