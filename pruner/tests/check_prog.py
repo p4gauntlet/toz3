@@ -8,7 +8,7 @@ import shutil
 
 log = logging.getLogger(__name__)
 
-SEED = 3370029442
+SEED = 1
 
 FILE_DIR = pathlib.Path(__file__).parent.resolve()
 REFERENCE_DIR = FILE_DIR.joinpath("references/")

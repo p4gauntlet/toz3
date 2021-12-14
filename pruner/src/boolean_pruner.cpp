@@ -3,7 +3,7 @@
 namespace P4PRUNER {
 
 const IR::Node *rand_bool_literal() {
-    auto decision = get_rnd_pct();
+    auto decision = PrunerRng::get_rnd_pct();
     return new IR::BoolLiteral(decision < BOOL_PROB);
 }
 
@@ -35,7 +35,7 @@ const IR::Node *BoolExpressionPruner::postorder(IR::Equ * /*expr*/) {
 }
 
 const IR::P4Program *remove_bool_expressions(const IR::P4Program *temp) {
-    // Removes all the nodes it recieves from the vector
+    // Removes all the nodes it receives from the vector.
     auto *bool_expression_pruner = new P4PRUNER::BoolExpressionPruner();
     temp = temp->apply(*bool_expression_pruner);
     return temp;

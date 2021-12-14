@@ -45,7 +45,7 @@ Visitor::profile_t Collector::init_apply(const IR::Node *node) {
 }
 
 bool Collector::preorder(const IR::Statement *s) {
-    if (to_prune.size() <= max_statements && (get_rnd_pct() < STATEMENT_PROB)) {
+    if (to_prune.size() <= max_statements && (PrunerRng::get_rnd_pct() < STATEMENT_PROB)) {
         to_prune.push_back(s);
     }
 

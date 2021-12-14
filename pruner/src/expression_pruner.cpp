@@ -3,7 +3,7 @@
 namespace P4PRUNER {
 
 const IR::Node *pick_side_binary(IR::Operation_Binary *expr) {
-    auto decision = get_rnd_pct();
+    auto decision = PrunerRng::get_rnd_pct();
     if (decision < BINARY_EXPR_LEFT_PROB) {
         // return the left-hand side of the expression
         return expr->left;
@@ -17,7 +17,7 @@ const IR::Node *pick_side_binary(IR::Operation_Binary *expr) {
 }
 
 const IR::Node *pick_side_unary(IR::Operation_Unary *expr) {
-    auto decision = get_rnd_pct();
+    auto decision = PrunerRng::get_rnd_pct();
     if (decision < UNARY_EXPR_PROB) {
         // return the expression inside the operation
         return expr->expr;
@@ -26,7 +26,7 @@ const IR::Node *pick_side_unary(IR::Operation_Unary *expr) {
 }
 
 const IR::Node *pick_side_shift_left(IR::Operation_Binary *expr) {
-    auto decision = get_rnd_pct();
+    auto decision = PrunerRng::get_rnd_pct();
     if (decision < SHIFT_LEFT_PROB) {
         // return the left side of the shift
         return expr->left;

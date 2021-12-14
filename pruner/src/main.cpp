@@ -37,13 +37,13 @@ void process_seed(const P4PRUNER::PrunerOptions &options) {
             exit(EXIT_FAILURE);
         }
     } else {
-        // no seed provided, we generate our own
+        // No seed provided, we generate our own.
         std::cerr << "Using generated seed.\n";
         std::random_device r;
         seed = r();
     }
     std::cerr << "Seed:" << seed << "\n";
-    P4PRUNER::rng.seed(seed);
+    P4PRUNER::PrunerRng::seed(seed);
 }
 
 P4PRUNER::PrunerConfig

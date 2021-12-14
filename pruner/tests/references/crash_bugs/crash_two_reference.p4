@@ -32,8 +32,8 @@ struct Headers {
 }
 
 bit<16> zvVNECN(inout bit<64> UgWi, gshtZr jFuj) {
-    return jFuj.SwvD;
-    return 16w15386;
+    return 16w10;
+    return 16w10;
 }
 parser p(packet_in pkt, out Headers hdr) {
     bit<128> dXiaZd = 128w10;
@@ -52,9 +52,9 @@ parser p(packet_in pkt, out Headers hdr) {
 control ingress(inout Headers h) {
     ethernet_t eFxdzn = h.eth_hdr;
     action dUbOl(bit<64> sLPS) {
-        const bit<32> gZlvTF = 32w2278226877;
-        bit<32> nBmBDv = 32w1130166714;
-        h.XgXd[max((bit<3>)zvVNECN(h.szOQ.nYRO, { 32w708346825, 64w10, 32w512714473, 64w18310164472621113371, 16w23806 }), 3w5)].RbAp = 32w864455019;
+        const bit<32> gZlvTF = 32w10;
+        bit<32> nBmBDv = 32w10;
+        h.XgXd[max((bit<3>)zvVNECN(h.szOQ.nYRO, { 32w10, 64w13544346735733648404, 32w10, 64w10, 16w23806 }), 3w5)].RbAp = 32w10;
     }
     table RGCyPy {
         key = {
@@ -71,13 +71,13 @@ control ingress(inout Headers h) {
     apply {
         bool Jvuqrm = true;
         bit<4> ZGknBz = (bit<4>)eFxdzn.eth_type;
-        bit<64> VytFjf = 95w10[74:11];
+        bit<64> VytFjf = 64w10;
         const int AXUyrM = 238813955;
-        const bit<128> IcoSKn = 128w238813955;
-        bit<8> OCNltr = 8w28;
+        const bit<128> IcoSKn = 128w10;
+        bit<8> OCNltr = 8w10;
         {
             const bit<16> QMseko = 16w10;
-            const bit<32> mYhKao = 32w0;
+            const bit<32> mYhKao = 32w10;
         }
     }
 }
