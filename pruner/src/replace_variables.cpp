@@ -26,6 +26,7 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
     // not handling NewType or structs for now
     if (type->is<IR::Type_Newtype>() || type->is<IR::Type_Struct>()) {
         warning("Not replacing NewType or structs.");
+        return s;
     }
     int bits = type->width_bits();
 

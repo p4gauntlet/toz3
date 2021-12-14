@@ -33,7 +33,7 @@ class ExpressionPruner : public Transform {
     const IR::Node *postorder(IR::Shr *expr) override;
 
     // Trying to implement select
-    const IR::Node *postorder(IR::SelectExpression *expr);
+    const IR::Node *postorder(IR::SelectExpression *expr) override;
 
     // To be Implemented -----------
 
