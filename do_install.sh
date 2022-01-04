@@ -44,5 +44,9 @@ sudo apt install -y clang-tidy
 # This is needed for the validation binaries
 sudo apt install libboost-filesystem-dev
 
+# Pytests for tests
+pip3 install --upgrade --user pytest
+# Run tests in parallel
+pip3 install --upgrade --user pytest-xdist
 
 echo "Successfully installed P4C dependencies."

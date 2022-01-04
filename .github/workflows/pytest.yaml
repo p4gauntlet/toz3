@@ -9,22 +9,23 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v1
-    - name: Install Gauntlet
+    - name: Install P4C dependencies
       run: |
-        git clone https://github.com/p4gauntlet/gauntlet $GITHUB_WORKSPACE/../gauntlet
-        cd $GITHUB_WORKSPACE/../gauntlet
-        ./do_install.sh RUN_CI=ON
-    - name: Refresh toz3
+        git clone https://github.com/p4lang/p4c $GITHUB_WORKSPACE/../p4c
+        cd $GITHUB_WORKSPACE/../p4c
+        git submodule update --init --recursive
+        cd $GITHUB_WORKSPACE
+        ./do_install.sh
+    - name: Install P4C with toz3
       run: |
-        rm -rf $GITHUB_WORKSPACE/../gauntlet/modules/toz3
-        mkdir $GITHUB_WORKSPACE/../gauntlet/modules/toz3
-        mv $GITHUB_WORKSPACE/* $GITHUB_WORKSPACE/../gauntlet/modules/toz3
-        ln -sf $GITHUB_WORKSPACE/../gauntlet/modules/toz3 $GITHUB_WORKSPACE/../gauntlet/modules/p4c/extensions/toz3
-        cd $GITHUB_WORKSPACE/../gauntlet/modules/p4c/build
-        cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        mkdir -p $GITHUB_WORKSPACE/../p4c/extensions/
+        cp -r $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+        ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+        mkdir $GITHUB_WORKSPACE/../p4c/build
+        cd $GITHUB_WORKSPACE/../p4c/build
+        cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
         make  -j2
-        sudo make install # Install the p4c compiler and the headers 
     - name: Test with pytest
       run: |
-        cd $GITHUB_WORKSPACE/../gauntlet/modules/toz3/pruner
+        cd $GITHUB_WORKSPACE/../p4c/extensions/toz3/pruner
         python3 -m pytest test_pruner.py  -vrf
