@@ -30,6 +30,7 @@ jobs:
         cd $GITHUB_WORKSPACE/../p4c/build
         cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
         make  -j2
+        make install
     - name: Test with pytest
       run: |
         cd $GITHUB_WORKSPACE/../p4c/extensions/toz3/pruner
