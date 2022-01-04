@@ -36,7 +36,7 @@ def exec_process(cmd, *args, silent=False, **kwargs):
 def main(args):
 
     COMPILER_BIN = args.compiler.absolute()
-    VALIDATION_BIN = args.validation.absolute()
+    VALIDATION_BIN = args.validation
     PRUNER_BIN = args.pruner_path.absolute()
     P4_PROG = args.p4prog.absolute()
 
@@ -44,7 +44,8 @@ def main(args):
         log.error("Please provide the path to a valid compiler binary")
         return EXIT_FAILURE
 
-    if not shutil.which(VALIDATION_BIN):
+    if VALIDATION_BIN and not VALIDATION_BIN.exists():
+        VALIDATION_BIN = VALIDATION_BIN.absolute()
         log.error("Please provide the path to a valid validation binary")
         return EXIT_FAILURE
 
@@ -56,7 +57,9 @@ def main(args):
         log.error("Please provide the path to a valid p4 program")
         return EXIT_FAILURE
 
-    cmd_args = f"{PRUNER_BIN} --seed {SEED} --compiler-bin {COMPILER_BIN} --validation-bin {VALIDATION_BIN} {P4_PROG} --bug-type {args.type}"
+    cmd_args = f"{PRUNER_BIN} --seed {SEED} --compiler-bin {COMPILER_BIN} {P4_PROG} --bug-type {args.type} "
+    if (VALIDATION_BIN):
+        cmd_args += f"--validation-bin {VALIDATION_BIN} "
 
     pruner_result = exec_process(cmd_args)
 
@@ -94,7 +97,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "-c", "--compiler", dest='compiler', help="The path to the compiler binary", required=True, type=pathlib.Path)
     parser.add_argument(
-        "-v", "--validation", dest='validation', help="The path to the validation binary", required=True, type=pathlib.Path)
+        "-v", "--validation", dest='validation', help="The path to the validation binary", type=pathlib.Path)
 
     parser.add_argument(
         "-p4", "--p4prog", dest="p4prog", help="The path to the p4 program", required=True, type=pathlib.Path)
