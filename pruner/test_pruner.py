@@ -36,7 +36,7 @@ VALIDATION_BIN = FILE_DIR.parent.parent.parent.joinpath(
 
 CHECK_PROG_BIN = TEST_DIR.joinpath("check_prog.py")
 
-PRUNER_BIN = FILE_DIR.joinpath("../../p4c/build/p4pruner")
+PRUNER_BIN = FILE_DIR.joinpath("../../../p4c/build/p4pruner")
 
 
 def exec_process(cmd, *args, silent=False, **kwargs):
