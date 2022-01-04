@@ -1,6 +1,6 @@
-#include "vector"
-
 #include "replace_variables.h"
+
+#include <vector>
 
 #include "frontends/common/constantFolding.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
@@ -9,6 +9,7 @@
 #include "frontends/p4/simplify.h"
 #include "frontends/p4/simplifyDefUse.h"
 #include "frontends/p4/unusedDeclarations.h"
+
 
 namespace P4PRUNER {
 
@@ -25,12 +26,14 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
     // not handling NewType or structs for now
     if (type->is<IR::Type_Newtype>() || type->is<IR::Type_Struct>()) {
         warning("Not replacing NewType or structs.");
+        return s;
     }
     int bits = type->width_bits();
 
-    auto decision = PrunerRandomGen::get_rnd_pct();
-    if (decision < 0.5 && type->is<IR::Type_Bits>()) {
-        auto *new_elt = new IR::Constant(new IR::Type_Bits(bits, false), 10);
+    auto decision = PrunerRng::get_rnd_pct();
+    if (decision < REPLACE_VARS_PROB && type->is<IR::Type_Bits>()) {
+        auto *new_elt = new IR::Constant(new IR::Type_Bits(bits, false),
+                                         REPLACE_VARS_CONST);
         return new_elt;
     }
     return s;
@@ -60,7 +63,7 @@ const IR::P4Program *replace_variables(const IR::P4Program *program,
     P4CContext::get().setDefaultWarningDiagnosticAction(action);
 
     INFO("Replacing variables with literals");
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < REPLACE_VARS_MAX_ITERS; i++) {
         const auto *temp = program;
 
         temp = apply_replace(temp, pruner_conf);

@@ -23,8 +23,6 @@ google-*,
 -bugprone-narrowing-conversions,
 -cppcoreguidelines-narrowing-conversions,
 -clang-analyzer-cplusplus.NewDeleteLeaks,
--readability-magic-numbers,
--cppcoreguidelines-avoid-magic-numbers
 '
 # These checks will throw an error, if encountered.
 WarningsAsErrors:

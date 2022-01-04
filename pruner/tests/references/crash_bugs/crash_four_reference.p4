@@ -1,7 +1,7 @@
 #include <core.p4>
 
 bit<3> max(in bit<3> val, in bit<3> bound) {
-    return 3w2;
+    return bound;
 }
 header ethernet_t {
     bit<48> dst_addr;
@@ -35,7 +35,7 @@ struct Headers {
 }
 
 bit<16> vSDNsyx(in bit<32> saFq, VWxZaz vqBE) {
-    bit<16> LfCwyK = 16w63290;
+    bit<16> LfCwyK = 16w10;
     return 16w10;
 }
 control XjhdqPA() {
@@ -60,7 +60,7 @@ control XjhdqPA() {
     table NZqfiU {
         key = {
             NBhxOY: exact @name("PYKqvq") ;
-            NBhxOY: exact @name("esQVok") ;
+            32w10 : exact @name("esQVok") ;
         }
         actions = {
             @defaultonly NoAction();
@@ -86,7 +86,7 @@ parser p(packet_in pkt, out Headers hdr) {
     bit<128> UhlOhS = 128w10;
     bit<8> LYaBct = hdr.Qcqz[6].aPsC;
     bit<16> sbygWO = 16w10;
-    umHNtO pPtwdp = (umHNtO){jXYS = 8w10,SDFX = (bnsYVz){jrPy = 128w244975854704164349555203778812209679009,udHf = 64w10,aPsC = 8w52,wzfl = 32w10}};
+    umHNtO pPtwdp = (umHNtO){jXYS = 8w104,SDFX = (bnsYVz){jrPy = 128w10,udHf = 64w10,aPsC = 8w10,wzfl = 32w10}};
     bool kYEOCD = false;
     state start {
         transition parse_hdrs;
@@ -99,8 +99,8 @@ parser p(packet_in pkt, out Headers hdr) {
 control ingress(inout Headers h) {
     bit<64> wOFsfK = 64w10;
     bit<128> nLpKxc = 128w10;
-    VWxZaz FhOckJ = (VWxZaz){yJxL = 4w12,FnFc = 64w10};
-    bit<8> cSydCp = 8w209;
+    VWxZaz FhOckJ = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
+    bit<8> cSydCp = 8w10;
     bit<8> sdWZsc = 8w10;
     XjhdqPA() sSDiPy;
     action fjxzW(out bit<16> VQxM, bit<32> DQDm) {
@@ -109,7 +109,7 @@ control ingress(inout Headers h) {
     }
     action QyHme(out bit<16> ecWy, bit<16> bZof) {
         h.Qcqz[max((bit<3>)vSDNsyx(32w10, { 4w10, 64w10 }), 3w2)].udHf = FhOckJ.FnFc;
-        const VWxZaz LSqkmT = (VWxZaz){yJxL = 4w10,FnFc = 64w1064867395};
+        const VWxZaz LSqkmT = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
         bit<16> YZnNif = 16w10;
         bit<8> rbgkDJ = sdWZsc;
     }

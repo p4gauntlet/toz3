@@ -11,18 +11,18 @@
 
 namespace P4PRUNER {
 
-static boost::random::mt19937 rng;  // NOLINT
-
-void PrunerRandomGen::set_seed(int64_t seed) { rng = boost::mt19937(seed); }
-
-int64_t PrunerRandomGen::get_rnd_int(int64_t min, int64_t max) {
+int64_t PrunerRng::get_rnd_int(int64_t min, int64_t max) {
     boost::random::uniform_int_distribution<int64_t> distribution(min, max);
-    return distribution(rng);
+    return distribution(instance().rng);
 }
 
-double PrunerRandomGen::get_rnd_pct() {
-    boost::random::uniform_real_distribution<double> distribution(0.0, 1.0);
-    return distribution(rng);
+double PrunerRng::get_rnd_pct() {
+    // Do not use boosts uniform_real_distribution, instead round coarsely by
+    // dividing by a 100. This is not as precise but avoids floating point
+    // inconsistencies.
+    boost::random::uniform_int_distribution<uint8_t> distribution(
+        0, 100);  // NOLINT
+    return distribution(instance().rng) / 100.0;
 }
 
 bool file_exists(cstring file_path) {
@@ -130,7 +130,10 @@ ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
 }
 
 std::pair<int, cstring> exec(cstring cmd) {
-    std::array<char, 1000> buffer{};
+    constexpr int BUF_SIZE = 1000;
+    constexpr int CHUNK_SIZE = 128;
+
+    std::array<char, BUF_SIZE> buffer{};
     std::string output;
     auto *pipe = popen(cmd, "r");  // get rid of shared_ptr
 
@@ -139,7 +142,7 @@ std::pair<int, cstring> exec(cstring cmd) {
     }
 
     while (feof(pipe) == 0) {
-        if (fgets(buffer.data(), 128, pipe) != nullptr) {
+        if (fgets(buffer.data(), CHUNK_SIZE, pipe) != nullptr) {
             output += buffer.data();
         }
     }

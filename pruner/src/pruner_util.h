@@ -1,34 +1,27 @@
 #ifndef _PRUNER_UTIL_H_
 #define _PRUNER_UTIL_H_
+#include "pruner_options.h"
 
 #include "ir/ir.h"
 #include <boost/random.hpp>
 
-#include "pruner_options.h"
+#include "constants.h"
 
 #define INFO(x) std::cout << x << std::endl;
 
-// define some fixed constants
-#define SIZE_BANK_RATIO 1.1
-#define PRUNE_ITERS 50
-#define NO_CHNG_ITERS 10
-
-// AIDM constants
-#define AIMD_INCREASE 2
-#define AIMD_DECREASE 2
-
-// adding TEST, as it collides with constants defined by cpp.
-#define EXIT_TEST_VALIDATION 20
-#define EXIT_TEST_FAILURE -1
-#define EXIT_TEST_SUCCESS 0
-#define EXIT_TEST_UNDEFINED 30
-
 namespace P4PRUNER {
 
-class PrunerRandomGen {
- public:
-    static void set_seed(int64_t seed);
+class PrunerRng {
+ private:
+    boost::random::mt19937 rng;
 
+ public:
+    static PrunerRng &instance() {
+        static PrunerRng instance;
+
+        return instance;
+    }
+    static void seed(int s) { instance().rng.seed(s); }
     static int64_t get_rnd_int(int64_t min, int64_t max);
     static double get_rnd_pct();
 };

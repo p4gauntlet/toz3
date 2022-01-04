@@ -829,11 +829,11 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type,
                            cstring name, uint64_t member_id)
     : EnumBase(p4_state, type, name, member_id) {
     // FIXME: Enums should not be a struct base, actually
-    width = 32;
+    width = INT_WIDTH;
     size_t idx = 0;
     for (const auto *member : type->members) {
         auto *member_var = new Z3Bitvector(
-            state, member_type, state->get_z3_ctx()->bv_val(idx, 32));
+            state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
         member_types.insert({member->name.name, member_type});
         idx++;
@@ -869,11 +869,11 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type,
                              cstring name, uint64_t member_id)
     : EnumBase(p4_state, type, name, member_id) {
     // FIXME: Enums should not be a struct base, actually
-    width = 32;
+    width = INT_WIDTH;
     size_t idx = 0;
     for (const auto *member : type->members) {
         auto *member_var = new Z3Bitvector(
-            state, member_type, state->get_z3_ctx()->bv_val(idx, 32));
+            state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
         member_types.insert({member->name.name, member_type});
         idx++;
