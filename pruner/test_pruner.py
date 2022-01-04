@@ -69,7 +69,7 @@ for test in list(CRASH_DIR.glob('*.p4')):
 @pytest.mark.run_default
 @pytest.mark.parametrize("test_file", sorted(crash_tests))
 def test_crash_bugs(request, test_file):
-    cmd_args = f"python3 {CHECK_PROG_BIN} --pruner_path {PRUNER_BIN} --compiler {P4C_BIN} --validation {VALIDATION_BIN} --p4prog {CRASH_DIR.joinpath(test_file)} -ll DEBUG --type CRASH"
+    cmd_args = f"python3 {CHECK_PROG_BIN} --pruner_path {PRUNER_BIN} --compiler {P4C_BIN} --p4prog {CRASH_DIR.joinpath(test_file)} -ll DEBUG --type CRASH"
     assert exec_process(cmd_args).returncode == 0
 
 # Disable validation tests until pruner is fixed.
