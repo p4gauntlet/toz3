@@ -26,7 +26,7 @@ REFERENCE_DIR = TEST_DIR.joinpath("references")
 CRASH_DIR = REFERENCE_DIR.joinpath("crash_bugs")
 VALIDATION_DIR = REFERENCE_DIR.joinpath("validation_bugs")
 
-# We'll update this with every p4c commit
+# We"ll update this with every p4c commit
 
 P4C_BIN = TEST_DIR.joinpath(
     "broken_p4c/24895c1b28a35352f1d9ad1f43878c4f7061d3ab")
@@ -36,8 +36,7 @@ VALIDATION_BIN = FILE_DIR.parent.parent.parent.joinpath(
 
 CHECK_PROG_BIN = TEST_DIR.joinpath("check_prog.py")
 
-PRUNER_BIN = FILE_DIR.parent.parent.joinpath('p4c').joinpath('build').joinpath(
-    'extensions').joinpath('toz3').joinpath('pruner').joinpath('p4pruner')
+PRUNER_BIN = FILE_DIR.joinpath("../../p4c/build/p4pruner")
 
 
 def exec_process(cmd, *args, silent=False, **kwargs):
@@ -59,7 +58,7 @@ def exec_process(cmd, *args, silent=False, **kwargs):
 
 
 crash_tests = set()
-for test in list(CRASH_DIR.glob('*.p4')):
+for test in list(CRASH_DIR.glob("*.p4")):
     name = test.name
     if name.endswith("_reference.p4") or name.endswith("_stripped.p4"):
         continue
@@ -74,7 +73,7 @@ def test_crash_bugs(request, test_file):
 
 # Disable validation tests until pruner is fixed.
 # validation_tests = set()
-# for test in list(VALIDATION_DIR.glob('*.p4')):
+# for test in list(VALIDATION_DIR.glob("*.p4")):
 #     name = test.name
 #     if name.endswith("_reference.p4") or name.endswith("_stripped.p4"):
 #         continue
@@ -84,5 +83,7 @@ def test_crash_bugs(request, test_file):
 # @pytest.mark.run_default
 # @pytest.mark.parametrize("test_file", sorted(validation_tests))
 # def test_validation_bugs(request, test_file):
+#     cmd_args = f"python3 {CHECK_PROG_BIN} --pruner_path {PRUNER_BIN} --compiler {P4C_BIN} --validation {VALIDATION_BIN} --p4prog {VALIDATION_DIR.joinpath(test_file)} -ll DEBUG --type VALIDATION"
+#     assert exec_process(cmd_args).returncode == 0
 #     cmd_args = f"python3 {CHECK_PROG_BIN} --pruner_path {PRUNER_BIN} --compiler {P4C_BIN} --validation {VALIDATION_BIN} --p4prog {VALIDATION_DIR.joinpath(test_file)} -ll DEBUG --type VALIDATION"
 #     assert exec_process(cmd_args).returncode == 0
