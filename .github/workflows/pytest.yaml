@@ -31,7 +31,7 @@ jobs:
         cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
         make  -j2
         sudo make install
-    - name: Test with pytest
+    - name: Test with cmake
       run: |
-        cd $GITHUB_WORKSPACE/../p4c/extensions/toz3/pruner
-        python3 -m pytest test_pruner.py  -vrf
+        cd $GITHUB_WORKSPACE/../p4c/build
+        make check-pruner
