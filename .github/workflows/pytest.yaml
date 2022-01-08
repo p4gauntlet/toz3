@@ -31,6 +31,7 @@ jobs:
         cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
     - name: Install P4C with toz3
       run: |
+        cd $GITHUB_WORKSPACE/../p4c/build
         make  -j2
         sudo make install
     - name: Test with CMake
