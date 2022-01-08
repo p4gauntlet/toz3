@@ -34,4 +34,4 @@ jobs:
     - name: Test with cmake
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
-        make check-pruner
+        ctest -R pruner --output-on-failure --schedule-random
