@@ -1,3 +1,4 @@
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TestUtils.cmake)
 
 set (P4PRUNER_SRCS
     src/main.cpp
@@ -56,60 +57,5 @@ file(GLOB CRASH_TESTS "${TEST_DIR}/references/crash_bugs/*.p4")
 # TODO: Make this more systematic
 file(GLOB CRASH_REFS "${TEST_DIR}/references/crash_bugs/*_reference.p4")
 list(REMOVE_ITEM CRASH_TESTS ${CRASH_REFS})
-
-message("CRASH_TESTS ${CRASH_TESTS}")
-
-
-macro(p4c_add_test_with_args tag driver isXfail alias p4test test_args cmake_args)
-  set(__testfile "${P4C_BINARY_DIR}/${tag}/${p4test}.test")
-  file (WRITE  ${__testfile} "#! /usr/bin/env bash\n")
-  file (APPEND ${__testfile} "# Generated file, modify with care\n\n")
-  file (APPEND ${__testfile} "cd ${P4C_BINARY_DIR}\n")
-  file (APPEND ${__testfile} "${driver} ${test_args} \"$@\" ${P4C_SOURCE_DIR}/${p4test}")
-  execute_process(COMMAND chmod +x ${__testfile})
-  p4c_test_set_name(__testname ${tag} ${alias})
-  separate_arguments(__args UNIX_COMMAND ${cmake_args})
-  add_test (NAME ${__testname}
-    COMMAND ${tag}/${p4test}.test ${__args}
-    WORKING_DIRECTORY ${P4C_BINARY_DIR})
-  if (NOT DEFINED ${tag}_timeout)
-    set (${tag}_timeout 300)
-  endif()
-  if (${isXfail})
-    set_tests_properties(${__testname} PROPERTIES LABELS "${tag};XFAIL" TIMEOUT ${${tag}_timeout} WILL_FAIL 1)
-  else()
-    set_tests_properties(${__testname} PROPERTIES LABELS ${tag} TIMEOUT ${${tag}_timeout})
-  endif()
-endmacro(p4c_add_test_with_args)
-
-macro(p4c_add_test_list tag driver tests xfail)
-  set (__xfail_list "${xfail}")
-  set (__test_list "${tests}")
-  set (__testCounter 0)
-  set (__xfailCounter 0)
-  list (LENGTH __test_list __nTests)
-  foreach(t ${__test_list})
-    list (FIND __xfail_list ${t} __xfail_test)
-    if(__xfail_test GREATER -1)
-      p4c_add_test_with_args (${tag} ${driver} TRUE ${t} ${t} "${ARGN}" "")
-      math (EXPR __xfailCounter "${__xfailCounter} + 1")
-    else()
-      p4c_add_test_with_args (${tag} ${driver} FALSE ${t} ${t} "${ARGN}" "")
-    endif() # __xfail_test
-  endforeach() # tests
-  math (EXPR __testCounter "${__testCounter} + ${__nTests}")
-  # add the tag to the list
-  set (TEST_TAGS ${TEST_TAGS} ${tag} CACHE INTERNAL "test tags")
-  MESSAGE(STATUS "Added ${__testCounter} tests to '${tag}' (${__xfailCounter} xfails)")
-endmacro(p4c_add_test_list)
-
-macro(p4c_add_tests tag driver testsuites xfails)
-  set(__tests "")
-  set(__xfails "")
-  p4c_find_test_names("${testsuites}" __tests)
-  p4c_find_test_names("${xfails}" __xfails)
-  p4c_add_test_list (${tag} ${driver} "${__tests}" "${__xfails}" "${ARGN}")
-endmacro(p4c_add_tests)
-
 
 p4c_add_tests("pruner" ${PRUNER_COMPILER_DRIVER} "${CRASH_TESTS}" "" "--pruner_path ${PRUNER_BIN} --compiler ${P4C_TEST_BIN} -ll DEBUG --type CRASH --p4prog")

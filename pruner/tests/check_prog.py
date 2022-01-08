@@ -56,7 +56,6 @@ def main(args):
     if not p4_prog.is_file():
         log.error("Please provide the path to a valid p4 program")
         return EXIT_FAILURE
-
     prog_dir = p4_prog.parent.joinpath(f"pruned_{p4_prog.stem}")
 
     cmd_args = f"{pruner_bin} --seed {SEED} "
@@ -71,8 +70,7 @@ def main(args):
     if pruner_result.returncode == EXIT_FAILURE:
         return EXIT_FAILURE
 
-    PRUNED_FILE = pathlib.PosixPath(
-        ".".join(str(p4_prog).split('.')[:-1]) + '_stripped.p4')
+    PRUNED_FILE = pathlib.Path(str(p4_prog.with_suffix("")) + "_stripped.p4")
 
     FILE_NAME = p4_prog.parts[-1]
 
