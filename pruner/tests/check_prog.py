@@ -35,41 +35,44 @@ def exec_process(cmd, *args, silent=False, **kwargs):
 
 def main(args):
 
-    COMPILER_BIN = args.compiler.absolute()
-    VALIDATION_BIN = args.validation
-    PRUNER_BIN = args.pruner_path.absolute()
-    P4_PROG = args.p4prog.absolute()
+    compiler_bin = args.compiler.absolute()
+    validation_bin = args.validation
+    pruner_bin = args.pruner_path.absolute()
+    p4_prog = args.p4prog.absolute()
 
-    if not shutil.which(COMPILER_BIN):
+    if not shutil.which(compiler_bin):
         log.error("Please provide the path to a valid compiler binary")
         return EXIT_FAILURE
 
-    if VALIDATION_BIN and not VALIDATION_BIN.exists():
-        VALIDATION_BIN = VALIDATION_BIN.absolute()
+    if validation_bin and not validation_bin.exists():
+        validation_bin = validation_bin.absolute()
         log.error("Please provide the path to a valid validation binary")
         return EXIT_FAILURE
 
-    if not shutil.which(PRUNER_BIN):
+    if not shutil.which(pruner_bin):
         log.error("Please provide a valid path to the pruner")
         return EXIT_FAILURE
 
-    if not P4_PROG.is_file():
+    if not p4_prog.is_file():
         log.error("Please provide the path to a valid p4 program")
         return EXIT_FAILURE
+    prog_dir = p4_prog.parent.joinpath(f"pruned_{p4_prog.stem}")
 
-    cmd_args = f"{PRUNER_BIN} --seed {SEED} --compiler-bin {COMPILER_BIN} {P4_PROG} --bug-type {args.type} "
-    if (VALIDATION_BIN):
-        cmd_args += f"--validation-bin {VALIDATION_BIN} "
+    cmd_args = f"{pruner_bin} --seed {SEED} "
+    cmd_args += f"--compiler-bin {compiler_bin} --bug-type {args.type} "
+    cmd_args += f"--working-dir {prog_dir} {p4_prog} "
+
+    if validation_bin:
+        cmd_args += f"--validation-bin {validation_bin} "
 
     pruner_result = exec_process(cmd_args)
 
     if pruner_result.returncode == EXIT_FAILURE:
         return EXIT_FAILURE
 
-    PRUNED_FILE = pathlib.PosixPath(
-        ".".join(str(P4_PROG).split('.')[:-1]) + '_stripped.p4')
+    PRUNED_FILE = pathlib.Path(str(p4_prog.with_suffix("")) + "_stripped.p4")
 
-    FILE_NAME = P4_PROG.parts[-1]
+    FILE_NAME = p4_prog.parts[-1]
 
     ref_file = ".".join(
         str(FILE_NAME).split('.')[:-1]) + '_reference.p4'
@@ -79,16 +82,16 @@ def main(args):
     REFERENCE_FILE = REFERENCE_DIR.joinpath(f"{ref_folder}/{ref_file}")
 
     if REFERENCE_FILE.is_file():
-        if exec_process(f"diff {PRUNED_FILE} {REFERENCE_FILE}").returncode == EXIT_FAILURE:
+        result = exec_process(f"diff {PRUNED_FILE} {REFERENCE_FILE}").returncode
+        if result == EXIT_FAILURE:
             log.error("Test failed")
-            PRUNED_FILE.unlink()
-            return EXIT_FAILURE
         else:
             log.info("Test passed")
-            PRUNED_FILE.unlink()
-            return EXIT_SUCCESS
-    log.error("Reference file not found")
-    return EXIT_FAILURE
+        PRUNED_FILE.unlink()
+    else:
+        log.error("Reference file not found")
+        return EXIT_FAILURE
+    return result
 
 
 if __name__ == '__main__':

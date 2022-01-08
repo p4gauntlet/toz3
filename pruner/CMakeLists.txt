@@ -1,3 +1,4 @@
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TestUtils.cmake)
 
 set (P4PRUNER_SRCS
     src/main.cpp
@@ -44,4 +45,17 @@ add_custom_target(linkp4pruner
 
 add_dependencies(p4c_driver linkp4pruner)
 
+# Test configuration
+set(TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+set(P4C_TEST_BIN "${TEST_DIR}/broken_p4c/24895c1b28a35352f1d9ad1f43878c4f7061d3ab")
+set(PRUNER_BIN "${CMAKE_CURRENT_BINARY_DIR}/p4pruner")
+set(PRUNER_COMPILER_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_prog.py")
 
+file(GLOB CRASH_TESTS "${TEST_DIR}/references/crash_bugs/*.p4")
+
+# Remove references from the list of tests.
+# TODO: Make this more systematic
+file(GLOB CRASH_REFS "${TEST_DIR}/references/crash_bugs/*_reference.p4")
+list(REMOVE_ITEM CRASH_TESTS ${CRASH_REFS})
+
+p4c_add_tests("pruner" ${PRUNER_COMPILER_DRIVER} "${CRASH_TESTS}" "" "--pruner_path ${PRUNER_BIN} --compiler ${P4C_TEST_BIN} -ll DEBUG --type CRASH --p4prog")

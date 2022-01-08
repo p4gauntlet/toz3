@@ -66,7 +66,6 @@ cstring get_file_stem(cstring file_path) {
     } else {
         file_stem = stripped_name;
     }
-
     return file_stem;
 }
 
@@ -85,7 +84,6 @@ cstring get_parent(cstring file_path) {
     } else {
         file_stem = "";
     }
-
     return file_stem;
 }
 
@@ -243,8 +241,9 @@ double measure_pct(const IR::P4Program *prog_before,
 int check_pruned_program(const IR::P4Program **orig_program,
                          const IR::P4Program *pruned_program,
                          P4PRUNER::PrunerConfig pruner_conf) {
-    cstring out_file =
-        pruner_conf.working_dir + get_file_stem(pruner_conf.out_file_name);
+    cstring out_file = pruner_conf.working_dir + "/" +
+                       get_file_stem(pruner_conf.out_file_name);
+
     // append a .p4 suffix
     out_file += ".p4";
     emit_p4_program(pruned_program, out_file);
