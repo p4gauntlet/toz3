@@ -13,7 +13,7 @@ jobs:
       uses: hendrikmuhs/ccache-action@v1
       with:
         key: ${{ matrix.os }}
-        max-size: 100M
+        max-size: 1000M
     - name: Install P4C dependencies
       run: |
         git clone https://github.com/p4lang/p4c $GITHUB_WORKSPACE/../p4c
@@ -21,7 +21,7 @@ jobs:
         git submodule update --init --recursive
         cd $GITHUB_WORKSPACE
         ./do_install.sh
-    - name: Install P4C with toz3
+    - name: Prepare P4C
       run: |
         mkdir -p $GITHUB_WORKSPACE/../p4c/extensions/
         cp -r $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
@@ -29,9 +29,11 @@ jobs:
         mkdir $GITHUB_WORKSPACE/../p4c/build
         cd $GITHUB_WORKSPACE/../p4c/build
         cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    - name: Install P4C with toz3
+      run: |
         make  -j2
         sudo make install
-    - name: Test with cmake
+    - name: Test with CMake
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
         ctest -R pruner --output-on-failure --schedule-random
