@@ -49,7 +49,8 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
     const IR::P4Program *temp = nullptr;
 
     PassManager pass_manager({new ExtendedUnusedDeclarations(&refMap)});
-
+    INFO("Before applying custom remove decls, program is");
+    print_p4_program(program);
     INFO("Applying custom RemoveAllUnusedDeclarations...");
     temp = program->apply(pass_manager);
     check_pruned_program(&program, temp, pruner_conf);

@@ -43,7 +43,7 @@ class ExpressionPruner : public Transform {
     // const IR::Node *postorder(const IR::Slice *s);
     // const IR::Node *postorder(const IR::Mux *m);
     // const IR::Node *postorder(const IR::Member *m);
-    // const IR::Node *postorder(const IR::PathExpression *p);
+    // const IR::Node *postorder(IR::Member *p) override;
     // const IR::Node *postorder(const IR::SerEnumMember *m);
     // const IR::Node *postorder(const IR::DefaultExpression *de);
     // const IR::Node *postorder(const IR::ListExpression *le);

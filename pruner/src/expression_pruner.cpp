@@ -98,6 +98,16 @@ const IR::Node *ExpressionPruner::postorder(IR::Shr *expr) {
     return pick_side_shift_left(expr);
 }
 
+// Debug
+
+// const IR::Node *ExpressionPruner::postorder(IR::Member *p){
+//     INFO("Member: " << p);
+//     INFO("Expr: " << p->expr );
+//     return p;
+// }
+
+
+
 const IR::P4Program *remove_expressions(const IR::P4Program *temp) {
     // Removes all the nodes it receives from the vector
     auto *expression_pruner = new P4PRUNER::ExpressionPruner();
