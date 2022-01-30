@@ -1,3 +1,5 @@
+#include <vector>
+
 #include "frontends/common/constantFolding.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/createBuiltins.h"
@@ -47,8 +49,9 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
-
-    PassManager pass_manager({new ExtendedUnusedDeclarations(&refMap)});
+    std::vector<struct_obj *> used_structs;
+    PassManager pass_manager(
+        {new ExtendedUnusedDeclarations(&refMap, &used_structs)});
     INFO("Before applying custom remove decls, program is");
     print_p4_program(program);
     INFO("Applying custom RemoveAllUnusedDeclarations...");
