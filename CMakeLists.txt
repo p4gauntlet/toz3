@@ -130,17 +130,19 @@ add_custom_target(linkp4toz3
 add_dependencies(p4c_driver linkp4toz3)
 
 # Test configuration
-set(TEST_DIR "${CMAKE_SOURCE_DIR}/testdata/p4_16_samples")
+set(P4C_TEST_DIR "${CMAKE_SOURCE_DIR}/testdata/p4_16_samples")
+set(TOZ3_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(VALIDATION_BIN "${CMAKE_BINARY_DIR}/p4validate")
+set(COMPARE_BIN "${CMAKE_BINARY_DIR}/p4compare")
 set(COMPILER_BIN "${CMAKE_BINARY_DIR}/p4test")
 set(VALIDATION_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/tools/run_validation_test.py")
 
-file(GLOB P4C_VALIDATION_TESTS "${TEST_DIR}/*.p4")
+file(GLOB P4C_VALIDATION_TESTS "${P4C_TEST_DIR}/*.p4")
 
 # These tests need to be added manually
 
 set (MANUAL_VALIDATION_TESTS
-    ${TEST_DIR}/fabric_20190420/fabric.p4
+    ${P4C_TEST_DIR}/fabric_20190420/fabric.p4
 )
 set (P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
@@ -162,11 +164,11 @@ set (P4C_VALIDATION_XFAIL_TESTS
   testdata/p4_16_samples/parser-unroll-test2.p4
   testdata/p4_16_samples/parser-unroll-test3.p4
   testdata/p4_16_samples/parser-unroll-test4.p4
-  )
+)
 
 # These tests need to be remove because they have spurious behavior (timeouts).
 set(SKIPPED_TESTS
-  ${TEST_DIR}/lpm_ubpf.p4
+  ${P4C_TEST_DIR}/lpm_ubpf.p4
 )
 list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})
 
@@ -176,6 +178,19 @@ if(VALIDATION_IGNORE_CRASHES)
   set(VALIDATION_FLAGS "${VALIDATION_FLAGS} --ignore-crashes")
 endif()
 p4c_add_tests("validate" ${VALIDATION_DRIVER} "${P4C_VALIDATION_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+
+file(GLOB VIOLATION_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/violated/*")
+
+set (VIOLATION_XFAIL_TESTS
+    extensions/toz3/tests/violated/2314_regression
+    extensions/toz3/tests/violated/parser_loop
+)
+
+set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-violation")
+if(VALIDATION_IGNORE_CRASHES)
+  set(VIOLATION_FLAGS "${VIOLATION_FLAGS} --ignore-crashes")
+endif()
+p4c_add_tests("validate-violation" ${VALIDATION_DRIVER} "${VIOLATION_TESTS}" "${VIOLATION_XFAIL_TESTS}" "${VIOLATION_FLAGS}")
 
 # This also builds the pruner module
 add_subdirectory (pruner)
