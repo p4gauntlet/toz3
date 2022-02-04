@@ -50,11 +50,11 @@ class Options():
         self.verbose = False            # Enable verbose output.
 
 
-def run_validation_test(options, target_dir):
+def run_validation_test(options, target_dir, allow_undefined):
     cmd = "%s " % options.validation_bin
     cmd += "--dump-dir %s " % target_dir
     cmd += "--compiler-bin %s " % options.compiler_bin
-    if not options.disallow_undefined:
+    if allow_undefined:
         cmd += "--allow-undefined "
     cmd += "%s " % options.p4_file
     result = util.exec_process(cmd)
@@ -66,7 +66,7 @@ def run_validation_test(options, target_dir):
         warnings.warn(msg)
         return util.EXIT_SUCCESS
     if result.returncode == util.EXIT_UNDEF:
-        if not options.disallow_undefined:
+        if allow_undefined:
             msg = "Ignored undefined behavior in %s" % options.p4_file
             warnings.warn(msg)
             return util.EXIT_SUCCESS
