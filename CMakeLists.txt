@@ -130,17 +130,22 @@ add_custom_target(linkp4toz3
 add_dependencies(p4c_driver linkp4toz3)
 
 # Test configuration
-set(TEST_DIR "${CMAKE_SOURCE_DIR}/testdata/p4_16_samples")
+set(P4C_TEST_DIR "${CMAKE_SOURCE_DIR}/testdata/p4_16_samples")
+set(TOZ3_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(VALIDATION_BIN "${CMAKE_BINARY_DIR}/p4validate")
+set(COMPARE_BIN "${CMAKE_BINARY_DIR}/p4compare")
 set(COMPILER_BIN "${CMAKE_BINARY_DIR}/p4test")
 set(VALIDATION_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/tools/run_validation_test.py")
 
-file(GLOB P4C_VALIDATION_TESTS "${TEST_DIR}/*.p4")
+
+################# P4C TESTS #################
+
+file(GLOB P4C_VALIDATION_TESTS "${P4C_TEST_DIR}/*.p4")
 
 # These tests need to be added manually
 
 set (MANUAL_VALIDATION_TESTS
-    ${TEST_DIR}/fabric_20190420/fabric.p4
+    ${P4C_TEST_DIR}/fabric_20190420/fabric.p4
 )
 set (P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
@@ -162,11 +167,11 @@ set (P4C_VALIDATION_XFAIL_TESTS
   testdata/p4_16_samples/parser-unroll-test2.p4
   testdata/p4_16_samples/parser-unroll-test3.p4
   testdata/p4_16_samples/parser-unroll-test4.p4
-  )
+)
 
 # These tests need to be remove because they have spurious behavior (timeouts).
 set(SKIPPED_TESTS
-  ${TEST_DIR}/lpm_ubpf.p4
+  ${P4C_TEST_DIR}/lpm_ubpf.p4
 )
 list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})
 
@@ -175,7 +180,56 @@ set(VALIDATION_FLAGS "--validation-bin ${VALIDATION_BIN} --compiler-bin ${COMPIL
 if(VALIDATION_IGNORE_CRASHES)
   set(VALIDATION_FLAGS "${VALIDATION_FLAGS} --ignore-crashes")
 endif()
-p4c_add_tests("validate" ${VALIDATION_DRIVER} "${P4C_VALIDATION_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+p4c_add_tests("toz3-validate-p4c" ${VALIDATION_DRIVER} "${P4C_VALIDATION_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+
+################# CUSTOM TESTS #################
+
+file(GLOB VALIDATION_FRIENDS_TESTS "${TOZ3_TEST_DIR}/false_friends/*.p4")
+
+set (VALIDATION_FRIENDS_XFAIL_TESTS
+)
+
+# These tests need to be remove because they have spurious behavior (timeouts).
+set(SKIPPED_TESTS
+)
+list(REMOVE_ITEM VALIDATION_FRIENDS_TESTS ${SKIPPED_TESTS})
+
+
+set(VALIDATION_FRIENDS_FLAGS "--validation-bin ${VALIDATION_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR}")
+if(VALIDATION_IGNORE_CRASHES)
+  set(VALIDATION_FRIENDS_FLAGS "${VALIDATION_FRIENDS_FLAGS} --ignore-crashes")
+endif()
+p4c_add_tests("toz3-validate-friends" ${VALIDATION_DRIVER} "${VALIDATION_FRIENDS_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+
+################# VIOLATION TESTS #################
+
+file(GLOB VIOLATION_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/violated/*")
+
+set (VIOLATION_XFAIL_TESTS
+    extensions/toz3/tests/violated/2314_regression
+    extensions/toz3/tests/violated/parser_loop
+)
+
+set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-violation")
+if(VALIDATION_IGNORE_CRASHES)
+  set(VIOLATION_FLAGS "${VIOLATION_FLAGS} --ignore-crashes")
+endif()
+p4c_add_tests("toz3-validate-violation" ${VALIDATION_DRIVER} "${VIOLATION_TESTS}" "${VIOLATION_XFAIL_TESTS}" "${VIOLATION_FLAGS}")
+
+################# UNDEFINED TESTS #################
+
+file(GLOB UNDEFINED_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/undef_violated/*")
+
+set (UNDEFINED_XFAIL_TESTS
+    extensions/toz3/tests/undef_violated/NestedStructs_1
+    extensions/toz3/tests/undef_violated/NestedStructs_2
+)
+
+set(UNDEFINED_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-undefined")
+if(VALIDATION_IGNORE_CRASHES)
+  set(UNDEFINED_FLAGS "${UNDEFINED_FLAGS} --ignore-crashes")
+endif()
+p4c_add_tests("toz3-validate-undefined" ${VALIDATION_DRIVER} "${UNDEFINED_TESTS}" "${UNDEFINED_XFAIL_TESTS}" "${UNDEFINED_FLAGS}")
 
 # This also builds the pruner module
 add_subdirectory (pruner)

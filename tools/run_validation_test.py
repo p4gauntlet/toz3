@@ -24,11 +24,11 @@
 """
 
 import sys
+import warnings
 import tempfile
 from pathlib import Path
 import argparse
 import util
-import warnings
 
 
 FILE_DIR = Path(__file__).parent.resolve()
@@ -44,6 +44,9 @@ class Options():
         self.validation_bin = ""        # Path to the P4 compiler binary.
         self.p4_file = ""               # File that is being compiled.
         self.ignore_crashes = False     # Treat crashes as benign.
+        self.check_violation = False    # Test must produce a violation.
+        self.check_undefined = False    # Test must be sensitive to undefined behavior.
+        self.disallow_undefined = False # Undefined violations must be detected.
         self.verbose = False            # Enable verbose output.
 
 
@@ -74,13 +77,38 @@ def run_validation_test(options, target_dir, allow_undefined):
         return util.EXIT_SUCCESS
     return result.returncode
 
+
+def run_violation_test(options, allow_undefined):
+    src_p4_file = options.p4_file.joinpath("orig.p4")
+    for p4_file in list(options.p4_file.glob("**/[0-9]*.p4")):
+        cmd = "%s %s,%s " % (options.validation_bin, src_p4_file, p4_file)
+        if allow_undefined:
+            cmd += "--allow-undefined "
+        result = util.exec_process(cmd).returncode
+        if result != util.EXIT_VIOLATION:
+            return util.EXIT_FAILURE
+    return util.EXIT_SUCCESS
+
+def run_undef_test(options):
+    if run_violation_test(options, False) != util.EXIT_SUCCESS:
+        return util.EXIT_FAILURE
+    if run_violation_test(options, True) != util.EXIT_FAILURE:
+        return util.EXIT_FAILURE
+    return util.EXIT_SUCCESS
+
 def run_test(options, argv):
+    if (options.check_violation):
+        return run_violation_test(options, not options.disallow_undefined)
+
+    if (options.check_undefined):
+        return run_undef_test(options)
+
     tmpdir = Path(tempfile.mkdtemp(dir=options.builddir))
 
     if options.verbose:
         print("Writing temporary files into ", tmpdir)
 
-    result = run_validation_test(options, tmpdir, True)
+    result = run_validation_test(options, tmpdir, not options.disallow_undefined)
 
     if options.cleanupTmp:
         if options.verbose:
@@ -110,6 +138,12 @@ if __name__ == '__main__':
                         help="verbose operation")
     parser.add_argument("-ic", "--ignore-crashes", action="store_true",
                         help="Ignore any crashes that may happen.")
+    parser.add_argument("-da", "--disallow-undefined", action="store_true",
+                        help="If active, undefined violations must be detected.")
+    parser.add_argument("-cv", "--check-violation", action="store_true",
+                        help="If active, the test must produce a violation error. Also p4_file must be an input folder.")
+    parser.add_argument("-cu", "--check-undefined", action="store_true",
+                        help="If active, the test must not produce a violation error if allow-undefined is true. Otherwise, it must throw an error.")
     args, argv = parser.parse_known_args()
     options = Options()
     options.rootdir = util.is_valid_file(parser, args.rootdir)
@@ -118,6 +152,9 @@ if __name__ == '__main__':
     options.validation_bin = util.is_valid_file(parser, args.validation_bin)
     options.p4_file = util.is_valid_file(parser, args.p4_file)
     options.ignore_crashes = args.ignore_crashes
+    options.check_violation = args.check_violation
+    options.check_undefined = args.check_undefined
+    options.disallow_undefined = args.disallow_undefined
     options.verbose = args.verbose
     options.cleanupTmp = args.nocleanup
 

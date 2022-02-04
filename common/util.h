@@ -1,6 +1,7 @@
 #ifndef TOZ3_COMMON_UTIL_H_
 #define TOZ3_COMMON_UTIL_H_
 
+#include <limits.h>
 #include <string>
 
 #include "ir/ir.h"

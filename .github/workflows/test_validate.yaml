@@ -34,7 +34,7 @@ jobs:
         cd $GITHUB_WORKSPACE/../p4c/build
         make  -j2
         sudo make install
-    - name: Test Validate with CMake
+    - name: Test toz3 with CMake
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
-        ctest -j4 -R validate/ --output-on-failure --schedule-random
+        ctest -j4 -R toz3-validate --output-on-failure --schedule-random
