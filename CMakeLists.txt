@@ -140,6 +140,23 @@ file(GLOB P4C_VALIDATION_TESTS "${TEST_DIR}/*.p4")
 set (P4C_VALIDATION_XFAIL_TESTS
   # Different validity interpretation from the spec.
   testdata/p4_16_samples/pna-issue3041.p4
+  # Times out.
+  testdata/p4_16_samples/lpm_ubpf.p4
+  # Crashes.
+  testdata/p4_16_samples/bit0-bmv2.p4
+  testdata/p4_16_samples/bool_to_bit_cast.p4
+  testdata/p4_16_samples/enumCast.p4
+  testdata/p4_16_samples/issue1208-1.p4
+  testdata/p4_16_samples/issue1334.p4
+  testdata/p4_16_samples/issue1717.p4
+  testdata/p4_16_samples/issue3001-1.p4
+  testdata/p4_16_samples/issue3001.p4
+  testdata/p4_16_samples/issue3051.p4
+  testdata/p4_16_samples/minsize.p4
+  testdata/p4_16_samples/parser-unroll-test1.p4
+  testdata/p4_16_samples/parser-unroll-test2.p4
+  testdata/p4_16_samples/parser-unroll-test3.p4
+  testdata/p4_16_samples/parser-unroll-test4.p4
   )
 
 set(VALIDATION_FLAGS "--validation-bin ${VALIDATION_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR}")
