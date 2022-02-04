@@ -137,6 +137,9 @@ set(COMPARE_BIN "${CMAKE_BINARY_DIR}/p4compare")
 set(COMPILER_BIN "${CMAKE_BINARY_DIR}/p4test")
 set(VALIDATION_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/tools/run_validation_test.py")
 
+
+################# P4C TESTS #################
+
 file(GLOB P4C_VALIDATION_TESTS "${P4C_TEST_DIR}/*.p4")
 
 # These tests need to be added manually
@@ -177,7 +180,28 @@ set(VALIDATION_FLAGS "--validation-bin ${VALIDATION_BIN} --compiler-bin ${COMPIL
 if(VALIDATION_IGNORE_CRASHES)
   set(VALIDATION_FLAGS "${VALIDATION_FLAGS} --ignore-crashes")
 endif()
-p4c_add_tests("validate" ${VALIDATION_DRIVER} "${P4C_VALIDATION_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+p4c_add_tests("toz3-validate-p4c" ${VALIDATION_DRIVER} "${P4C_VALIDATION_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+
+################# CUSTOM TESTS #################
+
+file(GLOB VALIDATION_FRIENDS_TESTS "${TOZ3_TEST_DIR}/false_friends/*.p4")
+
+set (VALIDATION_FRIENDS_XFAIL_TESTS
+)
+
+# These tests need to be remove because they have spurious behavior (timeouts).
+set(SKIPPED_TESTS
+)
+list(REMOVE_ITEM VALIDATION_FRIENDS_TESTS ${SKIPPED_TESTS})
+
+
+set(VALIDATION_FRIENDS_FLAGS "--validation-bin ${VALIDATION_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR}")
+if(VALIDATION_IGNORE_CRASHES)
+  set(VALIDATION_FRIENDS_FLAGS "${VALIDATION_FRIENDS_FLAGS} --ignore-crashes")
+endif()
+p4c_add_tests("toz3-validate-friends" ${VALIDATION_DRIVER} "${VALIDATION_FRIENDS_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+
+################# VIOLATION TESTS #################
 
 file(GLOB VIOLATION_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/violated/*")
 
@@ -190,7 +214,22 @@ set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_B
 if(VALIDATION_IGNORE_CRASHES)
   set(VIOLATION_FLAGS "${VIOLATION_FLAGS} --ignore-crashes")
 endif()
-p4c_add_tests("validate-violation" ${VALIDATION_DRIVER} "${VIOLATION_TESTS}" "${VIOLATION_XFAIL_TESTS}" "${VIOLATION_FLAGS}")
+p4c_add_tests("toz3-validate-violation" ${VALIDATION_DRIVER} "${VIOLATION_TESTS}" "${VIOLATION_XFAIL_TESTS}" "${VIOLATION_FLAGS}")
+
+################# UNDEFINED TESTS #################
+
+file(GLOB UNDEFINED_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/undef_violated/*")
+
+set (UNDEFINED_XFAIL_TESTS
+    extensions/toz3/tests/undef_violated/NestedStructs_1
+    extensions/toz3/tests/undef_violated/NestedStructs_2
+)
+
+set(UNDEFINED_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-undefined")
+if(VALIDATION_IGNORE_CRASHES)
+  set(UNDEFINED_FLAGS "${UNDEFINED_FLAGS} --ignore-crashes")
+endif()
+p4c_add_tests("toz3-validate-undefined" ${VALIDATION_DRIVER} "${UNDEFINED_TESTS}" "${UNDEFINED_XFAIL_TESTS}" "${UNDEFINED_FLAGS}")
 
 # This also builds the pruner module
 add_subdirectory (pruner)
