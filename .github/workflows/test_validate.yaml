@@ -37,4 +37,4 @@ jobs:
     - name: Test Validate with CMake
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
-        ctest -j4 -R validate --output-on-failure --schedule-random
+        ctest -j4 -R validate/ --output-on-failure --schedule-random
