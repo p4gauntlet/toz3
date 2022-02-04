@@ -129,5 +129,24 @@ add_custom_target(linkp4toz3
 
 add_dependencies(p4c_driver linkp4toz3)
 
+# Test configuration
+set(TEST_DIR "${CMAKE_SOURCE_DIR}/testdata/p4_16_samples/")
+set(VALIDATION_BIN "${CMAKE_BINARY_DIR}/p4validate")
+set(COMPILER_BIN "${CMAKE_BINARY_DIR}/p4test")
+set(VALIDATION_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/tools/run_validation_test.py")
+
+file(GLOB P4C_TESTS "${TEST_DIR}/*.p4")
+
+# Remove references from the list of tests.
+# TODO: Make this more systematic
+file(GLOB CRASH_REFS "${TEST_DIR}/references/crash_bugs/*_reference.p4")
+list(REMOVE_ITEM P4C_TESTS ${CRASH_REFS})
+
+set(VALIDATION_FLAGS "--validation-bin ${VALIDATION_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR}")
+if(VALIDATION_IGNORE_CRASHES)
+  set(VALIDATION_FLAGS "${VALIDATION_FLAGS} --ignore-crashes")
+endif()
+p4c_add_tests("validate" ${VALIDATION_DRIVER} "${P4C_TESTS}" "" "${VALIDATION_FLAGS}")
+
 # This also builds the pruner module
 add_subdirectory (pruner)

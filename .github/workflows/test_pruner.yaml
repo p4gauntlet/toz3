@@ -1,11 +1,11 @@
-name: test
+name: test-pruner
 on:
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
 jobs:
-  test:
+  test-pruner:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v1
@@ -34,7 +34,7 @@ jobs:
         cd $GITHUB_WORKSPACE/../p4c/build
         make  -j2
         sudo make install
-    - name: Test with CMake
+    - name: Test Pruner with CMake
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
         ctest -R pruner --output-on-failure --schedule-random

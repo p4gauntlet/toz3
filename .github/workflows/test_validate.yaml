@@ -1,0 +1,40 @@
+name: test-validate
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  test-validate:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1
+      with:
+        key: ${{ matrix.os }}
+        max-size: 1000M
+    - name: Install P4C dependencies
+      run: |
+        git clone https://github.com/p4lang/p4c $GITHUB_WORKSPACE/../p4c
+        cd $GITHUB_WORKSPACE/../p4c
+        git submodule update --init --recursive
+        cd $GITHUB_WORKSPACE
+        ./do_install.sh
+    - name: Prepare P4C
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/../p4c/extensions/
+        cp -r $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+        ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+        mkdir $GITHUB_WORKSPACE/../p4c/build
+        cd $GITHUB_WORKSPACE/../p4c/build
+        cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    - name: Install P4C with toz3
+      run: |
+        cd $GITHUB_WORKSPACE/../p4c/build
+        make  -j2
+        sudo make install
+    - name: Test Validate with CMake
+      run: |
+        cd $GITHUB_WORKSPACE/../p4c/build
+        ctest -j4 -R validate --output-on-failure --schedule-random
