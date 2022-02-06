@@ -103,7 +103,7 @@ def run_test(options, argv):
     if (options.check_undefined):
         return run_undef_test(options)
 
-    tmpdir = Path(tempfile.mkdtemp(dir=options.builddir))
+    tmpdir = Path(tempfile.mkdtemp(dir=str(options.builddir)))
 
     if options.verbose:
         print("Writing temporary files into ", tmpdir)

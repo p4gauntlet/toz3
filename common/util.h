@@ -1,7 +1,6 @@
 #ifndef TOZ3_COMMON_UTIL_H_
 #define TOZ3_COMMON_UTIL_H_
 
-#include <limits.h>
 #include <string>
 
 #include "ir/ir.h"
@@ -18,6 +17,11 @@
 
 #ifndef LOG_LEVEL
 #define LOG_LEVEL 1
+#endif
+
+// If INT_WIDTH is not defined, define it as the size of int
+#ifndef INT_WIDTH
+#define INT_WIDTH sizeof(int)
 #endif
 
 namespace TOZ3 {
