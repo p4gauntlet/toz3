@@ -8,10 +8,10 @@ namespace P4PRUNER {
 bool PruneUnused::check_if_field_used(cstring name_of_struct,
                                       cstring name_of_field) {
     INFO("current struct_used");
-    show_used_structs();    
+    // show_used_structs();    
     for (struct_obj *s : *used_structs) {
         if (s->name == name_of_struct) {
-            for (cstring f : s->fields) {
+            for (cstring f : *(s->fields)) {
                 if (f == name_of_field) {
                     return true;
                 }
@@ -35,10 +35,8 @@ const IR::Node *PruneUnused::preorder(IR::StructField *sf) {
     cstring p_name = p->getP4Type()->toString();
     cstring f_name = sf->toString();
     bool res = check_if_field_used(p_name, f_name);
-    INFO("p_name: " << p_name);
-    INFO("f_name: " << f_name);
-    INFO("field_used: " << res);
-    return sf;
+    if(res) return sf;
+    return nullptr;
 }
 
 const IR::Node *PruneUnused::preorder(IR::Type_Extern *te) {
@@ -75,8 +73,8 @@ bool ListStructs::preorder(const IR::Member *p) {
         return true;  // Only handle parameters for now
     cstring mem = p->member.name;
     cstring parent = v->type->getP4Type()->toString();
-    INFO("Member: " << mem);
-    INFO("ParentStruct: " << parent);
+    // INFO("Member: " << mem);
+    // INFO("ParentStruct: " << parent);
     insertField(parent, mem);
     return true;
 }
@@ -88,25 +86,30 @@ void ListStructs::insertField(cstring name_of_struct, cstring name_of_field) {
     bool foundStruct = false;
     bool foundField = false;
 
-    for (int i = 0; i < used_structs->size(); i++) {
+    for (size_t i = 0; i < used_structs->size(); i++) {
         struct_obj* s = used_structs->at(i);
         if (name_of_struct == s->name) {
             foundStruct = true;
-            for (int j = 0; j < s->fields.size(); j++) {
-                cstring f = s->fields.at(i);
+            INFO("Fields size : " << s->fields->size());
+            for (size_t j = 0; j < s->fields->size(); j++) {
+                cstring f = s->fields->at(j);
+                INFO("Got " << f);
                 if (name_of_field == f) {
                     foundField = true;
                 }
             }
             if (!foundField)
-                s->fields.push_back(name_of_field);
+                s->fields->push_back(name_of_field);
         }
     }
     if (!foundStruct) {
-        std::vector<cstring> f;
-        f.push_back(name_of_field);
-        struct_obj s = {name_of_struct, f};
-        used_structs->push_back(&s);
+        // Lets have this on the heap
+        std::vector<cstring> *f = new std::vector<cstring>();
+        f->push_back(name_of_field);
+        struct_obj* s = new struct_obj;
+        s->name = name_of_struct;
+        s->fields = f;
+        used_structs->push_back(s);
     }
 }
 
@@ -118,7 +121,7 @@ void PruneUnused::show_used_structs() {
     }
     for (struct_obj *s : *used_structs) {
         INFO("Struct: " << s->name);
-        for (cstring f : s->fields) {
+        for (cstring f : *(s->fields)) {
             INFO("\tField: " << f);
         }
     }

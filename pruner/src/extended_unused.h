@@ -10,7 +10,7 @@ namespace P4PRUNER {
 
 struct struct_obj {
     cstring name;
-    std::vector<cstring> fields;
+    std::vector<cstring> *fields;
 };
 
 class PruneUnused : public P4::RemoveUnusedDeclarations {
