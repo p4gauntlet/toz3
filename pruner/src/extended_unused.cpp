@@ -7,8 +7,6 @@ namespace P4PRUNER {
 
 bool PruneUnused::check_if_field_used(cstring name_of_struct,
                                       cstring name_of_field) {
-    INFO("current struct_used");
-    // show_used_structs();    
     for (struct_obj *s : *used_structs) {
         if (s->name == name_of_struct) {
             for (cstring f : *(s->fields)) {
@@ -35,7 +33,7 @@ const IR::Node *PruneUnused::preorder(IR::StructField *sf) {
     cstring p_name = p->getP4Type()->toString();
     cstring f_name = sf->toString();
     bool res = check_if_field_used(p_name, f_name);
-    if(res) return sf;
+    if (res) return sf;
     return nullptr;
 }
 
@@ -90,13 +88,9 @@ void ListStructs::insertField(cstring name_of_struct, cstring name_of_field) {
         struct_obj* s = used_structs->at(i);
         if (name_of_struct == s->name) {
             foundStruct = true;
-            INFO("Fields size : " << s->fields->size());
             for (size_t j = 0; j < s->fields->size(); j++) {
                 cstring f = s->fields->at(j);
-                INFO("Got " << f);
-                if (name_of_field == f) {
-                    foundField = true;
-                }
+                foundField = name_of_field == f;
             }
             if (!foundField)
                 s->fields->push_back(name_of_field);

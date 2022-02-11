@@ -98,13 +98,6 @@ const IR::Node *ExpressionPruner::postorder(IR::Shr *expr) {
     return pick_side_shift_left(expr);
 }
 
-// Debug
-
-// const IR::Node *ExpressionPruner::postorder(IR::Member *p){
-//     INFO("Member: " << p);
-//     INFO("Expr: " << p->expr );
-//     return p;
-// }
 
 
 

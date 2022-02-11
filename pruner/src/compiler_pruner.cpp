@@ -52,9 +52,6 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
     std::vector<struct_obj *> used_structs;
     PassManager pass_manager(
         {new ExtendedUnusedDeclarations(&refMap, &used_structs)});
-    INFO("Before applying custom remove decls, program is");
-    print_p4_program(program);
-    INFO("Applying custom RemoveAllUnusedDeclarations...");
     temp = program->apply(pass_manager);
     check_pruned_program(&program, temp, pruner_conf);
 
