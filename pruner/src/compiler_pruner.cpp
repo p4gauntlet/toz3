@@ -44,17 +44,6 @@ const IR::P4Program *apply_replace_vars(const IR::P4Program *program,
     return program;
 }
 
-void cleanup(std::vector<struct_obj*> *s){
-    for (auto obj : *s)
-    {   
-        delete(obj->fields);   
-        delete(obj);
-    }
-
-    s->clear();
-}
-
-
 const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
                                         P4PRUNER::PrunerConfig pruner_conf) {
     P4::ReferenceMap refMap;
@@ -64,7 +53,6 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
     PassManager pass_manager(
         {new ExtendedUnusedDeclarations(&refMap, &used_structs)});
     temp = program->apply(pass_manager);
-    cleanup(&used_structs);
     check_pruned_program(&program, temp, pruner_conf);
 
     return program;
@@ -77,7 +65,6 @@ const IR::P4Program *apply_compiler_passes(const IR::P4Program *program,
     auto action = DiagnosticAction::Ignore;
     P4CContext::get().setDefaultWarningDiagnosticAction(action);
     INFO("\nPruning with compiler passes")
-
     bool genericPassesApplied = false;
     // apply the compiler passes
     program = apply_generic_passes(program, pruner_conf, &genericPassesApplied);

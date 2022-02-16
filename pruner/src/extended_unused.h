@@ -1,16 +1,16 @@
 #ifndef _PRUNE_UNUSED_H_
 #define _PRUNE_UNUSED_H_
 
-#include <vector>
 #include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/unusedDeclarations.h"
 #include "ir/ir.h"
+#include <vector>
 
 namespace P4PRUNER {
 
 struct struct_obj {
     cstring name;
-    std::vector<cstring> *fields;
+    std::vector<cstring> *fields{};
 };
 
 class PruneUnused : public P4::RemoveUnusedDeclarations {
