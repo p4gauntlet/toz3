@@ -1,6 +1,7 @@
 #include "extended_unused.h"
 
 #include "frontends/p4/sideEffects.h"
+#include "ir/ir-generated.h"
 #include "pruner_util.h"
 
 namespace P4PRUNER {
@@ -61,7 +62,7 @@ const IR::Node *PruneUnused::preorder(IR::Function *f) {
 // List unused struct declarations
 
 bool ListStructs::preorder(const IR::Member *p) {
-    auto *pexpr = (IR::PathExpression *)(p->expr);
+    const auto *pexpr = p->expr->checkedTo<IR::PathExpression>();
     const IR::IDeclaration *decl =
         unused_refMap->getDeclaration(pexpr->path, false);
     if (decl == nullptr) {
@@ -73,8 +74,6 @@ bool ListStructs::preorder(const IR::Member *p) {
     }
     cstring mem = p->member.name;
     cstring parent = v->type->getP4Type()->toString();
-    // INFO("Member: " << mem);
-    // INFO("ParentStruct: " << parent);
     insertField(parent, mem);
     return true;
 }
@@ -110,15 +109,15 @@ void ListStructs::insertField(cstring name_of_struct, cstring name_of_field) {
 }
 
 void PruneUnused::show_used_structs() {
-    INFO("Printing Used Structs");
+    LOG2("Printing Used Structs");
     if (used_structs->empty()) {
-        INFO("used_structs is empty");
+        LOG1("used_structs is empty");
         return;
     }
     for (struct_obj *s : *used_structs) {
-        INFO("Struct: " << s->name);
+        LOG2("Struct: " << s->name);
         for (cstring f : *(s->fields)) {
-            INFO("\tField: " << f);
+            LOG2("\tField: " << f);
         }
     }
 }
