@@ -28,6 +28,7 @@ const IR::Node *PruneUnused::preorder(IR::Type_StructLike *ts) {
 }
 
 const IR::Node *PruneUnused::preorder(IR::StructField *sf) {
+    // show_used_structs();
     const auto *p = getParent<IR::Type_StructLike>();
     cstring p_name = p->getP4Type()->toString();
     cstring f_name = sf->toString();
@@ -62,7 +63,11 @@ const IR::Node *PruneUnused::preorder(IR::Function *f) {
 // List unused struct declarations
 
 bool ListStructs::preorder(const IR::Member *p) {
-    const auto *pexpr = p->expr->checkedTo<IR::PathExpression>();
+    auto *pexpr = (IR::PathExpression *)(p->expr);
+    if (pexpr == nullptr) {
+        return true;  // i.e, expr was not a path expression
+    }
+
     const IR::IDeclaration *decl =
         unused_refMap->getDeclaration(pexpr->path, false);
     if (decl == nullptr) {
