@@ -46,6 +46,7 @@ class ListStructs : public Inspector {
                          std::vector<struct_obj *> *_used_structs)
         : unused_refMap(refMap), used_structs(_used_structs) {
         CHECK_NULL(refMap);
+        CHECK_NULL(_used_structs);
         setName("ListStructs");
     }
     Visitor::profile_t init_apply(const IR::Node *node) override;
