@@ -30,8 +30,11 @@ const IR::Node *Pruner::preorder(IR::BlockStatement *s) {
     return s;
 }
 
-const IR::Node *Pruner::preorder(IR::EmptyStatement * /*e*/) {
-    // Always remove empty statements.
+const IR::Node *Pruner::preorder(IR::EmptyStatement *e) {
+    // Don't remove empty statements if they are children of an if block.
+    if (this->getParent<IR::IfStatement>() != nullptr) {
+        return e;
+    }
     return nullptr;
 }
 
