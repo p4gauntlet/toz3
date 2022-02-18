@@ -63,11 +63,10 @@ const IR::Node *PruneUnused::preorder(IR::Function *f) {
 // List unused struct declarations
 
 bool ListStructs::preorder(const IR::Member *p) {
-    auto *pexpr = (IR::PathExpression *)(p->expr);
+    const auto *pexpr = p->expr->to<IR::PathExpression>();
     if (pexpr == nullptr) {
         return true;  // i.e, expr was not a path expression
     }
-
     const IR::IDeclaration *decl =
         unused_refMap->getDeclaration(pexpr->path, false);
     if (decl == nullptr) {

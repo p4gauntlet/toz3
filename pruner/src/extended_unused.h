@@ -1,10 +1,10 @@
 #ifndef _PRUNE_UNUSED_H_
 #define _PRUNE_UNUSED_H_
-
+#include <vector>
+// P4C headers
 #include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/unusedDeclarations.h"
 #include "ir/ir.h"
-#include <vector>
 
 namespace P4PRUNER {
 
