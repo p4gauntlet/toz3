@@ -28,7 +28,6 @@ const IR::Node *PruneUnused::preorder(IR::Type_StructLike *ts) {
 }
 
 const IR::Node *PruneUnused::preorder(IR::StructField *sf) {
-    // show_used_structs();
     const auto *p = getParent<IR::Type_StructLike>();
     cstring p_name = p->getP4Type()->toString();
     cstring f_name = sf->toString();
