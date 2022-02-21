@@ -61,7 +61,7 @@ def run_validation_test(options, target_dir, allow_undefined):
     if options.verbose:
         print("Validation output:\n%s" % result.stdout.decode())
         print("Validation error output:\n%s" % result.stderr.decode())
-    if result.returncode == util.EXIT_FAILURE and options.ignore_crashes:
+    if result.returncode not in [util.EXIT_SUCCESS, util.EXIT_UNDEF, util.EXIT_VIOLATION] and options.ignore_crashes:
         msg = "Ignored crash in %s" % options.p4_file
         warnings.warn(msg)
         return util.EXIT_SUCCESS
