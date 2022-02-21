@@ -81,6 +81,7 @@ class StructBase : public P4Z3Instance {
     virtual void propagate_validity(const z3::expr *valid_expr);
     virtual void bind(const z3::expr *bind_var, uint64_t offset);
     virtual void set_list(std::vector<P4Z3Instance *>);
+    virtual void set_list(std::map<cstring, P4Z3Instance *> input_map);
 
     // copy constructor
     StructBase(const StructBase &other);
@@ -141,6 +142,7 @@ class HeaderInstance : public StructInstance, public FunctionClass {
     void propagate_validity(const z3::expr *valid_expr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     void set_list(std::vector<P4Z3Instance *> input_list) override;
+    void set_list(std::map<cstring, P4Z3Instance *> input_map) override;
     void bind_to_union(HeaderUnionInstance *union_parent);
 
     cstring get_static_type() const override { return "HeaderInstance"; }
@@ -386,12 +388,18 @@ class SerEnumInstance : public EnumBase {
 };
 
 class ListInstance : public StructBase {
+ private:
+    bool isLabelled = false;
+
  public:
     explicit ListInstance(P4State *state,
                           const std::vector<P4Z3Instance *> &val_list,
                           const IR::Type *type);
     explicit ListInstance(P4State *state, const IR::Type_List *list_type,
                           cstring name, uint64_t member_id);
+    explicit ListInstance(P4State *state,
+                          const std::map<cstring, P4Z3Instance *> &val_map,
+                          const IR::Type *type_list);
     cstring get_static_type() const override { return "ListInstance"; }
     cstring to_string() const override {
         cstring ret = "ListInstance(";
@@ -409,8 +417,12 @@ class ListInstance : public StructBase {
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     ListInstance *copy() const override;
     std::vector<P4Z3Instance *> get_val_list() const;
+    std::map<cstring, P4Z3Instance *> get_val_map() const;
+
     z3::expr operator==(const P4Z3Instance &other) const override;
     z3::expr operator!=(const P4Z3Instance &other) const override;
+
+    bool hasLabels() const { return isLabelled; }
 };
 
 class ControlInstance : public P4Z3Instance, public FunctionClass {

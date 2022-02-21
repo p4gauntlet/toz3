@@ -51,10 +51,56 @@ void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
     for (auto &member_tuple : members) {
         auto member_name = member_tuple.first;
         auto *target_val = member_tuple.second;
-        const auto *input_val = input_list.at(idx);
+        const P4Z3Instance *input_val = nullptr;
+        // This may happen in the case of lists with default values.
+        // We assume the rest of the list is undefined.
+        if (idx >= input_list.size()) {
+            input_val =
+                state->gen_instance(UNDEF_LABEL, target_val->get_p4_type());
+        } else {
+            input_val = input_list.at(idx);
+        }
         if (const auto *sub_list = input_val->to<ListInstance>()) {
             if (auto *sub_target = target_val->to_mut<StructBase>()) {
-                sub_target->set_list(sub_list->get_val_list());
+                if (sub_list->hasLabels()) {
+                    sub_target->set_list(sub_list->get_val_map());
+                } else {
+                    sub_target->set_list(sub_list->get_val_list());
+                }
+            } else {
+                BUG("Unsupported set list class %s.",
+                    target_val->get_static_type());
+            }
+        } else {
+            const auto *member_type = get_member_type(member_name);
+            auto *cast_val = input_val->cast_allocate(member_type);
+            update_member(member_name, cast_val);
+        }
+        idx++;
+    }
+}
+
+void StructBase::set_list(std::map<cstring, P4Z3Instance *> input_map) {
+    size_t idx = 0;
+    for (auto &member_tuple : members) {
+        auto member_name = member_tuple.first;
+        auto *target_val = member_tuple.second;
+        const P4Z3Instance *input_val = nullptr;
+        // This may happen in the case of lists with default values.
+        // We assume the rest of the list is undefined.
+        if (input_map.count(member_name) == 0) {
+            input_val =
+                state->gen_instance(UNDEF_LABEL, target_val->get_p4_type());
+        } else {
+            input_val = input_map[member_name];
+        }
+        if (const auto *sub_list = input_val->to<ListInstance>()) {
+            if (auto *sub_target = target_val->to_mut<StructBase>()) {
+                if (sub_list->hasLabels()) {
+                    sub_target->set_list(sub_list->get_val_map());
+                } else {
+                    sub_target->set_list(sub_list->get_val_list());
+                }
             } else {
                 BUG("Unsupported set list class %s.",
                     target_val->get_static_type());
@@ -405,6 +451,12 @@ void HeaderInstance::set_list(std::vector<P4Z3Instance *> input_list) {
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
     StructBase::set_list(input_list);
+}
+
+void HeaderInstance::set_list(std::map<cstring, P4Z3Instance *> input_map) {
+    set_valid(state->get_z3_ctx()->bool_val(true));
+    propagate_validity(&valid);
+    StructBase::set_list(input_map);
 }
 
 void HeaderInstance::bind_to_union(HeaderUnionInstance *union_parent) {
@@ -999,6 +1051,23 @@ ListInstance::ListInstance(P4State *state,
     p4_type = new IR::Type_List(components);
 }
 
+ListInstance::ListInstance(P4State *state,
+                           const std::map<cstring, P4Z3Instance *> &val_map,
+                           const IR::Type *type_list)
+    : StructBase(state, type_list, "", 0), isLabelled(true) {
+    IR::Vector<IR::Type> components;
+    for (auto val_tuple : val_map) {
+        auto val_name = val_tuple.first;
+        auto *val = val_tuple.second;
+        insert_member(val_name, val);
+        const auto *type = val->get_p4_type();
+        member_types.insert({val_name, type});
+        components.push_back(type);
+    }
+    // The list should have the type information now
+    p4_type = new IR::Type_List(components);
+}
+
 ListInstance::ListInstance(P4State *state, const IR::Type_List *list_type,
                            cstring name, uint64_t member_id)
     : StructBase(state, list_type, name, member_id) {
@@ -1022,11 +1091,19 @@ P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
         P4C_UNIMPLEMENTED("Unsupported type %s for ListInstance.",
                           dest_type->node_type_name());
     }
-    struct_instance->set_list(get_val_list());
+
+    if (isLabelled) {
+        struct_instance->set_list(get_val_map());
+    } else {
+        struct_instance->set_list(get_val_list());
+    }
     return struct_instance;
 }
 
 ListInstance *ListInstance::copy() const {
+    if (isLabelled) {
+        return new ListInstance(state, get_val_map(), p4_type);
+    }
     return new ListInstance(state, get_val_list(), p4_type);
 }
 
@@ -1036,6 +1113,14 @@ std::vector<P4Z3Instance *> ListInstance::get_val_list() const {
         val_list.push_back(member.second);
     }
     return val_list;
+}
+
+std::map<cstring, P4Z3Instance *> ListInstance::get_val_map() const {
+    std::map<cstring, P4Z3Instance *> val_map;
+    for (const auto &member : members) {
+        val_map[member.first] = member.second;
+    }
+    return val_map;
 }
 
 void unroll_list(const StructBase *input_struct,

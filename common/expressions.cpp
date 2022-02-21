@@ -61,10 +61,10 @@ bool Z3Visitor::preorder(const IR::ListExpression *le) {
 }
 
 bool Z3Visitor::preorder(const IR::StructExpression *se) {
-    std::vector<P4Z3Instance *> members;
+    std::map<cstring, P4Z3Instance *> members;
     for (const auto *component : se->components) {
         visit(component);
-        members.push_back(state->copy_expr_result());
+        members[component->name] = state->copy_expr_result();
     }
     // TODO: Not sure what the deal with Type_Unknown is here
     if (se->type != nullptr && !se->type->is<IR::Type_Unknown>()) {
