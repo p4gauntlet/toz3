@@ -1,16 +1,15 @@
 #include "extended_unused.h"
 
 #include "frontends/p4/sideEffects.h"
-#include "ir/ir-generated.h"
 #include "pruner_util.h"
 
 namespace P4PRUNER {
 
 bool PruneUnused::check_if_field_used(cstring name_of_struct,
                                       cstring name_of_field) {
-    for (struct_obj *s : *used_structs) {
+    for (const auto *s : *used_structs) {
         if (s->name == name_of_struct) {
-            for (cstring f : *(s->fields)) {
+            for (auto f : *(s->fields)) {
                 if (f == name_of_field) {
                     return true;
                 }
