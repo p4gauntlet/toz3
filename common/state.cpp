@@ -416,9 +416,9 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(
         auto direction = param->direction;
         if (direction == IR::Direction::Out ||
             direction == IR::Direction::InOut) {
-                auto member_struct = get_member_struct(this, visitor, arg_expr);
-                resolved_args.push_back({member_struct, param->name.name});
-                arg_result = get_member(this, member_struct);
+            auto member_struct = get_member_struct(this, visitor, arg_expr);
+            resolved_args.push_back({member_struct, param->name.name});
+            arg_result = get_member(this, member_struct);
         } else {
             visitor->visit(arg_expr);
             arg_result = get_expr_result();
