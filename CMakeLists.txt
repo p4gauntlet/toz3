@@ -191,6 +191,13 @@ set(
   ${P4C_TEST_DIR}/parser-unroll-test2.p4
   ${P4C_TEST_DIR}/parser-unroll-test3.p4
   ${P4C_TEST_DIR}/parser-unroll-test4.p4
+  ${P4C_TEST_DIR}/issue2800a.p4
+  ${P4C_TEST_DIR}/issue2800b.p4
+  ${P4C_TEST_DIR}/issue2800c.p4
+  ${P4C_TEST_DIR}/issue2800d.p4
+  ${P4C_TEST_DIR}/issue3091-1.p4
+  ${P4C_TEST_DIR}/issue3091.p4
+  ${P4C_TEST_DIR}/pna-example-mirror-packet-error3.p4
 )
 if(SKIPPED_TESTS)
   list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})
