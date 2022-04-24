@@ -165,9 +165,7 @@ set(
 )
 set(P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
-set(
-  P4C_VALIDATION_XFAIL_TESTS
-)
+set(P4C_VALIDATION_XFAIL_TESTS)
 
 # These tests need to be remove because they have spurious behavior (timeouts).
 set(
@@ -197,6 +195,11 @@ set(
   ${P4C_TEST_DIR}/issue2800d.p4
   ${P4C_TEST_DIR}/issue3091-1.p4
   ${P4C_TEST_DIR}/issue3091.p4
+  ${P4C_TEST_DIR}/issue1914.p4
+  ${P4C_TEST_DIR}/issue1914-1.p4
+  ${P4C_TEST_DIR}/issue1914-2.p4
+  ${P4C_TEST_DIR}/pna-direction-main-parser-err.p4
+  ${P4C_TEST_DIR}/pna-direction.p4
   ${P4C_TEST_DIR}/pna-example-mirror-packet-error3.p4
 )
 if(SKIPPED_TESTS)
@@ -236,6 +239,8 @@ set(
   VIOLATION_XFAIL_TESTS
   extensions/toz3/tests/violated/2314_regression
   extensions/toz3/tests/violated/parser_loop
+  # Fails because the parser is disabled.
+  extensions/toz3/tests/violated/2591_regression
 )
 
 set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-violation")
