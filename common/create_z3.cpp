@@ -84,6 +84,8 @@ run_arch_block(Z3Visitor *visitor, const IR::ConstructorCallExpression *cce,
             cstring apply_name = "apply" + std::to_string(params->size());
             fun_call = ctrl_instance->get_function(apply_name);
         } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
+            ::warning("Ignoring parser output.");
+            return {};
             auto type_mapping =
                 specialize_arch_blocks(param_type, resolved_type);
             for (const auto &mapped_type : type_mapping) {
