@@ -239,8 +239,8 @@ set(
   VIOLATION_XFAIL_TESTS
   extensions/toz3/tests/violated/2314_regression
   extensions/toz3/tests/violated/parser_loop
-  # Fails because the parser is disabled.
-  extensions/toz3/tests/violated/2591_regression
+  # # Fails because the parser is disabled.
+  # extensions/toz3/tests/violated/2591_regression
 )
 
 set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-violation")
