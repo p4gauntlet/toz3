@@ -87,7 +87,8 @@ bool Z3Visitor::preorder(const IR::PathExpression *p) {
 }
 
 bool Z3Visitor::preorder(const IR::TypeNameExpression *t) {
-    state->set_expr_result(state->get_var(t->typeName->path->name));
+    state->set_expr_result(
+        state->get_var(t->typeName->checkedTo<IR::Type_Name>()->path->name));
     return false;
 }
 
