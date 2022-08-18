@@ -28,7 +28,7 @@ jobs:
         ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
         mkdir $GITHUB_WORKSPACE/../p4c/build
         cd $GITHUB_WORKSPACE/../p4c/build
-        cmake .. -DCMAKE_RUN_CLANG_TIDY=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        cmake .. -DCMAKE_RUN_CLANG_TIDY=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_UNITY_BUILD=ON
     - name: Install P4C with toz3
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
