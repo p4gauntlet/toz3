@@ -201,6 +201,11 @@ set(
   ${P4C_TEST_DIR}/pna-direction-main-parser-err.p4
   ${P4C_TEST_DIR}/pna-direction.p4
   ${P4C_TEST_DIR}/pna-example-mirror-packet-error3.p4
+  ${P4C_TEST_DIR}/issue3283.p4
+  ${P4C_TEST_DIR}/issue3374.p4
+  ${P4C_TEST_DIR}/pna-elim-hdr-copy-dpdk.p4
+  ${P4C_TEST_DIR}/pna-example-varIndex.p4
+  ${P4C_TEST_DIR}/pna-too-big-label-name-dpdk.p4
 )
 if(SKIPPED_TESTS)
   list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})

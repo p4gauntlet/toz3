@@ -128,16 +128,12 @@ control ingress(inout Headers h) {
         default_action = NoAction();
     }
     table uiTHkJ {
-        key = {
-        }
         actions = {
             @defaultonly NoAction();
         }
         default_action = NoAction();
     }
     table YfGdXm {
-        key = {
-        }
         actions = {
             isfLJ(h.uAdg.pvdW[20:17]);
             @defaultonly NoAction();

@@ -216,7 +216,6 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs,
     auto prog_before = z3_progs[0];
     auto z3_prog_before = create_z3_struct(ctx, prog_before.second);
     for (size_t i = 1; i < z3_progs.size(); ++i) {
-
         auto prog_after = z3_progs[i];
         auto z3_prog_after = create_z3_struct(ctx, z3_progs[i].second);
 
