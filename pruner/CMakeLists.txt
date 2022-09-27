@@ -61,4 +61,4 @@ file(GLOB CRASH_TESTS "${TEST_DIR}/references/crash_bugs/*.p4")
 file(GLOB CRASH_REFS "${TEST_DIR}/references/crash_bugs/*_reference.p4")
 list(REMOVE_ITEM CRASH_TESTS ${CRASH_REFS})
 
-p4c_add_tests("pruner" ${PRUNER_COMPILER_DRIVER} "${CRASH_TESTS}" "" "--pruner_path ${PRUNER_BIN} --compiler ${P4C_TEST_BIN} -ll DEBUG --type CRASH --p4prog")
+pruner_add_tests("pruner" ${PRUNER_COMPILER_DRIVER} "${CRASH_TESTS}" "" "--pruner_path ${PRUNER_BIN} --compiler ${P4C_TEST_BIN} -ll DEBUG --type CRASH --p4prog")

@@ -10,6 +10,9 @@
 
 namespace TOZ3 {
 
+// Passes that are not supported for translation validation.
+static const std::array<cstring, 1> SKIPPED_PASSES = {"FlattenHeaderUnion"};
+
 MainResult get_z3_repr(cstring prog_name, const IR::P4Program *program,
                        z3::context *ctx) {
     try {
@@ -213,10 +216,25 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs,
     auto prog_before = z3_progs[0];
     auto z3_prog_before = create_z3_struct(ctx, prog_before.second);
     for (size_t i = 1; i < z3_progs.size(); ++i) {
-        Logger::log_msg(1, "\nComparing %s and %s.", prog_before.first,
-                        z3_progs[i].first);
+
         auto prog_after = z3_progs[i];
         auto z3_prog_after = create_z3_struct(ctx, z3_progs[i].second);
+
+        bool found = false;
+        for (auto banned_pass : SKIPPED_PASSES) {
+            if (prog_before.first.find(banned_pass.c_str()) != nullptr ||
+                prog_after.first.find(banned_pass.c_str()) != nullptr) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            prog_before = prog_after;
+            z3_prog_before = z3_prog_after;
+            continue;
+        }
+        Logger::log_msg(1, "\nComparing %s and %s.", prog_before.first,
+                        prog_after.first);
 
         s.push();
         s.add(z3_prog_before != z3_prog_after);
