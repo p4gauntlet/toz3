@@ -13,8 +13,10 @@ static const auto COMPILER_BIN = FILE_DIR / "../../../../p4c/build/p4test";
 static const auto DUMP_DIR = fs::path("validated");
 
 static constexpr auto PASSES = "--top4 FrontEnd,MidEnd,PassManager ";
-
 static constexpr auto SEC_TO_MS = 1000000.0;
+
+// Passes that are not supported for translation validation.
+static const std::array<cstring, 1> SKIPPED_PASSES = {"FlattenHeaderUnion"};
 
 std::vector<cstring> generate_pass_list(const fs::path &p4_file,
                                         const fs::path &dump_dir,
@@ -53,6 +55,16 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file,
     std::advance(it, 1);
     for (; it != pass_list.end(); ++it) {
         auto pass_after = *it;
+        bool found = false;
+        for (auto banned_pass : SKIPPED_PASSES) {
+            if (pass_after.find(banned_pass.c_str()) != nullptr) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            continue;
+        }
         if (TOZ3::compare_files(pass_before, pass_after)) {
             fs::detail::remove(pass_after.c_str());
         } else {
@@ -60,7 +72,6 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file,
             pass_before = pass_after;
         }
     }
-
     return pruned_pass_list;
 }
 
