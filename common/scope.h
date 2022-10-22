@@ -125,13 +125,13 @@ class P4Scope {
     std::vector<z3::expr> get_return_conds() const { return return_conds; }
 
     void push_return_expr(const z3::expr &cond, P4Z3Instance *return_expr) {
-        return return_exprs.emplace_back(cond, return_expr);
+        return_exprs.emplace_back(cond, return_expr);
     }
     std::vector<std::pair<z3::expr, P4Z3Instance *>> get_return_exprs() const {
         return return_exprs;
     }
     void push_return_state(const z3::expr &cond, const VarMap &state) {
-        return return_states.emplace_back(cond, state);
+        return_states.emplace_back(cond, state);
     }
     std::vector<std::pair<z3::expr, VarMap>> get_return_states() const {
         return return_states;
