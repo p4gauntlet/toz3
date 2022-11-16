@@ -10,6 +10,7 @@
 
 #include "compiler_pruner.h"
 #include "extended_unused.h"
+#include "pruner_util.h"
 #include "replace_variables.h"
 namespace P4PRUNER {
 
@@ -52,7 +53,9 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
     std::vector<struct_obj *> used_structs;
     PassManager pass_manager(
         {new ExtendedUnusedDeclarations(&refMap, &used_structs)});
+    emit_p4_program(program, "before_unused.p4");
     temp = program->apply(pass_manager);
+    emit_p4_program(temp, "after_unused.p4");
     check_pruned_program(&program, temp, pruner_conf);
 
     return program;

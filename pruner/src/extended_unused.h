@@ -34,6 +34,7 @@ class PruneUnused : public P4::RemoveUnusedDeclarations {
     const IR::Node *preorder(IR::Type_Extern *te) override;
     const IR::Node *preorder(IR::Method *m) override;
     const IR::Node *preorder(IR::Function *f) override;
+
     void show_used_structs();
     bool check_if_field_used(cstring name_of_struct, cstring name_of_field);
 };
@@ -52,6 +53,10 @@ class ListStructs : public Inspector {
     }
     Visitor::profile_t init_apply(const IR::Node *node) override;
     bool preorder(const IR::Member *p) override;
+    bool preorder(const IR::Declaration_Variable *i) override;
+    bool preorder(const IR::Declaration_Constant *i) override;
+    bool preorder(const IR::MethodCallExpression *i) override;
+
     void insertField(cstring name_of_struct, cstring name_of_field);
 };
 
