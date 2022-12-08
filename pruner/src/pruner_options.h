@@ -1,10 +1,9 @@
 #ifndef _P4PRUNER_OPTIONS_H_
 #define _P4PRUNER_OPTIONS_H_
 
-#include "ir/ir.h"
-
 #include "frontends/common/options.h"
-#include "lib/options.h"
+#include "frontends/common/parser_options.h"
+#include "lib/cstring.h"
 
 namespace P4PRUNER {
 

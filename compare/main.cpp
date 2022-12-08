@@ -1,13 +1,20 @@
 
-#include "frontends/common/parseInput.h"
+#include <cstdlib>
+#include <iostream>
+#include <vector>
 
 #include "compare.h"
-#include "toz3/common/create_z3.h"
-#include "toz3/common/visitor_interpret.h"
+#include "frontends/common/options.h"
+#include "frontends/common/parser_options.h"
+#include "lib/compile_context.h"
+#include "lib/cstring.h"
+#include "lib/error.h"
+#include "toz3/common/util.h"
+#include "toz3/compare/options.h"
 
 std::vector<cstring> split_input_progs(cstring input_progs) {
     std::vector<cstring> prog_list;
-    const char *pos = nullptr;
+    const char* pos = nullptr;
     cstring prog;
 
     while ((pos = input_progs.find(static_cast<size_t>(','))) != nullptr) {
@@ -20,9 +27,9 @@ std::vector<cstring> split_input_progs(cstring input_progs) {
     return prog_list;
 }
 
-int main(int argc, char *const argv[]) {
+int main(int argc, char* const argv[]) {
     AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
-    auto &options = TOZ3::P4toZ3Context::get().options();
+    auto& options = TOZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = "p4toz3 test";

@@ -13,17 +13,23 @@ misc-*,
 llvm-*,
 google-*,
 -modernize-use-trailing-return-type,
--readability-function-cognitive-complexity,
--cppcoreguidelines-owning-memory,
--google-readability-todo,
--misc-non-private-member-variables-in-classes,
 -readability-identifier-length,
 -cppcoreguidelines-owning-memory,
--misc-no-recursion,
--bugprone-narrowing-conversions,
--cppcoreguidelines-narrowing-conversions,
--clang-analyzer-cplusplus.NewDeleteLeaks,
-'
+-bugprone-easily-swappable-parameters,
+-llvm-header-guard,
+-misc-no-recursion'
+CheckOptions:
+  - { key: misc-const-correctness.AnalyzeValues,              value: false }
+  - { key: readability-identifier-naming.NamespaceCase,       value: CamelCase }
+  - { key: readability-identifier-naming.ClassCase,           value: CamelCase  }
+  - { key: readability-identifier-naming.StructCase,          value: CamelCase  }
+  - { key: readability-identifier-naming.FunctionCase,        value: camelBack }
+  - { key: readability-identifier-naming.VariableCase,        value: camelBack }
+  - { key: readability-identifier-naming.GlobalConstantCase,  value: UPPER_CASE }
+  - { key: readability-identifier-naming.StaticConstantCase,  value: UPPER_CASE }
+  - { key: readability-identifier-naming.StaticVariableCase,  value: UPPER_CASE }
+ExtraArgs:
+  - '--std=c++17'
 # These checks will throw an error, if encountered.
 WarningsAsErrors:
 'clang-diagnostic-*,
@@ -34,7 +40,10 @@ modernize-*,
 clang-analyzer-*,
 cppcoreguidelines-*,
 readability-*,
+-readability-identifier-naming*,
+-google-readability-todo,
 '
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false
+UseColor: true
 ...
