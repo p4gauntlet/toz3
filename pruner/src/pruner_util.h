@@ -1,11 +1,12 @@
 #ifndef _PRUNER_UTIL_H_
 #define _PRUNER_UTIL_H_
-#include "pruner_options.h"
+#include <cstdint>
+#include <iostream>
+
+#include <boost/random/mersenne_twister.hpp>
 
 #include "ir/ir.h"
-#include <boost/random.hpp>
-
-#include "constants.h"
+#include "lib/cstring.h"
 
 #define INFO(x) std::cout << x << std::endl;
 
@@ -16,7 +17,7 @@ class PrunerRng {
     boost::random::mt19937 rng;
 
  public:
-    static PrunerRng &instance() {
+    static PrunerRng& instance() {
         static PrunerRng instance;
 
         return instance;
@@ -53,8 +54,12 @@ struct PrunerConfig {
     bool allow_undef = false;
     ErrorType err_type = ErrorType::Unknown;
     PrunerConfig()
-        : validation_bin(nullptr), prog_before{nullptr}, prog_post(nullptr),
-          compiler(nullptr), working_dir(nullptr), out_file_name(nullptr),
+        : validation_bin(nullptr),
+          prog_before{nullptr},
+          prog_post(nullptr),
+          compiler(nullptr),
+          working_dir(nullptr),
+          out_file_name(nullptr),
           err_string(nullptr) {}
 };
 
@@ -71,21 +76,18 @@ ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf);
 ErrorType classify_bug(ExitInfo exit_info);
 int get_exit_code(cstring name, P4PRUNER::PrunerConfig pruner_conf);
 
-void emit_p4_program(const IR::P4Program *program, cstring prog_name);
-void print_p4_program(const IR::P4Program *program);
+void emit_p4_program(const IR::P4Program* program, cstring prog_name);
+void print_p4_program(const IR::P4Program* program);
 
-bool compare_files(const IR::P4Program *prog_before,
-                   const IR::P4Program *prog_after);
+bool compare_files(const IR::P4Program* prog_before, const IR::P4Program* prog_after);
 
-double measure_pct(const IR::P4Program *prog_before,
-                   const IR::P4Program *prog_after);
+double measure_pct(const IR::P4Program* prog_before, const IR::P4Program* prog_after);
 
-double measure_size(const IR::P4Program *prog);
+double measure_size(const IR::P4Program* prog);
 
-uint64_t count_statements(const IR::P4Program *prog);
+uint64_t count_statements(const IR::P4Program* prog);
 
-int check_pruned_program(const IR::P4Program **orig_program,
-                         const IR::P4Program *pruned_program,
+int check_pruned_program(const IR::P4Program** orig_program, const IR::P4Program* pruned_program,
                          P4PRUNER::PrunerConfig pruner_conf);
 }  // namespace P4PRUNER
 

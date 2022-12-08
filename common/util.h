@@ -1,9 +1,18 @@
 #ifndef TOZ3_COMMON_UTIL_H_
 #define TOZ3_COMMON_UTIL_H_
 
+#include <climits>
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
+#include <iosfwd>
 #include <string>
 
+#include <boost/format.hpp>
+
 #include "ir/ir.h"
+#include "lib/cstring.h"
+#include "lib/log.h"
 
 // The program is empty, there is nothing to do here
 #define EXIT_SKIPPED 10
@@ -27,9 +36,9 @@
 namespace TOZ3 {
 
 cstring get_max_bv_val(uint64_t bv_width);
-cstring infer_name(const IR::Annotations *annots, cstring default_name);
-bool compare_files(const cstring &filename1, const cstring &filename2);
-int exec(const char *cmd, std::stringstream &output);
+cstring infer_name(const IR::Annotations* annots, cstring default_name);
+bool compare_files(const cstring& filename1, const cstring& filename2);
+int exec(const char* cmd, std::stringstream& output);
 
 class Logger {
  public:
@@ -38,16 +47,15 @@ class Logger {
         Log::addDebugSpec(reg_str.c_str());
     }
     template <typename... Args>
-    static void log_msg(size_t level, const std::string &msg, Args &...args) {
+    static void log_msg(size_t level, const std::string& msg, Args&... args) {
         if (level > LOG_LEVEL) {
             return;
         }
         boost::format f(msg);
-        std::initializer_list<char>{(static_cast<void>(f % args), char{})...}; // NOLINT
+        std::initializer_list<char>{(static_cast<void>(f % args), char{})...};  // NOLINT
         LOGN(level, boost::str(f));
     }
 };
-
 
 }  // namespace TOZ3
 

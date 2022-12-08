@@ -1,10 +1,8 @@
 #ifndef TOZ3_COMPARE_OPTIONS_H_
 #define TOZ3_COMPARE_OPTIONS_H_
 
-#include "ir/ir.h"
-
 #include "frontends/common/options.h"
-#include "lib/options.h"
+#include "frontends/common/parser_options.h"
 
 namespace TOZ3 {
 

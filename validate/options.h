@@ -1,14 +1,12 @@
 #ifndef TOZ3_VALIDATE_OPTIONS_H_
 #define TOZ3_VALIDATE_OPTIONS_H_
-#include <vector>
 
-#include "ir/ir.h"
-
-#include "frontends/common/options.h"
+#include "frontends/common/parser_options.h"
+#include "lib/cstring.h"
 
 class ValidateOptions : public ParserOptions {
  private:
-    static constexpr const char *defaultMessage = "Validate a P4 program";
+    static constexpr const char* defaultMessage = "Validate a P4 program";
 
  public:
     ValidateOptions();
