@@ -1,7 +1,7 @@
 #include <core.p4>
 
 bit<3> max(in bit<3> val, in bit<3> bound) {
-    return bound;
+    return 3w2;
 }
 header ethernet_t {
     bit<48> dst_addr;
@@ -40,17 +40,17 @@ bit<16> vSDNsyx(in bit<32> saFq, VWxZaz vqBE) {
 }
 control XjhdqPA() {
     bit<4> XAHFaZ = 4w10;
-    bit<128> difcYb = 128w10;
-    bit<32> NHAcsf = 32w10;
+    bit<128> difcYb = 128w286488923881418342646904869346809782665;
+    bit<32> NHAcsf = (bit<32>)difcYb;
     bit<32> NBhxOY = 32w10;
     action ejnWB(bit<8> xpbU) {
         const bool HaGozC = false;
     }
     table GhsaxE {
         key = {
-            XAHFaZ: exact @name("lpWdPY") ;
-            32w10 : exact @name("srdvlo") ;
-            32w10 : exact @name("xIxLbp") ;
+            XAHFaZ: exact @name("lpWdPY");
+            32w10 : exact @name("srdvlo");
+            32w10 : exact @name("xIxLbp");
         }
         actions = {
             @defaultonly NoAction();
@@ -59,8 +59,8 @@ control XjhdqPA() {
     }
     table NZqfiU {
         key = {
-            NBhxOY: exact @name("PYKqvq") ;
-            32w10 : exact @name("esQVok") ;
+            NBhxOY: exact @name("PYKqvq");
+            32w10 : exact @name("esQVok");
         }
         actions = {
             @defaultonly NoAction();
@@ -69,8 +69,8 @@ control XjhdqPA() {
     }
     table yvZmvC {
         key = {
-            XAHFaZ: exact @name("Ehmics") ;
-            128w10: exact @name("ZonmhE") ;
+            XAHFaZ: exact @name("Ehmics");
+            128w10: exact @name("ZonmhE");
         }
         actions = {
             @defaultonly NoAction();
@@ -86,7 +86,7 @@ parser p(packet_in pkt, out Headers hdr) {
     bit<128> UhlOhS = 128w10;
     bit<8> LYaBct = hdr.Qcqz[6].aPsC;
     bit<16> sbygWO = 16w10;
-    umHNtO pPtwdp = (umHNtO){jXYS = 8w104,SDFX = (bnsYVz){jrPy = 128w10,udHf = 64w10,aPsC = 8w10,wzfl = 32w10}};
+    umHNtO pPtwdp = (umHNtO){jXYS = 8w10,SDFX = (bnsYVz){jrPy = 128w10,udHf = 64w10,aPsC = 8w10,wzfl = 32w10}};
     bool kYEOCD = false;
     state start {
         transition parse_hdrs;
@@ -99,7 +99,7 @@ parser p(packet_in pkt, out Headers hdr) {
 control ingress(inout Headers h) {
     bit<64> wOFsfK = 64w10;
     bit<128> nLpKxc = 128w10;
-    VWxZaz FhOckJ = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
+    VWxZaz FhOckJ = (VWxZaz){yJxL = 4w10,FnFc = (true ? 64w10 : wOFsfK)};
     bit<8> cSydCp = 8w10;
     bit<8> sdWZsc = 8w10;
     XjhdqPA() sSDiPy;
@@ -108,14 +108,14 @@ control ingress(inout Headers h) {
         bit<16> tpbMDX = h.YskI.eth_type;
     }
     action QyHme(out bit<16> ecWy, bit<16> bZof) {
-        h.Qcqz[max((bit<3>)vSDNsyx(32w10, { 4w10, 64w10 }), 3w2)].udHf = FhOckJ.FnFc;
+        h.Qcqz[max((bit<3>)vSDNsyx(32w10, { 4w10, 64w3827014771312526956 }), 3w2)].udHf = FhOckJ.FnFc;
         const VWxZaz LSqkmT = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
-        bit<16> YZnNif = 16w10;
+        bit<16> YZnNif = 16w17416;
         bit<8> rbgkDJ = sdWZsc;
     }
     table KWzGQN {
         key = {
-            32w10: exact @name("MarebU") ;
+            32w3360203518: exact @name("MarebU");
         }
         actions = {
             fjxzW(h.eth_hdr.eth_type);
@@ -125,7 +125,7 @@ control ingress(inout Headers h) {
     }
     table KWnxHC {
         key = {
-            128w10: exact @name("rXqbdF") ;
+            (bit<128>)h.Qcqz[6].jrPy: exact @name("rXqbdF");
         }
         actions = {
             QyHme(h.eth_hdr.eth_type);
@@ -144,4 +144,3 @@ parser Parser(packet_in b, out Headers hdr);
 control Ingress(inout Headers hdr);
 package top(Parser p, Ingress ig);
 top(p(), ingress()) main;
-
