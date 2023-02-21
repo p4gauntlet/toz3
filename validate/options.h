@@ -6,7 +6,7 @@
 
 class ValidateOptions : public ParserOptions {
  private:
-    static constexpr const char* defaultMessage = "Validate a P4 program";
+    static constexpr const char *defaultMessage = "Validate a P4 program";
 
  public:
     ValidateOptions();

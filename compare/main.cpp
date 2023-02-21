@@ -14,7 +14,7 @@
 
 std::vector<cstring> split_input_progs(cstring input_progs) {
     std::vector<cstring> prog_list;
-    const char* pos = nullptr;
+    const char *pos = nullptr;
     cstring prog;
 
     while ((pos = input_progs.find(static_cast<size_t>(','))) != nullptr) {
@@ -27,9 +27,9 @@ std::vector<cstring> split_input_progs(cstring input_progs) {
     return prog_list;
 }
 
-int main(int argc, char* const argv[]) {
+int main(int argc, char *const argv[]) {
     AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
-    auto& options = TOZ3::P4toZ3Context::get().options();
+    auto &options = TOZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = "p4toz3 test";

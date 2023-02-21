@@ -25,7 +25,7 @@
 #include "pruner_util.h"
 #include "statement_pruner.h"
 
-const IR::P4Program* prune(const IR::P4Program* program, P4PRUNER::PrunerConfig pruner_conf,
+const IR::P4Program *prune(const IR::P4Program *program, P4PRUNER::PrunerConfig pruner_conf,
                            uint64_t prog_size) {
     program = P4PRUNER::prune_statements(program, pruner_conf, prog_size);
     program = P4PRUNER::prune_expressions(program, pruner_conf);
@@ -34,13 +34,13 @@ const IR::P4Program* prune(const IR::P4Program* program, P4PRUNER::PrunerConfig 
     return program;
 }
 
-void process_seed(const P4PRUNER::PrunerOptions& options) {
+void process_seed(const P4PRUNER::PrunerOptions &options) {
     uint64_t seed = 0;
     if (options.seed != nullptr) {
         std::cerr << "Using provided seed.\n";
         try {
             seed = boost::lexical_cast<uint64_t>(options.seed);
-        } catch (boost::bad_lexical_cast&) {
+        } catch (boost::bad_lexical_cast &) {
             ::error("invalid seed %s", options.seed);
             exit(EXIT_FAILURE);
         }
@@ -56,7 +56,7 @@ void process_seed(const P4PRUNER::PrunerOptions& options) {
 
 P4PRUNER::PrunerConfig get_config_from_json(cstring json_path, cstring working_dir,
                                             cstring input_file,
-                                            const P4PRUNER::PrunerOptions& options) {
+                                            const P4PRUNER::PrunerOptions &options) {
     if (!P4PRUNER::file_exists(json_path)) {
         ::error("Config file %s does not exist! Exiting.", json_path);
         exit(EXIT_FAILURE);
@@ -90,7 +90,7 @@ P4PRUNER::PrunerConfig get_config_from_json(cstring json_path, cstring working_d
     return pruner_conf;
 }
 
-P4PRUNER::PrunerConfig get_conf_from_script(const P4PRUNER::PrunerOptions& options) {
+P4PRUNER::PrunerConfig get_conf_from_script(const P4PRUNER::PrunerOptions &options) {
     INFO("Grabbing config by using the validation script.");
     if (!P4PRUNER::file_exists(options.validation_bin)) {
         ::error("Path to validator binary %s invalid! Exiting.", options.validation_bin);
@@ -133,7 +133,7 @@ P4PRUNER::PrunerConfig get_conf_from_script(const P4PRUNER::PrunerOptions& optio
     return get_config_from_json(conf_file, options.working_dir, options.file, options);
 }
 
-P4PRUNER::PrunerConfig get_conf_from_compiler(const P4PRUNER::PrunerOptions& options) {
+P4PRUNER::PrunerConfig get_conf_from_compiler(const P4PRUNER::PrunerOptions &options) {
     INFO("Grabbing config by using the compiler binary.");
     if (!P4PRUNER::file_exists(options.compiler_bin)) {
         ::error("Path to compiler binary %s invalid! Exiting.", options.validation_bin);
@@ -164,11 +164,11 @@ P4PRUNER::PrunerConfig get_conf_from_compiler(const P4PRUNER::PrunerOptions& opt
     return pruner_conf;
 }
 
-int main(int argc, char* const argv[]) {
+int main(int argc, char *const argv[]) {
     AutoCompileContext autoP4toZ3Context(new P4PRUNER::P4PrunerContext);
-    auto& options = P4PRUNER::P4PrunerContext::get().options();
+    auto &options = P4PRUNER::P4PrunerContext::get().options();
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
-    const IR::P4Program* program = nullptr;
+    const IR::P4Program *program = nullptr;
     if (options.process(argc, argv) != nullptr) {
         options.setInputFile();
     }
@@ -255,7 +255,7 @@ int main(int argc, char* const argv[]) {
         program = P4::parseP4File(options);
 
         if (program != nullptr && ::errorCount() == 0) {
-            const auto* original = program;
+            const auto *original = program;
             double prog_size = P4PRUNER::count_statements(original);
             INFO("Size of the program :" << prog_size << " statements");
 
@@ -271,7 +271,7 @@ int main(int argc, char* const argv[]) {
                                                  << " %");
         }
         INFO("Done.");
-    } catch (const std::exception& bug) {
+    } catch (const std::exception &bug) {
         std::cerr << bug.what() << std::endl;
     }
     INFO("Removing ephemeral working directory.");

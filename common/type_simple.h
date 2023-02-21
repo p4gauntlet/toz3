@@ -16,22 +16,22 @@ namespace TOZ3 {
 // Forward declare state
 class P4State;
 
-z3::expr pure_bv_cast(const z3::expr& expr, const z3::sort& dest_type);
+z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type);
 
 class VoidResult : public P4Z3Instance {
  public:
     VoidResult() : P4Z3Instance(new IR::Type_Void()) {}
-    void merge(const z3::expr& /*cond*/, const P4Z3Instance& /*then_expr*/) override {
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {
         // Merge is a no-op here.
     }
-    VoidResult* copy() const override { return new VoidResult(); }
+    VoidResult *copy() const override { return new VoidResult(); }
     cstring get_static_type() const override { return "VoidResult"; }
     cstring to_string() const override {
         cstring ret = "VoidResult(";
         ret += ")";
         return ret;
     }
-    P4Z3Instance* cast_allocate(const IR::Type* /*dest_type*/) const override {
+    P4Z3Instance *cast_allocate(const IR::Type * /*dest_type*/) const override {
         return new VoidResult();
     }
 };
@@ -41,16 +41,16 @@ class ValContainer {
     z3::expr val;
 
  public:
-    explicit ValContainer(const z3::expr& val) : val(val) {}
-    const z3::expr* get_val() const { return &val; }
+    explicit ValContainer(const z3::expr &val) : val(val) {}
+    const z3::expr *get_val() const { return &val; }
 };
 
 class NumericVal : public P4Z3Instance, public ValContainer {
  protected:
-    const P4State* state;
+    const P4State *state;
 
  public:
-    explicit NumericVal(const P4State* state, const IR::Type* p4_type, const z3::expr& val)
+    explicit NumericVal(const P4State *state, const IR::Type *p4_type, const z3::expr &val)
         : P4Z3Instance(p4_type), ValContainer(val), state(state) {}
 
     cstring get_static_type() const override { return "NumericVal"; }
@@ -60,10 +60,10 @@ class NumericVal : public P4Z3Instance, public ValContainer {
     }
     void set_undefined() override {
         auto sort = val.get_sort();
-        auto* ctx = &sort.ctx();
+        auto *ctx = &sort.ctx();
         val = ctx->constant(UNDEF_LABEL, sort);
     }
-    NumericVal(const NumericVal& other)
+    NumericVal(const NumericVal &other)
         : P4Z3Instance(other), ValContainer(other.val), state(other.state) {}
 };
 
@@ -73,41 +73,41 @@ class Z3Bitvector : public NumericVal {
     bool is_signed;
 
  public:
-    explicit Z3Bitvector(const P4State* state, const IR::Type* p4_type, const z3::expr& val,
+    explicit Z3Bitvector(const P4State *state, const IR::Type *p4_type, const z3::expr &val,
                          bool is_signed = false);
     uint64_t get_width() const { return width; }
     bool bv_is_signed() const { return is_signed; }
     /****** UNARY OPERANDS ******/
-    P4Z3Instance* operator-() const override;
-    P4Z3Instance* operator~() const override;
-    P4Z3Instance* operator!() const override;
+    P4Z3Instance *operator-() const override;
+    P4Z3Instance *operator~() const override;
+    P4Z3Instance *operator!() const override;
     /****** BINARY OPERANDS ******/
-    P4Z3Instance* operator*(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator/(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator%(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator+(const P4Z3Instance& other) const override;
-    P4Z3Instance* operatorAddSat(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator-(const P4Z3Instance& other) const override;
-    P4Z3Instance* operatorSubSat(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator>>(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator<<(const P4Z3Instance& other) const override;
-    z3::expr operator==(const P4Z3Instance& other) const override;
-    z3::expr operator!=(const P4Z3Instance& other) const override;
-    z3::expr operator<(const P4Z3Instance& other) const override;
-    z3::expr operator<=(const P4Z3Instance& other) const override;
-    z3::expr operator>(const P4Z3Instance& other) const override;
-    z3::expr operator>=(const P4Z3Instance& other) const override;
-    z3::expr operator&&(const P4Z3Instance& other) const override;
-    z3::expr operator||(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator&(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator|(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator^(const P4Z3Instance& other) const override;
-    P4Z3Instance* concat(const P4Z3Instance& other) const override;
-    P4Z3Instance* cast_allocate(const IR::Type* dest_type) const override;
+    P4Z3Instance *operator*(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator/(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator%(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator+(const P4Z3Instance &other) const override;
+    P4Z3Instance *operatorAddSat(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator-(const P4Z3Instance &other) const override;
+    P4Z3Instance *operatorSubSat(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator>>(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator<<(const P4Z3Instance &other) const override;
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
+    z3::expr operator<(const P4Z3Instance &other) const override;
+    z3::expr operator<=(const P4Z3Instance &other) const override;
+    z3::expr operator>(const P4Z3Instance &other) const override;
+    z3::expr operator>=(const P4Z3Instance &other) const override;
+    z3::expr operator&&(const P4Z3Instance &other) const override;
+    z3::expr operator||(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator&(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator|(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator^(const P4Z3Instance &other) const override;
+    P4Z3Instance *concat(const P4Z3Instance &other) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
-    P4Z3Instance* slice(const z3::expr& hi, const z3::expr& lo) const override;
-    void merge(const z3::expr& cond, const P4Z3Instance& then_expr) override;
-    Z3Bitvector* copy() const override;
+    P4Z3Instance *slice(const z3::expr &hi, const z3::expr &lo) const override;
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
+    Z3Bitvector *copy() const override;
 
     cstring get_static_type() const override { return "Z3Bitvector"; }
     cstring to_string() const override {
@@ -115,12 +115,12 @@ class Z3Bitvector : public NumericVal {
         return ret + val.to_string().c_str() + ")";
     }
     // copy constructor
-    Z3Bitvector(const Z3Bitvector& other)
+    Z3Bitvector(const Z3Bitvector &other)
         : NumericVal(other.state, other.p4_type, other.val),
           width(other.width),
           is_signed(other.is_signed) {}
     // overload = operator
-    Z3Bitvector& operator=(const Z3Bitvector& other) {
+    Z3Bitvector &operator=(const Z3Bitvector &other) {
         if (this == &other) {
             return *this;
         }
@@ -135,35 +135,35 @@ class Z3Bitvector : public NumericVal {
 
 class Z3Int : public NumericVal {
  public:
-    explicit Z3Int(const P4State* state, const z3::expr& val);
-    explicit Z3Int(const P4State* state, int64_t int_val);
-    explicit Z3Int(const P4State* state, const big_int& int_val);
-    explicit Z3Int(const P4State* state);
+    explicit Z3Int(const P4State *state, const z3::expr &val);
+    explicit Z3Int(const P4State *state, int64_t int_val);
+    explicit Z3Int(const P4State *state, const big_int &int_val);
+    explicit Z3Int(const P4State *state);
 
-    P4Z3Instance* operator-() const override;
+    P4Z3Instance *operator-() const override;
     /****** BINARY OPERANDS ******/
-    P4Z3Instance* operator*(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator/(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator%(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator+(const P4Z3Instance& other) const override;
-    P4Z3Instance* operatorAddSat(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator-(const P4Z3Instance& other) const override;
-    P4Z3Instance* operatorSubSat(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator>>(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator<<(const P4Z3Instance& other) const override;
-    z3::expr operator==(const P4Z3Instance& other) const override;
-    z3::expr operator!=(const P4Z3Instance& other) const override;
-    z3::expr operator<(const P4Z3Instance& other) const override;
-    z3::expr operator<=(const P4Z3Instance& other) const override;
-    z3::expr operator>(const P4Z3Instance& other) const override;
-    z3::expr operator>=(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator&(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator|(const P4Z3Instance& other) const override;
-    P4Z3Instance* operator^(const P4Z3Instance& other) const override;
-    P4Z3Instance* cast_allocate(const IR::Type* dest_type) const override;
+    P4Z3Instance *operator*(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator/(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator%(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator+(const P4Z3Instance &other) const override;
+    P4Z3Instance *operatorAddSat(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator-(const P4Z3Instance &other) const override;
+    P4Z3Instance *operatorSubSat(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator>>(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator<<(const P4Z3Instance &other) const override;
+    z3::expr operator==(const P4Z3Instance &other) const override;
+    z3::expr operator!=(const P4Z3Instance &other) const override;
+    z3::expr operator<(const P4Z3Instance &other) const override;
+    z3::expr operator<=(const P4Z3Instance &other) const override;
+    z3::expr operator>(const P4Z3Instance &other) const override;
+    z3::expr operator>=(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator&(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator|(const P4Z3Instance &other) const override;
+    P4Z3Instance *operator^(const P4Z3Instance &other) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     /****** TERNARY OPERANDS ******/
-    void merge(const z3::expr& cond, const P4Z3Instance& then_expr) override;
-    Z3Int* copy() const override;
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
+    Z3Int *copy() const override;
 
     cstring get_static_type() const override { return "Z3Int"; }
     cstring to_string() const override {
@@ -171,9 +171,9 @@ class Z3Int : public NumericVal {
         return ret + val.to_string().c_str() + ")";
     }
 
-    Z3Int(const Z3Int& other) = default;
+    Z3Int(const Z3Int &other) = default;
     // overload = operator
-    Z3Int& operator=(const Z3Int& other) {
+    Z3Int &operator=(const Z3Int &other) {
         if (this == &other) {
             return *this;
         }

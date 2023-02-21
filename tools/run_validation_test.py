@@ -31,7 +31,8 @@ import argparse
 import util
 
 
-FILE_DIR = Path(__file__).parent.resolve()
+# Append tools to the import path.
+FILE_DIR = Path(__file__).resolve().parent
 
 
 class Options():
