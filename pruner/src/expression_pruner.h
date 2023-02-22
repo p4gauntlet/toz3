@@ -15,25 +15,25 @@ class ExpressionPruner : public Transform {
         setName("Pruner");
     }
 
-    const IR::Node* postorder(IR::Neg* expr) override;
-    const IR::Node* postorder(IR::Cmpl* expr) override;
-    const IR::Node* postorder(IR::Mul* expr) override;
-    const IR::Node* postorder(IR::Div* expr) override;
-    const IR::Node* postorder(IR::Add* expr) override;
-    const IR::Node* postorder(IR::AddSat* expr) override;
-    const IR::Node* postorder(IR::Sub* expr) override;
-    const IR::Node* postorder(IR::SubSat* expr) override;
-    const IR::Node* postorder(IR::BAnd* expr) override;
-    const IR::Node* postorder(IR::BOr* expr) override;
-    const IR::Node* postorder(IR::BXor* expr) override;
+    const IR::Node *postorder(IR::Neg *expr) override;
+    const IR::Node *postorder(IR::Cmpl *expr) override;
+    const IR::Node *postorder(IR::Mul *expr) override;
+    const IR::Node *postorder(IR::Div *expr) override;
+    const IR::Node *postorder(IR::Add *expr) override;
+    const IR::Node *postorder(IR::AddSat *expr) override;
+    const IR::Node *postorder(IR::Sub *expr) override;
+    const IR::Node *postorder(IR::SubSat *expr) override;
+    const IR::Node *postorder(IR::BAnd *expr) override;
+    const IR::Node *postorder(IR::BOr *expr) override;
+    const IR::Node *postorder(IR::BXor *expr) override;
 
     /* these are shifts, we should only use the left-hand value */
-    const IR::Node* postorder(IR::Mod* expr) override;
-    const IR::Node* postorder(IR::Shl* expr) override;
-    const IR::Node* postorder(IR::Shr* expr) override;
+    const IR::Node *postorder(IR::Mod *expr) override;
+    const IR::Node *postorder(IR::Shl *expr) override;
+    const IR::Node *postorder(IR::Shr *expr) override;
 
     // Trying to implement select
-    const IR::Node* postorder(IR::SelectExpression* expr) override;
+    const IR::Node *postorder(IR::SelectExpression *expr) override;
 
     // To be Implemented -----------
 
@@ -55,7 +55,7 @@ class ExpressionPruner : public Transform {
     // const IR::Node *postorder(const IR::StructExpression *s);
 };
 
-const IR::P4Program* prune_expressions(const IR::P4Program* program,
+const IR::P4Program *prune_expressions(const IR::P4Program *program,
                                        P4PRUNER::PrunerConfig pruner_conf);
 
 }  // namespace P4PRUNER

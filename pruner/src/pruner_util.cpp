@@ -64,7 +64,7 @@ cstring get_file_stem(cstring file_path) {
     cstring file_stem;
     cstring stripped_name = P4PRUNER::remove_extension(file_path);
 
-    const char* pos = stripped_name.findlast('/');
+    const char *pos = stripped_name.findlast('/');
     // check if there even is a parent directory
     if (pos == nullptr) {
         return stripped_name;
@@ -82,7 +82,7 @@ cstring get_parent(cstring file_path) {
     cstring file_stem;
     cstring stripped_name = P4PRUNER::remove_extension(file_path);
 
-    const char* pos = stripped_name.findlast('/');
+    const char *pos = stripped_name.findlast('/');
     // check if there even is a parent directory
     if (pos == nullptr) {
         return stripped_name;
@@ -98,7 +98,7 @@ cstring get_parent(cstring file_path) {
 
 cstring remove_extension(cstring file_path) {
     // find the last dot
-    const char* last_dot = file_path.findlast('.');
+    const char *last_dot = file_path.findlast('.');
     // there is no dot in this string, just return the full name
     if (last_dot == nullptr) {
         return file_path;
@@ -142,7 +142,7 @@ std::pair<int, cstring> exec(cstring cmd) {
 
     std::array<char, BUF_SIZE> buffer{};
     std::string output;
-    auto* pipe = popen(cmd, "r");  // get rid of shared_ptr
+    auto *pipe = popen(cmd, "r");  // get rid of shared_ptr
 
     if (pipe == nullptr) {
         throw std::runtime_error("popen() failed!");
@@ -201,51 +201,51 @@ ErrorType classify_bug(ExitInfo exit_info) {
     return ErrorType::Unknown;
 }
 
-void emit_p4_program(const IR::P4Program* program, cstring prog_name) {
-    auto* temp_f = new std::ofstream(prog_name);
-    auto* temp_p4 = new P4::ToP4(temp_f, false);
+void emit_p4_program(const IR::P4Program *program, cstring prog_name) {
+    auto *temp_f = new std::ofstream(prog_name);
+    auto *temp_p4 = new P4::ToP4(temp_f, false);
     program->apply(*temp_p4);
     temp_f->close();
 }
 
-void print_p4_program(const IR::P4Program* program) {
-    auto* print_p4 = new P4::ToP4(&std::cout, false);
+void print_p4_program(const IR::P4Program *program) {
+    auto *print_p4 = new P4::ToP4(&std::cout, false);
     program->apply(*print_p4);
 }
 
-bool compare_files(const IR::P4Program* prog_before, const IR::P4Program* prog_after) {
-    auto* before_stream = new std::stringstream;
-    auto* after_stream = new std::stringstream;
+bool compare_files(const IR::P4Program *prog_before, const IR::P4Program *prog_after) {
+    auto *before_stream = new std::stringstream;
+    auto *after_stream = new std::stringstream;
 
-    auto* before = new P4::ToP4(before_stream, false);
+    auto *before = new P4::ToP4(before_stream, false);
     prog_before->apply(*before);
 
-    auto* after = new P4::ToP4(after_stream, false);
+    auto *after = new P4::ToP4(after_stream, false);
     prog_after->apply(*after);
 
     return before_stream->str() == after_stream->str();
 }
 
-double measure_size(const IR::P4Program* prog) {
-    auto* prog_stream = new std::stringstream;
-    auto* toP4 = new P4::ToP4(prog_stream, false);
+double measure_size(const IR::P4Program *prog) {
+    auto *prog_stream = new std::stringstream;
+    auto *toP4 = new P4::ToP4(prog_stream, false);
     prog->apply(*toP4);
     return prog_stream->str().length();
 }
 
-uint64_t count_statements(const IR::P4Program* prog) {
-    auto* counter = new Counter();
+uint64_t count_statements(const IR::P4Program *prog) {
+    auto *counter = new Counter();
     prog->apply(*counter);
     return counter->statements;
 }
 
-double measure_pct(const IR::P4Program* prog_before, const IR::P4Program* prog_after) {
+double measure_pct(const IR::P4Program *prog_before, const IR::P4Program *prog_after) {
     double before_len = measure_size(prog_before);
 
     return (before_len - measure_size(prog_after)) * (100.0 / before_len);
 }
 
-int check_pruned_program(const IR::P4Program** orig_program, const IR::P4Program* pruned_program,
+int check_pruned_program(const IR::P4Program **orig_program, const IR::P4Program *pruned_program,
                          P4PRUNER::PrunerConfig pruner_conf) {
     cstring out_file = pruner_conf.working_dir + "/" + get_file_stem(pruner_conf.out_file_name);
 

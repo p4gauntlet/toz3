@@ -216,6 +216,7 @@ set(
   ${P4C_TEST_DIR}/invalid-header.p4
   ${P4C_TEST_DIR}/issue3616.p4
   ${P4C_TEST_DIR}/methodArgs.p4
+  ${P4C_TEST_DIR}/issue3779.p4
 )
 if(SKIPPED_TESTS)
   list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})

@@ -36,9 +36,9 @@
 namespace TOZ3 {
 
 cstring get_max_bv_val(uint64_t bv_width);
-cstring infer_name(const IR::Annotations* annots, cstring default_name);
-bool compare_files(const cstring& filename1, const cstring& filename2);
-int exec(const char* cmd, std::stringstream& output);
+cstring infer_name(const IR::Annotations *annots, cstring default_name);
+bool compare_files(const cstring &filename1, const cstring &filename2);
+int exec(const char *cmd, std::stringstream &output);
 
 class Logger {
  public:
@@ -47,7 +47,7 @@ class Logger {
         Log::addDebugSpec(reg_str.c_str());
     }
     template <typename... Args>
-    static void log_msg(size_t level, const std::string& msg, Args&... args) {
+    static void log_msg(size_t level, const std::string &msg, Args &...args) {
         if (level > LOG_LEVEL) {
             return;
         }

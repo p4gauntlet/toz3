@@ -13,10 +13,10 @@
 #include "visitor_interpret.h"
 
 using MainResult =
-    std::map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>, const IR::Type*>>;
+    std::map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>, const IR::Type *>>;
 namespace TOZ3 {
-MainResult gen_state_from_instance(Z3Visitor* visitor, const IR::Declaration_Instance* di);
-const IR::Declaration_Instance* get_main_decl(TOZ3::P4State* state);
+MainResult gen_state_from_instance(Z3Visitor *visitor, const IR::Declaration_Instance *di);
+const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state);
 
 }  // namespace TOZ3
 

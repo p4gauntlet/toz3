@@ -5,7 +5,7 @@ namespace TOZ3 {
 CompareOptions::CompareOptions() {
     registerOption(
         "--allow-undefined", nullptr,
-        [this](const char* /*val*/) {
+        [this](const char * /*val*/) {
             undefined_is_ok = true;
             return true;
         },

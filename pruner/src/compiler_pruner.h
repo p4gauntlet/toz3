@@ -6,7 +6,7 @@
 
 namespace P4PRUNER {
 
-const IR::P4Program* apply_compiler_passes(const IR::P4Program* program,
+const IR::P4Program *apply_compiler_passes(const IR::P4Program *program,
                                            P4PRUNER::PrunerConfig pruner_conf);
 
 }  // namespace P4PRUNER

@@ -26,8 +26,8 @@ static const auto DUMP_DIR = fs::path("validated");
 static constexpr auto PASSES = "--top4 FrontEnd,MidEnd,PassManager ";
 static constexpr auto SEC_TO_MS = 1000000.0;
 
-std::vector<cstring> generate_pass_list(const fs::path& p4_file, const fs::path& dump_dir,
-                                        const fs::path& compiler_bin) {
+std::vector<cstring> generate_pass_list(const fs::path &p4_file, const fs::path &dump_dir,
+                                        const fs::path &compiler_bin) {
     cstring cmd = compiler_bin.c_str();
     cmd += " " + cstring(PASSES) + " ";
     cmd += cstring("--dump ") + dump_dir.c_str() + " " + p4_file.c_str();
@@ -70,8 +70,8 @@ std::vector<cstring> generate_pass_list(const fs::path& p4_file, const fs::path&
     return pruned_pass_list;
 }
 
-int validate_translation(const fs::path& p4_file, const fs::path& dump_dir,
-                         const fs::path& compiler_bin, ValidateOptions* options) {
+int validate_translation(const fs::path &p4_file, const fs::path &dump_dir,
+                         const fs::path &compiler_bin, ValidateOptions *options) {
     TOZ3::Logger::log_msg(0, "Analyzing %s", p4_file);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     auto prog_list = generate_pass_list(p4_file, dump_dir, compiler_bin);
@@ -87,9 +87,9 @@ int validate_translation(const fs::path& p4_file, const fs::path& dump_dir,
     return result;
 }
 
-int main(int argc, char* const argv[]) {
+int main(int argc, char *const argv[]) {
     AutoCompileContext autoP4toZ3Context(new P4toZ3Context);
-    auto& options = P4toZ3Context::get().options();
+    auto &options = P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = "p4toz3 test";
