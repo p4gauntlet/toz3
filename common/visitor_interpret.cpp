@@ -10,7 +10,6 @@
 #include "ir/id.h"
 #include "ir/vector.h"
 #include "lib/cstring.h"
-#include "lib/log.h"
 #include "lib/ordered_map.h"
 #include "toz3/common/scope.h"
 #include "toz3/common/state.h"

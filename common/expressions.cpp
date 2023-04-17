@@ -16,8 +16,6 @@
 #include "ir/visitor.h"
 #include "lib/cstring.h"
 #include "lib/exceptions.h"
-#include "lib/log.h"
-#include "lib/safe_vector.h"
 #include "lib/stringify.h"
 #include "toz3/common/state.h"
 #include "toz3/common/type_complex.h"

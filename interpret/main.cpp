@@ -12,7 +12,6 @@
 #include "lib/cstring.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
-#include "lib/ordered_map.h"
 #include "options.h"
 #include "toz3/common/create_z3.h"
 #include "toz3/common/state.h"

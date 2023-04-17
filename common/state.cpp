@@ -21,7 +21,6 @@
 #include "lib/big_int_util.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
-#include "lib/log.h"
 #include "lib/null.h"
 #include "lib/ordered_map.h"
 #include "lib/stringify.h"

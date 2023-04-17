@@ -8,7 +8,6 @@
 #include <random>
 
 #include <boost/lexical_cast.hpp>
-#include <boost/program_options.hpp>
 
 #include "boolean_pruner.h"
 #include "compiler_pruner.h"

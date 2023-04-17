@@ -6,7 +6,6 @@
 #include <vector>
 
 #include <boost/filesystem.hpp>
-#include <boost/format.hpp>
 
 #include "../common/util.h"
 #include "../compare/compare.h"

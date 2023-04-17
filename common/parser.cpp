@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <list>
+#include <string>
 #include <utility>
 #include <vector>
 

@@ -3,6 +3,7 @@
 #include <algorithm>  // std::min
 #include <cstdlib>
 #include <ostream>
+#include <string>
 
 #include "ir/indexed_vector.h"
 #include "toz3/pruner/src/constants.h"

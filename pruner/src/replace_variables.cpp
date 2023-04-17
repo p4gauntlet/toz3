@@ -2,11 +2,12 @@
 
 #include <cstdlib>
 
+#include <boost/multiprecision/cpp_int.hpp>
+
 #include "frontends/common/parser_options.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 #include "ir/pass_manager.h"
-#include "lib/big_int_util.h"
 #include "lib/error.h"
 #include "lib/error_reporter.h"
 #include "toz3/pruner/src/constants.h"

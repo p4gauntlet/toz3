@@ -1,8 +1,11 @@
 #include "expression_pruner.h"
 
 #include <cstdlib>
+#include <string>
+#include <vector>
 
 #include "ir/vector.h"
+#include "lib/cstring.h"
 #include "toz3/pruner/src/constants.h"
 #include "toz3/pruner/src/pruner_util.h"
 

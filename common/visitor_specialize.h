@@ -2,6 +2,8 @@
 #define TOZ3_COMMON_VISITOR_SPECIALIZE_H_
 
 #include <map>
+#include <string>
+#include <vector>
 
 #include "ir/ir.h"
 #include "ir/node.h"

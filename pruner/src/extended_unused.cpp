@@ -1,6 +1,6 @@
 #include "extended_unused.h"
 
-#include <iosfwd>
+#include <ostream>
 
 #include "ir/declaration.h"
 #include "ir/id.h"

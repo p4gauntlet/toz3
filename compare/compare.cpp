@@ -5,11 +5,8 @@
 #include <iomanip>
 #include <iostream>
 #include <list>
-#include <memory>
 #include <set>
 #include <string>
-
-#include <boost/format.hpp>
 
 #include "frontends/common/parseInput.h"
 #include "ir/ir.h"

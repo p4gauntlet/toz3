@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include <boost/core/enable_if.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 #include <boost/multiprecision/detail/default_ops.hpp>
 #include <boost/multiprecision/detail/et_ops.hpp>
 #include <boost/multiprecision/number.hpp>

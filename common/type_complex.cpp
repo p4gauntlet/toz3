@@ -6,7 +6,6 @@
 #include <string>
 #include <utility>
 
-#include <boost/format.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/multiprecision/detail/et_ops.hpp>
 #include <boost/multiprecision/number.hpp>
@@ -16,9 +15,7 @@
 #include "ir/node.h"
 #include "lib/big_int_util.h"
 #include "lib/error.h"
-#include "lib/log.h"
 #include "lib/null.h"
-#include "lib/safe_vector.h"
 #include "lib/stringify.h"
 #include "state.h"
 #include "type_base.h"

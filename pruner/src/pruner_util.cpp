@@ -6,8 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
-#include <sstream>
+#include <fstream>  // IWYU pragma: keep
 #include <stdexcept>
 #include <string>
 #include <utility>
