@@ -13,14 +13,11 @@
 namespace P4PRUNER {
 
 class ReplaceVariables : public Transform {
-    P4::ReferenceMap *refMap;
     P4::TypeMap *typeMap;
 
  public:
-    ReplaceVariables(P4::ReferenceMap *refMap, P4::TypeMap *typeMap)
-        : refMap(refMap), typeMap(typeMap) {
+    explicit ReplaceVariables(P4::TypeMap *typeMap) : typeMap(typeMap) {
         visitDagOnce = true;
-        CHECK_NULL(refMap);
         CHECK_NULL(typeMap);
         setName("ReplaceVariables");
     }

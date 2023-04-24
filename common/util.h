@@ -52,7 +52,10 @@ class Logger {
             return;
         }
         boost::format f(msg);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
         std::initializer_list<char>{(static_cast<void>(f % args), char{})...};  // NOLINT
+#pragma GCC diagnostic pop
         LOGN(level, boost::str(f));
     }
 };
