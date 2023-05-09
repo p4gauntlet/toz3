@@ -5,6 +5,7 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include "frontends/common/parser_options.h"
+#include "frontends/common/resolveReferences/referenceMap.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 #include "ir/pass_manager.h"

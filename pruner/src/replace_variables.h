@@ -2,7 +2,6 @@
 #define _REPLACE_VARIABLES_H
 // #include <vector>
 
-#include "frontends/common/resolveReferences/referenceMap.h"
 #include "frontends/p4/typeMap.h"
 #include "ir/ir.h"
 #include "ir/node.h"
