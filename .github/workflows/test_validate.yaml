@@ -32,7 +32,7 @@ jobs:
     - name: Install P4C with toz3
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
-        make  -j2
+        make
         sudo make install
     - name: Test toz3 with CMake
       run: |

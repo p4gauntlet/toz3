@@ -1,11 +1,10 @@
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <string>
 #include <vector>
-
-#include <boost/filesystem.hpp>
 
 #include "../common/util.h"
 #include "../compare/compare.h"
@@ -16,7 +15,7 @@
 #include "lib/error.h"
 #include "options.h"
 
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 
 static const auto FILE_DIR = fs::path(__FILE__).parent_path();
 static const auto COMPILER_BIN = FILE_DIR / "../../../../p4c/build/p4test";
@@ -60,7 +59,7 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file, const fs::path 
     for (; it != pass_list.end(); ++it) {
         auto pass_after = *it;
         if (TOZ3::compare_files(pass_before, pass_after)) {
-            fs::detail::remove(pass_after.c_str());
+            fs::remove(pass_after.c_str());
         } else {
             pruned_pass_list.emplace_back(pass_after);
             pass_before = pass_after;
@@ -103,12 +102,12 @@ int main(int argc, char *const argv[]) {
     // Initialize our logger
     TOZ3::Logger::init();
 
-    auto p4_file = fs::path(options.file);
-    auto dump_dir = options.dump_dir != nullptr ? fs::path(options.dump_dir) : DUMP_DIR;
+    auto p4_file = fs::path(options.file.c_str());
+    auto dump_dir = options.dump_dir != nullptr ? fs::path(options.dump_dir.c_str()) : DUMP_DIR;
     dump_dir = dump_dir / p4_file.filename().stem();
     fs::create_directories(dump_dir);
     auto compiler_bin =
-        options.compiler_bin != nullptr ? fs::path(options.compiler_bin) : COMPILER_BIN;
+        options.compiler_bin != nullptr ? fs::path(options.compiler_bin.c_str()) : COMPILER_BIN;
     TOZ3::Logger::log_msg(0, "Using the compiler binary %s.", compiler_bin);
 
     return validate_translation(p4_file, dump_dir, compiler_bin, &options);

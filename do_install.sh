@@ -41,7 +41,4 @@ pip3 install --user pyroute2 ipaddr ply scapy
 # Style checks.
 sudo apt install -y clang-tidy
 
-# This is needed for the validation binaries
-sudo apt install libboost-filesystem-dev
-
 echo "Successfully installed P4C dependencies."
