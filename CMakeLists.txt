@@ -217,6 +217,8 @@ set(
   ${P4C_TEST_DIR}/default-initializer.p4
   ${P4C_TEST_DIR}/invalid-union.p4
   ${P4C_TEST_DIR}/stack-init.p4
+  ${P4C_TEST_DIR}/issue4057.p4
+  ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
 )
 if(SKIPPED_TESTS)
   list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})
