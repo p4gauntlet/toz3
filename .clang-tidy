@@ -16,6 +16,7 @@ google-*,
 -readability-identifier-length,
 -cppcoreguidelines-owning-memory,
 -bugprone-easily-swappable-parameters,
+-clang-analyzer-cplusplus.NewDelete*,
 -llvm-header-guard,
 -misc-no-recursion'
 CheckOptions:

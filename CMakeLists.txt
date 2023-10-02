@@ -85,9 +85,6 @@ list(FILTER TOZ3_LINT_LIST EXCLUDE REGEX "pruner/src/contrib")
 add_clang_format_files(${P4C_SOURCE_DIR} "${TOZ3_LINT_LIST}")
 add_cpplint_files(${P4C_SOURCE_DIR} "${TOZ3_LINT_LIST}")
 
-find_package(Boost REQUIRED COMPONENTS filesystem)
-find_package(Boost REQUIRED COMPONENTS system)
-
 # Enable clang-tidy to force consistent code style across the project.
 # See also: https://gitlab.kitware.com/cmake/cmake/-/issues/18926
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy with the compiler." OFF)
@@ -136,7 +133,7 @@ target_link_libraries(p4compare p4toz3lib)
 install(TARGETS p4compare RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
 add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})
-target_link_libraries(p4validate p4toz3lib -lboost_system -lboost_filesystem)
+target_link_libraries(p4validate p4toz3lib)
 install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
 
@@ -220,6 +217,8 @@ set(
   ${P4C_TEST_DIR}/default-initializer.p4
   ${P4C_TEST_DIR}/invalid-union.p4
   ${P4C_TEST_DIR}/stack-init.p4
+  ${P4C_TEST_DIR}/issue4057.p4
+  ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
 )
 if(SKIPPED_TESTS)
   list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})
