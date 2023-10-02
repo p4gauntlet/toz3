@@ -31,9 +31,6 @@ sudo apt install -y bison \
                     libgmp-dev \
                     pkg-config
 
-# This only works on Ubuntu 18+
-sudo apt install -y libprotoc-dev protobuf-compiler
-
 # install python packages using pip
 pip3 install --user wheel
 pip3 install --user pyroute2 ipaddr ply scapy
