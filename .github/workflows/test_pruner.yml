@@ -1,11 +1,12 @@
 name: test-pruner
 on:
+  schedule:
+    # Every day on midnight UTC
+    - cron: "0 0 * * *"
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  schedule:
-    - cron: "0 0 * * *"
 
 jobs:
   test-pruner:
@@ -38,7 +39,8 @@ jobs:
         -DENABLE_UBPF=OFF \
         -DENABLE_GTESTS=OFF \
         -DENABLE_P4TC=OFF \
-        -DENABLE_P4C_GRAPHS=OFF
+        -DENABLE_P4C_GRAPHS=OFF \
+        -DENABLE_GAUNTLET_PRUNER=ON
     - name: Install P4C with toz3
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
