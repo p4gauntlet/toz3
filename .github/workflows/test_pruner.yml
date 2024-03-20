@@ -45,7 +45,6 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
         make  -j2
-        sudo make install
     - name: Test Pruner with CMake
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
