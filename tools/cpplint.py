@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2009 Google Inc. All rights reserved.
 #
@@ -41,6 +41,11 @@ We do a small hack, which is to ignore //'s with "'s after them on the
 same line, but it is far from perfect (in either direction).
 """
 
+# cpplint predates fstrings
+# pylint: disable=consider-using-f-string
+
+# pylint: disable=invalid-name
+
 import codecs
 import copy
 import getopt
@@ -55,13 +60,15 @@ import sys
 import sysconfig
 import unicodedata
 import xml.etree.ElementTree
+import fnmatch
 
 # if empty, use defaults
 _valid_extensions = set([])
 
-__VERSION__ = '1.5.4'
+__VERSION__ = '1.6.1'
 
 try:
+  #  -- pylint: disable=used-before-assignment
   xrange          # Python 2
 except NameError:
   #  -- pylint: disable=redefined-builtin
@@ -92,9 +99,10 @@ Syntax: cpplint.py [--verbose=#] [--output=emacs|eclipse|vs7|junit|sed|gsed]
   certain of the problem, and 1 meaning it could be a legitimate construct.
   This will miss some errors, and is not a substitute for a code review.
 
-  To suppress false-positive errors of a certain category, add a
-  'NOLINT(category)' comment to the line.  NOLINT or NOLINT(*)
-  suppresses errors of all categories on that line.
+  To suppress false-positive errors of certain categories, add a
+  'NOLINT(category[, category...])' comment to the line.  NOLINT or NOLINT(*)
+  suppresses errors of all categories on that line. To suppress categories
+  on the next line use NOLINTNEXTLINE instead of NOLINT.
 
   The files passed in will be linted; at least one file must be provided.
   Default linted extensions are %s.
@@ -328,6 +336,8 @@ _ERROR_CATEGORIES = [
     'runtime/memset',
     'runtime/indentation_namespace',
     'runtime/operator',
+    # This check currently does not work correctly. So it is disabled
+    # 'runtime/override',
     'runtime/printf',
     'runtime/printf_format',
     'runtime/references',
@@ -368,6 +378,13 @@ _LEGACY_ERROR_CATEGORIES = [
     'readability/function',
     ]
 
+# These prefixes for categories should be ignored since they relate to other
+# tools which also use the NOLINT syntax, e.g. clang-tidy.
+_OTHER_NOLINT_CATEGORY_PREFIXES = [
+    'clang-analyzer',
+    'cppcoreguidelines',
+    ]
+
 # The default state of the category filter. This is overridden by the --filter=
 # flag. By default all errors are on, so only add here categories that should be
 # off by default (i.e., categories that must be enabled by the --filter= flags).
@@ -396,7 +413,7 @@ _CPP_HEADERS = frozenset([
     'alloc.h',
     'builtinbuf.h',
     'bvector.h',
-    'complex.h',
+    # 'complex.h', collides with System C header "complex.h"
     'defalloc.h',
     'deque.h',
     'editbuf.h',
@@ -508,6 +525,22 @@ _CPP_HEADERS = frozenset([
     'optional',
     'string_view',
     'variant',
+    # 17.6.1.2 C++20 headers
+    'barrier',
+    'bit',
+    'compare',
+    'concepts',
+    'coroutine',
+    'format',
+    'latch'
+    'numbers',
+    'ranges',
+    'semaphore',
+    'source_location',
+    'span',
+    'stop_token',
+    'syncstream',
+    'version',
     # 17.6.1.2 C++ headers for C library facilities
     'cassert',
     'ccomplex',
@@ -872,12 +905,14 @@ _line_length = 80
 _include_order = "default"
 
 try:
+  #  -- pylint: disable=used-before-assignment
   unicode
 except NameError:
   #  -- pylint: disable=redefined-builtin
   basestring = unicode = str
 
 try:
+  #  -- pylint: disable=used-before-assignment
   long
 except NameError:
   #  -- pylint: disable=redefined-builtin
@@ -971,14 +1006,16 @@ def ParseNolintSuppressions(filename, raw_line, linenum, error):
       suppressed_line = linenum + 1
     else:
       suppressed_line = linenum
-    category = matched.group(2)
-    if category in (None, '(*)'):  # => "suppress all"
+    categories = matched.group(2)
+    if categories in (None, '(*)'):  # => "suppress all"
       _error_suppressions.setdefault(None, set()).add(suppressed_line)
-    else:
-      if category.startswith('(') and category.endswith(')'):
-        category = category[1:-1]
+    elif categories.startswith('(') and categories.endswith(')'):
+      for category in set(map(lambda c: c.strip(), categories[1:-1].split(','))):
         if category in _ERROR_CATEGORIES:
           _error_suppressions.setdefault(category, set()).add(suppressed_line)
+        elif any(c for c in _OTHER_NOLINT_CATEGORY_PREFIXES if category.startswith(c)):
+          # Ignore any categories from other tools.
+          pass
         elif category not in _LEGACY_ERROR_CATEGORIES:
           error(filename, linenum, 'readability/nolint', 5,
                 'Unknown NOLINT error category: %s' % category)
@@ -1915,6 +1952,7 @@ class CleansedLines(object):
     self.raw_lines = lines
     self.num_lines = len(lines)
     self.lines_without_raw_strings = CleanseRawStrings(lines)
+    # # pylint: disable=consider-using-enumerate
     for linenum in range(len(self.lines_without_raw_strings)):
       self.lines.append(CleanseComments(
           self.lines_without_raw_strings[linenum]))
@@ -2422,11 +2460,15 @@ def CheckForHeaderGuard(filename, clean_lines, error):
     error_level = 0
     if ifndef != cppvar + '_':
       error_level = 5
+    if ifndef == ('P4C_' + cppvar)[-len(ifndef):]:
+      error_level = 0
 
     ParseNolintSuppressions(filename, raw_lines[ifndef_linenum], ifndef_linenum,
                             error)
     error(filename, ifndef_linenum, 'build/header_guard', error_level,
           '#ifndef header guard has wrong style, please use: %s' % cppvar)
+    if error_level < 1:
+      cppvar = ifndef
 
   # Check for "//" comments on endif line.
   ParseNolintSuppressions(filename, raw_lines[endif_linenum], endif_linenum,
@@ -2436,18 +2478,19 @@ def CheckForHeaderGuard(filename, clean_lines, error):
     if match.group(1) == '_':
       # Issue low severity warning for deprecated double trailing underscore
       error(filename, endif_linenum, 'build/header_guard', 0,
-            '#endif line should be "#endif  // %s"' % cppvar)
+            '#endif line should be "#endif  /* %s */"' % cppvar)
     return
 
   # Didn't find the corresponding "//" comment.  If this file does not
   # contain any "//" comments at all, it could be that the compiler
   # only wants "/**/" comments, look for those instead.
+  # "//" comments in preprocessor directives are undefined behavior!!!
   no_single_line_comments = True
-  for i in xrange(1, len(raw_lines) - 1):
-    line = raw_lines[i]
-    if Match(r'^(?:(?:\'(?:\.|[^\'])*\')|(?:"(?:\.|[^"])*")|[^\'"])*//', line):
-      no_single_line_comments = False
-      break
+  #for i in xrange(1, len(raw_lines) - 1):
+  #  line = raw_lines[i]
+  #  if Match(r'^(?:(?:\'(?:\.|[^\'])*\')|(?:"(?:\.|[^"])*")|[^\'"])*//', line):
+  #    no_single_line_comments = False
+  #    break
 
   if no_single_line_comments:
     match = Match(r'#endif\s*/\*\s*' + cppvar + r'(_)?\s*\*/', endif)
@@ -2460,7 +2503,7 @@ def CheckForHeaderGuard(filename, clean_lines, error):
 
   # Didn't find anything
   error(filename, endif_linenum, 'build/header_guard', 5,
-        '#endif line should be "#endif  // %s"' % cppvar)
+        '#endif line should be "#endif  /* %s */"' % cppvar)
 
 
 def CheckHeaderFileIncluded(filename, include_state, error):
@@ -5006,7 +5049,8 @@ def _ClassifyInclude(fileinfo, include, used_angle_brackets, include_order="defa
             or Search(r'(?:%s)\/.*\.h' % "|".join(C_STANDARD_HEADER_FOLDERS), include))
 
   # Headers with C++ extensions shouldn't be considered C system headers
-  is_system = used_angle_brackets and not os.path.splitext(include)[1] in ['.hpp', '.hxx', '.h++']
+  include_ext = os.path.splitext(include)[1]
+  is_system = used_angle_brackets and not include_ext in ['.hh', '.hpp', '.hxx', '.h++']
 
   if is_system:
     if is_cpp_header:
@@ -5068,10 +5112,12 @@ def CheckIncludeLine(filename, clean_lines, linenum, include_state, error):
   #
   # We also make an exception for Lua headers, which follow google
   # naming convention but not the include convention.
-  match = Match(r'#include\s*"([^/]+\.h)"', line)
-  if match and not _THIRD_PARTY_HEADERS_PATTERN.match(match.group(1)):
-    error(filename, linenum, 'build/include_subdir', 4,
-          'Include the directory when naming .h files')
+  match = Match(r'#include\s*"([^/]+\.(.*))"', line)
+  if match:
+    if (IsHeaderExtension(match.group(2)) and
+        not _THIRD_PARTY_HEADERS_PATTERN.match(match.group(1))):
+      error(filename, linenum, 'build/include_subdir', 4,
+            'Include the directory when naming header files')
 
   # we shouldn't include a file more than once. actually, there are a
   # handful of instances where doing so is okay, but in general it's
@@ -5079,7 +5125,7 @@ def CheckIncludeLine(filename, clean_lines, linenum, include_state, error):
   match = _RE_PATTERN_INCLUDE.search(line)
   if match:
     include = match.group(2)
-    used_angle_brackets = (match.group(1) == '<')
+    used_angle_brackets = match.group(1) == '<'
     duplicate_line = include_state.FindHeader(include)
     if duplicate_line >= 0:
       error(filename, linenum, 'build/include', 4,
@@ -5752,7 +5798,7 @@ def CheckCasts(filename, clean_lines, linenum, error):
 
   if not expecting_function:
     CheckCStyleCast(filename, clean_lines, linenum, 'static_cast',
-                    r'\((int|float|double|bool|char|u?int(16|32|64))\)', error)
+                    r'\((int|float|double|bool|char|u?int(16|32|64)|size_t)\)', error)
 
   # This doesn't catch all cases. Consider (const char * const)"hello".
   #
@@ -5844,7 +5890,8 @@ def CheckCStyleCast(filename, clean_lines, linenum, cast_type, pattern, error):
     return False
 
   # operator++(int) and operator--(int)
-  if context.endswith(' operator++') or context.endswith(' operator--'):
+  if (context.endswith(' operator++') or context.endswith(' operator--') or
+      context.endswith('::operator++') or context.endswith('::operator--')):
     return False
 
   # A single unnamed argument for a function tends to look like old style cast.
@@ -6238,6 +6285,30 @@ def CheckRedundantVirtual(filename, clean_lines, linenum, error):
     if Search(r'[^\w]\s*$', line):
       break
 
+def CheckMissingOverrideOrFinal(filename, clean_lines, linenum, nesting_state, error):
+  """Check if a line is missing a required "override" or "final" virt-specifier.
+
+  Args:
+    filename: The name of the current file.
+    clean_lines: A CleansedLines instance containing the file.
+    linenum: The number of the line to check.
+    nesting_state: The _NestingState object that contains info about our state.
+    error: The function to call with any errors found.
+  """
+  if not nesting_state.InClassDeclaration():
+    return
+  line = clean_lines.elided[linenum]
+  if Search(r'\bvirtual\b', line):
+    # assuming if there's a 'virtual' this is the base class.
+    return
+
+  if Search(r'\bpreorder\b *\(', line) and not Search(r'\b(override|final)\b', line):
+    error(filename, linenum, 'runtime/override', 4,
+          ('missing "override" on preorder function'))
+  if Search(r'\bpostorder\b *\(', line) and not Search(r'\b(override|final)\b', line):
+    error(filename, linenum, 'runtime/override', 4,
+          ('missing "override" on postorder function'))
+
 
 def CheckRedundantOverrideOrFinal(filename, clean_lines, linenum, error):
   """Check if line contains a redundant "override" or "final" virt-specifier.
@@ -6373,6 +6444,7 @@ def ProcessLine(filename, file_extension, clean_lines, line,
   CheckMakePairUsesDeduction(filename, clean_lines, line, error)
   CheckRedundantVirtual(filename, clean_lines, line, error)
   CheckRedundantOverrideOrFinal(filename, clean_lines, line, error)
+  # CheckMissingOverrideOrFinal(filename, clean_lines, line, nesting_state, error)
   if extra_check_functions:
     for check_fn in extra_check_functions:
       check_fn(filename, clean_lines, line, error)
@@ -6523,7 +6595,7 @@ def ProcessConfigOverrides(filename):
       continue
 
     try:
-      with open(cfg_file) as file_handle:
+      with codecs.open(cfg_file, 'r', 'utf8', 'replace') as file_handle:
         for line in file_handle:
           line, _, _ = line.partition('#')  # Remove comments.
           if not line.strip():
@@ -6570,6 +6642,8 @@ def ProcessConfigOverrides(filename):
             ProcessHppHeadersOption(val)
           elif name == 'includeorder':
             ProcessIncludeOrderOption(val)
+          elif name == 'filematch':
+            skip = not fnmatch.fnmatch(os.path.basename(filename), val)
           else:
             _cpplint_state.PrintError(
                 'Invalid configuration option (%s) in file %s\n' %
@@ -6687,10 +6761,10 @@ def PrintUsage(message):
   Args:
     message: The optional error message.
   """
-  sys.stderr.write(_USAGE  % (list(GetAllExtensions()),
-       ','.join(list(GetAllExtensions())),
-       GetHeaderExtensions(),
-       ','.join(GetHeaderExtensions())))
+  sys.stderr.write(_USAGE  % (sorted(list(GetAllExtensions())),
+       ','.join(sorted(list(GetAllExtensions()))),
+       sorted(GetHeaderExtensions()),
+       ','.join(sorted(GetHeaderExtensions()))))
 
   if message:
     sys.exit('\nFATAL ERROR: ' + message)

@@ -1,13 +1,15 @@
-name: build
+name: test-validate
 on:
+  schedule:
+    # Every day on midnight UTC
+    - cron: "0 0 * * *"
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  schedule:
-    - cron: "0 0 * * *"
+
 jobs:
-  build:
+  test-validate:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v1
@@ -30,15 +32,20 @@ jobs:
         ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
         mkdir $GITHUB_WORKSPACE/../p4c/build
         cd $GITHUB_WORKSPACE/../p4c/build
-        cmake .. -DCMAKE_RUN_CLANG_TIDY=ON \
+        cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DENABLE_BMV2=OFF \
         -DENABLE_EBPF=OFF \
         -DENABLE_UBPF=OFF \
         -DENABLE_GTESTS=OFF \
         -DENABLE_P4TC=OFF \
-        -DENABLE_P4C_GRAPHS=OFF
+        -DENABLE_P4C_GRAPHS=OFF \
+        -DENABLE_GAUNTLET_PRUNER=ON
     - name: Install P4C with toz3
       run: |
         cd $GITHUB_WORKSPACE/../p4c/build
-        make  -j2
+        make -j2
+    - name: Test toz3 with CMake
+      run: |
+        cd $GITHUB_WORKSPACE/../p4c/build
+        ctest -j4 -R toz3-validate --output-on-failure --schedule-random

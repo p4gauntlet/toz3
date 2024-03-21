@@ -6,6 +6,8 @@ configure_file(
   "${CMAKE_CURRENT_BINARY_DIR}/version.h" @ONLY
 )
 
+OPTION (ENABLE_GAUNTLET_PRUNER "Build the Gauntlet Pruner." OFF)
+
 set(
   TOZ3V2_COMMON_SRCS
   common/create_z3.cpp
@@ -284,4 +286,6 @@ endif()
 p4c_add_tests("toz3-validate-undefined" ${VALIDATION_DRIVER} "${UNDEFINED_TESTS}" "${UNDEFINED_XFAIL_TESTS}" "${UNDEFINED_FLAGS}")
 
 # This also builds the pruner module
-add_subdirectory(pruner)
+if(ENABLE_GAUNTLET_PRUNER)
+  add_subdirectory(pruner)
+endif()
