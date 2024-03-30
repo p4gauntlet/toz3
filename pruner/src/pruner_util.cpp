@@ -153,17 +153,15 @@ std::pair<int, cstring> exec(cstring cmd) {
         }
     }
 
-    auto err_code = pclose(pipe);
-    return {err_code, output};
+    return {pclose(pipe), output};
 }
 
 ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
     // The crash bugs variant of get_exit_code
     ExitInfo exit_info;
-    cstring include_dir = get_parent(pruner_conf.compiler) + "/../../p4include";
-    cstring command = "P4C_16_INCLUDE_PATH=" + include_dir + " ";
-    command += pruner_conf.compiler;
-    command += " --Wdisable ";
+    cstring include_dir = get_parent(__FILE__) + "/../../p4include";
+    cstring command = pruner_conf.compiler;
+    command += " --Wdisable -I" + include_dir +" ";
     command += name;
     // Apparently popen doesn't like stderr hence redirecting stderr to
     // stdout
