@@ -161,7 +161,7 @@ ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
     ExitInfo exit_info;
     cstring include_dir = get_parent(__FILE__) + "/../../p4include";
     cstring command = pruner_conf.compiler;
-    command += " --Wdisable -I" + include_dir +" ";
+    command += " --Wdisable -I" + include_dir + " ";
     command += name;
     // Apparently popen doesn't like stderr hence redirecting stderr to
     // stdout

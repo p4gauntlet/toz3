@@ -423,7 +423,7 @@ class ControlInstance : public P4Z3Instance, public FunctionClass {
     // constructor
     explicit ControlInstance(P4State *state, const IR::Type *decl, const VarMap &input_const_args);
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
     ControlInstance *copy() const override {
         return new ControlInstance(state, p4_type, resolved_const_args);
     }
@@ -448,7 +448,7 @@ class P4Declaration : public P4Z3Instance {
     // TODO: This is a declaration, not an object. Distinguish!
     explicit P4Declaration(const IR::StatOrDecl *decl) : P4Z3Instance(nullptr), decl(decl) {}
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
     // TODO: This is a little pointless....
     P4Declaration *copy() const override { return new P4Declaration(decl); }
 
@@ -508,7 +508,7 @@ class ExternInstance : public P4Z3Instance, public FunctionClass {
  public:
     explicit ExternInstance(P4State *state, const IR::Type_Extern *type);
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
     cstring get_static_type() const override { return "ExternInstance"; }
     cstring to_string() const override {
         cstring ret = "ExternInstance(";
