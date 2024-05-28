@@ -290,7 +290,7 @@ P4Z3Instance *Z3Bitvector::concat(const P4Z3Instance &other) const {
     if (const auto *other_val = other.to<Z3Bitvector>()) {
         other_expr = other_val->get_val();
         const auto *concat_type =
-            new IR::Type_Bits(other_expr->get_sort().bv_size() + val.get_sort().bv_size(), false);
+            IR::Type_Bits::get(other_expr->get_sort().bv_size() + val.get_sort().bv_size(), false);
 
         return new Z3Bitvector(state, concat_type, z3::concat(val, *other_expr), is_signed);
     }
@@ -356,7 +356,7 @@ P4Z3Instance *Z3Bitvector::slice(const z3::expr &hi, const z3::expr &lo) const {
     // We have to use int here because Type_Bits uses int
     auto hi_int = hi.simplify().get_numeral_int();
     auto lo_int = lo.simplify().get_numeral_int();
-    const auto *slice_type = new IR::Type_Bits(hi_int - lo_int + 1, false);
+    const auto *slice_type = IR::Type_Bits::get(hi_int - lo_int + 1, false);
     return new Z3Bitvector(state, slice_type, val.extract(hi_int, lo_int).simplify(), is_signed);
 }
 

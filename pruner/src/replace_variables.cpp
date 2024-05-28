@@ -33,7 +33,7 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
 
     auto decision = PrunerRng::get_rnd_pct();
     if (decision < REPLACE_VARS_PROB && type->is<IR::Type_Bits>()) {
-        auto *new_elt = new IR::Constant(new IR::Type_Bits(bits, false), REPLACE_VARS_CONST);
+        auto *new_elt = new IR::Constant(IR::Type_Bits::get(bits, false), REPLACE_VARS_CONST);
         return new_elt;
     }
     return s;

@@ -307,7 +307,7 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
         }
         // We progressively slice and merge the lval
         target_rval = compute_slice(target_lval, target_rval, member_struct.end_slices);
-        const auto *bit_type = new IR::Type_Bits(target_rval.get_sort().bv_size(), false);
+        const auto *bit_type = IR::Type_Bits::get(target_rval.get_sort().bv_size(), false);
         auto *resolved_rval = new Z3Bitvector(this, bit_type, target_rval, is_signed);
         set_var(slice_less_member_struct, resolved_rval);
         return;

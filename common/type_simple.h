@@ -20,7 +20,7 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type);
 
 class VoidResult : public P4Z3Instance {
  public:
-    VoidResult() : P4Z3Instance(new IR::Type_Void()) {}
+    VoidResult() : P4Z3Instance(IR::Type_Void::get()) {}
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {
         // Merge is a no-op here.
     }
