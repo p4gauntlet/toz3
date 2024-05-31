@@ -424,7 +424,7 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
         }
         const auto *resolved_type = resolve_type(param->type);
         if (direction == IR::Direction::Out) {
-            auto *instance = gen_instance(UNDEF_LABEL, resolved_type);
+            auto *instance = gen_instance(cstring(UNDEF_LABEL), resolved_type);
             merged_vec.insert({param->name.name, {instance, resolved_type}});
         } else {
             P4Z3Instance *cast_val = nullptr;

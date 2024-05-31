@@ -46,7 +46,7 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
 }
 
 z3::expr align_bitvectors(const P4Z3Instance *target, const z3::sort &bv_cast,
-                          bool align_bv = false, cstring op = "") {
+                          bool align_bv = false, cstring op = ""_cs) {
     const z3::expr *cast_expr = nullptr;
     if (const auto *target_int = target->to<Z3Int>()) {
         auto cast_val = pure_bv_cast(*target_int->get_val(), bv_cast);
@@ -102,12 +102,12 @@ P4Z3Instance *Z3Bitvector::operator!() const {
 /****** BINARY OPERANDS ******/
 
 P4Z3Instance *Z3Bitvector::operator*(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "*");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "*"_cs);
     return new Z3Bitvector(state, p4_type, val * other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator/(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "/");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "/"_cs);
     if (is_signed) {
         return new Z3Bitvector(state, p4_type, val / other_expr, is_signed);
     }
@@ -115,17 +115,17 @@ P4Z3Instance *Z3Bitvector::operator/(const P4Z3Instance &other) const {
 }
 
 P4Z3Instance *Z3Bitvector::operator%(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "%");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "%"_cs);
     return new Z3Bitvector(state, p4_type, z3::urem(val, other_expr), is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator+(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "+");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "+"_cs);
     return new Z3Bitvector(state, p4_type, val + other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|+|");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|+|"_cs);
     auto no_overflow = z3::bvadd_no_overflow(val, other_expr, false);
     auto no_underflow = z3::bvadd_no_underflow(val, other_expr);
     auto sort = val.get_sort();
@@ -137,12 +137,12 @@ P4Z3Instance *Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
 }
 
 P4Z3Instance *Z3Bitvector::operator-(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "!=");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "!="_cs);
     return new Z3Bitvector(state, p4_type, val - other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operatorSubSat(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|-|");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|-|"_cs);
     auto no_overflow = z3::bvsub_no_overflow(val, other_expr);
     auto no_underflow = z3::bvsub_no_underflow(val, other_expr, false);
     auto sort = val.get_sort();
@@ -216,7 +216,7 @@ P4Z3Instance *Z3Bitvector::operator<<(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Bitvector::operator==(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "==");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "=="_cs);
     // Mismatched bit vectors evaluate to false.
     // TODO: Check if this is allowed and clean this up.
     if (val.get_sort().is_bv() && other_expr.get_sort().is_bv() &&
@@ -229,7 +229,7 @@ z3::expr Z3Bitvector::operator==(const P4Z3Instance &other) const {
 z3::expr Z3Bitvector::operator!=(const P4Z3Instance &other) const { return !(*this == other); }
 
 z3::expr Z3Bitvector::operator<(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "<");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "<"_cs);
     if (is_signed) {
         return val < other_expr;
     }
@@ -237,7 +237,7 @@ z3::expr Z3Bitvector::operator<(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Bitvector::operator<=(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "<=");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "<="_cs);
     if (is_signed) {
         return val <= other_expr;
     }
@@ -245,7 +245,7 @@ z3::expr Z3Bitvector::operator<=(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Bitvector::operator>(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, ">");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, ">"_cs);
     if (is_signed) {
         return val > other_expr;
     }
@@ -253,7 +253,7 @@ z3::expr Z3Bitvector::operator>(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Bitvector::operator>=(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, ">=");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, ">="_cs);
     if (is_signed) {
         return val >= other_expr;
     }
@@ -261,27 +261,27 @@ z3::expr Z3Bitvector::operator>=(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Bitvector::operator&&(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "&&");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "&&"_cs);
     return val && other_expr;
 }
 
 z3::expr Z3Bitvector::operator||(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "||");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "||"_cs);
     return val || other_expr;
 }
 
 P4Z3Instance *Z3Bitvector::operator&(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "&");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "&"_cs);
     return new Z3Bitvector(state, p4_type, val & other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator|(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|"_cs);
     return new Z3Bitvector(state, p4_type, val | other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator^(const P4Z3Instance &other) const {
-    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "^");
+    auto other_expr = align_bitvectors(&other, val.get_sort(), false, "^"_cs);
     return new Z3Bitvector(state, p4_type, val ^ other_expr, is_signed);
 }
 

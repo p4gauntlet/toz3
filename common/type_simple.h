@@ -25,9 +25,9 @@ class VoidResult : public P4Z3Instance {
         // Merge is a no-op here.
     }
     VoidResult *copy() const override { return new VoidResult(); }
-    cstring get_static_type() const override { return "VoidResult"; }
+    cstring get_static_type() const override { return "VoidResult"_cs; }
     cstring to_string() const override {
-        cstring ret = "VoidResult(";
+        std::string ret = "VoidResult(";
         ret += ")";
         return ret;
     }
@@ -53,9 +53,9 @@ class NumericVal : public P4Z3Instance, public ValContainer {
     explicit NumericVal(const P4State *state, const IR::Type *p4_type, const z3::expr &val)
         : P4Z3Instance(p4_type), ValContainer(val), state(state) {}
 
-    cstring get_static_type() const override { return "NumericVal"; }
+    cstring get_static_type() const override { return "NumericVal"_cs; }
     cstring to_string() const override {
-        cstring ret = "NumericVal(";
+        std::string ret = "NumericVal(";
         return ret + val.to_string().c_str() + ")";
     }
     void set_undefined() override {
@@ -109,9 +109,9 @@ class Z3Bitvector : public NumericVal {
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     Z3Bitvector *copy() const override;
 
-    cstring get_static_type() const override { return "Z3Bitvector"; }
+    cstring get_static_type() const override { return "Z3Bitvector"_cs; }
     cstring to_string() const override {
-        cstring ret = "Z3Bitvector(";
+        std::string ret = "Z3Bitvector(";
         return ret + val.to_string().c_str() + ")";
     }
     // copy constructor
@@ -165,9 +165,9 @@ class Z3Int : public NumericVal {
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     Z3Int *copy() const override;
 
-    cstring get_static_type() const override { return "Z3Int"; }
+    cstring get_static_type() const override { return "Z3Int"_cs; }
     cstring to_string() const override {
-        cstring ret = "Z3Int(";
+        std::string ret = "Z3Int(";
         return ret + val.to_string().c_str() + ")";
     }
 

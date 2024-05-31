@@ -15,6 +15,8 @@
 #include "lib/error.h"
 #include "options.h"
 
+using namespace P4::literals;
+
 namespace fs = std::filesystem;
 
 static const auto FILE_DIR = fs::path(__FILE__).parent_path();
@@ -26,24 +28,24 @@ static constexpr auto SEC_TO_MS = 1000000.0;
 
 std::vector<cstring> generate_pass_list(const fs::path &p4_file, const fs::path &dump_dir,
                                         const fs::path &compiler_bin) {
-    cstring cmd = compiler_bin.c_str();
-    cmd += " " + cstring(PASSES) + " ";
-    cmd += cstring("--dump ") + dump_dir.c_str() + " " + p4_file.c_str();
+    std::string cmd = compiler_bin;
+    // FIXME: use absl::StrConcat
+    cmd += " " + std::string(PASSES) + " ";
+    cmd += std::string("--dump ") + dump_dir + " " + p4_file.c_str();
     cmd += " 2>&1";
     std::stringstream output;
-    TOZ3::exec(cmd, output);
+    TOZ3::exec(cstring(cmd), output);
     std::vector<cstring> pass_list;
-    cstring cmd1 = compiler_bin.c_str();
+    std::string cmd1 = compiler_bin.c_str();
     cmd1 += cstring(" --Wdisable  -v ") + p4_file.c_str();
     cmd1 += " 2>&1 ";
     cmd1 += "| sed -e '/FrontEnd\\|MidEnd\\|PassManager/!d' | ";
     cmd1 += "sed -e '/Writing program to/d' ";
     std::stringstream passes;
-    TOZ3::exec(cmd1, passes);
+    TOZ3::exec(cstring(cmd1), passes);
     std::string pass;
     while (std::getline(passes, pass, '\n')) {
-        cstring pass_path =
-            (dump_dir / (cstring(p4_file.stem().c_str()) + "-" + pass + ".p4").c_str()).c_str();
+        cstring pass_path((dump_dir / (cstring(p4_file.stem().c_str()) + "-" + pass + ".p4").c_str()).c_str());
         pass_list.emplace_back(pass_path.c_str());
     }
 
@@ -90,7 +92,7 @@ int main(int argc, char *const argv[]) {
     auto &options = P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
-    options.compilerVersion = "p4toz3 test";
+    options.compilerVersion = "p4toz3 test"_cs;
 
     if (options.process(argc, argv) != nullptr) {
         options.setInputFile();

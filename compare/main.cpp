@@ -12,11 +12,14 @@
 #include "toz3/common/util.h"
 #include "toz3/compare/options.h"
 
+using namespace P4::literals;  // NOLINT
+
 std::vector<cstring> split_input_progs(cstring input_progs) {
     std::vector<cstring> prog_list;
     const char *pos = nullptr;
     cstring prog;
 
+    // FIXME: use absl::Split
     while ((pos = input_progs.find(static_cast<size_t>(','))) != nullptr) {
         auto idx = static_cast<size_t>(pos - input_progs);
         prog = input_progs.substr(0, idx);
@@ -32,7 +35,7 @@ int main(int argc, char *const argv[]) {
     auto &options = TOZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
-    options.compilerVersion = "p4toz3 test";
+    options.compilerVersion = "p4toz3 test"_cs;
 
     if (options.process(argc, argv) != nullptr) {
         options.setInputFile();
