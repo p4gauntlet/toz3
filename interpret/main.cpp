@@ -19,7 +19,7 @@
 #include "toz3/common/visitor_interpret.h"
 #include "z3++.h"
 
-using namespace P4::literals;
+using namespace P4::literals;  // NOLINT
 
 int main(int argc, char *const argv[]) {
     AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);

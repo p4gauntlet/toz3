@@ -19,7 +19,7 @@
 
 namespace TOZ3 {
 
-using namespace P4::literals;
+using namespace P4::literals;  // NOLINT
 
 class Z3Int;
 class Z3Bitvector;

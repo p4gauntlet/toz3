@@ -12,7 +12,7 @@
 #include "toz3/common/util.h"
 #include "toz3/compare/options.h"
 
-using namespace P4::literals;
+using namespace P4::literals;  // NOLINT
 
 std::vector<cstring> split_input_progs(cstring input_progs) {
     std::vector<cstring> prog_list;
