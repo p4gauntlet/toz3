@@ -833,7 +833,7 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type, cstring
     : EnumBase(p4_state, type, name, member_id) {
     // FIXME: Enums should not be a struct base, actually
     width = INT_WIDTH;
-    size_t idx = 0;
+    uint64_t idx = 0;
     for (const auto *member : type->members) {
         auto *member_var =
             new Z3Bitvector(state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
@@ -873,7 +873,7 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type, cstr
     : EnumBase(p4_state, type, name, member_id) {
     // FIXME: Enums should not be a struct base, actually
     width = INT_WIDTH;
-    size_t idx = 0;
+    uint64_t idx = 0;
     for (const auto *member : type->members) {
         auto *member_var =
             new Z3Bitvector(state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));

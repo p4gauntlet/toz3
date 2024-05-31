@@ -261,7 +261,7 @@ void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
     z3::expr matches = state->get_z3_ctx()->bool_val(false);
     // Skip all of this if we do not even match
     if (!new_hit.is_false()) {
-        size_t idx = 0;
+        uint64_t idx = 0;
         // First the constant entries
         for (const auto &entry : table_props.entries) {
             const auto *keys = entry.first;
