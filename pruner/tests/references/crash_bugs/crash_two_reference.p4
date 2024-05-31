@@ -54,13 +54,13 @@ control ingress(inout Headers h) {
     action dUbOl(bit<64> sLPS) {
         const bit<32> gZlvTF = 32w10;
         bit<32> nBmBDv = 32w10;
-        h.XgXd[max((bit<3>)zvVNECN(h.szOQ.nYRO, { 32w10, 64w10, 32w10, 64w10, 16w23806 }), 3w5)].RbAp = 32w10;
+        h.XgXd[max((bit<3>)zvVNECN(h.szOQ.nYRO, { 32w10, 64w13544346735733648404, 32w10, 64w10, 16w23806 }), 3w5)].RbAp = 32w10;
     }
     table RGCyPy {
         key = {
-            h.XgXd[5].SwvD: exact @name("YQNeBH");
-            h.JQlW.gpRw   : exact @name("ifCVyt");
-            48w10         : exact @name("yaGJNK");
+            h.XgXd[5].SwvD : exact @name("YQNeBH");
+            h.JQlW.gpRw    : exact @name("ifCVyt");
+            h.YYSU.src_addr: exact @name("yaGJNK");
         }
         actions = {
             dUbOl();
@@ -70,7 +70,7 @@ control ingress(inout Headers h) {
     }
     apply {
         bool Jvuqrm = true;
-        bit<4> ZGknBz = 4w10;
+        bit<4> ZGknBz = (bit<4>)eFxdzn.eth_type;
         bit<64> VytFjf = 64w10;
         const int AXUyrM = 238813955;
         const bit<128> IcoSKn = 128w10;

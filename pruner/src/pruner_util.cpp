@@ -169,7 +169,6 @@ ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
     auto result = exec(command);
     exit_info.exit_code = WEXITSTATUS(result.first);
     exit_info.err_msg = result.second;
-    INFO("Error message: " << exit_info.err_msg);
     return exit_info;
 }
 
