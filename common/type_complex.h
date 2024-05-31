@@ -101,9 +101,9 @@ class StructInstance : public StructBase {
     StructInstance *copy() const override;
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
-    cstring get_static_type() const override { return "StructInstance"; }
+    cstring get_static_type() const override { return "StructInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "StructInstance(";
+        std::string ret = "StructInstance(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -143,9 +143,9 @@ class HeaderInstance : public StructInstance, public FunctionClass {
     void set_list(std::map<cstring, P4Z3Instance *> input_map) override;
     void bind_to_union(HeaderUnionInstance *union_parent);
 
-    cstring get_static_type() const override { return "HeaderInstance"; }
+    cstring get_static_type() const override { return "HeaderInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "HeaderInstance(";
+        std::string ret = "HeaderInstance(";
         ret += "valid: " + valid.to_string() + ", ";
         bool first = true;
         for (auto tuple : members) {
@@ -193,9 +193,9 @@ class StackInstance : public IndexableInstance, public FunctionClass {
     void update_member(cstring name, P4Z3Instance *val) override;
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
-    cstring get_static_type() const override { return "StackInstance"; }
+    cstring get_static_type() const override { return "StackInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "StackInstance(";
+        std::string ret = "StackInstance(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -222,9 +222,9 @@ class TupleInstance : public IndexableInstance {
  public:
     TupleInstance(P4State *state, const IR::Type_Tuple *type, cstring name, uint64_t member_id);
 
-    cstring get_static_type() const override { return "TupleInstance"; }
+    cstring get_static_type() const override { return "TupleInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "TupleInstance(";
+        std::string ret = "TupleInstance(";
         ret += ")";
         return ret;
     }
@@ -243,9 +243,9 @@ class HeaderUnionInstance : public StructBase, public FunctionClass {
 
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
-    cstring get_static_type() const override { return "HeaderUnionInstance"; }
+    cstring get_static_type() const override { return "HeaderUnionInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "HeaderUnionInstance(";
+        std::string ret = "HeaderUnionInstance(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -276,9 +276,9 @@ class EnumBase : public StructBase, public ValContainer {
     EnumBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id);
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
-    cstring get_static_type() const override { return "EnumBase"; }
+    cstring get_static_type() const override { return "EnumBase"_cs; }
     cstring to_string() const override {
-        cstring ret = "EnumBase(";
+        std::string ret = "EnumBase(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -308,9 +308,9 @@ class EnumBase : public StructBase, public ValContainer {
 class EnumInstance : public EnumBase {
  public:
     EnumInstance(P4State *state, const IR::Type_Enum *type, cstring name, uint64_t member_id);
-    cstring get_static_type() const override { return "EnumInstance"; }
+    cstring get_static_type() const override { return "EnumInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "EnumInstance(";
+        std::string ret = "EnumInstance(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -333,11 +333,11 @@ class EnumInstance : public EnumBase {
 class ErrorInstance : public EnumBase {
  public:
     ErrorInstance(P4State *state, const IR::Type_Error *type, cstring name, uint64_t member_id);
-    cstring get_static_type() const override { return "ErrorInstance"; }
+    cstring get_static_type() const override { return "ErrorInstance"_cs; }
     ErrorInstance *copy() const override;
 
     cstring to_string() const override {
-        cstring ret = "ErrorInstance(";
+        std::string ret = "ErrorInstance(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -356,9 +356,9 @@ class SerEnumInstance : public EnumBase {
  public:
     SerEnumInstance(P4State *state, const ordered_map<cstring, P4Z3Instance *> &input_members,
                     const IR::Type_SerEnum *type, cstring name, uint64_t member_id);
-    cstring get_static_type() const override { return "SerEnumInstance"; }
+    cstring get_static_type() const override { return "SerEnumInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "SerSerEnumInstance(";
+        std::string ret = "SerSerEnumInstance(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -388,9 +388,9 @@ class ListInstance : public StructBase {
                           uint64_t member_id);
     explicit ListInstance(P4State *state, const std::map<cstring, P4Z3Instance *> &val_map,
                           const IR::Type *type_list);
-    cstring get_static_type() const override { return "ListInstance"; }
+    cstring get_static_type() const override { return "ListInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "ListInstance(";
+        std::string ret = "ListInstance(";
         bool first = true;
         for (auto tuple : members) {
             if (!first) {
@@ -430,9 +430,9 @@ class ControlInstance : public P4Z3Instance, public FunctionClass {
 
     void apply(Visitor *, const IR::Vector<IR::Argument> *);
 
-    cstring get_static_type() const override { return "ControlInstance"; }
+    cstring get_static_type() const override { return "ControlInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "ControlInstance(";
+        std::string ret = "ControlInstance(";
         return ret + p4_type->toString() + ")";
     }
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
@@ -452,9 +452,9 @@ class P4Declaration : public P4Z3Instance {
     // TODO: This is a little pointless....
     P4Declaration *copy() const override { return new P4Declaration(decl); }
 
-    cstring get_static_type() const override { return "P4Declaration"; }
+    cstring get_static_type() const override { return "P4Declaration"_cs; }
     cstring to_string() const override {
-        cstring ret = "P4Declaration(";
+        std::string ret = "P4Declaration(";
         return ret + decl->toString() + ")";
     }
     const IR::StatOrDecl *get_decl() const { return decl; }
@@ -489,9 +489,9 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
     }
     void apply(Visitor *, const IR::Vector<IR::Argument> *);
 
-    cstring get_static_type() const override { return "P4TableInstance"; }
+    cstring get_static_type() const override { return "P4TableInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "P4TableInstance(";
+        std::string ret = "P4TableInstance(";
         return ret + get_decl()->toString() + ")";
     }
     z3::expr produce_const_match(Visitor *visitor,
@@ -509,9 +509,9 @@ class ExternInstance : public P4Z3Instance, public FunctionClass {
     explicit ExternInstance(P4State *state, const IR::Type_Extern *type);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
-    cstring get_static_type() const override { return "ExternInstance"; }
+    cstring get_static_type() const override { return "ExternInstance"_cs; }
     cstring to_string() const override {
-        cstring ret = "ExternInstance(";
+        std::string ret = "ExternInstance(";
         ret += ")";
         return ret;
     }

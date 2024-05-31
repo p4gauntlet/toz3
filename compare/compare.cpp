@@ -23,7 +23,7 @@
 namespace TOZ3 {
 
 // Passes that are not supported for translation validation.
-static const std::array<cstring, 1> SKIPPED_PASSES = {"FlattenHeaderUnion"};
+static const std::array<cstring, 1> SKIPPED_PASSES = {"FlattenHeaderUnion"_cs};
 
 MainResult get_z3_repr(cstring prog_name, const IR::P4Program *program, z3::context *ctx) {
     try {
@@ -194,7 +194,7 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr
         }
         // Check the equivalence of the modified clause.
         Logger::log_msg(1, "Checking member %s... ", idx);
-        cstring equ = tv_equiv.to_string().c_str();
+        cstring equ = tv_equiv.to_string();
         Logger::log_msg(1, "Equation:\n%s", equ);
         s->add(tv_equiv);
         auto ret = s->check();

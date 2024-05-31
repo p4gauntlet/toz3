@@ -19,12 +19,14 @@
 #include "toz3/common/visitor_interpret.h"
 #include "z3++.h"
 
+using namespace P4::literals;
+
 int main(int argc, char *const argv[]) {
     AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
     auto &options = TOZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
-    options.compilerVersion = "p4toz3 test";
+    options.compilerVersion = "p4toz3 test"_cs;
 
     if (options.process(argc, argv) != nullptr) {
         options.setInputFile();

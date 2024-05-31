@@ -19,6 +19,8 @@
 
 namespace TOZ3 {
 
+using namespace P4::literals;
+
 class Z3Int;
 class Z3Bitvector;
 class VoidResult;
@@ -225,7 +227,7 @@ class P4Z3Instance : public P4Z3Node {
         P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.", get_static_type());
     }
     virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
-        cstring /*prefix*/ = "", const z3 ::expr * /*valid*/ = nullptr) const {
+        cstring /*prefix*/ = ""_cs, const z3 ::expr * /*valid*/ = nullptr) const {
         P4C_UNIMPLEMENTED("get_z3_vars not implemented for %s.", get_static_type());
     }
     virtual P4Z3Instance *copy() const {

@@ -65,7 +65,7 @@ void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
         // This may happen in the case of lists with default values.
         // We assume the rest of the list is undefined.
         if (idx >= input_list.size()) {
-            input_val = state->gen_instance(UNDEF_LABEL, target_val->get_p4_type());
+            input_val = state->gen_instance(cstring(UNDEF_LABEL), target_val->get_p4_type());
         } else {
             input_val = input_list.at(idx);
         }
@@ -97,7 +97,7 @@ void StructBase::set_list(std::map<cstring, P4Z3Instance *> input_map) {
         // This may happen in the case of lists with default values.
         // We assume the rest of the list is undefined.
         if (input_map.count(member_name) == 0) {
-            input_val = state->gen_instance(UNDEF_LABEL, target_val->get_p4_type());
+            input_val = state->gen_instance(cstring(UNDEF_LABEL), target_val->get_p4_type());
         } else {
             input_val = input_map[member_name];
         }
@@ -268,7 +268,7 @@ std::vector<std::pair<cstring, z3::expr>> StructInstance::get_z3_vars(
         const auto *member = member_tuple.second;
         if (const auto *z3_var = member->to<Z3Bitvector>()) {
             const auto *dest_type = member_types.at(member_tuple.first);
-            auto invalid_var = state->gen_z3_expr(INVALID_LABEL, dest_type);
+            auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), dest_type);
             auto valid_var = z3::ite(*tmp_valid, *z3_var->get_val(), invalid_var);
             z3_vars.emplace_back(name, valid_var);
         } else if (const auto *z3_var = member->to<StructBase>()) {
@@ -279,12 +279,12 @@ std::vector<std::pair<cstring, z3::expr>> StructInstance::get_z3_vars(
             const auto *dest_type = member_types.at(member_tuple.first);
             if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
                 auto cast_val = z3::int2bv(tb->size, *z3_var->get_val()).simplify();
-                auto invalid_var = state->gen_z3_expr(INVALID_LABEL, dest_type);
+                auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), dest_type);
                 auto valid_var = z3::ite(*tmp_valid, cast_val, invalid_var);
                 z3_vars.emplace_back(name, valid_var);
             } else if (const auto *tb = dest_type->to<IR::Type_Varbits>()) {
                 auto cast_val = z3::int2bv(tb->size, *z3_var->get_val()).simplify();
-                auto invalid_var = state->gen_z3_expr(INVALID_LABEL, dest_type);
+                auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), dest_type);
                 auto valid_var = z3::ite(*tmp_valid, cast_val, invalid_var);
                 z3_vars.emplace_back(name, valid_var);
             } else {
@@ -321,25 +321,25 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type, cstr
     // When we first instantiate a header, all its members need to be invalid.
     HeaderInstance::propagate_validity(&valid);
 
-    add_function("setValid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("setValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         setValid(visitor, args);
     });
-    add_function("setInvalid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("setInvalid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         setInvalid(visitor, args);
     });
-    add_function("isValid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         isValid(visitor, args);
     });
 }
 
 HeaderInstance::HeaderInstance(const HeaderInstance &other) : StructInstance(other) {
-    add_function("setValid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("setValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         setValid(visitor, args);
     });
-    add_function("setInvalid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("setInvalid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         setInvalid(visitor, args);
     });
-    add_function("isValid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         isValid(visitor, args);
     });
 }
@@ -468,10 +468,10 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type, cstring
         insert_member(member_name, member_var);
         member_types.insert({member_name, elem_type});
     }
-    add_function("push_front1", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("push_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         push_front(visitor, args);
     });
-    add_function("pop_front1", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("pop_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         pop_front(visitor, args);
     });
 }
@@ -485,10 +485,10 @@ StackInstance::StackInstance(const StackInstance &other)
       size(other.size),
       int_size(other.int_size),
       elem_type(other.elem_type) {
-    add_function("push_front1", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("push_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         push_front(visitor, args);
     });
-    add_function("pop_front1", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("pop_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         pop_front(visitor, args);
     });
 }
@@ -555,7 +555,7 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     }
     // We create a new header that we return
     // This header is the merge of all the sub headers of this stack
-    auto *base_hdr = state->gen_instance(UNDEF_LABEL, elem_type);
+    auto *base_hdr = state->gen_instance(cstring(UNDEF_LABEL), elem_type);
     // Sometimes the index bitvector is so small, it does not exceed the header
     // size. So we have to make sure max_idx is computed correctly.
     auto size = get_int_size();
@@ -669,13 +669,13 @@ HeaderUnionInstance::HeaderUnionInstance(P4State *state, const IR::Type_HeaderUn
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!", field->type);
         }
     }
-    add_function("isValid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         isValid(visitor, args);
     });
 }
 
 HeaderUnionInstance::HeaderUnionInstance(const HeaderUnionInstance &other) : StructBase(other) {
-    add_function("isValid0", [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         isValid(visitor, args);
     });
 }
@@ -752,7 +752,7 @@ EnumBase
 
 EnumBase::EnumBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id)
     : StructBase(state, type, name, member_id),
-      ValContainer(state->gen_z3_expr(UNDEF_LABEL, &P4_STD_BIT_TYPE)) {}
+      ValContainer(state->gen_z3_expr(cstring(UNDEF_LABEL), &P4_STD_BIT_TYPE)) {}
 
 std::vector<std::pair<cstring, z3::expr>> EnumBase::get_z3_vars(cstring prefix,
                                                                 const z3::expr *valid_expr) const {
@@ -767,7 +767,7 @@ std::vector<std::pair<cstring, z3::expr>> EnumBase::get_z3_vars(cstring prefix,
     if (prefix.size() != 0) {
         name = prefix + "." + name;
     }
-    auto invalid_var = state->gen_z3_expr(INVALID_LABEL, member_type);
+    auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), member_type);
     auto valid_var = z3::ite(*tmp_valid, val, invalid_var);
     std::vector<std::pair<cstring, z3::expr>> z3_vars = {{name, valid_var}};
     return z3_vars;
@@ -777,7 +777,7 @@ void EnumBase::add_enum_member(cstring error_name) {
     insert_member(error_name, new Z3Bitvector(state, member_type, val));
 }
 
-void EnumBase::set_undefined() { val = state->gen_z3_expr(UNDEF_LABEL, member_type); }
+void EnumBase::set_undefined() { val = state->gen_z3_expr(cstring(UNDEF_LABEL), member_type); }
 
 void EnumBase::bind(const z3::expr *bind_var, uint64_t offset) {
     if (bind_var != nullptr) {
@@ -905,7 +905,7 @@ SerEnumInstance::SerEnumInstance(P4State *p4_state,
     members.clear();
     members.insert(input_members.begin(), input_members.end());
     const auto *resolved_type = state->resolve_type(type->type);
-    val = state->gen_z3_expr(UNDEF_LABEL, resolved_type);
+    val = state->gen_z3_expr(cstring(UNDEF_LABEL), resolved_type);
     if (const auto *tb = resolved_type->to<IR::Type_Bits>()) {
         member_type = tb;
         width = tb->size;
@@ -980,7 +980,7 @@ ListInstance
 ***/
 ListInstance::ListInstance(P4State *state, const std::vector<P4Z3Instance *> &val_list,
                            const IR::Type *type_list)
-    : StructBase(state, type_list, "", 0) {
+    : StructBase(state, type_list, ""_cs, 0) {
     IR::Vector<IR::Type> components;
     for (size_t idx = 0; idx < val_list.size(); ++idx) {
         auto *val = val_list[idx];
@@ -996,7 +996,7 @@ ListInstance::ListInstance(P4State *state, const std::vector<P4Z3Instance *> &va
 
 ListInstance::ListInstance(P4State *state, const std::map<cstring, P4Z3Instance *> &val_map,
                            const IR::Type *type_list)
-    : StructBase(state, type_list, "", 0), isLabelled(true) {
+    : StructBase(state, type_list, ""_cs, 0), isLabelled(true) {
     IR::Vector<IR::Type> components;
     for (auto val_tuple : val_map) {
         auto val_name = val_tuple.first;
@@ -1027,7 +1027,7 @@ P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
     if (dest_type->equiv(*p4_type)) {
         return copy();
     }
-    auto *instance = state->gen_instance("list", dest_type);
+    auto *instance = state->gen_instance("list"_cs, dest_type);
     auto *struct_instance = instance->to_mut<StructBase>();
     if (struct_instance == nullptr) {
         P4C_UNIMPLEMENTED("Unsupported type %s for ListInstance.", dest_type->node_type_name());
@@ -1221,7 +1221,7 @@ void ControlInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
         for (const auto &parser_state : parser_states) {
             state->declare_static_decl(parser_state->name.name, new P4Declaration(parser_state));
         }
-        visitor->visit(state->get_static_decl("start")->get_decl());
+        visitor->visit(state->get_static_decl("start"_cs)->get_decl());
     }
     if (body != nullptr) {
         visitor->visit(body);

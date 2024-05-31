@@ -52,7 +52,7 @@ bool Z3Visitor::preorder(const IR::Type_Enum *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, new EnumInstance(state, t, "", 0), t);
+        state->declare_var(name, new EnumInstance(state, t, ""_cs, 0), t);
     }
     return false;
 }
@@ -73,7 +73,7 @@ bool Z3Visitor::preorder(const IR::Type_Error *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, new ErrorInstance(state, t, "", 0), t);
+        state->declare_var(name, new ErrorInstance(state, t, ""_cs, 0), t);
     }
     return false;
 }
@@ -102,7 +102,7 @@ bool Z3Visitor::preorder(const IR::Type_SerEnum *t) {
                                   state->get_expr_result()->cast_allocate(member_type));
         }
         state->add_type(name, t);
-        state->declare_var(name, new SerEnumInstance(state, input_members, t, "", 0), t);
+        state->declare_var(name, new SerEnumInstance(state, input_members, t, ""_cs, 0), t);
     }
     return false;
 }
@@ -281,7 +281,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
         visit(dc->initializer);
         left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
-        left = state->gen_instance(UNDEF_LABEL, resolved_type);
+        left = state->gen_instance(cstring(UNDEF_LABEL), resolved_type);
     }
     state->declare_var(dc->name.name, left, resolved_type);
     return false;
@@ -294,7 +294,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
         visit(dv->initializer);
         left = state->get_expr_result()->cast_allocate(resolved_type);
     } else {
-        left = state->gen_instance(UNDEF_LABEL, resolved_type);
+        left = state->gen_instance(cstring(UNDEF_LABEL), resolved_type);
     }
     state->declare_var(dv->name.name, left, resolved_type);
 

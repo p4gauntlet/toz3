@@ -63,7 +63,7 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
     if (const auto *entries = p4t->getEntries()) {
         // If the entries properties is constant it means the entries are fixed
         // We cannot add or remove table entries
-        table_props->immutable = p4t->properties->getProperty("entries")->isConstant;
+        table_props->immutable = p4t->properties->getProperty("entries"_cs)->isConstant;
         for (const auto *entry : entries->entries) {
             const auto *action_expr = entry->getAction();
             const IR::MethodCallExpression *action = nullptr;
@@ -82,10 +82,10 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
 
 P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
     : P4Declaration(p4t), state(state), hit(state->get_z3_ctx()->bool_val(false)) {
-    members.insert({"action_run", this});
-    members.insert({"hit", new Z3Bitvector(state, &BOOL_TYPE, hit)});
-    members.insert({"miss", new Z3Bitvector(state, &BOOL_TYPE, !hit)});
-    cstring apply_str = "apply";
+    members.insert({"action_run"_cs, this});
+    members.insert({"hit"_cs, new Z3Bitvector(state, &BOOL_TYPE, hit)});
+    members.insert({"miss"_cs, new Z3Bitvector(state, &BOOL_TYPE, !hit)});
+    cstring apply_str = "apply"_cs;
     apply_str += std::to_string(p4t->getApplyParameters()->size());
     add_function(apply_str, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         apply(visitor, args);
@@ -106,10 +106,10 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
 P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3::expr hit,
                                  TableProperties table_props)
     : P4Declaration(decl), state(state), hit(hit), table_props(std::move(table_props)) {
-    members.insert({"action_run", this});
-    members.insert({"hit", new Z3Bitvector(state, &BOOL_TYPE, hit)});
-    members.insert({"miss", new Z3Bitvector(state, &BOOL_TYPE, !hit)});
-    cstring apply_str = "apply";
+    members.insert({"action_run"_cs, this});
+    members.insert({"hit"_cs, new Z3Bitvector(state, &BOOL_TYPE, hit)});
+    members.insert({"miss"_cs, new Z3Bitvector(state, &BOOL_TYPE, !hit)});
+    cstring apply_str = "apply"_cs;
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str += std::to_string(table->getApplyParameters()->size());
     }

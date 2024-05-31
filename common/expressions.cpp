@@ -83,7 +83,7 @@ bool Z3Visitor::preorder(const IR::StructExpression *se) {
     }
     // TODO: Not sure what the deal with Type_Unknown is here
     if (se->type != nullptr && !se->type->is<IR::Type_Unknown>()) {
-        auto *instance = state->gen_instance(UNDEF_LABEL, se->type);
+        auto *instance = state->gen_instance(cstring(UNDEF_LABEL), se->type);
         if (auto *struct_instance = instance->to_mut<StructBase>()) {
             struct_instance->set_list(members);
         } else {
@@ -354,7 +354,7 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         // TODO: How to cleanly resolve this?
         // params = new IR::ParameterList();
         // const auto *ext_const = ext->lookupConstructor(arguments);
-        auto *ext_instance = state->gen_instance(UNDEF_LABEL, ext);
+        auto *ext_instance = state->gen_instance(cstring(UNDEF_LABEL), ext);
         state->set_expr_result(ext_instance);
         return false;
     } else {

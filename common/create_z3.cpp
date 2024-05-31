@@ -253,7 +253,7 @@ MainResult gen_state_from_instance(Z3Visitor *visitor, const IR::Declaration_Ins
 }
 
 const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state) {
-    const auto *main = state->find_static_decl("main");
+    const auto *main = state->find_static_decl("main"_cs);
     if (main != nullptr) {
         if (const auto *main_pkg = main->get_decl()->to<IR::Declaration_Instance>()) {
             return main_pkg;
