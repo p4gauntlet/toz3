@@ -45,7 +45,8 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file, const fs::path 
     TOZ3::exec(cstring(cmd1), passes);
     std::string pass;
     while (std::getline(passes, pass, '\n')) {
-        cstring pass_path((dump_dir / (cstring(p4_file.stem().c_str()) + "-" + pass + ".p4").c_str()).c_str());
+        cstring pass_path(
+            (dump_dir / (cstring(p4_file.stem().c_str()) + "-" + pass + ".p4").c_str()).c_str());
         pass_list.emplace_back(pass_path.c_str());
     }
 
