@@ -1,7 +1,9 @@
 #ifndef _PRUNER_UTIL_H_
 #define _PRUNER_UTIL_H_
 #include <cstdint>
-#include <iostream>
+#include <filesystem>
+#include <optional>
+#include <string>
 
 #include <boost/random/mersenne_twister.hpp>
 
@@ -28,55 +30,43 @@ class PrunerRng {
 };
 
 enum class ErrorType : uint32_t {
-    SemanticBug = 0,
-    CrashBug = 1,
-    Error = 2,
-    Unknown = 3,
+    Unknown = 0,
+    SemanticBug = 1,
+    CrashBug = 2,
+    Error = 3,
     Success = 4,
     Undefined = 5
 };
 
 struct ExitInfo {
     int exit_code = 0;
-    cstring err_msg;
-    ExitInfo() : err_msg(nullptr) {}
+    std::string err_msg;
+    ExitInfo() {}
 };
 
 struct PrunerConfig {
     int exit_code = 0;
-    cstring validation_bin;
-    cstring prog_before;
-    cstring prog_post;
-    cstring compiler;
-    cstring working_dir;
-    cstring out_file_name;
-    cstring err_string;
+    std::optional<std::filesystem::path> validation_bin;
+    std::string prog_before;
+    std::string prog_post;
+    std::filesystem::path compiler;
+    std::filesystem::path working_dir;
+    std::filesystem::path out_file_name;
+    std::string err_string;
     bool allow_undef = false;
     ErrorType err_type = ErrorType::Unknown;
-    PrunerConfig()
-        : validation_bin(nullptr),
-          prog_before{nullptr},
-          prog_post(nullptr),
-          compiler(nullptr),
-          working_dir(nullptr),
-          out_file_name(nullptr),
-          err_string(nullptr) {}
+    PrunerConfig() {}
 };
 
-bool file_exists(cstring file_path);
-void create_dir(cstring folder_path);
-void remove_file(cstring file_path);
-cstring remove_extension(cstring file_path);
-cstring get_file_stem(cstring file_path);
-cstring get_parent(cstring file_path);
-
-ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf);
-ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf);
+ExitInfo get_exit_info(const std::filesystem::path &file,
+                       const P4PRUNER::PrunerConfig &pruner_conf);
+ExitInfo get_crash_exit_info(const std::filesystem::path &file,
+                             const P4PRUNER::PrunerConfig &pruner_conf);
 
 ErrorType classify_bug(ExitInfo exit_info);
-int get_exit_code(cstring name, P4PRUNER::PrunerConfig pruner_conf);
+int get_exit_code(const std::filesystem::path &file, const P4PRUNER::PrunerConfig &pruner_conf);
 
-void emit_p4_program(const IR::P4Program *program, cstring prog_name);
+void emit_p4_program(const IR::P4Program *program, const std::filesystem::path &prog_name);
 void print_p4_program(const IR::P4Program *program);
 
 bool compare_files(const IR::P4Program *prog_before, const IR::P4Program *prog_after);
@@ -88,7 +78,7 @@ double measure_size(const IR::P4Program *prog);
 uint64_t count_statements(const IR::P4Program *prog);
 
 int check_pruned_program(const IR::P4Program **orig_program, const IR::P4Program *pruned_program,
-                         P4PRUNER::PrunerConfig pruner_conf);
+                         const P4PRUNER::PrunerConfig &pruner_conf);
 }  // namespace P4PRUNER
 
 #endif /* _PRUNER_UTIL_H_ */

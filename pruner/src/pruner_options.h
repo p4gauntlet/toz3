@@ -1,9 +1,10 @@
 #ifndef _P4PRUNER_OPTIONS_H_
 #define _P4PRUNER_OPTIONS_H_
 
+#include <string>
+
 #include "frontends/common/options.h"
 #include "frontends/common/parser_options.h"
-#include "lib/cstring.h"
 
 namespace P4PRUNER {
 
@@ -11,16 +12,16 @@ class PrunerOptions : public CompilerOptions {
  public:
     PrunerOptions();
     // output file
-    cstring config_file = nullptr;
-    cstring validation_bin = nullptr;
-    cstring compiler_bin = nullptr;
-    cstring working_dir = "pruned";
+    std::optional<std::string> config_file;
+    std::optional<std::string> validation_bin;
+    std::optional<std::string> compiler_bin = std::nullopt;
+    std::string working_dir = "pruned";
     bool dry_run = false;
     bool do_rnd_prune = false;
     bool print_pruned = false;
-    cstring seed;
-    cstring bug_type;
-    cstring output_file = nullptr;
+    std::optional<std::string> seed;
+    std::optional<std::string> bug_type = std::nullopt;
+    std::optional<std::string> output_file = std::nullopt;
 };
 
 using P4PrunerContext = P4CContextWithOptions<PrunerOptions>;

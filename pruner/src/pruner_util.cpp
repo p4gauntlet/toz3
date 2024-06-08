@@ -9,6 +9,7 @@
 #include <fstream>  // IWYU pragma: keep
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <boost/random/uniform_int_distribution.hpp>
@@ -33,88 +34,15 @@ double PrunerRng::get_rnd_pct() {
     return distribution(instance().rng) / 100.0;
 }
 
-bool file_exists(cstring file_path) {
-    struct stat buffer {};
-    INFO("Checking if " << file_path << " exists.");
-    return stat(file_path, &buffer) == 0;
-}
-
-void create_dir(cstring folder_path) {
-    int ret = 0;
-    cstring cmd = "mkdir -p ";
-    cmd += folder_path;
-    ret = system(cmd);
-    if (ret != 0) {
-        ::warning("Creating folder %s failed.", folder_path);
-    }
-}
-
-void remove_file(cstring file_path) {
-    int ret = 0;
-    cstring cmd = "rm -rf ";
-    cmd += file_path;
-    ret = system(cmd);
-    if (ret != 0) {
-        ::warning("Removing file or folder %s failed.", file_path);
-    }
-}
-
-cstring get_file_stem(cstring file_path) {
-    cstring file_stem;
-    cstring stripped_name = P4PRUNER::remove_extension(file_path);
-
-    const char *pos = stripped_name.findlast('/');
-    // check if there even is a parent directory
-    if (pos == nullptr) {
-        return stripped_name;
-    }
-    auto idx = static_cast<size_t>(pos - stripped_name);
-    if (idx != std::string::npos) {
-        file_stem = stripped_name.substr(idx + 1);
-    } else {
-        file_stem = stripped_name;
-    }
-    return file_stem;
-}
-
-cstring get_parent(cstring file_path) {
-    cstring file_stem;
-    cstring stripped_name = P4PRUNER::remove_extension(file_path);
-
-    const char *pos = stripped_name.findlast('/');
-    // check if there even is a parent directory
-    if (pos == nullptr) {
-        return stripped_name;
-    }
-    auto idx = static_cast<size_t>(pos - stripped_name);
-    if (idx != std::string::npos) {
-        file_stem = stripped_name.substr(0, idx);
-    } else {
-        file_stem = "";
-    }
-    return file_stem;
-}
-
-cstring remove_extension(cstring file_path) {
-    // find the last dot
-    const char *last_dot = file_path.findlast('.');
-    // there is no dot in this string, just return the full name
-    if (last_dot == nullptr) {
-        return file_path;
-    }
-    // otherwise get the index, remove the dot
-    auto idx = static_cast<size_t>(last_dot - file_path);
-    return file_path.substr(0, idx);
-}
-
-ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
+ExitInfo get_exit_info(const std::filesystem::path &file,
+                       const P4PRUNER::PrunerConfig &pruner_conf) {
     ExitInfo exit_info;
     INFO("Checking exit code.");
 
     if (pruner_conf.err_type == ErrorType::SemanticBug) {
-        cstring command = pruner_conf.validation_bin;
+        std::string command = pruner_conf.validation_bin.value();
         command += " -i ";
-        command += name;
+        command += file;
         // set the output dir
         command += " -o ";
         command += pruner_conf.working_dir;
@@ -127,21 +55,21 @@ ExitInfo get_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
         }
         auto exit_code = system(command.c_str());
         exit_info.exit_code = WEXITSTATUS(exit_code);
-        exit_info.err_msg = cstring("");
+        exit_info.err_msg = "";
 
     } else {
-        exit_info = get_crash_exit_info(name, pruner_conf);
+        exit_info = get_crash_exit_info(file, pruner_conf);
     }
     return exit_info;
 }
 
-std::pair<int, cstring> exec(cstring cmd) {
+std::pair<int, std::string> exec(std::string_view cmd) {
     constexpr int BUF_SIZE = 1000;
     constexpr int CHUNK_SIZE = 128;
 
     std::array<char, BUF_SIZE> buffer{};
     std::string output;
-    auto *pipe = popen(cmd, "r");  // get rid of shared_ptr
+    auto *pipe = popen(cmd.data(), "r");  // get rid of shared_ptr
 
     if (pipe == nullptr) {
         throw std::runtime_error("popen() failed!");
@@ -156,13 +84,15 @@ std::pair<int, cstring> exec(cstring cmd) {
     return {pclose(pipe), output};
 }
 
-ExitInfo get_crash_exit_info(cstring name, P4PRUNER::PrunerConfig pruner_conf) {
+ExitInfo get_crash_exit_info(const std::filesystem::path &file,
+                             const P4PRUNER::PrunerConfig &pruner_conf) {
     // The crash bugs variant of get_exit_code
     ExitInfo exit_info;
-    cstring include_dir = get_parent(__FILE__) + "/../../p4include";
-    cstring command = pruner_conf.compiler;
+    auto file_path = std::filesystem::path(__FILE__);
+    std::string include_dir = file_path.parent_path().parent_path().parent_path() / "p4include";
+    std::string command = pruner_conf.compiler;
     command += " --Wdisable -I" + include_dir + " ";
-    command += name;
+    command += file;
     // Apparently popen doesn't like stderr hence redirecting stderr to
     // stdout
     command += " 2>&1";
@@ -184,21 +114,17 @@ ErrorType classify_bug(ExitInfo exit_info) {
     if (exit_code == EXIT_TEST_UNDEFINED) {
         return ErrorType::Undefined;
     }
-    cstring comp = exit_info.err_msg.find("Compiler Bug");
-
-    if (!comp.isNullOrEmpty()) {
+    if (exit_info.err_msg.find("Compiler Bug") != std::string::npos) {
         INFO("Crash bug");
         return ErrorType::CrashBug;
     }
-    cstring err_msg = exit_info.err_msg.find("error");
-
-    if (!err_msg.isNullOrEmpty()) {
+    if (exit_info.err_msg.find("error") != std::string::npos) {
         return ErrorType::Error;
     }
     return ErrorType::Unknown;
 }
 
-void emit_p4_program(const IR::P4Program *program, cstring prog_name) {
+void emit_p4_program(const IR::P4Program *program, const std::filesystem::path &prog_name) {
     auto *temp_f = new std::ofstream(prog_name);
     auto *temp_p4 = new P4::ToP4(temp_f, false);
     program->apply(*temp_p4);
@@ -243,11 +169,10 @@ double measure_pct(const IR::P4Program *prog_before, const IR::P4Program *prog_a
 }
 
 int check_pruned_program(const IR::P4Program **orig_program, const IR::P4Program *pruned_program,
-                         P4PRUNER::PrunerConfig pruner_conf) {
-    cstring out_file = pruner_conf.working_dir + "/" + get_file_stem(pruner_conf.out_file_name);
+                         const P4PRUNER::PrunerConfig &pruner_conf) {
+    auto out_file =
+        pruner_conf.working_dir / pruner_conf.out_file_name.stem().replace_extension(".p4");
 
-    // append a .p4 suffix
-    out_file += ".p4";
     emit_p4_program(pruned_program, out_file);
     if (compare_files(pruned_program, *orig_program)) {
         INFO("File has not changed. Skipping analysis.");
