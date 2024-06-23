@@ -25,7 +25,8 @@ namespace TOZ3 {
 // Passes that are not supported for translation validation.
 static const std::array<cstring, 1> SKIPPED_PASSES = {"FlattenHeaderUnion"_cs};
 
-MainResult get_z3_repr(cstring prog_name, const IR::P4Program *program, z3::context *ctx) {
+MainResult get_z3_repr(const std::filesystem::path &prog_name, const IR::P4Program *program,
+                       z3::context *ctx) {
     try {
         // Convert the P4 program to Z3
         TOZ3::P4State state(ctx);
@@ -267,7 +268,7 @@ int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool al
     return EXIT_SUCCESS;
 }
 
-int process_programs(const std::vector<cstring> &prog_list, ParserOptions *options,
+int process_programs(const std::vector<std::filesystem::path> &prog_list, ParserOptions *options,
                      bool allow_undefined) {
     z3::context ctx;
     // Parse the first program

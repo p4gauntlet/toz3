@@ -78,7 +78,7 @@ int exec(const char *cmd, std::stringstream &output) {
 }
 
 // https://stackoverflow.com/a/39097160/3215972
-bool compare_files(const cstring &filename1, const cstring &filename2) {
+bool compare_files(const std::filesystem::path &filename1, const std::filesystem::path &filename2) {
     std::ifstream file1(filename1,
                         std::ifstream::ate | std::ifstream::binary);  // open file at the end
     std::ifstream file2(filename2,
