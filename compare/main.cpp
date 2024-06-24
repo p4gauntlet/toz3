@@ -14,8 +14,8 @@
 
 using namespace P4::literals;  // NOLINT
 
-std::vector<cstring> split_input_progs(cstring input_progs) {
-    std::vector<cstring> prog_list;
+std::vector<std::filesystem::path> split_input_progs(cstring input_progs) {
+    std::vector<std::filesystem::path> prog_list;
     const char *pos = nullptr;
     cstring prog;
 
@@ -23,10 +23,10 @@ std::vector<cstring> split_input_progs(cstring input_progs) {
     while ((pos = input_progs.find(static_cast<size_t>(','))) != nullptr) {
         auto idx = static_cast<size_t>(pos - input_progs);
         prog = input_progs.substr(0, idx);
-        prog_list.push_back(prog);
+        prog_list.emplace_back(prog.c_str());
         input_progs = input_progs.substr(idx + 1);
     }
-    prog_list.push_back(input_progs);
+    prog_list.emplace_back(input_progs.c_str());
     return prog_list;
 }
 
@@ -51,7 +51,7 @@ int main(int argc, char *const argv[]) {
         options.usage();
         return EXIT_FAILURE;
     }
-    auto prog_list = split_input_progs(options.file);
+    auto prog_list = split_input_progs(cstring(options.file.c_str()));
     if (prog_list.size() < 2) {
         std::cerr << "At least two input programs expected." << std::endl;
         options.usage();

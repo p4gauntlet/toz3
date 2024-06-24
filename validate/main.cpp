@@ -26,8 +26,9 @@ static const auto DUMP_DIR = fs::path("validated");
 static constexpr auto PASSES = "--top4 FrontEnd,MidEnd,PassManager ";
 static constexpr auto SEC_TO_MS = 1000000.0;
 
-std::vector<cstring> generate_pass_list(const fs::path &p4_file, const fs::path &dump_dir,
-                                        const fs::path &compiler_bin) {
+std::vector<std::filesystem::path> generate_pass_list(const fs::path &p4_file,
+                                                      const fs::path &dump_dir,
+                                                      const fs::path &compiler_bin) {
     std::string cmd = compiler_bin;
     // FIXME: use absl::StrConcat
     cmd += " " + std::string(PASSES) + " ";
@@ -35,7 +36,7 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file, const fs::path 
     cmd += " 2>&1";
     std::stringstream output;
     TOZ3::exec(cstring(cmd), output);
-    std::vector<cstring> pass_list;
+    std::vector<std::filesystem::path> pass_list;
     std::string cmd1 = compiler_bin.c_str();
     cmd1 += cstring(" --Wdisable  -v ") + p4_file.c_str();
     cmd1 += " 2>&1 ";
@@ -54,7 +55,7 @@ std::vector<cstring> generate_pass_list(const fs::path &p4_file, const fs::path 
         return pass_list;
     }
 
-    std::vector<cstring> pruned_pass_list;
+    std::vector<std::filesystem::path> pruned_pass_list;
     auto it = pass_list.begin();
     auto pass_before = *it;
     pruned_pass_list.emplace_back(pass_before);
