@@ -27,8 +27,8 @@ const IR::P4Program *apply_generic_passes(const IR::P4Program *program,
 
     PassManager pass_manager({new P4::CreateBuiltins(), new P4::ResolveReferences(&refMap, true),
                               new P4::ConstantFolding(&refMap, nullptr),
-                              new P4::InstantiateDirectCalls(&refMap),
-                              new P4::TypeInference(&refMap, &typeMap, false)});
+                              new P4::InstantiateDirectCalls(),
+                              new P4::TypeInference(&typeMap, false)});
 
     INFO("Applying Generic passes...");
     temp = program->apply(pass_manager);
