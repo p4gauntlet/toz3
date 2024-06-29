@@ -41,12 +41,10 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
 
 const IR::P4Program *apply_replace(const IR::P4Program *program,
                                    P4PRUNER::PrunerConfig /*pruner_conf*/) {
-    P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
 
-    PassManager pass_manager({new P4::ResolveReferences(&refMap, true),
-                              new P4::TypeInference(&refMap, &typeMap, false)});
+    PassManager pass_manager({new P4::TypeInference(&typeMap, false)});
 
     temp = program->apply(pass_manager);
     auto *replacer = new P4PRUNER::ReplaceVariables(&typeMap);
