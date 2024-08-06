@@ -10,7 +10,7 @@ on:
 
 jobs:
   test-pruner:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v1
     - name: ccache
@@ -39,7 +39,9 @@ jobs:
         -DENABLE_UBPF=OFF \
         -DENABLE_GTESTS=OFF \
         -DENABLE_P4TC=OFF \
+        -DENABLE_P4FMT=OFF \
         -DENABLE_P4C_GRAPHS=OFF \
+        -DCMAKE_UNITY_BUILD=ON \
         -DENABLE_GAUNTLET_PRUNER=ON
     - name: Install P4C with toz3
       run: |
