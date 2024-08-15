@@ -6,7 +6,7 @@
 #include "ir/visitor.h"
 #include "pruner_util.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 class BoolExpressionPruner : public Transform {
  public:
@@ -22,9 +22,8 @@ class BoolExpressionPruner : public Transform {
     const IR::Node *postorder(IR::Equ *expr) override;
 };
 
-const IR::P4Program *prune_bool_expressions(const IR::P4Program *program,
-                                            P4PRUNER::PrunerConfig pruner_conf);
+const IR::P4Program *prune_bool_expressions(const IR::P4Program *program, PrunerConfig pruner_conf);
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
 
 #endif /* _BOOLEAN_PASS_H */

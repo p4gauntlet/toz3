@@ -24,7 +24,7 @@
 #include "visitor_specialize.h"
 #include "z3++.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 /***
 ===============================================================================
 StructBase
@@ -89,7 +89,7 @@ void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
 }
 
 void StructBase::set_list(std::map<cstring, P4Z3Instance *> input_map) {
-    size_t idx = 0;
+    // size_t idx = 0;
     for (auto &member_tuple : members) {
         auto member_name = member_tuple.first;
         auto *target_val = member_tuple.second;
@@ -116,7 +116,7 @@ void StructBase::set_list(std::map<cstring, P4Z3Instance *> input_map) {
             auto *cast_val = input_val->cast_allocate(member_type);
             update_member(member_name, cast_val);
         }
-        idx++;
+        // idx++;
     }
 }
 
@@ -1013,13 +1013,13 @@ ListInstance::ListInstance(P4State *state, const std::map<cstring, P4Z3Instance 
 ListInstance::ListInstance(P4State *state, const IR::Type_List *list_type, cstring name,
                            uint64_t member_id)
     : StructBase(state, list_type, name, member_id) {
-    auto flat_id = member_id;
+    // auto flat_id = member_id;
     for (size_t idx = 0; idx < list_type->components.size(); ++idx) {
         const auto *type = list_type->components[idx];
         cstring name = std::to_string(idx);
         insert_member(name, state->gen_instance(name, type));
         member_types.insert({name, type});
-        flat_id++;
+        // flat_id++;
     }
 }
 
@@ -1280,4 +1280,4 @@ P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
                       get_static_type());
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

@@ -7,7 +7,7 @@
 #define EXIT_TEST_SUCCESS 0
 #define EXIT_TEST_UNDEFINED 30
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 // The maximum amount of iterations of no changes a pruner will tolerate.
 constexpr int NO_CHNG_ITERS = 10;
@@ -40,6 +40,6 @@ constexpr double IF_STATEMENT_THEN_PROB = 0.25;
 // program size.
 constexpr double STATEMENT_SIZE_BANK_RATIO = 1.1;
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
 
 #endif /* _PROBABILITIES_H_ */

@@ -14,7 +14,7 @@
 #include "lib/null.h"
 #include "lib/safe_vector.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 struct struct_obj {
     cstring name;
@@ -73,6 +73,6 @@ class ExtendedUnusedDeclarations : public PassManager {
     }
 };
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
 
 #endif /* _PRUNE_UNUSED_H_ */

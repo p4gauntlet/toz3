@@ -7,7 +7,7 @@
 #include "lib/exceptions.h"
 #include "state.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 class DoBitFolding : public Modifier {
  private:
@@ -135,6 +135,6 @@ class Z3Visitor : public Inspector {
         }
     }
 };
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_VISITOR_INTERPRET_H_

@@ -6,7 +6,7 @@
 #include "ir/id.h"
 #include "lib/log.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 bool PruneUnused::check_if_field_used(cstring name_of_struct, cstring name_of_field) {
     for (const auto *s : *used_structs) {
@@ -125,4 +125,4 @@ void PruneUnused::show_used_structs() {
     }
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

@@ -11,7 +11,7 @@
 #include "toz3/common/util.h"
 #include "type_base.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 // Forward declare state
 class P4State;
@@ -185,6 +185,6 @@ class Z3Int : public NumericVal {
     }
 };
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_TYPE_SIMPLE_H_

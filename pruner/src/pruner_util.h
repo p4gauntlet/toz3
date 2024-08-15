@@ -12,7 +12,7 @@
 
 #define INFO(x) std::cout << x << std::endl;
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 class PrunerRng {
  private:
@@ -58,13 +58,11 @@ struct PrunerConfig {
     PrunerConfig() {}
 };
 
-ExitInfo get_exit_info(const std::filesystem::path &file,
-                       const P4PRUNER::PrunerConfig &pruner_conf);
-ExitInfo get_crash_exit_info(const std::filesystem::path &file,
-                             const P4PRUNER::PrunerConfig &pruner_conf);
+ExitInfo get_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
+ExitInfo get_crash_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
 
 ErrorType classify_bug(ExitInfo exit_info);
-int get_exit_code(const std::filesystem::path &file, const P4PRUNER::PrunerConfig &pruner_conf);
+int get_exit_code(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
 
 void emit_p4_program(const IR::P4Program *program, const std::filesystem::path &prog_name);
 void print_p4_program(const IR::P4Program *program);
@@ -78,7 +76,7 @@ double measure_size(const IR::P4Program *prog);
 uint64_t count_statements(const IR::P4Program *prog);
 
 int check_pruned_program(const IR::P4Program **orig_program, const IR::P4Program *pruned_program,
-                         const P4PRUNER::PrunerConfig &pruner_conf);
-}  // namespace P4PRUNER
+                         const PrunerConfig &pruner_conf);
+}  // namespace P4::ToZ3::Pruner
 
 #endif /* _PRUNER_UTIL_H_ */

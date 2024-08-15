@@ -1,6 +1,6 @@
 #include "options.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 CompareOptions::CompareOptions() {
     registerOption(
@@ -11,4 +11,4 @@ CompareOptions::CompareOptions() {
         },
         "Toggle to tolerate undefined behavior in comparison.");
 }
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

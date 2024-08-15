@@ -19,7 +19,7 @@
 #include "type_simple.h"
 #include "z3++.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 bool Z3Visitor::preorder(const IR::P4Program *p) {
     // Start to visit the actual AST objects
@@ -734,4 +734,4 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     return false;
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

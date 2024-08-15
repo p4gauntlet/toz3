@@ -19,7 +19,7 @@
 #include "type_complex.h"
 #include "z3++.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 /***
 ===============================================================================
 P4TableInstance
@@ -326,4 +326,4 @@ void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
 
     state->copy_out();
 }
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

@@ -5,8 +5,6 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include "frontends/common/parser_options.h"
-#include "frontends/common/resolveReferences/referenceMap.h"
-#include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 #include "ir/pass_manager.h"
 #include "lib/error.h"
@@ -14,7 +12,7 @@
 #include "toz3/pruner/src/constants.h"
 #include "toz3/pruner/src/pruner_util.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 const IR::Node *ReplaceVariables::postorder(IR::MethodCallExpression *s) { return s; }
 const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
@@ -29,31 +27,29 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
         warning("Not replacing NewType or structs.");
         return s;
     }
-    int bits = type->width_bits();
 
     auto decision = PrunerRng::get_rnd_pct();
     if (decision < REPLACE_VARS_PROB && type->is<IR::Type_Bits>()) {
-        auto *new_elt = new IR::Constant(IR::Type_Bits::get(bits, false), REPLACE_VARS_CONST);
+        auto *new_elt =
+            new IR::Constant(IR::Type_Bits::get(type->width_bits(), false), REPLACE_VARS_CONST);
         return new_elt;
     }
     return s;
 }
 
-const IR::P4Program *apply_replace(const IR::P4Program *program,
-                                   P4PRUNER::PrunerConfig /*pruner_conf*/) {
+const IR::P4Program *apply_replace(const IR::P4Program *program, PrunerConfig /*pruner_conf*/) {
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
 
     PassManager pass_manager({new P4::TypeInference(&typeMap, false)});
 
     temp = program->apply(pass_manager);
-    auto *replacer = new P4PRUNER::ReplaceVariables(&typeMap);
+    auto *replacer = new ReplaceVariables(&typeMap);
     temp = temp->apply(*replacer);
 
     return temp;
 }
-const IR::P4Program *replace_variables(const IR::P4Program *program,
-                                       P4PRUNER::PrunerConfig pruner_conf) {
+const IR::P4Program *replace_variables(const IR::P4Program *program, PrunerConfig pruner_conf) {
     int same_before_pruning = 0;
     int result = 0;
     auto prev_action = P4CContext::get().getDefaultWarningDiagnosticAction();
@@ -85,4 +81,4 @@ const IR::P4Program *replace_variables(const IR::P4Program *program,
     return program;
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

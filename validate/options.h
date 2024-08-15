@@ -4,6 +4,8 @@
 #include "frontends/common/parser_options.h"
 #include "lib/cstring.h"
 
+namespace P4::ToZ3 {
+
 class ValidateOptions : public ParserOptions {
  private:
     static constexpr const char *defaultMessage = "Validate a P4 program";
@@ -19,5 +21,7 @@ class ValidateOptions : public ParserOptions {
 };
 
 using P4toZ3Context = P4CContextWithOptions<ValidateOptions>;
+
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_VALIDATE_OPTIONS_H_

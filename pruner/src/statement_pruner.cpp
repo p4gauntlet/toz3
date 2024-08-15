@@ -9,7 +9,7 @@
 #include "toz3/pruner/src/constants.h"
 #include "toz3/pruner/src/pruner_util.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 Pruner::Pruner(const std::vector<const IR::Statement *> &_to_prune) : to_prune(_to_prune) {
     setName("Pruner");
@@ -70,7 +70,7 @@ bool Collector::preorder(const IR::BlockStatement *s) {
 
 std::vector<const IR::Statement *> collect_statements(const IR::P4Program *temp, int max) {
     // An inspector that collects some statements at random.
-    auto *collector = new P4PRUNER::Collector(max);
+    auto *collector = new Collector(max);
     temp->apply(*collector);
     return collector->to_prune;
 }
@@ -78,13 +78,13 @@ std::vector<const IR::Statement *> collect_statements(const IR::P4Program *temp,
 const IR::P4Program *remove_statements(const IR::P4Program *temp,
                                        const std::vector<const IR::Statement *> &to_prune) {
     // Removes all the nodes it receives from the vector.
-    auto *pruner = new P4PRUNER::Pruner(to_prune);
+    auto *pruner = new Pruner(to_prune);
     temp = temp->apply(*pruner);
     return temp;
 }
 
-const IR::P4Program *prune_statements(const IR::P4Program *program,
-                                      P4PRUNER::PrunerConfig pruner_conf, uint64_t prog_size) {
+const IR::P4Program *prune_statements(const IR::P4Program *program, PrunerConfig pruner_conf,
+                                      uint64_t prog_size) {
     int same_before_pruning = 0;
     int result = 0;
     int max_statements = prog_size / STATEMENT_SIZE_BANK_RATIO;
@@ -113,4 +113,4 @@ const IR::P4Program *prune_statements(const IR::P4Program *program,
     return program;
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

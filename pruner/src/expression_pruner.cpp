@@ -9,7 +9,7 @@
 #include "toz3/pruner/src/constants.h"
 #include "toz3/pruner/src/pruner_util.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 const IR::Node *pick_side_binary(IR::Operation_Binary *expr) {
     auto decision = PrunerRng::get_rnd_pct();
@@ -81,13 +81,12 @@ const IR::Node *ExpressionPruner::postorder(IR::Shr *expr) { return pick_side_sh
 
 const IR::P4Program *remove_expressions(const IR::P4Program *temp) {
     // Removes all the nodes it receives from the vector
-    auto *expression_pruner = new P4PRUNER::ExpressionPruner();
+    auto *expression_pruner = new ExpressionPruner();
     temp = temp->apply(*expression_pruner);
     return temp;
 }
 
-const IR::P4Program *prune_expressions(const IR::P4Program *program,
-                                       P4PRUNER::PrunerConfig pruner_conf) {
+const IR::P4Program *prune_expressions(const IR::P4Program *program, PrunerConfig pruner_conf) {
     int same_before_pruning = 0;
     int result = 0;
     INFO("\nPruning expressions");
@@ -109,4 +108,4 @@ const IR::P4Program *prune_expressions(const IR::P4Program *program,
     return program;
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

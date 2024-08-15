@@ -30,7 +30,7 @@
 #include "visitor_specialize.h"
 #include "z3++.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
                        const std::vector<Z3Slice> &end_slices) {
@@ -815,4 +815,4 @@ void P4State::merge_state(const z3::expr &cond, const ProgState &else_state) {
         merge_var_maps(cond, then_scope->get_var_map(), else_scope->get_var_map());
     }
 }
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

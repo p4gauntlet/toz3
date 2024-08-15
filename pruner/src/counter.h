@@ -7,7 +7,7 @@
 #include "ir/node.h"
 #include "ir/visitor.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 class Counter : public Inspector {
  public:
     Visitor::profile_t init_apply(const IR::Node *node) override;
@@ -16,5 +16,5 @@ class Counter : public Inspector {
 
     Counter() { statements = 0; }
 };
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
 #endif /* _PRUNER_SRC_COUNTER_H */

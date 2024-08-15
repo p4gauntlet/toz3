@@ -1,6 +1,6 @@
 #include "pruner_options.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 PrunerOptions::PrunerOptions() {
     registerOption(
@@ -71,4 +71,4 @@ PrunerOptions::PrunerOptions() {
         "bug");
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

@@ -17,7 +17,7 @@
 #include <boost/variant.hpp>
 #include <boost/variant/get.hpp>
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 using namespace P4::literals;  // NOLINT
 
@@ -42,7 +42,7 @@ struct Z3Slice {
     z3::expr lo;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const TOZ3::Z3Slice &z3_slice) {
+inline std::ostream &operator<<(std::ostream &out, const Z3Slice &z3_slice) {
     out << "[" << z3_slice.hi << ":" << z3_slice.lo << "]";
     return out;
 }
@@ -88,7 +88,7 @@ class P4Z3Node {
 
     virtual cstring get_static_type() const = 0;
     virtual cstring to_string() const = 0;
-    friend inline std::ostream &operator<<(std::ostream &out, const TOZ3::P4Z3Node &type) {
+    friend inline std::ostream &operator<<(std::ostream &out, const P4Z3Node &type) {
         return out << type.to_string();
     }
 };
@@ -110,8 +110,7 @@ class MemberStruct {
         return ret;
     }
     // TODO: Improve printing here.
-    friend inline std::ostream &operator<<(std::ostream &out,
-                                           const TOZ3::MemberStruct &member_struct) {
+    friend inline std::ostream &operator<<(std::ostream &out, const MemberStruct &member_struct) {
         if (member_struct.main_member != nullptr) {
             out << member_struct.main_member << ".";
         }
@@ -247,6 +246,6 @@ using VarMap = ordered_map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>
 using MainResult =
     ordered_map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>, const IR::Type *>>;
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_TYPE_BASE_H_

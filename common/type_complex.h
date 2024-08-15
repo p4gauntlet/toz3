@@ -18,7 +18,7 @@
 #include "toz3/common/type_base.h"
 #include "type_simple.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 class FunctionClass {
  private:
@@ -527,6 +527,6 @@ class ExternInstance : public P4Z3Instance, public FunctionClass {
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_TYPE_COMPLEX_H_

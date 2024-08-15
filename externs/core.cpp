@@ -1,6 +1,6 @@
 #include "toz3/common/type_complex.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 class PacketIn : public ExternInstance {
  private:
@@ -33,4 +33,4 @@ class PacketIn : public ExternInstance {
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

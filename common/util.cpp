@@ -19,7 +19,7 @@
 #include "lib/big_int_util.h"
 #include "lib/stringify.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 cstring get_max_bv_val(uint64_t bv_width) {
     big_int max_return = pow(static_cast<big_int>(2), bv_width) - 1;
@@ -60,7 +60,7 @@ cstring infer_name(const IR::Annotations *annots, cstring default_name) {
 }
 
 int exec(const char *cmd, std::stringstream &output) {
-    TOZ3::Logger::log_msg(1, "Executing command %s", cmd);
+    Logger::log_msg(1, "Executing command %s", cmd);
     constexpr int chunk_size = 128;
     std::array<char, chunk_size> buffer{};
 
@@ -99,4 +99,4 @@ bool compare_files(const std::filesystem::path &filename1, const std::filesystem
                       begin2);  // Second argument is end-of-range iterator
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

@@ -13,7 +13,7 @@
 #include "toz3/common/type_complex.h"
 #include "z3++.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
     // TODO: Clean this up.
@@ -663,4 +663,4 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
                       dest_type->node_type_name());
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
