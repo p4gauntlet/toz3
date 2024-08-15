@@ -6,7 +6,7 @@
 #include "frontends/common/options.h"
 #include "frontends/common/parser_options.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 class PrunerOptions : public CompilerOptions {
  public:
@@ -26,6 +26,6 @@ class PrunerOptions : public CompilerOptions {
 
 using P4PrunerContext = P4CContextWithOptions<PrunerOptions>;
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
 
 #endif /* _P4PRUNER_OPTIONS_H_ */

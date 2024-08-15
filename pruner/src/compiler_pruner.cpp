@@ -17,10 +17,10 @@
 #include "replace_variables.h"
 #include "toz3/pruner/src/pruner_util.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
-const IR::P4Program *apply_generic_passes(const IR::P4Program *program,
-                                          P4PRUNER::PrunerConfig pruner_conf, bool *applied) {
+const IR::P4Program *apply_generic_passes(const IR::P4Program *program, PrunerConfig pruner_conf,
+                                          bool *applied) {
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
@@ -39,8 +39,7 @@ const IR::P4Program *apply_generic_passes(const IR::P4Program *program,
     return program;
 }
 
-const IR::P4Program *apply_replace_vars(const IR::P4Program *program,
-                                        P4PRUNER::PrunerConfig pruner_conf) {
+const IR::P4Program *apply_replace_vars(const IR::P4Program *program, PrunerConfig pruner_conf) {
     INFO("Replacing variables...");
     const IR::P4Program *temp = replace_variables(program, pruner_conf);
     check_pruned_program(&program, temp, pruner_conf);
@@ -48,8 +47,7 @@ const IR::P4Program *apply_replace_vars(const IR::P4Program *program,
     return program;
 }
 
-const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
-                                        P4PRUNER::PrunerConfig pruner_conf) {
+const IR::P4Program *apply_unused_decls(const IR::P4Program *program, PrunerConfig pruner_conf) {
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
@@ -61,8 +59,7 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
     return program;
 }
 
-const IR::P4Program *apply_compiler_passes(const IR::P4Program *program,
-                                           P4PRUNER::PrunerConfig pruner_conf) {
+const IR::P4Program *apply_compiler_passes(const IR::P4Program *program, PrunerConfig pruner_conf) {
     // this disables warning temporarily to avoid spam
     auto prev_action = P4CContext::get().getDefaultWarningDiagnosticAction();
     auto action = DiagnosticAction::Ignore;
@@ -85,4 +82,4 @@ const IR::P4Program *apply_compiler_passes(const IR::P4Program *program,
     return program;
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

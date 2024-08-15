@@ -19,7 +19,7 @@
 #include "lib/error.h"
 #include "toz3/pruner/src/constants.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 int64_t PrunerRng::get_rnd_int(int64_t min, int64_t max) {
     boost::random::uniform_int_distribution<int64_t> distribution(min, max);
@@ -34,8 +34,7 @@ double PrunerRng::get_rnd_pct() {
     return distribution(instance().rng) / 100.0;
 }
 
-ExitInfo get_exit_info(const std::filesystem::path &file,
-                       const P4PRUNER::PrunerConfig &pruner_conf) {
+ExitInfo get_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf) {
     ExitInfo exit_info;
     INFO("Checking exit code.");
 
@@ -84,8 +83,7 @@ std::pair<int, std::string> exec(std::string_view cmd) {
     return {pclose(pipe), output};
 }
 
-ExitInfo get_crash_exit_info(const std::filesystem::path &file,
-                             const P4PRUNER::PrunerConfig &pruner_conf) {
+ExitInfo get_crash_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf) {
     // The crash bugs variant of get_exit_code
     ExitInfo exit_info;
     auto file_path = std::filesystem::path(__FILE__);
@@ -169,7 +167,7 @@ double measure_pct(const IR::P4Program *prog_before, const IR::P4Program *prog_a
 }
 
 int check_pruned_program(const IR::P4Program **orig_program, const IR::P4Program *pruned_program,
-                         const P4PRUNER::PrunerConfig &pruner_conf) {
+                         const PrunerConfig &pruner_conf) {
     auto out_file =
         pruner_conf.working_dir / pruner_conf.out_file_name.stem().replace_extension(".p4");
 
@@ -193,4 +191,4 @@ int check_pruned_program(const IR::P4Program **orig_program, const IR::P4Program
     *orig_program = pruned_program;
     return EXIT_SUCCESS;
 }
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
