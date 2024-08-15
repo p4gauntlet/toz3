@@ -8,7 +8,7 @@
 
 #include "type_complex.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 class P4Scope {
  private:
@@ -139,7 +139,7 @@ class P4Scope {
         }
         return cloned_map;
     }
-    friend inline std::ostream &operator<<(std::ostream &out, const TOZ3::P4Scope &scope) {
+    friend inline std::ostream &operator<<(std::ostream &out, const P4Scope &scope) {
         auto var_map = scope.get_var_map();
         for (auto it = var_map.begin(); it != var_map.end(); ++it) {
             const cstring name = it->first;
@@ -155,6 +155,6 @@ class P4Scope {
 
 using ProgState = std::vector<P4Scope>;
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_SCOPE_H_

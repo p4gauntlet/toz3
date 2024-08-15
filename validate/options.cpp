@@ -1,5 +1,7 @@
 #include "options.h"
 
+namespace P4::ToZ3 {
+
 ValidateOptions::ValidateOptions() {
     registerOption(
         "--dump-dir", "folder",
@@ -23,3 +25,5 @@ ValidateOptions::ValidateOptions() {
         },
         "Toggle to tolerate undefined behavior in comparison.");
 }
+
+}  // namespace P4::ToZ3

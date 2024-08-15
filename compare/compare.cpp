@@ -20,7 +20,7 @@
 #include "z3++.h"
 #include "z3_api.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 // Passes that are not supported for translation validation.
 static const std::array<cstring, 1> SKIPPED_PASSES = {"FlattenHeaderUnion"_cs};
@@ -29,14 +29,14 @@ MainResult get_z3_repr(const std::filesystem::path &prog_name, const IR::P4Progr
                        z3::context *ctx) {
     try {
         // Convert the P4 program to Z3
-        TOZ3::P4State state(ctx);
-        TOZ3::Z3Visitor to_z3(&state, false);
+        P4State state(ctx);
+        Z3Visitor to_z3(&state, false);
         program->apply(to_z3);
         const auto *decl = get_main_decl(&state);
         if (decl == nullptr) {
             return {};
         }
-        TOZ3::Z3Visitor to_z3_second(&state);
+        Z3Visitor to_z3_second(&state);
         return gen_state_from_instance(&to_z3_second, decl);
     } catch (const Util::P4CExceptionBase &bug) {
         std::cerr << "Failed to interpret pass \"" << prog_name << "\"." << std::endl;
@@ -209,7 +209,7 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr
     return z3::check_result::unsat;
 }
 
-int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool allow_undefined) {
+int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool allow_undefined) {
     z3::solver s(*ctx);
     auto prog_before = z3_progs[0];
     auto z3_prog_before = create_z3_struct(ctx, prog_before.second);
@@ -273,20 +273,20 @@ int process_programs(const std::vector<std::filesystem::path> &prog_list, Parser
     z3::context ctx;
     // Parse the first program
     // Use a little trick here to get the second program
-    std::vector<Z3Prog> z3_progs;
+    std::vector<Z3Prog> z3Progs;
     for (auto prog : prog_list) {
         options->file = prog;
-        const auto *prog_parsed = P4::parseP4File(*options);
-        if (prog_parsed == nullptr || ::errorCount() > 0) {
+        const auto *progParsed = P4::parseP4File(*options);
+        if (progParsed == nullptr || P4::errorCount() > 0) {
             std::cerr << "Unable to parse program." << std::endl;
             return EXIT_FAILURE;
         }
-        auto z3_repr_prog = get_z3_repr(prog, prog_parsed, &ctx);
-        std::vector<std::pair<cstring, z3::expr>> result_vec;
-        unroll_result(z3_repr_prog, &result_vec);
-        z3_progs.emplace_back(prog, result_vec);
+        auto z3ReprProg = get_z3_repr(prog, progParsed, &ctx);
+        std::vector<std::pair<cstring, z3::expr>> resultVec;
+        unroll_result(z3ReprProg, &resultVec);
+        z3Progs.emplace_back(prog, resultVec);
     }
-    return compare_progs(&ctx, z3_progs, allow_undefined);
+    return compareProgs(&ctx, z3Progs, allow_undefined);
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

@@ -34,7 +34,7 @@
 #define INT_WIDTH sizeof(int)
 #endif
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 cstring get_max_bv_val(uint64_t bv_width);
 cstring infer_name(const IR::Annotations *annots, cstring default_name);
@@ -61,6 +61,6 @@ class Logger {
     }
 };
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_UTIL_H_

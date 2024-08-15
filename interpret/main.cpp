@@ -1,6 +1,5 @@
 #include <cstdlib>
 #include <iostream>
-#include <list>
 #include <utility>
 #include <vector>
 
@@ -22,54 +21,54 @@
 using namespace P4::literals;  // NOLINT
 
 int main(int argc, char *const argv[]) {
-    AutoCompileContext autoP4toZ3Context(new TOZ3::P4toZ3Context);
-    auto &options = TOZ3::P4toZ3Context::get().options();
+    P4::AutoCompileContext autoP4toZ3Context(new P4::ToZ3::P4toZ3Context);
+    auto &options = P4::ToZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
-    options.langVersion = CompilerOptions::FrontendVersion::P4_16;
+    options.langVersion = P4::CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = "p4toz3 test"_cs;
 
     if (options.process(argc, argv) != nullptr) {
         options.setInputFile();
     }
-    if (::errorCount() > 0) {
+    if (P4::errorCount() > 0) {
         return EXIT_FAILURE;
     }
 
-    const IR::P4Program *program = P4::parseP4File(options);
-    if (program == nullptr || ::errorCount() > 0) {
+    const P4::IR::P4Program *program = P4::parseP4File(options);
+    if (program == nullptr || P4::errorCount() > 0) {
         return EXIT_FAILURE;
     }
 
     // Initialize our logger
-    TOZ3::Logger::init();
+    P4::ToZ3::Logger::init();
 
     z3::context ctx;
     try {
-        TOZ3::P4State state(&ctx);
-        TOZ3::Z3Visitor to_z3(&state, false);
-        program->apply(to_z3);
+        P4::ToZ3::P4State state(&ctx);
+        P4::ToZ3::Z3Visitor toZ3(&state, false);
+        program->apply(toZ3);
 
-        const auto *decl = TOZ3::get_main_decl(&state);
+        const auto *decl = P4::ToZ3::get_main_decl(&state);
         if (decl == nullptr) {
             return EXIT_SKIPPED;
         }
-        TOZ3::Z3Visitor to_z3_second(&state);
-        auto decl_result = gen_state_from_instance(&to_z3_second, decl);
-        for (const auto &pipe_state : decl_result) {
-            cstring pipe_name = pipe_state.first;
-            const auto pipe_vars = pipe_state.second.first;
-            if (!pipe_vars.empty()) {
-                std::cout << "Pipe " << pipe_name << " state:" << std::endl;
-                for (const auto &tuple : pipe_vars) {
+        P4::ToZ3::Z3Visitor toZ3Second(&state);
+        auto declResult = gen_state_from_instance(&toZ3Second, decl);
+        for (const auto &pipeState : declResult) {
+            P4::cstring pipeName = pipeState.first;
+            const auto pipeVars = pipeState.second.first;
+            if (!pipeVars.empty()) {
+                std::cout << "Pipe " << pipeName << " state:" << std::endl;
+                for (const auto &tuple : pipeVars) {
                     auto name = tuple.first;
                     auto var = tuple.second.simplify();
                     std::cout << name << ": " << var << "\n";
                 }
             } else {
-                warning("No results for pipe %s", pipe_name);
+                warning("No results for pipe %s", pipeName);
             }
         }
-    } catch (const Util::P4CExceptionBase &bug) {
+    } catch (const P4::Util::P4CExceptionBase &bug) {
         std::cerr << bug.what() << std::endl;
         return EXIT_FAILURE;
     } catch (z3::exception &ex) {

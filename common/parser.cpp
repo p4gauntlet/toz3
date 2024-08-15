@@ -17,7 +17,7 @@
 #include "toz3/common/type_complex.h"
 #include "visitor_interpret.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
                             const IR::ListExpression *list_expr);
@@ -207,4 +207,4 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
     return false;
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

@@ -6,7 +6,7 @@
 #include "ir/indexed_vector.h"
 #include "toz3/common/state.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 const IR::Node *TypeModifier::postorder(IR::Type *type) {
     if (const auto *tn = type->to<IR::Type_Name>()) {
@@ -134,4 +134,4 @@ const IR::Node *TypeSpecializer::preorder(IR::Function *f) {
     return f->apply(type_modifier);
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

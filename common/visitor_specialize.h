@@ -13,7 +13,7 @@
 #include "lib/exceptions.h"
 #include "state.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 class TypeModifier : public Transform {
  private:
@@ -55,6 +55,6 @@ class TypeSpecializer : public Transform {
     }
 };
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_VISITOR_SPECIALIZE_H_

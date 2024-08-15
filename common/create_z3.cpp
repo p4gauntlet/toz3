@@ -2,8 +2,10 @@
 
 #include <cstddef>
 #include <functional>
-#include <list>
+#include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <boost/variant/get.hpp>
 
@@ -20,7 +22,7 @@
 #include "visitor_specialize.h"
 #include "z3++.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 std::map<cstring, const IR::Type *> get_type_mapping_2(const IR::ParameterList *src_params,
                                                        const IR::TypeParameters *src_type_params,
@@ -94,7 +96,7 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
             cstring apply_name = "apply" + std::to_string(params->size());
             fun_call = ctrl_instance->get_function(apply_name);
         } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
-            ::warning("Ignoring parser output.");
+            P4::warning("Ignoring parser output.");
             return {};
             auto type_mapping = specialize_arch_blocks(param_type, resolved_type);
             for (const auto &mapped_type : type_mapping) {
@@ -252,7 +254,7 @@ MainResult gen_state_from_instance(Z3Visitor *visitor, const IR::Declaration_Ins
     return create_state(visitor, param_info);
 }
 
-const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state) {
+const IR::Declaration_Instance *get_main_decl(P4State *state) {
     const auto *main = state->find_static_decl("main"_cs);
     if (main != nullptr) {
         if (const auto *main_pkg = main->get_decl()->to<IR::Declaration_Instance>()) {
@@ -264,4 +266,4 @@ const IR::Declaration_Instance *get_main_decl(TOZ3::P4State *state) {
     return nullptr;
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

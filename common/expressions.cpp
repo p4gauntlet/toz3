@@ -25,7 +25,7 @@
 #include "visitor_interpret.h"
 #include "visitor_specialize.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
@@ -365,4 +365,4 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     state->set_expr_result(new ControlInstance(state, resolved_type, var_map.second));
     return false;
 }
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

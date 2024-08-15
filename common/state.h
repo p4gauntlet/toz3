@@ -20,7 +20,7 @@
 #include "toz3/common/type_complex.h"
 #include "toz3/common/type_simple.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expression *target);
 std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
@@ -215,7 +215,7 @@ class P4State {
         BUG("Could not cast to type %s.", typeid(T).name());
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
-    friend inline std::ostream &operator<<(std::ostream &out, const TOZ3::P4State &state) {
+    friend inline std::ostream &operator<<(std::ostream &out, const P4State &state) {
         auto var_map = state.get_state();
         size_t idx = 0;
         // out << "STATIC SCOPE: " << main_scope << "\n";
@@ -227,6 +227,6 @@ class P4State {
     }
 };
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_STATE_H_
