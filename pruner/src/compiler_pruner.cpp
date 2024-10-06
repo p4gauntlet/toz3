@@ -26,7 +26,7 @@ const IR::P4Program *apply_generic_passes(const IR::P4Program *program, PrunerCo
     const IR::P4Program *temp = nullptr;
 
     PassManager pass_manager({new P4::CreateBuiltins(), new P4::ResolveReferences(&refMap, true),
-                              new P4::ConstantFolding(&refMap, nullptr),
+                              new P4::ConstantFolding(new P4::ConstantFoldingPolicy()),
                               new P4::InstantiateDirectCalls(),
                               new P4::TypeInference(&typeMap, false)});
 
