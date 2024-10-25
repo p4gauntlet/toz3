@@ -30,9 +30,7 @@ class PruneUnused : public P4::RemoveUnusedDeclarations {
 
  public:
     explicit PruneUnused(const P4::ReferenceMap *refMap, std::vector<struct_obj *> *_used_structs)
-        : P4::RemoveUnusedDeclarations(refMap, true),
-          unused_refMap(refMap),
-          used_structs(_used_structs) {
+        : RemoveUnusedDeclarations({}, true), unused_refMap(refMap), used_structs(_used_structs) {
         CHECK_NULL(refMap);
         setName("PruneUnused");
     }
