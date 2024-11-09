@@ -1,9 +1,10 @@
 #include "state.h"
 
+#include <z3++.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <list>
 #include <string>
 
 #include <boost/iterator/iterator_facade.hpp>
@@ -15,10 +16,8 @@
 #include <boost/variant/get.hpp>
 
 #include "ir/id.h"
-#include "ir/indexed_vector.h"
 #include "ir/node.h"
 #include "ir/visitor.h"
-#include "lib/big_int_util.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
 #include "lib/null.h"
@@ -28,7 +27,6 @@
 #include "toz3/common/util.h"
 #include "type_base.h"
 #include "visitor_specialize.h"
-#include "z3++.h"
 
 namespace P4::ToZ3 {
 

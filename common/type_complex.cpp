@@ -1,5 +1,7 @@
 #include "type_complex.h"
 
+#include <z3++.h>
+
 #include <algorithm>
 #include <climits>
 #include <cstdio>
@@ -22,7 +24,6 @@
 #include "type_simple.h"
 #include "util.h"
 #include "visitor_specialize.h"
-#include "z3++.h"
 
 namespace P4::ToZ3 {
 /***

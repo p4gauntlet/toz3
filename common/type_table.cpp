@@ -1,3 +1,5 @@
+#include <z3++.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <string>
@@ -18,7 +20,6 @@
 #include "toz3/common/type_simple.h"
 #include "toz3/common/util.h"
 #include "type_complex.h"
-#include "z3++.h"
 
 namespace P4::ToZ3 {
 /***
@@ -35,11 +36,15 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
     }
     if (const auto *action_list = p4t->getActionList()) {
         for (const auto *act : action_list->actionList) {
-            // FIXME: This is likely broken logic in the loop below
+            bool isDefault = false;
             for (const auto *anno : act->getAnnotations()) {
                 if (anno->name.name == "defaultonly") {
-                    continue;
+                    isDefault = true;
+                    break;
                 }
+            }
+            if (isDefault) {
+                continue;
             }
             if (const auto *method_call = act->expression->to<IR::MethodCallExpression>()) {
                 table_props->actions.push_back(method_call);

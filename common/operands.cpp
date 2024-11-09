@@ -1,5 +1,6 @@
 
-#include "../contrib/z3/z3++.h"
+#include <z3++.h>
+
 #include "ir/id.h"
 #include "ir/ir.h"
 #include "lib/exceptions.h"

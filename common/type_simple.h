@@ -1,10 +1,11 @@
 #ifndef TOZ3_COMMON_TYPE_SIMPLE_H_
 #define TOZ3_COMMON_TYPE_SIMPLE_H_
 
+#include <z3++.h>
+
 #include <cstdint>
 #include <string>  // std::to_string
 
-#include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
 #include "lib/big_int_util.h"
 #include "lib/cstring.h"

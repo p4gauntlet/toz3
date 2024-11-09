@@ -1,10 +1,11 @@
 #ifndef TOZ3_COMPARE_COMPARE_H_
 #define TOZ3_COMPARE_COMPARE_H_
 
+#include <z3++.h>
+
 #include <utility>
 #include <vector>
 
-#include "../contrib/z3/z3++.h"
 #include "frontends/common/parser_options.h"
 #include "lib/cstring.h"
 

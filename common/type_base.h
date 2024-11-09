@@ -1,13 +1,14 @@
 #ifndef TOZ3_COMMON_TYPE_BASE_H_
 #define TOZ3_COMMON_TYPE_BASE_H_
 
+#include <z3++.h>
+
 #include <cstdio>
 #include <map>      // std::map
 #include <stack>    // std::stack
 #include <utility>  // std::pair
 #include <vector>   // std::vector
 
-#include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
 #include "lib/cstring.h"
 #include "util.h"
