@@ -30,14 +30,14 @@ namespace P4::ToZ3 {
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        auto expr = state->get_z3_ctx()->bv_val(val_string, tb->size);
+        auto expr = state->get_z3_ctx()->bv_val(val_string.c_str(), tb->size);
         auto *wrapper = new Z3Bitvector(state, tb, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
     }
     if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        auto expr = state->get_z3_ctx()->int_val(val_string);
+        auto expr = state->get_z3_ctx()->int_val(val_string.c_str());
         auto *var = new Z3Int(state, expr);
         state->set_expr_result(var);
         return false;
@@ -53,7 +53,7 @@ bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
 }
 
 bool Z3Visitor::preorder(const IR::StringLiteral *sl) {
-    auto expr = state->get_z3_ctx()->string_val(sl->value);
+    auto expr = state->get_z3_ctx()->string_val(sl->value.c_str());
     auto *wrapper = new Z3Bitvector(state, &STRING_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
@@ -238,7 +238,7 @@ P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
 
 P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
     auto *state = visitor->get_state();
-    auto method_name = infer_name(m->getAnnotations(), m->name.name);
+    auto method_name = infer_name(m, m->name.name);
     const auto *method_type = state->resolve_type(m->type->returnType);
     // TODO: Different types of arguments and multiple calls
     for (const auto *param : *m->getParameters()) {

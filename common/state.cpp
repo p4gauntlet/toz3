@@ -171,7 +171,7 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
                     auto max_idx = std::min<big_int>(max, size);
                     for (big_int idx = 0; idx < max_idx; ++idx) {
                         auto member_name = Util::toString(idx, 0, false);
-                        auto z3_val = state->get_z3_ctx()->bv_val(member_name, bv_size);
+                        auto z3_val = state->get_z3_ctx()->bv_val(member_name.c_str(), bv_size);
                         tmp_parent_pairs.emplace_back(parent_cond && *expr == z3_val,
                                                       parent_class->get_member(member_name));
                     }
@@ -228,7 +228,7 @@ void set_stack(P4State *state, const MemberStruct &member_struct, P4Z3Instance *
                     auto *orig_val = complex_class->get_member(member_name);
                     const auto *dest_type = complex_class->get_member_type(member_name);
                     auto *cast_val = rval->cast_allocate(dest_type);
-                    auto z3_val = state->get_z3_ctx()->bv_val(member_name, bv_size);
+                    auto z3_val = state->get_z3_ctx()->bv_val(member_name.c_str(), bv_size);
                     cast_val->merge(!(parent_cond && *expr == z3_val), *orig_val);
                     complex_class->update_member(member_name, cast_val);
                 }
@@ -493,15 +493,15 @@ void P4State::copy_out() {
 
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (const auto *tbi = type->to<IR::Type_Bits>()) {
-        return ctx->bv_const(name, tbi->size);
+        return ctx->bv_const(name.c_str(), tbi->size);
     }
     if (const auto *tvb = type->to<IR::Type_Varbits>()) {
-        return ctx->bv_const(name, tvb->size);
+        return ctx->bv_const(name.c_str(), tvb->size);
     }
     if (type->is<IR::Type_Boolean>()) {
-        return ctx->bool_const(name);
+        return ctx->bool_const(name.c_str());
     }
-    BUG("Type \"%s\" not supported for Z3 expressions!.", type);
+    BUG("Type \"%v\" not supported for Z3 expressions!.", type);
 }
 
 P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t id) {

@@ -161,7 +161,7 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
     if (var_width == 0) {
         return;
     }
-    z3::expr tmp_var = state->get_z3_ctx()->bv_const(instance_name, var_width);
+    z3::expr tmp_var = state->get_z3_ctx()->bv_const(instance_name.c_str(), var_width);
     if (bind_var == nullptr) {
         bind_var = &tmp_var;
         offset = var_width;
@@ -401,7 +401,7 @@ void HeaderInstance::isValid(Visitor * /*visitor*/, const IR::Vector<IR::Argumen
 void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
     if (valid_expr == nullptr) {
         cstring name = instance_name + "_valid";
-        set_valid(state->get_z3_ctx()->bool_const(name));
+        set_valid(state->get_z3_ctx()->bool_const(name.c_str()));
         valid_expr = &valid;
     } else {
         set_valid(*valid_expr);
@@ -565,7 +565,7 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     for (big_int idx = 0; idx < max_idx; ++idx) {
         auto member_name = Util::toString(idx, 0, false);
         const auto *hdr = get_member(member_name);
-        auto z3_int = state->get_z3_ctx()->bv_val(member_name, bv_size);
+        auto z3_int = state->get_z3_ctx()->bv_val(member_name.c_str(), bv_size);
         base_hdr->merge(val == z3_int, *hdr);
     }
     return base_hdr;
