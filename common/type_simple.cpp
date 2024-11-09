@@ -395,7 +395,7 @@ Z3Int
 Z3Int::Z3Int(const P4State *state, const z3::expr &val) : NumericVal(state, &INT_TYPE, val) {}
 Z3Int::Z3Int(const P4State *state, const big_int &int_val)
     : NumericVal(state, &INT_TYPE,
-                 state->get_z3_ctx()->int_val(Util::toString(int_val, 0, false))) {}
+                 state->get_z3_ctx()->int_val(Util::toString(int_val, 0, false).c_str())) {}
 
 Z3Int::Z3Int(const P4State *state, int64_t int_val)
     : NumericVal(state, &INT_TYPE, state->get_z3_ctx()->int_val(int_val)) {}
@@ -473,7 +473,7 @@ P4Z3Instance *Z3Int::operatorAddSat(const P4Z3Instance &other) const {
         auto no_underflow = z3::bvadd_no_underflow(cast_val, *other_val->get_val());
         auto sort = cast_val.get_sort();
         cstring big_str = get_max_bv_val(sort.bv_size());
-        auto max_val = state->get_z3_ctx()->bv_val(big_str, sort.bv_size());
+        auto max_val = state->get_z3_ctx()->bv_val(big_str.c_str(), sort.bv_size());
         return new Z3Bitvector(
             state, other_val->get_p4_type(),
             z3::ite(no_underflow && no_overflow, cast_val + *other_val->get_val(), max_val));

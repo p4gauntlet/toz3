@@ -21,7 +21,7 @@ std::vector<std::filesystem::path> splitInputProgs(P4::cstring inputProgs) {
 
     // FIXME: use absl::Split
     while ((pos = inputProgs.find(static_cast<size_t>(','))) != nullptr) {
-        auto idx = static_cast<size_t>(pos - inputProgs);
+        auto idx = static_cast<size_t>(pos - inputProgs.c_str());
         prog = inputProgs.substr(0, idx);
         progList.emplace_back(prog.c_str());
         inputProgs = inputProgs.substr(idx + 1);

@@ -37,7 +37,7 @@
 namespace P4::ToZ3 {
 
 cstring get_max_bv_val(uint64_t bv_width);
-cstring infer_name(const IR::Annotations *annots, cstring default_name);
+cstring infer_name(const IR::IAnnotated *node, cstring default_name);
 bool compare_files(const std::filesystem::path &filename1, const std::filesystem::path &filename2);
 int exec(const char *cmd, std::stringstream &output);
 

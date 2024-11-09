@@ -303,7 +303,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
 
 bool Z3Visitor::preorder(const IR::P4ValueSet *pvs) {
     const auto *resolved_type = state->resolve_type(pvs->elementType);
-    auto pvs_name = infer_name(pvs->getAnnotations(), pvs->name.name);
+    auto pvs_name = infer_name(pvs, pvs->name.name);
     auto *instance = state->gen_instance(pvs_name, resolved_type);
     state->declare_var(pvs->name.name, instance, resolved_type);
     return false;

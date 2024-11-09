@@ -37,7 +37,7 @@ std::vector<std::filesystem::path> generatePassList(const fs::path &p4_file,
     cmd += std::string("--dump ") + dump_dir + " " + p4_file.c_str();
     cmd += " 2>&1";
     std::stringstream output;
-    exec(cstring(cmd), output);
+    exec(cmd.c_str(), output);
     std::vector<std::filesystem::path> passList;
     std::string cmd1 = compiler_bin.c_str();
     cmd1 += cstring(" --Wdisable  -v ") + p4_file.c_str();
@@ -45,7 +45,7 @@ std::vector<std::filesystem::path> generatePassList(const fs::path &p4_file,
     cmd1 += "| sed -e '/FrontEnd\\|MidEnd\\|PassManager/!d' | ";
     cmd1 += "sed -e '/Writing program to/d' ";
     std::stringstream passes;
-    exec(cstring(cmd1), passes);
+    exec(cmd1.c_str(), passes);
     std::string pass;
     while (std::getline(passes, pass, '\n')) {
         cstring passPath(

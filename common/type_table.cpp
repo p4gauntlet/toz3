@@ -6,6 +6,7 @@
 
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
+#include "ir/ir-generated.h"
 #include "ir/ir.h"
 #include "ir/vector.h"
 #include "ir/visitor.h"
@@ -34,7 +35,8 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
     }
     if (const auto *action_list = p4t->getActionList()) {
         for (const auto *act : action_list->actionList) {
-            for (const auto *anno : act->getAnnotations()->annotations) {
+            // FIXME: This is likely broken logic in the loop below
+            for (const auto *anno : act->getAnnotations()) {
                 if (anno->name.name == "defaultonly") {
                     continue;
                 }
@@ -91,16 +93,12 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
         apply(visitor, args);
     });
 
-    table_props.table_name = infer_name(p4t->getAnnotations(), p4t->name.name);
+    table_props.table_name = infer_name(p4t, p4t->name.name);
     // We first collect all the necessary properties
     process_table_properties(p4t, &table_props);
     // Also check if the table is invisible to the control plane.
     // This also implies that it cannot be modified.
-    auto annos = p4t->getAnnotations()->annotations;
-    if (std::any_of(annos.begin(), annos.end(),
-                    [](const IR::Annotation *anno) { return anno->name.name == "hidden"; })) {
-        table_props.immutable = true;
-    }
+    table_props.immutable = p4t->hasAnnotation(IR::Annotation::hiddenAnnotation);
 }
 
 P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3::expr hit,
@@ -137,22 +135,23 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
         cstring key_name = table_name + "_table_key_" + std::to_string(idx);
         const auto key_eval_z3 = val_container->get_val()->simplify();
         const auto key_z3_sort = key_eval_z3.get_sort();
-        const auto key_match = ctx->constant(key_name, key_z3_sort);
+        const auto key_match = ctx->constant(key_name.c_str(), key_z3_sort);
         // It is actually possible to use a variety of types as key.
         // So we have to stay generic and produce a corresponding variable.
         cstring key_string = key->matchType->toString();
         if (key_string == "exact") {
             hit = hit || (key_eval_z3 == key_match);
         } else if (key_string == "lpm") {
+            // FIXME: switch to abseil routines for string manipulations
             cstring mask_name = table_name + "_table_lpm_key_" + std::to_string(idx);
-            const auto mask_var = ctx->constant(mask_name, key_z3_sort);
+            const auto mask_var = ctx->constant(mask_name.c_str(), key_z3_sort);
             auto max_return =
-                ctx->bv_val(get_max_bv_val(key_z3_sort.bv_size()), key_z3_sort.bv_size());
+                ctx->bv_val(get_max_bv_val(key_z3_sort.bv_size()).c_str(), key_z3_sort.bv_size());
             auto lpm_mask = z3::shl(max_return, mask_var).simplify();
             hit = hit || (key_eval_z3 & lpm_mask) == (key_match & lpm_mask);
         } else if (key_string == "ternary") {
             cstring mask_name = table_name + "_table_ternary_key_" + std::to_string(idx);
-            const auto mask_var = ctx->constant(mask_name, key_z3_sort);
+            const auto mask_var = ctx->constant(mask_name.c_str(), key_z3_sort);
             hit = hit || (key_eval_z3 & mask_var) == (key_match & mask_var);
         } else if (key_string == "range") {
             cstring min_name = table_name + "_table_min_" + std::to_string(idx);
