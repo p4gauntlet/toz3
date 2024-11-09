@@ -6,6 +6,10 @@ configure_file(
   "${CMAKE_CURRENT_BINARY_DIR}/version.h" @ONLY
 )
 
+# Handle the Z3 installation with this macro. Users have the option to supply their own Z3.
+include(${P4C_SOURCE_DIR}/cmake/Z3.cmake)
+obtain_z3()
+
 OPTION (ENABLE_GAUNTLET_PRUNER "Build the Gauntlet Pruner." OFF)
 
 set(
@@ -118,10 +122,9 @@ endif()
 
 add_library(p4toz3lib ${TOZ3V2_COMMON_SRCS})
 # add the Z3 includes
-target_include_directories(p4toz3lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3)
+target_include_directories(p4toz3lib SYSTEM BEFORE PUBLIC ${Z3_INCLUDE_DIR})
 target_link_libraries(
-  p4toz3lib ${P4C_LIBRARIES} ${P4C_LIB_DEPS}
-  ${CMAKE_CURRENT_SOURCE_DIR}/contrib/z3/libz3.a
+  p4toz3lib PUBLIC ${P4C_LIBRARIES} ${P4C_LIB_DEPS} ${Z3_LIB}
 )
 add_dependencies(p4toz3lib genIR frontend)
 

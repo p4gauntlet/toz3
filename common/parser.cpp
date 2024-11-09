@@ -1,10 +1,11 @@
+#include <z3++.h>
+
 #include <cstdio>
 #include <list>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "../contrib/z3/z3++.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
 #include "ir/ir.h"

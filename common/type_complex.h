@@ -1,5 +1,7 @@
 #ifndef TOZ3_COMMON_TYPE_COMPLEX_H_
 #define TOZ3_COMMON_TYPE_COMPLEX_H_
+#include <z3++.h>
+
 #include <cstdint>
 #include <cstdio>
 #include <list>
@@ -8,7 +10,6 @@
 #include <utility>  // std::pair
 #include <vector>   // std::vector
 
-#include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
 #include "ir/vector.h"
 #include "ir/visitor.h"

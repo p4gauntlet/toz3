@@ -1,3 +1,5 @@
+#include <z3++.h>
+
 #include <functional>
 #include <iterator>
 #include <map>
@@ -7,7 +9,6 @@
 
 #include <boost/variant/get.hpp>
 
-#include "../contrib/z3/z3++.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
 #include "ir/ir.h"
