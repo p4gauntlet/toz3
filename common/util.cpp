@@ -6,7 +6,6 @@
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
-#include <vector>
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/multiprecision/detail/default_ops.hpp>
@@ -15,8 +14,6 @@
 #include <boost/multiprecision/traits/explicit_conversion.hpp>
 
 #include "ir/id.h"
-#include "ir/vector.h"
-#include "lib/big_int_util.h"
 #include "lib/stringify.h"
 
 namespace P4::ToZ3 {
@@ -33,7 +30,7 @@ cstring infer_name(const IR::IAnnotated *node, cstring default_name) {
     // not sure if this generalizes but this is as close we can get for now
     if (const auto *anno = node->getAnnotation(IR::Annotation::nameAnnotation)) {
         // there is an original name in the form of an annotation
-        for (const auto *token : anno->body) {
+        for (const auto *token : anno->getUnparsed()) {
             // the full name can be a bit more convoluted
             // we only need the last bit after the dot
             // so hack it out
@@ -49,7 +46,7 @@ cstring infer_name(const IR::IAnnotated *node, cstring default_name) {
             return token->text.substr(idx);
         }
         // if the annotation is a member just get the root name
-        if (const auto *member = anno->expr.to<IR::Member>()) {
+        if (const auto *member = anno->getExpr().to<IR::Member>()) {
             return member->member.name;
         }
     }
