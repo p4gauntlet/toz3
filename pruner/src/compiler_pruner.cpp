@@ -52,7 +52,7 @@ const IR::P4Program *apply_unused_decls(const IR::P4Program *program, PrunerConf
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
     std::vector<struct_obj *> used_structs;
-    PassManager pass_manager({new ExtendedUnusedDeclarations(&refMap, &used_structs)});
+    PassManager pass_manager({new ExtendedUnusedDeclarations(&used_structs)});
     temp = program->apply(pass_manager);
     check_pruned_program(&program, temp, pruner_conf);
 
