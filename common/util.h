@@ -23,7 +23,7 @@
 #define EXIT_UNDEF 30
 
 #define UNDEF_LABEL "undefined"
-#define INVALID_LABEL "invalid"
+#define INVALID_LABEL "undefined"
 
 #ifndef LOG_LEVEL
 #define LOG_LEVEL 1
