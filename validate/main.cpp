@@ -31,32 +31,36 @@ namespace P4::ToZ3 {
 std::vector<std::filesystem::path> generatePassList(const fs::path &p4_file,
                                                     const fs::path &dump_dir,
                                                     const fs::path &compiler_bin) {
-    std::string cmd = compiler_bin;
     // FIXME: use absl::StrConcat
-    cmd += " " + std::string(PASSES) + " ";
-    cmd += std::string("--dump ") + dump_dir + " " + p4_file.c_str();
-    cmd += " 2>&1";
-    std::stringstream output;
-    exec(cmd.c_str(), output);
-    std::vector<std::filesystem::path> passList;
-    std::string cmd1 = compiler_bin.c_str();
-    cmd1 += cstring(" --Wdisable  -v ") + p4_file.c_str();
-    cmd1 += " 2>&1 ";
-    cmd1 += "| sed -e '/FrontEnd\\|MidEnd\\|PassManager/!d' | ";
-    cmd1 += "sed -e '/Writing program to/d' ";
+    // First, get the pass names.
+    std::string passListCmd = compiler_bin.c_str();
+    passListCmd += " " + std::string(PASSES) + " --dump " + dump_dir.string() + " ";
+    passListCmd += " --Wdisable  -v " + p4_file.string();
+    passListCmd += " 2>&1 ";
+    passListCmd += R"#(| sed -e '/FrontEnd\|MidEnd\|PassManager/!d' )#";
+    passListCmd += R"#(| grep 'Writing program to' )#";
+    passListCmd += R"#(| sed -n 's/.*"\(.*\)".*/\1/p' )#";
     std::stringstream passes;
-    exec(cmd1.c_str(), passes);
+    exec(passListCmd.c_str(), passes);
+
     std::string pass;
+    std::vector<std::filesystem::path> passList;
     while (std::getline(passes, pass, '\n')) {
-        cstring passPath(
-            (dump_dir / (cstring(p4_file.stem().c_str()) + "-" + pass + ".p4").c_str()).c_str());
-        passList.emplace_back(passPath.c_str());
+        passList.emplace_back(pass);
     }
 
     if (passList.size() < 2) {
         return passList;
     }
+    // Then, write the actual programs. Do not use -v here to avoid polluting the dumped files.
+    std::string dumpCmd = compiler_bin.c_str();
+    dumpCmd += " " + std::string(PASSES) + " ";
+    dumpCmd += "--dump " + dump_dir.string() + " " + p4_file.c_str();
+    dumpCmd += " 2>&1";
+    std::stringstream output;
+    exec(dumpCmd.c_str(), output);
 
+    // Now, we remove all the dumped programs where no change was made.
     std::vector<std::filesystem::path> prunedPassList;
     auto it = passList.begin();
     auto passBefore = *it;
