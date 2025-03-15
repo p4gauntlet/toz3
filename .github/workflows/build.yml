@@ -1,4 +1,4 @@
-name: "build"
+name: "build-with-clang-tidy"
 on:
   schedule:
     # Every day on midnight UTC
@@ -8,7 +8,7 @@ on:
   pull_request:
     branches: [master]
 jobs:
-  build:
+  build-with-clang-tidy:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
