@@ -34,6 +34,7 @@ jobs:
         cd $GITHUB_WORKSPACE/../p4c/build
         cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DENABLE_WERROR=ON \
         -DENABLE_BMV2=OFF \
         -DENABLE_EBPF=OFF \
         -DENABLE_UBPF=OFF \
