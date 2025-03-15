@@ -1,48 +1,48 @@
-name: build
+name: "build-with-clang-tidy"
 on:
   schedule:
     # Every day on midnight UTC
     - cron: "0 0 * * *"
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 jobs:
-  build:
+  build-with-clang-tidy:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1
-      with:
-        key: ${{ matrix.os }}
-        max-size: 1000M
-    - name: Install P4C dependencies
-      run: |
-        git clone https://github.com/p4lang/p4c $GITHUB_WORKSPACE/../p4c
-        cd $GITHUB_WORKSPACE/../p4c
-        git submodule update --init --recursive
-        cd $GITHUB_WORKSPACE
-        ./do_install.sh
-    - name: Prepare P4C
-      run: |
-        mkdir -p $GITHUB_WORKSPACE/../p4c/extensions/
-        cp -r $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
-        ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
-        mkdir $GITHUB_WORKSPACE/../p4c/build
-        cd $GITHUB_WORKSPACE/../p4c/build
-        cmake .. -DCMAKE_RUN_CLANG_TIDY=ON \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DENABLE_BMV2=OFF \
-        -DENABLE_EBPF=OFF \
-        -DENABLE_UBPF=OFF \
-        -DENABLE_GTESTS=OFF \
-        -DENABLE_P4TC=OFF \
-        -DENABLE_P4FMT=OFF \
-        -DENABLE_P4C_GRAPHS=OFF \
-        -DCMAKE_UNITY_BUILD=ON \
-        -DENABLE_GAUNTLET_PRUNER=ON
-    - name: Install P4C with toz3
-      run: |
-        cd $GITHUB_WORKSPACE/../p4c/build
-        make  -j2
+      - uses: actions/checkout@v4
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          key: ${{ matrix.os }}
+          max-size: 1000M
+      - name: Install P4C dependencies
+        run: |
+          git clone https://github.com/p4lang/p4c $GITHUB_WORKSPACE/../p4c
+          cd $GITHUB_WORKSPACE/../p4c
+          git submodule update --init --recursive
+          cd $GITHUB_WORKSPACE
+          ./do_install.sh
+      - name: Prepare P4C
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/../p4c/extensions/
+          cp -r $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+          ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+          mkdir $GITHUB_WORKSPACE/../p4c/build
+          cd $GITHUB_WORKSPACE/../p4c/build
+          cmake .. -DCMAKE_RUN_CLANG_TIDY=ON \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DENABLE_BMV2=OFF \
+          -DENABLE_EBPF=OFF \
+          -DENABLE_UBPF=OFF \
+          -DENABLE_GTESTS=OFF \
+          -DENABLE_P4TC=OFF \
+          -DENABLE_P4FMT=OFF \
+          -DENABLE_P4C_GRAPHS=OFF \
+          -DCMAKE_UNITY_BUILD=ON \
+          -DENABLE_GAUNTLET_PRUNER=ON
+      - name: Install P4C with toz3
+        run: |
+          cd $GITHUB_WORKSPACE/../p4c/build
+          make  -j2

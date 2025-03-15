@@ -46,7 +46,7 @@ bool Z3Visitor::preorder(const IR::Type_Enum *t) {
     // So if the error exists, we merge
     if (var != nullptr) {
         auto *enum_instance = var->to_mut<EnumBase>();
-        BUG_CHECK(enum_instance, "Unexpected enum instance %s", enum_instance->to_string());
+        BUG_CHECK(enum_instance, "Unexpected enum instance %s", var->to_string());
         for (const auto *member : t->members) {
             enum_instance->add_enum_member(member->name.name);
         }
@@ -67,7 +67,7 @@ bool Z3Visitor::preorder(const IR::Type_Error *t) {
     // So if the error exists, we merge
     if (var != nullptr) {
         auto *enum_instance = var->to_mut<EnumBase>();
-        BUG_CHECK(enum_instance, "Unexpected enum instance %s", enum_instance->to_string());
+        BUG_CHECK(enum_instance, "Unexpected enum instance %s", var->to_string());
         for (const auto *member : t->members) {
             enum_instance->add_enum_member(member->name.name);
         }
@@ -89,7 +89,7 @@ bool Z3Visitor::preorder(const IR::Type_SerEnum *t) {
     // So if the error exists, we merge
     if (var != nullptr) {
         auto *enum_instance = var->to_mut<EnumBase>();
-        BUG_CHECK(enum_instance, "Unexpected enum instance %s", enum_instance->to_string());
+        BUG_CHECK(enum_instance, "Unexpected enum instance %s", var->to_string());
         for (const auto *member : t->members) {
             enum_instance->add_enum_member(member->name.name);
         }

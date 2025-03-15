@@ -161,7 +161,7 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
                 } else {
                     auto *stack_class = parent_class->to_mut<StackInstance>();
                     BUG_CHECK(stack_class, "Expected Stack, got %s",
-                              stack_class->get_static_type());
+                              parent_class->get_static_type());
                     // Skip anything where the idx is larger then the container
                     auto size = stack_class->get_int_size();
                     auto bv_size = expr->get_sort().bv_size();
@@ -215,7 +215,7 @@ void set_stack(P4State *state, const MemberStruct &member_struct, P4Z3Instance *
                 complex_class->update_member(val_str, cast_val);
             } else {
                 auto *stack_class = complex_class->to_mut<StackInstance>();
-                BUG_CHECK(stack_class, "Expected Stack, got %s", stack_class->get_static_type());
+                BUG_CHECK(stack_class, "Expected Stack, got %s", complex_class->get_static_type());
                 // Skip anything where the idx is larger then the container
                 auto size = stack_class->get_int_size();
                 auto bv_size = expr->get_sort().bv_size();
@@ -253,7 +253,7 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
                 parent_class = parent_class->get_member(*name);
             } else if (auto *z3_expr = boost::get<z3::expr>(&mid_member)) {
                 auto *stack_class = parent_class->to_mut<StackInstance>();
-                BUG_CHECK(stack_class, "Expected Stack, got %s", stack_class->get_static_type());
+                BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
                 parent_class = stack_class->get_member(*z3_expr);
             } else {
                 P4C_UNIMPLEMENTED("Member type not implemented.");
@@ -264,7 +264,7 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
             end_var = parent_class->get_member(*name);
         } else if (const auto *z3_expr = boost::get<z3::expr>(&member_struct.target_member)) {
             auto *stack_class = parent_class->to_mut<StackInstance>();
-            BUG_CHECK(stack_class, "Expected Stack, got %s", stack_class->get_static_type());
+            BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
             end_var = stack_class->get_member(*z3_expr);
         } else {
             P4C_UNIMPLEMENTED("Member type not implemented.");
