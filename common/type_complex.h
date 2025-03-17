@@ -138,6 +138,8 @@ class HeaderInstance : public StructInstance, public FunctionClass {
     void setValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
     void setInvalid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
     void isValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
+    void minSizeInBits(Visitor *visitor, const IR::Vector<IR::Argument> *args);
+    void minSizeInBytes(Visitor *visitor, const IR::Vector<IR::Argument> *args);
     void propagate_validity(const z3::expr *valid_expr) override;
     void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
     void set_list(std::vector<P4Z3Instance *> input_list) override;

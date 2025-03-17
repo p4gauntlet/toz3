@@ -331,6 +331,14 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type, cstr
     add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         isValid(visitor, args);
     });
+    add_function("minSizeInBytes0"_cs,
+                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                     minSizeInBytes(visitor, args);
+                 });
+    add_function("minSizeInBits0"_cs,
+                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                     minSizeInBits(visitor, args);
+                 });
 }
 
 HeaderInstance::HeaderInstance(const HeaderInstance &other) : StructInstance(other) {
@@ -343,6 +351,14 @@ HeaderInstance::HeaderInstance(const HeaderInstance &other) : StructInstance(oth
     add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         isValid(visitor, args);
     });
+    add_function("minSizeInBytes0"_cs,
+                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                     minSizeInBytes(visitor, args);
+                 });
+    add_function("minSizeInBits0"_cs,
+                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                     minSizeInBits(visitor, args);
+                 });
 }
 
 HeaderInstance &HeaderInstance::operator=(const HeaderInstance &other) {
@@ -397,6 +413,16 @@ void HeaderInstance::setInvalid(Visitor * /*visitor*/, const IR::Vector<IR::Argu
 
 void HeaderInstance::isValid(Visitor * /*visitor*/, const IR::Vector<IR::Argument> * /*args*/) {
     state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, valid));
+}
+
+void HeaderInstance::minSizeInBits(Visitor * /*visitor*/,
+                                   const IR::Vector<IR::Argument> * /*args*/) {
+    state->set_expr_result(new Z3Int(state, width));
+}
+
+void HeaderInstance::minSizeInBytes(Visitor * /*visitor*/,
+                                    const IR::Vector<IR::Argument> * /*args*/) {
+    state->set_expr_result(new Z3Int(state, (width + 7) >> 3));
 }
 
 void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
