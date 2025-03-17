@@ -224,7 +224,27 @@ set(
   ${P4C_TEST_DIR}/stack-init.p4
   ${P4C_TEST_DIR}/issue4057.p4
   ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
+  ${P4C_TEST_DIR}/forloop1.p4
+  ${P4C_TEST_DIR}/forloop2.p4
+  ${P4C_TEST_DIR}/forloop3.p4
+  ${P4C_TEST_DIR}/forloop4.p4
+  ${P4C_TEST_DIR}/forloop5.p4
+  ${P4C_TEST_DIR}/forloop5a.p4
+  ${P4C_TEST_DIR}/forloop6.p4
+  ${P4C_TEST_DIR}/forloop7.p4
+  ${P4C_TEST_DIR}/issue4625_remove_compile_time_bool_methodcall_of_mcs.p4
+  ${P4C_TEST_DIR}/issue4739.p4
+  ${P4C_TEST_DIR}/issue4760_dontcare_action_out_arg.p4
+  ${P4C_TEST_DIR}/issue4775-2.p4
+  ${P4C_TEST_DIR}/localize_action_dont_care_args.p4
+  ${P4C_TEST_DIR}/loop-3-clause-tricky2.p4
+  ${P4C_TEST_DIR}/opassign1-bmv2.p4
+  ${P4C_TEST_DIR}/opassign1.p4
+  ${P4C_TEST_DIR}/opassign2-bmv2.p4
+  ${P4C_TEST_DIR}/parser-unroll-issue4006_twice_extracted_header.p4
+  ${P4C_TEST_DIR}/spec-issue1297-string-cat.p4
 )
+
 if(SKIPPED_TESTS)
   list(REMOVE_ITEM P4C_VALIDATION_TESTS ${SKIPPED_TESTS})
 endif()
