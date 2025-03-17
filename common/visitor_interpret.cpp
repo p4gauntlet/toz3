@@ -531,7 +531,7 @@ SwitchCasePairs handle_table_switch(Z3Visitor *visitor, const P4TableInstance *t
     for (const auto *switch_case : cases) {
         if (const auto *label = switch_case->label->to<IR::PathExpression>()) {
             auto mapped_idx = action_mapping[label->path->name.name];
-            auto cond = action_taken == mapped_idx;
+            auto cond = action_taken == mapped_idx && table->hit;
             // There is no block for the switch.
             // This expressions falls through to the next switch case.
             fall_through = fall_through || cond;
