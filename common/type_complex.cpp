@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <climits>
 #include <cstdio>
+#include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/multiprecision/detail/et_ops.hpp>
@@ -474,7 +476,7 @@ StackInstance
 ===============================================================================
 ***/
 
-StackInstance::StackInstance(P4State *state, const IR::Type_Stack *type, cstring name,
+StackInstance::StackInstance(P4State *state, const IR::Type_Array *type, cstring name,
                              uint64_t member_id)
     : IndexableInstance(state, type, name, member_id),
       nextIndex(Z3Int(state, 0)),
