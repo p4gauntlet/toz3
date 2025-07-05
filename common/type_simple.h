@@ -17,7 +17,7 @@ namespace P4::ToZ3 {
 // Forward declare state
 class P4State;
 
-z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type);
+z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type, bool is_signed = false);
 
 class VoidResult : public P4Z3Instance {
  public:

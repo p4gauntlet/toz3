@@ -187,7 +187,7 @@ class StackInstance : public IndexableInstance, public FunctionClass {
     const IR::Type *elem_type;
 
  public:
-    explicit StackInstance(P4State *state, const IR::Type_Stack *type, cstring name,
+    explicit StackInstance(P4State *state, const IR::Type_Array *type, cstring name,
                            uint64_t member_id);
 
     P4Z3Instance *get_member(const z3::expr &index) const override;

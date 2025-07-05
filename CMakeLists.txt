@@ -232,6 +232,8 @@ set(
   ${P4C_TEST_DIR}/forloop5a.p4
   ${P4C_TEST_DIR}/forloop6.p4
   ${P4C_TEST_DIR}/forloop7.p4
+  ${P4C_TEST_DIR}/forloop8.p4
+  ${P4C_TEST_DIR}/forloop9.p4
   ${P4C_TEST_DIR}/issue4625_remove_compile_time_bool_methodcall_of_mcs.p4
   ${P4C_TEST_DIR}/issue4739.p4
   ${P4C_TEST_DIR}/issue4760_dontcare_action_out_arg.p4
@@ -243,6 +245,12 @@ set(
   ${P4C_TEST_DIR}/opassign2-bmv2.p4
   ${P4C_TEST_DIR}/parser-unroll-issue4006_twice_extracted_header.p4
   ${P4C_TEST_DIR}/spec-issue1297-string-cat.p4
+  ${P4C_TEST_DIR}/array1.p4
+  ${P4C_TEST_DIR}/array2.p4
+  ${P4C_TEST_DIR}/array3.p4
+  ${P4C_TEST_DIR}/array5.p4
+  ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack.p4
+  ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack_nested.p4
 )
 
 if(SKIPPED_TESTS)

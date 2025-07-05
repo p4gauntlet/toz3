@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <boost/iterator/iterator_facade.hpp>
 #include <boost/iterator/reverse_iterator.hpp>
@@ -531,7 +533,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
         CHECK_NULL(enum_instance);
         enum_instance->set_enum_val(gen_z3_expr(name, resolve_type(t->type)));
         instance = enum_instance;
-    } else if (const auto *t = type->to<IR::Type_Stack>()) {
+    } else if (const auto *t = type->to<IR::Type_Array>()) {
         instance = new StackInstance(this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {
         instance = new HeaderUnionInstance(this, t, name, id);
