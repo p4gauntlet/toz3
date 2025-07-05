@@ -15,7 +15,7 @@
 
 namespace P4::ToZ3 {
 
-z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
+z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type, bool is_signed) {
     // TODO: Clean this up.
     uint64_t expr_size = 0;
     auto cast_expr = expr;
@@ -34,8 +34,9 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type) {
     auto dest_size = dest_type.bv_size();
 
     if (expr_size < dest_size) {
-        // The target value is larger, extend with zeros.
-        return z3::zext(cast_expr, dest_size - expr_size);
+        // The target value is larger, extend with zeros or the sign.
+        return is_signed ? z3::sext(cast_expr, dest_size - expr_size)
+                         : z3::zext(cast_expr, dest_size - expr_size);
     }
     if (expr_size > dest_size) {
         // The target value is smaller, truncate everything on the right.
@@ -308,13 +309,14 @@ P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
         auto *ctx = &val.get_sort().ctx();
         auto dest_sort = ctx->bv_sort(tb->size);
-        return new Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort));
+        return new Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort, is_signed),
+                               tb->isSigned);
     }
     // TODO: Merge with Bits
     if (const auto *tvb = dest_type->to<IR::Type_Varbits>()) {
         auto *ctx = &val.get_sort().ctx();
         auto dest_sort = ctx->bv_sort(tvb->size);
-        return new Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort));
+        return new Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort, is_signed));
     }
     if (dest_type->is<IR::Type_InfInt>()) {
         // TODO: Clean this up and add some checks
@@ -638,7 +640,7 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
         // TODO: Resolve this
         auto dest_sort = state->get_z3_ctx()->bv_sort(tb->size);
-        return new Z3Bitvector(state, tb, pure_bv_cast(val, dest_sort));
+        return new Z3Bitvector(state, tb, pure_bv_cast(val, dest_sort), tb->isSigned);
     }
     if (const auto *tb = dest_type->to<IR::Type_Boolean>()) {
         return new Z3Bitvector(state, tb, val != 0);
