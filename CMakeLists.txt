@@ -234,6 +234,7 @@ set(
   ${P4C_TEST_DIR}/forloop7.p4
   ${P4C_TEST_DIR}/forloop8.p4
   ${P4C_TEST_DIR}/forloop9.p4
+  ${P4C_TEST_DIR}/forloop10.p4
   ${P4C_TEST_DIR}/issue4625_remove_compile_time_bool_methodcall_of_mcs.p4
   ${P4C_TEST_DIR}/issue4739.p4
   ${P4C_TEST_DIR}/issue4760_dontcare_action_out_arg.p4
