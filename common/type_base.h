@@ -7,16 +7,14 @@
 #include <map>      // std::map
 #include <stack>    // std::stack
 #include <utility>  // std::pair
+#include <variant>  // std::variant
 #include <vector>   // std::vector
+
+#include <boost/range/adaptor/reversed.hpp>
 
 #include "ir/ir.h"
 #include "lib/cstring.h"
 #include "util.h"
-
-#define BOOST_VARIANT_USE_RELAXED_GET_BY_DEFAULT
-#include <boost/range/adaptor/reversed.hpp>
-#include <boost/variant.hpp>
-#include <boost/variant/get.hpp>
 
 namespace P4::ToZ3 {
 
@@ -36,7 +34,7 @@ class ExternInstance;
 class P4TableInstance;
 
 using P4Z3Function = std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
-using FunOrMethod = boost::variant<P4Z3Function, const IR::Method *>;
+using FunOrMethod = std::variant<P4Z3Function, const IR::Method *>;
 
 struct Z3Slice {
     z3::expr hi;
@@ -94,7 +92,7 @@ class P4Z3Node {
     }
 };
 
-using NameOrIndex = boost::variant<cstring, z3::expr>;
+using NameOrIndex = std::variant<cstring, z3::expr>;
 // These structures are used to cleanly resolve references for copy in and out
 class MemberStruct {
  public:
@@ -116,9 +114,9 @@ class MemberStruct {
             out << member_struct.main_member << ".";
         }
         for (const auto &mid_member : member_struct.mid_members) {
-            out << mid_member << ".";
+            std::visit([&out](const auto &val) { out << val << "."; }, mid_member);
         }
-        out << member_struct.target_member;
+        std::visit([&out](const auto &val) { out << val; }, member_struct.target_member);
         for (const auto &end_slice : member_struct.end_slices) {
             out << end_slice << ".";
         }

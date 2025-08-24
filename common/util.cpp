@@ -54,6 +54,10 @@ cstring infer_name(const IR::IAnnotated *node, cstring default_name) {
     return default_name;
 }
 
+cstring mangle_name(cstring base_name, size_t num_args) {
+    return base_name + std::to_string(num_args);
+}
+
 int exec(const char *cmd, std::stringstream &output) {
     Logger::log_msg(1, "Executing command %s", cmd);
     constexpr int chunk_size = 128;

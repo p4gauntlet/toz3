@@ -177,7 +177,7 @@ bool Z3Visitor::preorder(const IR::Function *f) {
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         // The IR has bizarre side effects when storing pointers in a map
         // TODO: Think about how to simplify this, maybe use their vector
-        auto name = overloaded_name + std::to_string(num_params + idx);
+        auto name = mangle_name(overloaded_name, num_params + idx);
         state->declare_static_decl(name, decl);
     }
     return false;
@@ -199,7 +199,7 @@ bool Z3Visitor::preorder(const IR::Method *m) {
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         // The IR has bizarre side effects when storing pointers in a map
         // TODO: Think about how to simplify this, maybe use their vector
-        auto name = overloaded_name + std::to_string(num_params + idx);
+        auto name = mangle_name(overloaded_name, num_params + idx);
         state->declare_static_decl(name, decl);
     }
     return false;
@@ -219,12 +219,12 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
         }
     }
     auto *decl = new P4Declaration(a);
-    cstring name_basic = overloaded_name + std::to_string(num_params);
+    cstring name_basic = mangle_name(overloaded_name, num_params);
     state->declare_static_decl(name_basic, decl);
     // The IR has bizarre side effects when storing pointers in a map
     // TODO: Think about how to simplify this, maybe use their vector
     if (num_optional_params != 0) {
-        cstring name_opt = overloaded_name + std::to_string(num_params + num_optional_params);
+        cstring name_opt = mangle_name(overloaded_name, num_params + num_optional_params);
         state->declare_static_decl(name_opt, decl);
     }
     return false;

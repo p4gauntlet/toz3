@@ -7,8 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include <boost/variant/get.hpp>
-
+#include "exceptions.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
 #include "ir/ir.h"
@@ -43,7 +42,8 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
         state->set_expr_result(var);
         return false;
     }
-    P4C_UNIMPLEMENTED("Constant of type %s not implemented!", c->type->node_type_name());
+    throw UnsupportedFeatureError("Constant of type " + c->type->node_type_name() +
+                                  " not implemented!");
 }
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
@@ -88,7 +88,7 @@ bool Z3Visitor::preorder(const IR::StructExpression *se) {
         if (auto *struct_instance = instance->to_mut<StructBase>()) {
             struct_instance->set_list(members);
         } else {
-            P4C_UNIMPLEMENTED("Unsupported StructExpression class %s", se);
+            throw UnsupportedFeatureError("Unsupported StructExpression class " + se->toString());
         }
         state->set_expr_result(instance);
     } else {
@@ -133,8 +133,8 @@ FunOrMethod get_function(const P4Z3Instance *parent_class, cstring member_identi
     if (const auto *decl = parent_class->to<HeaderUnionInstance>()) {
         return decl->get_function(member_identifier);
     }
-    P4C_UNIMPLEMENTED("Retrieving a function not implemented for type %s.",
-                      parent_class->get_static_type());
+    throw UnsupportedFeatureError("Retrieving a function not implemented for type " +
+                                  parent_class->get_static_type());
 }
 
 void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &member_struct,
@@ -143,14 +143,14 @@ void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &me
     auto hdr_pairs = get_hdr_pairs(state, member_struct);
 
     // Execute and merge the functions
-    if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
+    if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
         std::vector<std::pair<z3::expr, VarMap>> call_vars;
         for (auto &parent_pair : hdr_pairs) {
             auto cond = parent_pair.first;
             auto *parent_class = parent_pair.second;
-            auto member_identifier = *name + std::to_string(arg_size);
+            auto member_identifier = mangle_name(*name, arg_size);
             auto resolved_call = get_function(parent_class, member_identifier);
-            if (const auto *function = boost::get<P4Z3Function>(&resolved_call)) {
+            if (const auto *function = std::get_if<P4Z3Function>(&resolved_call)) {
                 // TODO: Support global side effects
                 // For now, we only merge with the current class
                 // There is some strange behavior here when using all state
@@ -158,11 +158,11 @@ void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &me
                 (*function)(visitor, arguments);
                 parent_class->merge(!cond, *orig_class);
             } else {
-                BUG("Unexpected stack call member");
+                throw InternalError("Unexpected stack call member");
             }
         }
     } else {
-        P4C_UNIMPLEMENTED("Member type not implemented.");
+        throw UnsupportedFeatureError("Member type not implemented.");
     }
 }
 
@@ -179,18 +179,18 @@ FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &membe
     for (auto it = member_struct.mid_members.rbegin(); it != member_struct.mid_members.rend();
          ++it) {
         auto mid_member = *it;
-        if (const auto *name = boost::get<cstring>(&mid_member)) {
+        if (const auto *name = std::get_if<cstring>(&mid_member)) {
             parent_class = parent_class->get_member(*name);
         } else {
-            P4C_UNIMPLEMENTED("Member type not supported.");
+            throw UnsupportedFeatureError("Member type not supported.");
         }
     }
-    if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
+    if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
         // FIXME: This is a very rough version of overloading...
-        auto member_identifier = *name + std::to_string(num_args);
+        auto member_identifier = mangle_name(*name, num_args);
         return get_function(parent_class, member_identifier);
     }
-    P4C_UNIMPLEMENTED("Member type not implemented.");
+    throw UnsupportedFeatureError("Member type not implemented.");
 }
 
 void set_params(const IR::Node *callable, const IR::ParameterList **params,
@@ -210,8 +210,8 @@ void set_params(const IR::Node *callable, const IR::ParameterList **params,
         *type_params = method->type->getTypeParameters();
         return;
     }
-    P4C_UNIMPLEMENTED("Callable declaration %s of type %s not supported.", callable,
-                      callable->node_type_name());
+    throw UnsupportedFeatureError("Callable declaration " + callable->toString() + " of type " +
+                                  callable->node_type_name() + " not supported.");
 }
 
 P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
@@ -280,7 +280,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     const auto *method_type = mce->method;
     if (const auto *path_expr = method_type->to<IR::PathExpression>()) {
         // FIXME: This is a very rough version of overloading...
-        auto path_identifier = path_expr->path->name.name + std::to_string(arg_size);
+        auto path_identifier = mangle_name(path_expr->path->name.name, arg_size);
         callable = state->get_static_decl(path_identifier)->get_decl();
     } else if (const auto *member = method_type->to<IR::Member>()) {
         auto member_struct = get_member_struct(state, this, member);
@@ -290,19 +290,19 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             return false;
         }
         auto resolved_call = resolve_var_or_decl_parent(state, member_struct, arg_size);
-        if (const auto *function = boost::get<P4Z3Function>(&resolved_call)) {
+        if (const auto *function = std::get_if<P4Z3Function>(&resolved_call)) {
             // call the function directly for now
             (*function)(this, arguments);
             return false;
         }
-        if (auto *decl = boost::get<const IR::Method *>(&resolved_call)) {
+        if (const auto *decl = std::get_if<const IR::Method *>(&resolved_call)) {
             // We are retrieving a method from an extern object
             callable = *decl;
         } else {
-            BUG("Unexpected method call member.");
+            throw InternalError("Unexpected method call member.");
         }
     } else {
-        P4C_UNIMPLEMENTED("Method call %s not supported.", mce);
+        throw UnsupportedFeatureError("Method call " + mce->toString() + " not supported.");
     }
     // At this point, we assume we are dealing with a declaration
     TypeSpecializer specializer(*state, *mce->typeArguments);
@@ -325,7 +325,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     } else if (const auto *a = callable->to<IR::Method>()) {
         return_expr = exec_method(this, a);
     } else {
-        P4C_UNIMPLEMENTED("Can not call callable %s.", callable->node_type_name());
+        throw UnsupportedFeatureError("Can not call callable " + callable->node_type_name());
     }
     // Set the result.
     state->set_expr_result(return_expr);
@@ -359,8 +359,9 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         state->set_expr_result(ext_instance);
         return false;
     } else {
-        P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.", resolved_type,
-                          resolved_type->node_type_name());
+        throw UnsupportedFeatureError("Type Declaration " + resolved_type->toString() +
+                                      " of type " + resolved_type->node_type_name() +
+                                      " not supported.");
     }
     auto var_map = state->merge_args_with_params(this, *arguments, *params, *type_params);
     state->set_expr_result(new ControlInstance(state, resolved_type, var_map.second));

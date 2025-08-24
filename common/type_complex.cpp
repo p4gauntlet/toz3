@@ -988,7 +988,7 @@ ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
             // map
             // FIXME: Think about how to simplify this, maybe use their
             // vector
-            cstring name = overloaded_name + std::to_string(num_params + idx);
+            cstring name = mangle_name(overloaded_name, num_params + idx);
             methods.insert({name, method});
         }
     }
@@ -1199,7 +1199,7 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
         }
     }
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
-        cstring apply_str = "apply" + std::to_string(num_params + idx);
+        cstring apply_str = mangle_name(cstring("apply"), num_params + idx);
         add_function(apply_str, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
             apply(visitor, args);
         });
