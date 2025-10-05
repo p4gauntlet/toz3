@@ -92,8 +92,7 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
     members.insert({"action_run"_cs, this});
     members.insert({"hit"_cs, new Z3Bitvector(state, &BOOL_TYPE, hit)});
     members.insert({"miss"_cs, new Z3Bitvector(state, &BOOL_TYPE, !hit)});
-    cstring apply_str = "apply"_cs;
-    apply_str += std::to_string(p4t->getApplyParameters()->size());
+    cstring apply_str = mangle_name(cstring("apply"), p4t->getApplyParameters()->size());
     add_function(apply_str, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         apply(visitor, args);
     });
@@ -114,7 +113,7 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3:
     members.insert({"miss"_cs, new Z3Bitvector(state, &BOOL_TYPE, !hit)});
     cstring apply_str = "apply"_cs;
     if (const auto *table = decl->to<IR::P4Table>()) {
-        apply_str += std::to_string(table->getApplyParameters()->size());
+        apply_str = mangle_name(apply_str, table->getApplyParameters()->size());
     }
     add_function(apply_str, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
         apply(visitor, args);

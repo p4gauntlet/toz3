@@ -15,7 +15,6 @@
 #include <boost/multiprecision/detail/et_ops.hpp>
 #include <boost/multiprecision/number.hpp>
 #include <boost/range/adaptor/reversed.hpp>
-#include <boost/variant/get.hpp>
 
 #include "ir/id.h"
 #include "ir/node.h"
@@ -145,7 +144,7 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
     for (auto it = member_struct.mid_members.rbegin(); it != member_struct.mid_members.rend();
          ++it) {
         auto mid_member = *it;
-        if (const auto *name = boost::get<cstring>(&mid_member)) {
+        if (const auto *name = std::get_if<cstring>(&mid_member)) {
             for (auto &parent_pair : parent_pairs) {
                 auto parent_cond = parent_pair.first;
                 const auto *parent_class = parent_pair.second;
@@ -153,7 +152,7 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
             }
             parent_pairs = tmp_parent_pairs;
             tmp_parent_pairs.clear();
-        } else if (const auto *expr = boost::get<z3::expr>(&mid_member)) {
+        } else if (const auto *expr = std::get_if<z3::expr>(&mid_member)) {
             for (auto &parent_pair : parent_pairs) {
                 auto parent_cond = parent_pair.first;
                 auto *parent_class = parent_pair.second;
@@ -190,7 +189,7 @@ void set_stack(P4State *state, const MemberStruct &member_struct, P4Z3Instance *
     auto parent_pairs = get_hdr_pairs(state, member_struct);
 
     // Set the variable
-    if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
+    if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
         for (auto &parent_pair : parent_pairs) {
             auto parent_cond = parent_pair.first;
             auto *parent_class = parent_pair.second;
@@ -202,7 +201,7 @@ void set_stack(P4State *state, const MemberStruct &member_struct, P4Z3Instance *
             cast_val->merge(!parent_cond, *orig_val);
             complex_class->update_member(*name, cast_val);
         }
-    } else if (const auto *expr = boost::get<z3::expr>(&member_struct.target_member)) {
+    } else if (const auto *expr = std::get_if<z3::expr>(&member_struct.target_member)) {
         std::string val_str;
         for (auto &parent_pair : parent_pairs) {
             auto parent_cond = parent_pair.first;
@@ -251,9 +250,9 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
         for (auto it = member_struct.mid_members.rbegin(); it != member_struct.mid_members.rend();
              ++it) {
             auto mid_member = *it;
-            if (auto *name = boost::get<cstring>(&mid_member)) {
+            if (const auto *name = std::get_if<cstring>(&mid_member)) {
                 parent_class = parent_class->get_member(*name);
-            } else if (auto *z3_expr = boost::get<z3::expr>(&mid_member)) {
+            } else if (const auto *z3_expr = std::get_if<z3::expr>(&mid_member)) {
                 auto *stack_class = parent_class->to_mut<StackInstance>();
                 BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
                 parent_class = stack_class->get_member(*z3_expr);
@@ -262,9 +261,9 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
             }
         }
 
-        if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
+        if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
             end_var = parent_class->get_member(*name);
-        } else if (const auto *z3_expr = boost::get<z3::expr>(&member_struct.target_member)) {
+        } else if (const auto *z3_expr = std::get_if<z3::expr>(&member_struct.target_member)) {
             auto *stack_class = parent_class->to_mut<StackInstance>();
             BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
             end_var = stack_class->get_member(*z3_expr);
@@ -327,10 +326,10 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     auto *parent_class = get_var(member_struct.main_member);
     for (auto it = member_struct.mid_members.rbegin(); it != member_struct.mid_members.rend();
          ++it) {
-        auto name = boost::get<cstring>(*it);
+        auto name = std::get<cstring>(*it);
         parent_class = parent_class->get_member(name);
     }
-    if (const auto *name = boost::get<cstring>(&member_struct.target_member)) {
+    if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
         auto *complex_class = parent_class->to_mut<StructBase>();
         CHECK_NULL(complex_class);
         const auto *dest_type = complex_class->get_member_type(*name);

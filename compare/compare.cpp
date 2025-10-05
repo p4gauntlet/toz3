@@ -13,6 +13,7 @@
 #include "lib/error.h"
 #include "lib/exceptions.h"
 #include "toz3/common/create_z3.h"
+#include "toz3/common/exceptions.h"
 #include "toz3/common/state.h"
 #include "toz3/common/type_base.h"
 #include "toz3/common/util.h"
@@ -24,6 +25,15 @@ namespace P4::ToZ3 {
 
 // Passes that are not supported for translation validation.
 static const std::array<cstring, 1> SKIPPED_PASSES = {"FlattenHeaderUnion"_cs};
+
+bool is_undefined_const(const z3::expr &e) {
+    if (!e.is_const()) {
+        return false;
+    }
+    // Check if the constant's name starts with the UNDEF_LABEL prefix.
+    // Using rfind with a 0 position is a reliable way to check for a prefix.
+    return std::string(e.decl().name().str()).rfind(UNDEF_LABEL, 0) == 0;
+}
 
 MainResult get_z3_repr(const std::filesystem::path &prog_name, const IR::P4Program *program,
                        z3::context *ctx) {
@@ -39,15 +49,12 @@ MainResult get_z3_repr(const std::filesystem::path &prog_name, const IR::P4Progr
         Z3Visitor to_z3_second(&state);
         return gen_state_from_instance(&to_z3_second, decl);
     } catch (const Util::P4CExceptionBase &bug) {
-        std::cerr << "Failed to interpret pass \"" << prog_name << "\"." << std::endl;
-        std::cerr << bug.what() << std::endl;
-        exit(EXIT_FAILURE);
+        throw P4::ToZ3::InternalError("Failed to interpret pass \"" + prog_name.string() + "\".\n" +
+                                      bug.what());
     } catch (z3::exception &ex) {
-        std::cerr << "Failed to interpret pass \"" << prog_name << "\"." << std::endl;
-        std::cerr << "Z3 exception: " << ex << std::endl;
-        exit(EXIT_FAILURE);
+        throw P4::ToZ3::Z3Error("Failed to interpret pass \"" + prog_name.string() +
+                                "\".\nZ3 exception: " + ex.msg());
     }
-    return {};
 }
 
 void unroll_result(const MainResult &z3_repr_prog,
@@ -146,9 +153,8 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
         }
         return z3_var;
     }
-    if (z3_var.is_const() && z3_var.to_string().find("undefined") != std::string::npos) {
+    if (is_undefined_const(z3_var)) {
         // The expression is tainted replace it.
-        // Really dumb check, do not need anything else.
         auto taint_const = z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
         taint_vars->insert(taint_const);
         return taint_const;
@@ -257,8 +263,8 @@ int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool all
             return EXIT_VIOLATION;
         }
         if (ret == z3::unknown) {
-            std::cerr << "Error: Could not determine equality. Error" << std::endl;
-            return EXIT_FAILURE;
+            throw Z3Error("Could not determine equality between " + prog_before.first.string() +
+                          " and " + prog_after.first.string());
         }
         s.pop();
         prog_before = prog_after;
@@ -274,12 +280,11 @@ int process_programs(const std::vector<std::filesystem::path> &prog_list, Parser
     // Parse the first program
     // Use a little trick here to get the second program
     std::vector<Z3Prog> z3Progs;
-    for (auto prog : prog_list) {
+    for (const auto& prog : prog_list) {
         options->file = prog;
         const auto *progParsed = P4::parseP4File(*options);
         if (progParsed == nullptr || P4::errorCount() > 0) {
-            std::cerr << "Unable to parse program." << std::endl;
-            return EXIT_FAILURE;
+            throw GauntletException("Unable to parse program: " + prog.string());
         }
         auto z3ReprProg = get_z3_repr(prog, progParsed, &ctx);
         std::vector<std::pair<cstring, z3::expr>> resultVec;

@@ -7,8 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include <boost/variant/get.hpp>
-
+#include "exceptions.h"
 #include "ir/id.h"
 #include "ir/vector.h"
 #include "lib/error.h"
@@ -67,7 +66,8 @@ std::map<cstring, const IR::Type *> specialize_arch_blocks(const IR::Type *src_t
             return type_mapping;
         }
     }
-    P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s", src_type, dest_type);
+    throw UnsupportedFeatureError("Unsupported cast from type " + src_type->toString() +
+                                  " to type " + dest_type->toString());
 }
 
 std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
@@ -79,7 +79,7 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
 
     visitor->visit(cce);
     const IR::ParameterList *params = nullptr;
-    FunOrMethod fun_call = nullptr;
+    FunOrMethod fun_call;
     // TODO: Refactor all of this into a separate pass
     const auto *constructed_expr = state->get_expr_result()->cast_allocate(param_type);
     const auto *resolved_type = constructed_expr->get_p4_type();
@@ -93,7 +93,7 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
                 }
             }
             params = c->getApplyParameters();
-            cstring apply_name = "apply" + std::to_string(params->size());
+            cstring apply_name = mangle_name(cstring("apply"), params->size());
             fun_call = ctrl_instance->get_function(apply_name);
         } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
             P4::warning("Ignoring parser output.");
@@ -106,18 +106,20 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
                 }
             }
             params = p->getApplyParameters();
-            cstring apply_name = "apply" + std::to_string(params->size());
+            cstring apply_name = mangle_name(cstring("apply"), params->size());
             fun_call = ctrl_instance->get_function(apply_name);
         } else {
-            P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.", resolved_type,
-                              resolved_type->node_type_name());
+            throw UnsupportedFeatureError("Type Declaration " + resolved_type->toString() +
+                                          " of type " + resolved_type->node_type_name() +
+                                          " not supported.");
         }
     } else if (constructed_expr->is<ExternInstance>()) {
         // Not sure what to do here yet...
         return {};
     } else {
-        P4C_UNIMPLEMENTED("Type Declaration %s of type %s not supported.", resolved_type,
-                          resolved_type->node_type_name());
+        throw UnsupportedFeatureError("Type Declaration " + resolved_type->toString() +
+                                      " of type " + resolved_type->node_type_name() +
+                                      " not supported.");
     }
     // INITIALIZE
     // TODO: Simplify this
@@ -143,10 +145,10 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
         synthesized_args.push_back(arg);
     }
     // Call the apply function of the pipeline
-    if (const auto *function = boost::get<P4Z3Function>(&fun_call)) {
+    if (const auto *function = std::get_if<P4Z3Function>(&fun_call)) {
         (*function)(visitor, &synthesized_args);
     } else {
-        BUG("Unexpected main function.");
+        throw InternalError("Unexpected main function.");
     }
     // Merge the exit states
     state->merge_exit_states();
@@ -164,7 +166,7 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
             // warning("Skipping extern because we do not know how to represent
             // "it.");
         } else {
-            BUG("Var is neither type z3::expr nor P4Z3Instance!");
+            throw InternalError("Var is neither type z3::expr nor P4Z3Instance!");
         }
     }
 
@@ -222,12 +224,12 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
                 merged_vec.insert(
                     {param->name.name, {{{param->name.name, *z3_val->get_val()}}, param_type}});
             } else {
-                P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s", arg_expr,
-                                  arg_expr->node_type_name());
+                throw UnsupportedFeatureError("Unsupported main argument " + arg_expr->toString() +
+                                              " of type " + arg_expr->node_type_name());
             }
         } else {
-            P4C_UNIMPLEMENTED("Unsupported main argument %s of type %s", arg_expr,
-                              arg_expr->node_type_name());
+            throw UnsupportedFeatureError("Unsupported main argument " + arg_expr->toString() +
+                                          " of type " + arg_expr->node_type_name());
         }
     }
     return merged_vec;
@@ -247,8 +249,9 @@ MainResult gen_state_from_instance(Z3Visitor *visitor, const IR::Declaration_Ins
         params = package->getConstructorParameters();
         type_params = package->getTypeParameters();
     } else {
-        P4C_UNIMPLEMENTED("Callable declaration type %s of type %s not supported.", resolved_type,
-                          resolved_type->node_type_name());
+        throw UnsupportedFeatureError("Callable declaration type " + resolved_type->toString() +
+                                      " of type " + resolved_type->node_type_name() +
+                                      " not supported.");
     }
     ParamInfo param_info{*params, *di->arguments, *type_params, {}};
     return create_state(visitor, param_info);
@@ -260,7 +263,8 @@ const IR::Declaration_Instance *get_main_decl(P4State *state) {
         if (const auto *main_pkg = main->get_decl()->to<IR::Declaration_Instance>()) {
             return main_pkg;
         }
-        P4C_UNIMPLEMENTED("Main node %s not implemented!", main->get_decl()->node_type_name());
+        throw UnsupportedFeatureError("Main node " + main->get_decl()->node_type_name() +
+                                      " not implemented!");
     }
     warning("No main declaration found in program.");
     return nullptr;

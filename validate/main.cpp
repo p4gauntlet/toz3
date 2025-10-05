@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "../common/exceptions.h"
 #include "../common/util.h"
 #include "../compare/compare.h"
 #include "frontends/common/options.h"
@@ -41,7 +42,9 @@ std::vector<std::filesystem::path> generatePassList(const fs::path &p4_file,
     passListCmd += R"#(| grep 'Writing program to' )#";
     passListCmd += R"#(| sed -n 's/.*"\(.*\)".*/\1/p' )#";
     std::stringstream passes;
-    exec(passListCmd.c_str(), passes);
+    if (exec(passListCmd.c_str(), passes) != 0) {
+        throw CompilerExecutionError("Failed to list compiler passes. Command:\n" + passListCmd);
+    }
 
     std::string pass;
     std::vector<std::filesystem::path> passList;
@@ -58,7 +61,9 @@ std::vector<std::filesystem::path> generatePassList(const fs::path &p4_file,
     dumpCmd += "--dump " + dump_dir.string() + " " + p4_file.c_str();
     dumpCmd += " 2>&1";
     std::stringstream output;
-    exec(dumpCmd.c_str(), output);
+    if (exec(dumpCmd.c_str(), output) != 0) {
+        throw CompilerExecutionError("Failed to dump compiler passes. Command:\n" + dumpCmd);
+    }
 
     // Now, we remove all the dumped programs where no change was made.
     std::vector<std::filesystem::path> prunedPassList;
@@ -82,17 +87,22 @@ int validateTranslation(const fs::path &p4_file, const fs::path &dump_dir,
                         const fs::path &compiler_bin, ValidateOptions *options) {
     Logger::log_msg(0, "Analyzing %s", p4_file);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    auto progList = generatePassList(p4_file, dump_dir, compiler_bin);
-    if (progList.size() < 2) {
-        std::cerr << "P4 file did not generate enough passes." << std::endl;
-        return EXIT_SKIPPED;
+    try {
+        auto progList = generatePassList(p4_file, dump_dir, compiler_bin);
+        if (progList.size() < 2) {
+            std::cerr << "P4 file did not generate enough passes to compare." << std::endl;
+            return EXIT_SKIPPED;
+        }
+        int result = process_programs(progList, options, options->undefined_is_ok);
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        auto timeElapsed =
+            std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / SEC_TO_MS;
+        Logger::log_msg(0, "Validation took %s seconds.", timeElapsed);
+        return result;
+    } catch (const GauntletException &e) {
+        std::cerr << "\nValidation failed with an error:\n" << e.what() << std::endl;
+        return EXIT_FAILURE;
     }
-    int result = process_programs(progList, options, options->undefined_is_ok);
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    auto timeElapsed =
-        std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / SEC_TO_MS;
-    Logger::log_msg(0, "Validation took %s seconds.", timeElapsed);
-    return result;
 }
 }  // namespace P4::ToZ3
 
