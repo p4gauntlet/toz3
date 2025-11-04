@@ -254,6 +254,7 @@ set(
   ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack.p4
   ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack_nested.p4
   ${P4C_TEST_DIR}/externArray1.p4
+  ${P4C_TEST_DIR}/tuple5.p4
   ${P4C_TEST_DIR}/tuple5a.p4
 )
 
