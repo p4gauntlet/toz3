@@ -17,11 +17,11 @@ namespace P4::ToZ3 {
 
 class TypeModifier : public Transform {
  private:
-    const std::map<cstring, const IR::Type *> *type_mapping;
+    const std::map<cstring, IR::Ptr<IR::Type>> *type_mapping;
     const IR::Node *postorder(IR::Type *type) override;
 
  public:
-    explicit TypeModifier(const std::map<cstring, const IR::Type *> *type_mapping)
+    explicit TypeModifier(const std::map<cstring, IR::Ptr<IR::Type>> *type_mapping)
         : type_mapping(type_mapping) {
         visitDagOnce = false;
     }

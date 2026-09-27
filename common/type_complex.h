@@ -42,7 +42,7 @@ class StructBase : public P4Z3Instance {
  protected:
     P4State *state;
     ordered_map<cstring, P4Z3Instance *> members;
-    std::map<cstring, const IR::Type *> member_types;
+    std::map<cstring, IR::Ptr<IR::Type>> member_types;
     uint64_t width;
     z3::expr valid;
     cstring instance_name;
@@ -184,7 +184,7 @@ class StackInstance : public IndexableInstance, public FunctionClass {
     mutable Z3Int lastIndex;
     mutable Z3Int size;
     size_t int_size;
-    const IR::Type *elem_type;
+    IR::Ptr<IR::Type> elem_type;
 
  public:
     explicit StackInstance(P4State *state, const IR::Type_Array *type, cstring name,
@@ -273,7 +273,7 @@ class EnumBase : public StructBase, public ValContainer {
     using StructBase::StructBase;
 
  protected:
-    const IR::Type_Bits *member_type = &P4_STD_BIT_TYPE;
+    IR::Ptr<IR::Type_Bits> member_type = &P4_STD_BIT_TYPE;
 
  public:
     EnumBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id);
@@ -420,7 +420,7 @@ class ControlInstance : public P4Z3Instance, public FunctionClass {
  private:
     P4State *state;
     VarMap resolved_const_args;
-    std::map<cstring, const IR::Type *> local_type_map;
+    std::map<cstring, IR::Ptr<IR::Type>> local_type_map;
     // A wrapper class for table declarations
  public:
     // constructor
@@ -444,7 +444,7 @@ class ControlInstance : public P4Z3Instance, public FunctionClass {
 class P4Declaration : public P4Z3Instance {
     // A wrapper class for declarations
  private:
-    const IR::StatOrDecl *decl;
+    IR::Ptr<IR::StatOrDecl> decl;
 
  public:
     // constructor
@@ -504,9 +504,9 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
 
 class ExternInstance : public P4Z3Instance, public FunctionClass {
  private:
-    std::map<cstring, const IR::Method *> methods;
+    std::map<cstring, IR::Ptr<IR::Method>> methods;
     P4State *state;
-    const IR::Type_Extern *extern_type;
+    IR::Ptr<IR::Type_Extern> extern_type;
 
  public:
     explicit ExternInstance(P4State *state, const IR::Type_Extern *type);

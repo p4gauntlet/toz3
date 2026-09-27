@@ -23,18 +23,18 @@
 
 namespace P4::ToZ3 {
 
-std::map<cstring, const IR::Type *> get_type_mapping_2(const IR::ParameterList *src_params,
-                                                       const IR::TypeParameters *src_type_params,
-                                                       const IR::ParameterList *dest_params) {
-    std::map<cstring, const IR::Type *> type_mapping;
+std::map<cstring, IR::Ptr<IR::Type>> get_type_mapping_2(const IR::ParameterList *src_params,
+                                                        const IR::TypeParameters *src_type_params,
+                                                        const IR::ParameterList *dest_params) {
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto dest_params_size = dest_params->size();
     for (size_t idx = 0; idx < src_params->size(); ++idx) {
         // Ignore optional params
         if (idx >= dest_params_size) {
             continue;
         }
-        const auto *src_param = src_params->getParameter(idx);
-        const auto *dst_param = dest_params->getParameter(idx);
+        const auto src_param = src_params->getParameter(idx);
+        const auto dst_param = dest_params->getParameter(idx);
         if (const auto *tn = src_param->type->to<IR::Type_Name>()) {
             auto src_type_name = tn->path->name.name;
             if (src_type_params->getDeclByName(src_type_name) != nullptr) {
@@ -45,11 +45,11 @@ std::map<cstring, const IR::Type *> get_type_mapping_2(const IR::ParameterList *
     return type_mapping;
 }
 
-std::map<cstring, const IR::Type *> specialize_arch_blocks(const IR::Type *src_type,
-                                                           const IR::Type *dest_type) {
+std::map<cstring, IR::Ptr<IR::Type>> specialize_arch_blocks(const IR::Type *src_type,
+                                                            const IR::Type *dest_type) {
     if (const auto *control = src_type->to<IR::Type_Control>()) {
         if (const auto *control_dst_type = dest_type->to<IR::P4Control>()) {
-            const auto *src_params = control->getApplyParameters();
+            const auto src_params = control->getApplyParameters();
             const auto *src_type_params = control->getTypeParameters();
             auto type_mapping = get_type_mapping_2(src_params, src_type_params,
                                                    control_dst_type->getApplyParameters());
@@ -59,7 +59,7 @@ std::map<cstring, const IR::Type *> specialize_arch_blocks(const IR::Type *src_t
     }
     if (const auto *parser = src_type->to<IR::Type_Parser>()) {
         if (const auto *parser_dst_type = dest_type->to<IR::P4Parser>()) {
-            const auto *src_params = parser->getApplyParameters();
+            const auto src_params = parser->getApplyParameters();
             const auto *src_type_params = parser->getTypeParameters();
             auto type_mapping = get_type_mapping_2(src_params, src_type_params,
                                                    parser_dst_type->getApplyParameters());
@@ -127,8 +127,8 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
 
     std::vector<cstring> param_names;
     IR::Vector<IR::Argument> synthesized_args;
-    for (const auto *param : *params) {
-        const auto *par_type = state->resolve_type(param->type);
+    for (const auto &param : *params) {
+        const auto par_type = state->resolve_type(param->type);
         cstring instance_name = param_name + "." + param->name.name;
         if (!par_type->is<IR::Type_Package>()) {
             auto *var = state->gen_instance(instance_name, par_type);
@@ -197,7 +197,7 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
     for (const auto &mapping : param_mapping) {
         const auto *param = mapping.first;
         cstring param_name = param->name.name;
-        const auto *param_type = param->type;
+        const auto param_type = param->type;
         const auto *arg_expr = mapping.second;
         // Ignore empty optional parameters, they can not be used properly
         if (param->isOptional() && arg_expr == nullptr) {
@@ -236,7 +236,7 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
 }
 
 MainResult gen_state_from_instance(Z3Visitor *visitor, const IR::Declaration_Instance *di) {
-    const IR::Type *resolved_type = visitor->get_state()->resolve_type(di->type);
+    IR::Ptr<IR::Type> resolved_type = visitor->get_state()->resolve_type(di->type);
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     if (const auto *control = resolved_type->to<IR::P4Control>()) {

@@ -280,9 +280,9 @@ int process_programs(const std::vector<std::filesystem::path> &prog_list, Parser
     // Parse the first program
     // Use a little trick here to get the second program
     std::vector<Z3Prog> z3Progs;
-    for (const auto& prog : prog_list) {
+    for (const auto &prog : prog_list) {
         options->file = prog;
-        const auto *progParsed = P4::parseP4File(*options);
+        const auto progParsed = P4::parseP4File(*options);
         if (progParsed == nullptr || P4::errorCount() > 0) {
             throw GauntletException("Unable to parse program: " + prog.string());
         }

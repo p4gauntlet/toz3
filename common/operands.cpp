@@ -313,7 +313,7 @@ bool Z3Visitor::preorder(const IR::Slice *sl) {
 
 bool Z3Visitor::preorder(const IR::Cast *c) {
     // Resolve the type.
-    const auto *resolved_type = state->resolve_type(c->destType);
+    const auto resolved_type = state->resolve_type(c->destType);
     // Resolve the expression.
     visit(c->expr);
     const auto *resolved_expr = state->get_expr_result();

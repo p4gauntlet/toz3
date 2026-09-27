@@ -62,11 +62,11 @@ struct ParamInfo {
 
 struct TableProperties {
     cstring table_name;
-    std::vector<const IR::KeyElement *> keys;
-    std::vector<const IR::MethodCallExpression *> actions;
-    const IR::MethodCallExpression *default_action = nullptr;
+    std::vector<IR::Ptr<IR::KeyElement>> keys;
+    std::vector<IR::Ptr<IR::MethodCallExpression>> actions;
+    IR::Ptr<IR::MethodCallExpression> default_action = nullptr;
     // TODO: Simplify
-    std::vector<std::pair<const IR::ListExpression *, const IR::MethodCallExpression *>> entries;
+    std::vector<std::pair<IR::Ptr<IR::ListExpression>, IR::Ptr<IR::MethodCallExpression>>> entries;
     bool immutable;
 };
 
@@ -132,7 +132,7 @@ struct ParserError : public std::exception {
 
 class P4Z3Instance : public P4Z3Node {
  protected:
-    const IR::Type *p4_type = nullptr;
+    IR::Ptr<IR::Type> p4_type = nullptr;
 
  public:
     explicit P4Z3Instance(const IR::Type *p4_type) : p4_type(p4_type) {}
@@ -241,9 +241,9 @@ class P4Z3Instance : public P4Z3Node {
     P4Z3Instance(const P4Z3Instance &other) { p4_type = other.p4_type; }
 };
 
-using VarMap = ordered_map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
+using VarMap = ordered_map<cstring, std::pair<P4Z3Instance *, IR::Ptr<IR::Type>>>;
 using MainResult =
-    ordered_map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>, const IR::Type *>>;
+    ordered_map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>, IR::Ptr<IR::Type>>>;
 
 }  // namespace P4::ToZ3
 

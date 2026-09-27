@@ -19,3 +19,19 @@ Afterwards, the ToZ3 executables can be found in the `p4c/build`folder. ToZ3 can
 Generating Z3 from P4-16 with ToZ3 is straightforward. The tool currently supports three different modes.
 
 [TODO]
+
+## Compiler ownership migration
+
+The `fruffy/no-bdwgc` branch accompanies P4C PR #5805 and requires its new
+`IR::Ptr` interfaces. It supports that compiler with BDWGC enabled or disabled.
+`IR::Ptr<T>` keeps a const compiler node alive without BDWGC; it does not permit
+mutating the node. Saved types, declarations, and transformation results must
+retain these handles instead of borrowing from temporary results.
+
+Build all targets with `cmake --build build --target all -j4`. Run the translation
+validation suites with `ctest --test-dir build -R '^toz3-validate-' --output-on-failure`.
+Keep `VALIDATION_IGNORE_CRASHES` disabled when checking the migration.
+
+This updates compiler-node ownership. Ownership of toz3's symbolic objects
+still needs separate work before the extension can be considered leak-free
+without BDWGC. The optional Gauntlet pruner is not covered by these changes.

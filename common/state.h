@@ -69,7 +69,7 @@ class P4State {
     }
     /****** ALLOCATIONS ******/
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
-    P4Z3Instance *gen_instance(cstring name, const IR::Type *type, uint64_t id = 0);
+    P4Z3Instance *gen_instance(cstring name, IR::Ptr<IR::Type> type, uint64_t id = 0);
 
     /****** COPY-IN/COPY-OUT ******/
     std::pair<CopyArgs, VarMap> merge_args_with_params(Visitor *visitor,
@@ -176,7 +176,7 @@ class P4State {
     }
 
     /****** TYPES ******/
-    const IR::Type *resolve_type(const IR::Type *type) const;
+    IR::Ptr<IR::Type> resolve_type(const IR::Type *type) const;
     void add_type(cstring type_name, const IR::Type *t);
     const IR::Type *get_type(cstring type_name) const;
     const IR::Type *check_for_type(cstring type_name) const;

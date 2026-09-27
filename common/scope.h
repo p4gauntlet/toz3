@@ -15,7 +15,7 @@ class P4Scope {
     // maps of local values and types
     std::map<cstring, P4Declaration *> static_decls;
     VarMap var_map;
-    std::map<cstring, const IR::Type *> type_map;
+    std::map<cstring, IR::Ptr<IR::Type>> type_map;
     bool is_returned = false;
 
     std::vector<std::pair<z3::expr, P4Z3Instance *>> return_exprs;
@@ -134,7 +134,7 @@ class P4Scope {
         for (const auto &value_tuple : get_var_map()) {
             auto var_name = value_tuple.first;
             auto *member_cpy = value_tuple.second.first->copy();
-            const auto *member_type = value_tuple.second.second;
+            const auto member_type = value_tuple.second.second;
             cloned_map.insert({var_name, {member_cpy, member_type}});
         }
         return cloned_map;

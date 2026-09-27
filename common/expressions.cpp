@@ -68,7 +68,7 @@ bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
 
 bool Z3Visitor::preorder(const IR::ListExpression *le) {
     std::vector<P4Z3Instance *> members;
-    for (const auto *component : le->components) {
+    for (const auto &component : le->components) {
         visit(component);
         members.push_back(state->copy_expr_result());
     }
@@ -78,7 +78,7 @@ bool Z3Visitor::preorder(const IR::ListExpression *le) {
 
 bool Z3Visitor::preorder(const IR::StructExpression *se) {
     std::map<cstring, P4Z3Instance *> members;
-    for (const auto *component : se->components) {
+    for (const auto &component : se->components) {
         visit(component);
         members[component->name] = state->copy_expr_result();
     }
@@ -193,8 +193,8 @@ FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &membe
     throw UnsupportedFeatureError("Member type not implemented.");
 }
 
-void set_params(const IR::Node *callable, const IR::ParameterList **params,
-                const IR::TypeParameters **type_params) {
+void set_params(const IR::Node *callable, IR::Ptr<IR::ParameterList> *params,
+                IR::Ptr<IR::TypeParameters> *type_params) {
     if (const auto *p4action = callable->to<IR::P4Action>()) {
         *params = p4action->getParameters();
         *type_params = new IR::TypeParameters();
@@ -224,7 +224,7 @@ P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
     auto begin = return_exprs.rbegin();
     auto end = return_exprs.rend();
     if (begin != end) {
-        const auto *return_type = f->type->returnType;
+        const auto return_type = f->type->returnType;
         auto *merged_return = begin->second->cast_allocate(return_type);
         for (auto it = std::next(begin); it != end; ++it) {
             z3::expr cond = it->first;
@@ -240,9 +240,9 @@ P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
 P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
     auto *state = visitor->get_state();
     auto method_name = infer_name(m, m->name.name);
-    const auto *method_type = state->resolve_type(m->type->returnType);
+    const auto method_type = state->resolve_type(m->type->returnType);
     // TODO: Different types of arguments and multiple calls
-    for (const auto *param : *m->getParameters()) {
+    for (const auto &param : *m->getParameters()) {
         cstring param_name = param->name.name;
         cstring merged_param_name = method_name + "_" + param_name;
         if (param->direction == IR::Direction::Out || param->direction == IR::Direction::InOut) {
@@ -273,11 +273,11 @@ P4Z3Instance *exec_action(Z3Visitor *visitor, const IR::P4Action *a) {
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
-    const IR::Node *callable = nullptr;
-    const auto *arguments = mce->arguments;
+    IR::Ptr<IR::Node> callable = nullptr;
+    const auto arguments = mce->arguments;
     auto arg_size = arguments->size();
 
-    const auto *method_type = mce->method;
+    const auto method_type = mce->method;
     if (const auto *path_expr = method_type->to<IR::PathExpression>()) {
         // FIXME: This is a very rough version of overloading...
         auto path_identifier = mangle_name(path_expr->path->name.name, arg_size);
@@ -308,8 +308,8 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     TypeSpecializer specializer(*state, *mce->typeArguments);
     callable = callable->clone()->apply(specializer);
 
-    const IR::ParameterList *params = nullptr;
-    const IR::TypeParameters *type_params = nullptr;
+    IR::Ptr<IR::ParameterList> params = nullptr;
+    IR::Ptr<IR::TypeParameters> type_params = nullptr;
     set_params(callable, &params, &type_params);
 
     const ParamInfo param_info = {*params, *arguments, *type_params, *mce->typeArguments};
@@ -341,10 +341,10 @@ ConstructorCallExpression
 ***/
 
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
-    const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
-    const IR::ParameterList *params = nullptr;
-    const IR::TypeParameters *type_params = nullptr;
-    const auto *arguments = cce->arguments;
+    IR::Ptr<IR::Type> resolved_type = state->resolve_type(cce->constructedType);
+    IR::Ptr<IR::ParameterList> params = nullptr;
+    IR::Ptr<IR::TypeParameters> type_params = nullptr;
+    const auto arguments = cce->arguments;
     if (const auto *c = resolved_type->to<IR::P4Control>()) {
         params = c->getConstructorParameters();
         type_params = c->getTypeParameters();

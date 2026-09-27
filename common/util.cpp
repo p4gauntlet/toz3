@@ -28,9 +28,9 @@ cstring infer_name(const IR::IAnnotated *node, cstring default_name) {
     // declaration. Since there are a couple of passes that rename but add
     // annotations we can infer the original name from the annotation.
     // not sure if this generalizes but this is as close we can get for now
-    if (const auto *anno = node->getAnnotation(IR::Annotation::nameAnnotation)) {
+    if (const auto anno = node->getAnnotation(IR::Annotation::nameAnnotation)) {
         // there is an original name in the form of an annotation
-        for (const auto *token : anno->getUnparsed()) {
+        for (const auto &token : anno->getUnparsed()) {
             // the full name can be a bit more convoluted
             // we only need the last bit after the dot
             // so hack it out

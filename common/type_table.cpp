@@ -29,15 +29,15 @@ P4TableInstance
 ***/
 
 void process_table_properties(const IR::P4Table *p4t, TableProperties *table_props) {
-    if (const auto *key_prop = p4t->getKey()) {
-        for (const auto *ke : key_prop->keyElements) {
+    if (const auto key_prop = p4t->getKey()) {
+        for (const auto &ke : key_prop->keyElements) {
             table_props->keys.push_back(ke);
         }
     }
-    if (const auto *action_list = p4t->getActionList()) {
-        for (const auto *act : action_list->actionList) {
+    if (const auto action_list = p4t->getActionList()) {
+        for (const auto &act : action_list->actionList) {
             bool isDefault = false;
-            for (const auto *anno : act->getAnnotations()) {
+            for (const auto &anno : act->getAnnotations()) {
                 if (anno->name.name == "defaultonly") {
                     isDefault = true;
                     break;
@@ -56,7 +56,7 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
             }
         }
     }
-    if (const auto *default_expr = p4t->getDefaultAction()) {
+    if (const auto default_expr = p4t->getDefaultAction()) {
         // resolve a default action
         if (const auto *method_call = default_expr->to<IR::MethodCallExpression>()) {
             table_props->default_action = method_call;
@@ -67,12 +67,12 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
                               default_expr->node_type_name());
         }
     }
-    if (const auto *entries = p4t->getEntries()) {
+    if (const auto entries = p4t->getEntries()) {
         // If the entries properties is constant it means the entries are fixed
         // We cannot add or remove table entries
         table_props->immutable = p4t->properties->getProperty("entries"_cs)->isConstant;
-        for (const auto *entry : entries->entries) {
-            const auto *action_expr = entry->getAction();
+        for (const auto &entry : entries->entries) {
+            const auto action_expr = entry->getAction();
             const IR::MethodCallExpression *action = nullptr;
             if (const auto *method_call = action_expr->to<IR::MethodCallExpression>()) {
                 action = method_call;
@@ -121,12 +121,12 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3:
 }
 
 z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
-                           const std::vector<const IR::KeyElement *> &keys,
+                           const std::vector<IR::Ptr<IR::KeyElement>> &keys,
                            std::vector<const P4Z3Instance *> *evaluated_keys) {
     auto *ctx = state->get_z3_ctx();
     z3::expr hit = ctx->bool_val(false);
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
-        const auto *key = keys.at(idx);
+        const auto key = keys.at(idx);
         // TODO: Actually look up the match type here. Not sure why needed...
         visitor->visit(key->expression);
         const auto *key_eval = state->copy_expr_result();
@@ -200,7 +200,7 @@ void handle_table_action(Visitor *visitor, P4State *state, const IR::MethodCallE
     auto args_len = act->arguments->size();
     auto ctrl_idx = 0;
     for (size_t idx = 0; idx < method_params->size(); ++idx) {
-        const auto *param = method_params->getParameter(idx);
+        const auto param = method_params->getParameter(idx);
         if (args_len <= idx && param->direction == IR::Direction::None) {
             cstring arg_name = action_label + std::to_string(ctrl_idx);
             auto *ctrl_arg = state->gen_instance(arg_name, param->type);
@@ -222,7 +222,7 @@ z3::expr P4TableInstance::produce_const_match(Visitor *visitor,
     z3::expr match = state->get_z3_ctx()->bool_val(true);
     for (size_t idx = 0; idx < evaluated_keys->size(); ++idx) {
         const auto *key_eval = evaluated_keys->at(idx);
-        const auto *c_key = entry_keys->components.at(idx);
+        const auto c_key = entry_keys->components.at(idx);
         if (c_key->is<IR::DefaultExpression>()) {
             continue;
         }
@@ -248,8 +248,8 @@ z3::expr P4TableInstance::produce_const_match(Visitor *visitor,
 void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
     auto *ctx = state->get_z3_ctx();
     const auto *table_decl = get_decl()->checkedTo<IR::P4Table>();
-    const auto *params = table_decl->getApplyParameters();
-    const auto *type_params = table_decl->getApplyMethodType()->getTypeParameters();
+    const auto params = table_decl->getApplyParameters();
+    IR::Ptr<IR::TypeParameters> type_params = table_decl->getApplyMethodType()->getTypeParameters();
     const ParamInfo param_info = {*params, *args, *type_params, {}};
     state->copy_in(visitor, param_info);
 
@@ -267,8 +267,8 @@ void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
         uint64_t idx = 0;
         // First the constant entries
         for (const auto &entry : table_props.entries) {
-            const auto *keys = entry.first;
-            const auto *action = entry.second;
+            const auto keys = entry.first;
+            const auto action = entry.second;
             auto key_match = produce_const_match(visitor, &evaluated_keys, keys);
             auto cond = new_hit && (key_match);
             auto old_vars = state->clone_vars();
@@ -290,7 +290,7 @@ void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
         if (!table_props.immutable) {
             auto table_action_name = table_props.table_name + "action_idx";
             auto table_action = ctx->int_const(table_action_name.c_str());
-            for (const auto *action : table_props.actions) {
+            for (const auto &action : table_props.actions) {
                 auto cond = new_hit && (table_action == state->get_z3_ctx()->int_val(idx));
                 auto old_vars = state->clone_vars();
                 state->push_forward_cond(cond);

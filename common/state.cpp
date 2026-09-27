@@ -306,7 +306,7 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
         }
         // We progressively slice and merge the lval
         target_rval = compute_slice(target_lval, target_rval, member_struct.end_slices);
-        const auto *bit_type = IR::Type_Bits::get(target_rval.get_sort().bv_size(), false);
+        const auto bit_type = IR::Type_Bits::get(target_rval.get_sort().bv_size(), false);
         auto *resolved_rval = new Z3Bitvector(this, bit_type, target_rval, is_signed);
         set_var(slice_less_member_struct, resolved_rval);
         return;
@@ -380,7 +380,7 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
         param_mapping.emplace(param, param->defaultValue);
     }
     for (size_t idx = 0; idx < args.size(); ++idx) {
-        const auto *arg = args.at(idx);
+        const auto arg = args.at(idx);
         // We override the mapping here.
         if (arg->name) {
             param_mapping[params.getParameter(arg->name.name)] = arg->expression;
@@ -421,7 +421,7 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
                 add_type(type_name, arg_result->get_p4_type());
             }
         }
-        const auto *resolved_type = resolve_type(param->type);
+        const auto resolved_type = resolve_type(param->type);
         if (direction == IR::Direction::Out) {
             auto *instance = gen_instance(cstring(UNDEF_LABEL), resolved_type);
             merged_vec.insert({param->name.name, {instance, resolved_type}});
@@ -503,7 +503,7 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     BUG("Type \"%v\" not supported for Z3 expressions!.", type);
 }
 
-P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t id) {
+P4Z3Instance *P4State::gen_instance(cstring name, IR::Ptr<IR::Type> type, uint64_t id) {
     P4Z3Instance *instance = nullptr;
     if (const auto *tn = type->to<IR::Type_Name>()) {
         type = resolve_type(tn);
@@ -579,14 +579,14 @@ const IR::Type *P4State::get_type(cstring type_name) const {
     return main_scope.get_type(type_name);
 }
 
-const IR::Type *P4State::resolve_type(const IR::Type *type) const {
+IR::Ptr<IR::Type> P4State::resolve_type(const IR::Type *type) const {
     if (const auto *tn = type->to<IR::Type_Name>()) {
         cstring type_name = tn->path->name.name;
         type = get_type(type_name);
     }
     if (const auto *ts = type->to<IR::Type_Specialized>()) {
         TypeSpecializer specializer(*this, *ts->arguments);
-        const auto *resolved_node = ts->baseType->apply(specializer);
+        const auto resolved_node = ts->baseType->apply(specializer);
         return resolved_node->checkedTo<IR::Type>();
     }
     return type;

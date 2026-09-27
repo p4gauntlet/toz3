@@ -75,7 +75,7 @@ z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
     const auto select_members = get_vec_from_map(select_list);
 
     for (size_t idx = 0; idx < list_expr->size(); ++idx) {
-        const auto *match_key = list_expr->components.at(idx);
+        const auto match_key = list_expr->components.at(idx);
         const auto *select_eval = select_members.at(idx);
         match_cond = match_cond && check_cond(visitor, select_eval, match_key);
     }
@@ -87,7 +87,7 @@ std::vector<std::pair<z3::expr, cstring>> gather_select_conds(Z3Visitor *visitor
     z3::expr matches = visitor->get_state()->get_z3_ctx()->bool_val(false);
     std::vector<std::pair<z3::expr, cstring>> select_vector;
     bool has_default = false;
-    for (const auto *select_case : se->selectCases) {
+    for (const auto &select_case : se->selectCases) {
         auto state_name = select_case->state->path->name.name;
         if (select_case->keyset->is<IR::DefaultExpression>()) {
             select_vector.emplace_back(!matches, state_name);
@@ -161,7 +161,7 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
     state->add_visited_state(state_name);
     state->push_scope();
     try {
-        for (const auto *component : ps->components) {
+        for (const auto &component : ps->components) {
             visit(component);
         }
         // If there is no select expression we automatically transition to

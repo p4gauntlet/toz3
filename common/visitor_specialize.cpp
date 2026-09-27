@@ -18,55 +18,55 @@ const IR::Node *TypeModifier::postorder(IR::Type *type) {
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Extern *te) {
-    std::map<cstring, const IR::Type *> type_mapping;
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto type_args_size = types.size();
     for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = te->getTypeParameters()->parameters.at(idx);
+        const auto matched_type = state.resolve_type(types.at(idx));
+        const auto type_param = te->getTypeParameters()->parameters.at(idx);
         type_mapping.insert({type_param->getName().name, matched_type});
     }
     TypeModifier type_modifier(&type_mapping);
     prune();
-    return te->apply(type_modifier);
+    return guardReturn(te->apply(type_modifier));
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Package *tp) {
-    std::map<cstring, const IR::Type *> type_mapping;
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto type_args_size = types.size();
     for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = tp->getTypeParameters()->parameters.at(idx);
+        const auto matched_type = state.resolve_type(types.at(idx));
+        const auto type_param = tp->getTypeParameters()->parameters.at(idx);
         type_mapping.insert({type_param->getName().name, matched_type});
     }
     TypeModifier type_modifier(&type_mapping);
     prune();
-    return tp->apply(type_modifier);
+    return guardReturn(tp->apply(type_modifier));
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::P4Control *c) {
-    std::map<cstring, const IR::Type *> type_mapping;
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto type_args_size = types.size();
     for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = c->getTypeParameters()->parameters.at(idx);
+        const auto matched_type = state.resolve_type(types.at(idx));
+        const auto type_param = c->getTypeParameters()->parameters.at(idx);
         type_mapping.insert({type_param->getName().name, matched_type});
     }
     TypeModifier type_modifier(&type_mapping);
     prune();
-    return c->apply(type_modifier);
+    return guardReturn(c->apply(type_modifier));
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::P4Parser *p) {
-    std::map<cstring, const IR::Type *> type_mapping;
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto type_args_size = types.size();
     for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = p->getTypeParameters()->parameters.at(idx);
+        const auto matched_type = state.resolve_type(types.at(idx));
+        const auto type_param = p->getTypeParameters()->parameters.at(idx);
         type_mapping.insert({type_param->getName().name, matched_type});
     }
     TypeModifier type_modifier(&type_mapping);
     prune();
-    return p->apply(type_modifier);
+    return guardReturn(p->apply(type_modifier));
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Control *tc) {
@@ -92,28 +92,28 @@ const IR::Node *TypeSpecializer::preorder(IR::Type_Var *tv) {
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_StructLike *ts) {
     prune();
-    std::map<cstring, const IR::Type *> type_mapping;
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto type_args_size = types.size();
     for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = ts->getTypeParameters()->parameters.at(idx);
+        const auto matched_type = state.resolve_type(types.at(idx));
+        const auto type_param = ts->getTypeParameters()->parameters.at(idx);
         type_mapping.insert({type_param->getName().name, matched_type});
     }
     TypeModifier type_modifier(&type_mapping);
-    return ts->apply(type_modifier);
+    return guardReturn(ts->apply(type_modifier));
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Method *m) {
     prune();
-    std::map<cstring, const IR::Type *> type_mapping;
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto type_args_size = types.size();
     for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = m->type->getTypeParameters()->parameters.at(idx);
+        const auto matched_type = state.resolve_type(types.at(idx));
+        const auto type_param = m->type->getTypeParameters()->parameters.at(idx);
         type_mapping.insert({type_param->getName().name, matched_type});
     }
     TypeModifier type_modifier(&type_mapping);
-    return m->apply(type_modifier);
+    return guardReturn(m->apply(type_modifier));
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::P4Action *a) {
@@ -123,15 +123,15 @@ const IR::Node *TypeSpecializer::preorder(IR::P4Action *a) {
 
 const IR::Node *TypeSpecializer::preorder(IR::Function *f) {
     prune();
-    std::map<cstring, const IR::Type *> type_mapping;
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto type_args_size = types.size();
     for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = f->type->getTypeParameters()->parameters.at(idx);
+        const auto matched_type = state.resolve_type(types.at(idx));
+        const auto type_param = f->type->getTypeParameters()->parameters.at(idx);
         type_mapping.insert({type_param->getName().name, matched_type});
     }
     TypeModifier type_modifier(&type_mapping);
-    return f->apply(type_modifier);
+    return guardReturn(f->apply(type_modifier));
 }
 
 }  // namespace P4::ToZ3

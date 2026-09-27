@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -21,7 +22,7 @@
 using namespace P4::literals;  // NOLINT
 
 int main(int argc, char *const argv[]) {
-    P4::AutoCompileContext autoP4toZ3Context(new P4::ToZ3::P4toZ3Context);
+    P4::AutoCompileContext autoP4toZ3Context(std::make_unique<P4::ToZ3::P4toZ3Context>());
     auto &options = P4::ToZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = P4::CompilerOptions::FrontendVersion::P4_16;
@@ -34,7 +35,7 @@ int main(int argc, char *const argv[]) {
         return EXIT_FAILURE;
     }
 
-    const P4::IR::P4Program *program = P4::parseP4File(options);
+    P4::IR::Ptr<P4::IR::P4Program> program = P4::parseP4File(options);
     if (program == nullptr || P4::errorCount() > 0) {
         return EXIT_FAILURE;
     }

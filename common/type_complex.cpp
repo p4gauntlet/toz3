@@ -230,8 +230,8 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type, 
                                uint64_t member_id)
     : StructBase(state, type, name, member_id) {
     auto flat_id = member_id;
-    for (const auto *field : type->fields) {
-        const IR::Type *resolved_type = state->resolve_type(field->type);
+    for (const auto &field : type->fields) {
+        IR::Ptr<IR::Type> resolved_type = state->resolve_type(field->type);
         auto *member_var = state->gen_instance(name, resolved_type, flat_id);
         if (auto *si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
@@ -270,7 +270,7 @@ std::vector<std::pair<cstring, z3::expr>> StructInstance::get_z3_vars(
         }
         const auto *member = member_tuple.second;
         if (const auto *z3_var = member->to<Z3Bitvector>()) {
-            const auto *dest_type = member_types.at(member_tuple.first);
+            const auto dest_type = member_types.at(member_tuple.first);
             auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), dest_type);
             auto valid_var = z3::ite(*tmp_valid, *z3_var->get_val(), invalid_var);
             z3_vars.emplace_back(name, valid_var);
@@ -279,7 +279,7 @@ std::vector<std::pair<cstring, z3::expr>> StructInstance::get_z3_vars(
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(), z3_sub_vars.end());
         } else if (const auto *z3_var = member->to<Z3Int>()) {
             // We need to cast towards the member type
-            const auto *dest_type = member_types.at(member_tuple.first);
+            const auto dest_type = member_types.at(member_tuple.first);
             if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
                 auto cast_val = z3::int2bv(tb->size, *z3_var->get_val()).simplify();
                 auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), dest_type);
@@ -683,8 +683,8 @@ HeaderUnionInstance::HeaderUnionInstance(P4State *state, const IR::Type_HeaderUn
                                          cstring name, uint64_t member_id)
     : StructBase(state, type, name, member_id) {
     auto flat_id = member_id;
-    for (const auto *field : type->fields) {
-        const IR::Type *resolved_type = state->resolve_type(field->type);
+    for (const auto &field : type->fields) {
+        IR::Ptr<IR::Type> resolved_type = state->resolve_type(field->type);
         if (resolved_type->is<IR::Type_Header>()) {
             auto *member_var =
                 state->gen_instance(name + std::to_string(flat_id), resolved_type, flat_id);
@@ -863,7 +863,7 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type, cstring
     // FIXME: Enums should not be a struct base, actually
     width = INT_WIDTH;
     uint64_t idx = 0;
-    for (const auto *member : type->members) {
+    for (const auto &member : type->members) {
         auto *member_var =
             new Z3Bitvector(state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
@@ -903,7 +903,7 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type, cstr
     // FIXME: Enums should not be a struct base, actually
     width = INT_WIDTH;
     uint64_t idx = 0;
-    for (const auto *member : type->members) {
+    for (const auto &member : type->members) {
         auto *member_var =
             new Z3Bitvector(state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
@@ -933,7 +933,7 @@ SerEnumInstance::SerEnumInstance(P4State *p4_state,
     : EnumBase(p4_state, type, name, member_id) {
     members.clear();
     members.insert(input_members.begin(), input_members.end());
-    const auto *resolved_type = state->resolve_type(type->type);
+    const auto resolved_type = state->resolve_type(type->type);
     val = state->gen_z3_expr(cstring(UNDEF_LABEL), resolved_type);
     if (const auto *tb = resolved_type->to<IR::Type_Bits>()) {
         member_type = tb;
@@ -971,12 +971,12 @@ ExternInstance
 
 ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
     : P4Z3Instance(p4_type), state(state), extern_type(p4_type) {
-    for (const auto *method : p4_type->methods) {
+    for (const auto &method : p4_type->methods) {
         // FIXME: Overloading uses num of parameters, it should use types
         cstring overloaded_name = method->name.name;
         auto num_params = 0;
         auto num_optional_params = 0;
-        for (const auto *param : method->getParameters()->parameters) {
+        for (const auto &param : method->getParameters()->parameters) {
             if (param->isOptional() || param->defaultValue != nullptr) {
                 num_optional_params += 1;
             } else {
@@ -1044,7 +1044,7 @@ ListInstance::ListInstance(P4State *state, const IR::Type_List *list_type, cstri
     : StructBase(state, list_type, name, member_id) {
     // auto flat_id = member_id;
     for (size_t idx = 0; idx < list_type->components.size(); ++idx) {
-        const auto *type = list_type->components[idx];
+        const auto type = list_type->components[idx];
         cstring name = std::to_string(idx);
         insert_member(name, state->gen_instance(name, type));
         member_types.insert({name, type});
@@ -1145,7 +1145,7 @@ TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type, cstring
     : IndexableInstance(state, type, name, member_id) {
     size_t idx = 0;
     for (const auto &field_type : type->components) {
-        const IR::Type *resolved_type = state->resolve_type(field_type);
+        IR::Ptr<IR::Type> resolved_type = state->resolve_type(field_type);
         auto *member_var = state->gen_instance(name, resolved_type, member_id + idx);
         cstring name = std::to_string(idx);
         insert_member(name, member_var);
@@ -1175,9 +1175,9 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
                                  const VarMap &input_const_args)
     : P4Z3Instance(decl), state(state) {
     resolved_const_args.insert(input_const_args.begin(), input_const_args.end());
-    const IR::ParameterList *params = nullptr;
-    const IR::TypeParameters *type_params = nullptr;
-    const IR::ParameterList *const_params = nullptr;
+    IR::Ptr<IR::ParameterList> params = nullptr;
+    IR::Ptr<IR::TypeParameters> type_params = nullptr;
+    IR::Ptr<IR::ParameterList> const_params = nullptr;
     if (const auto *ctrl = decl->to<IR::P4Control>()) {
         params = ctrl->getApplyParameters();
         type_params = ctrl->getTypeParameters();
@@ -1191,7 +1191,7 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     }
     auto num_params = 0;
     auto num_optional_params = 0;
-    for (const auto *param : *params) {
+    for (const auto &param : *params) {
         if (param->isOptional() || param->defaultValue != nullptr) {
             num_optional_params += 1;
         } else {
@@ -1206,8 +1206,8 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     }
     for (const auto &arg : resolved_const_args) {
         const auto arg_name = arg.first;
-        const auto *arg_type = arg.second.second;
-        const auto *param = const_params->getParameter(arg_name);
+        const auto arg_type = arg.second.second;
+        const auto param = const_params->getParameter(arg_name);
         CHECK_NULL(param);
         if (const auto *tn = param->type->to<IR::Type_Name>()) {
             if (type_params->getDeclByName(tn->path->name.name) != nullptr) {
@@ -1218,8 +1218,8 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
 }
 
 void ControlInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-    const IR::ParameterList *params = nullptr;
-    const IR::TypeParameters *type_params = nullptr;
+    IR::Ptr<IR::ParameterList> params = nullptr;
+    IR::Ptr<IR::TypeParameters> type_params = nullptr;
     IR::IndexedVector<IR::Declaration> local_decls;
     const IR::BlockStatement *body = nullptr;
     IR::IndexedVector<IR::ParserState> parser_states;
@@ -1243,7 +1243,7 @@ void ControlInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
     for (const auto &const_arg : resolved_const_args) {
         state->declare_var(const_arg.first, const_arg.second.first, const_arg.second.second);
     }
-    for (const auto *local_decl : local_decls) {
+    for (const auto &local_decl : local_decls) {
         visitor->visit(local_decl);
     }
     if (!parser_states.empty()) {
@@ -1258,21 +1258,21 @@ void ControlInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
     state->copy_out();
 }
 
-std::map<cstring, const IR::Type *> get_type_mapping(const IR::ParameterList *src_params,
-                                                     const IR::TypeParameters *src_type_params,
-                                                     const IR::ParameterList *dest_params) {
-    std::map<cstring, const IR::Type *> type_mapping;
+std::map<cstring, IR::Ptr<IR::Type>> get_type_mapping(const IR::ParameterList *src_params,
+                                                      const IR::TypeParameters *src_type_params,
+                                                      const IR::ParameterList *dest_params) {
+    std::map<cstring, IR::Ptr<IR::Type>> type_mapping;
     auto dest_params_size = dest_params->size();
     for (size_t idx = 0; idx < src_params->size(); ++idx) {
         // Ignore optional parameters.
         if (idx >= dest_params_size) {
             continue;
         }
-        const auto *src_param = src_params->getParameter(idx);
+        const auto src_param = src_params->getParameter(idx);
         if (const auto *tn = src_param->type->to<IR::Type_Name>()) {
             auto src_type_name = tn->path->name.name;
             if (src_type_params->getDeclByName(src_type_name) != nullptr) {
-                const auto *dst_param = dest_params->getParameter(idx);
+                const auto dst_param = dest_params->getParameter(idx);
                 type_mapping.emplace(src_type_name, dst_param->type);
             }
         }
@@ -1285,23 +1285,25 @@ P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
     // TODO: Make this proper and think about equality here...
     if (const auto *control = p4_type->to<IR::P4Control>()) {
         if (const auto *control_dst_type = dest_type->to<IR::Type_Control>()) {
-            const auto *src_params = control->getApplyParameters();
+            const auto src_params = control->getApplyParameters();
             const auto *src_type_params = control->getTypeParameters();
             const auto type_mapping = get_type_mapping(src_params, src_type_params,
                                                        control_dst_type->getApplyParameters());
             TypeModifier type_modifier(&type_mapping);
-            const auto *cast_type = p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
+            IR::Ptr<IR::Type> cast_type =
+                p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
             return new ControlInstance(state, cast_type, resolved_const_args);
         }
     }
     if (const auto *parser = p4_type->to<IR::P4Parser>()) {
         if (const auto *parser_dst_type = dest_type->to<IR::Type_Parser>()) {
-            const auto *src_params = parser->getApplyParameters();
+            const auto src_params = parser->getApplyParameters();
             const auto *src_type_params = parser->getTypeParameters();
             const auto type_mapping = get_type_mapping(src_params, src_type_params,
                                                        parser_dst_type->getApplyParameters());
             TypeModifier type_modifier(&type_mapping);
-            const auto *cast_type = p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
+            IR::Ptr<IR::Type> cast_type =
+                p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
             return new ControlInstance(state, cast_type, resolved_const_args);
         }
     }
