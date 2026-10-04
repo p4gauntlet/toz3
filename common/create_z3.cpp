@@ -200,18 +200,73 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
     for (const auto &arg : param_info.arguments) {
         // We override the mapping here.
         if (arg->name) {
-            param_mapping[param_info.params.getParameter(arg->name.name)] = arg->expression;
+            const auto *parameter = param_info.params.getParameter(arg->name.name);
+            if (!parameter)
+                throw UnsupportedFeatureError("Unknown constructor argument " + arg->name.name);
+            param_mapping[parameter] = arg->expression;
         } else {
             param_mapping[param_info.params.getParameter(idx)] = arg->expression;
         }
         idx++;
     }
 
+    // Infer architecture types from supplied blocks before constructing defaults,
+    // which may themselves use these type parameters.
+    auto *state = visitor->get_state();
+    std::map<cstring, const IR::Type *> inferred_types;
     for (const auto &mapping : param_mapping) {
-        const auto *param = mapping.first;
+        const auto *specialized = mapping.first->type->to<IR::Type_Specialized>();
+        const auto *constructor =
+            mapping.second ? mapping.second->to<IR::ConstructorCallExpression>() : nullptr;
+        if (!specialized || !constructor) continue;
+        const auto *prototype = state->resolve_type(specialized->baseType);
+        const auto *actual = state->check_for_type(constructor->constructedType);
+        if (!actual) continue;
+        const IR::ParameterList *formal_params = nullptr;
+        const IR::ParameterList *actual_params = nullptr;
+        const IR::TypeParameters *generic_params = nullptr;
+        if (const auto *control = prototype->to<IR::Type_Control>()) {
+            formal_params = control->getApplyParameters();
+            generic_params = control->getTypeParameters();
+            if (const auto *block = actual->to<IR::P4Control>())
+                actual_params = block->getApplyParameters();
+        } else if (const auto *parser = prototype->to<IR::Type_Parser>()) {
+            formal_params = parser->getApplyParameters();
+            generic_params = parser->getTypeParameters();
+            if (const auto *block = actual->to<IR::P4Parser>())
+                actual_params = block->getApplyParameters();
+        }
+        if (!actual_params || actual_params->size() > formal_params->size()) continue;
+        std::map<cstring, const IR::Type *> substitution;
+        for (size_t i = 0; i < specialized->arguments->size(); ++i) {
+            substitution.emplace(generic_params->parameters.at(i)->name.name,
+                                 specialized->arguments->at(i));
+        }
+        for (size_t i = 0; i < actual_params->size(); ++i) {
+            const auto *formal = formal_params->getParameter(i)
+                                     ->type->apply(TypeModifier(&substitution))
+                                     ->to<IR::Type_Name>();
+            if (!formal || !param_info.type_params.getDeclByName(formal->path->name)) continue;
+            const auto *inferred = state->resolve_type(actual_params->getParameter(i)->type);
+            const auto name = formal->path->name.name;
+            const auto existing = inferred_types.find(name);
+            if (existing != inferred_types.end()) {
+                BUG_CHECK(existing->second->equiv(*inferred),
+                          "Conflicting architecture type inference");
+            } else {
+                inferred_types.emplace(name, inferred);
+            }
+        }
+    }
+
+    const auto *concrete_params =
+        param_info.params.apply(TypeModifier(&inferred_types))->checkedTo<IR::ParameterList>();
+    for (const auto &mapping : param_mapping) {
+        const auto *param = concrete_params->getParameter(mapping.first->name);
         cstring param_name = param->name.name;
         const auto *param_type = param->type;
-        const auto *arg_expr = mapping.second;
+        const auto *arg_expr =
+            mapping.second == mapping.first->defaultValue ? param->defaultValue : mapping.second;
         // Ignore empty optional parameters, they can not be used properly
         if (param->isOptional() && arg_expr == nullptr) {
             continue;
@@ -228,7 +283,7 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
             }
             auto state_result =
                 run_arch_block(visitor, cce, visitor->get_state()->resolve_type(param_type),
-                               param_name, param_info.type_params);
+                               param_name, IR::TypeParameters{});
             merged_vec.insert({param_name, {state_result, param_type}});
         } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
             const auto *decl = visitor->get_state()->get_static_decl(path->path->name.name);

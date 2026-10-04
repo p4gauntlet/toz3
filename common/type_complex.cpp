@@ -14,6 +14,7 @@
 #include <boost/multiprecision/detail/et_ops.hpp>
 #include <boost/multiprecision/number.hpp>
 
+#include "defaults.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
 #include "ir/node.h"
@@ -68,7 +69,9 @@ void StructBase::set_list(std::vector<P4Z3Instance *> input_list) {
         // This may happen in the case of lists with default values.
         // We assume the rest of the list is undefined.
         if (idx >= input_list.size()) {
-            input_val = state->gen_instance(cstring(UNDEF_LABEL), target_val->get_p4_type());
+            input_val = !input_list.empty() && input_list.back()->is<DefaultInstance>()
+                            ? input_list.back()
+                            : state->gen_instance(cstring(UNDEF_LABEL), target_val->get_p4_type());
         } else {
             input_val = input_list.at(idx);
         }
@@ -100,7 +103,9 @@ void StructBase::set_list(std::map<cstring, P4Z3Instance *> input_map) {
         // This may happen in the case of lists with default values.
         // We assume the rest of the list is undefined.
         if (input_map.count(member_name) == 0) {
-            input_val = state->gen_instance(cstring(UNDEF_LABEL), target_val->get_p4_type());
+            input_val = input_map.count("..."_cs)
+                            ? input_map.at("..."_cs)
+                            : state->gen_instance(cstring(UNDEF_LABEL), target_val->get_p4_type());
         } else {
             input_val = input_map[member_name];
         }

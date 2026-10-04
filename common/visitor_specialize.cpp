@@ -75,13 +75,23 @@ const IR::Node *TypeSpecializer::preorder(IR::P4Parser *p) {
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Control *tc) {
+    std::map<cstring, const IR::Type *> type_mapping;
+    for (size_t idx = 0; idx < types.size(); ++idx) {
+        type_mapping.emplace(tc->getTypeParameters()->parameters.at(idx)->name.name,
+                             state.resolve_type(types.at(idx)));
+    }
     prune();
-    return tc;
+    return tc->apply(TypeModifier(&type_mapping));
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Parser *tp) {
+    std::map<cstring, const IR::Type *> type_mapping;
+    for (size_t idx = 0; idx < types.size(); ++idx) {
+        type_mapping.emplace(tp->getTypeParameters()->parameters.at(idx)->name.name,
+                             state.resolve_type(types.at(idx)));
+    }
     prune();
-    return tp;
+    return tp->apply(TypeModifier(&type_mapping));
 }
 const IR::Node *TypeSpecializer::preorder(IR::Type_Name *tn) {
     prune();

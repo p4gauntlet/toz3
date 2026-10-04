@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "defaults.h"
 #include "exceptions.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
@@ -64,6 +65,11 @@ bool Z3Visitor::preorder(const IR::StringLiteral *sl) {
 bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
     // TODO: Figure out what the implications of a name are here...
     visit(ne->expression);
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::Dots *) {
+    state->set_expr_result(new DefaultInstance(state));
     return false;
 }
 

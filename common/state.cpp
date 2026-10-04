@@ -487,6 +487,8 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (type->is<IR::Type_Boolean>()) {
         return ctx->bool_const(name.c_str());
     }
+    if (type->is<IR::Type_InfInt>()) return ctx->int_const(name.c_str());
+    if (type->is<IR::Type_String>()) return ctx->constant(name.c_str(), ctx->string_sort());
     BUG("Type \"%v\" not supported for Z3 expressions!.", type);
 }
 
@@ -531,6 +533,8 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
         instance = new ExternInstance(this, t);
     } else if (type->is<IR::Type_Void>()) {
         instance = new VoidResult();
+    } else if (type->is<IR::Type_InfInt>()) {
+        instance = new Z3Int(this, gen_z3_expr(name, type));
     } else if (type->is<IR::Type_Base>()) {
         instance = new Z3Bitvector(this, type, gen_z3_expr(name, type));
     } else {

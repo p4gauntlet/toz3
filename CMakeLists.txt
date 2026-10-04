@@ -15,6 +15,7 @@ OPTION (ENABLE_GAUNTLET_PRUNER "Build the Gauntlet Pruner." OFF)
 set(
   TOZ3V2_COMMON_SRCS
   common/create_z3.cpp
+  common/defaults.cpp
   common/type_inference.cpp
   common/state.cpp
   common/type_simple.cpp
@@ -32,6 +33,7 @@ set(
 set(
   TOZ3V2_COMMON_HDRS
   common/create_z3.h
+  common/defaults.h
   common/type_inference.h
   common/scope.h
   common/state.h

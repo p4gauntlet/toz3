@@ -63,6 +63,36 @@ TEST_F(ReceiverTest, CompoundAssignmentSavesIndexAndOldValueBeforeRightSide) {
               7U);
 }
 
+TEST_F(ReceiverTest, DefaultHeaderDiffersFromDefaultFieldInitializer) {
+    evaluate(R"(
+        header H { bit<8> x; }
+        enum E { A, B }
+        enum bit<8> Z { A = 2, B = 3 }
+        control C() {
+        H invalid = ...;
+        H valid = { ... };
+        H partial = { 7, ... };
+        H[2] stack = ...;
+        E e = ...;
+        Z z = ...; apply {} }
+    )");
+    EXPECT_TRUE(state.get_var<HeaderInstance>("invalid"_cs)->get_valid()->is_false());
+    const auto *valid = state.get_var<HeaderInstance>("valid"_cs);
+    EXPECT_TRUE(valid->get_valid()->is_true());
+    EXPECT_EQ(valid->get_member("x"_cs)->to<NumericVal>()->get_val()->get_numeral_uint(), 0U);
+    EXPECT_EQ(state.get_var<HeaderInstance>("partial"_cs)
+                  ->get_member("x"_cs)
+                  ->to<NumericVal>()
+                  ->get_val()
+                  ->get_numeral_uint(),
+              7U);
+    const auto *stack = state.get_var<StackInstance>("stack"_cs);
+    EXPECT_TRUE(stack->get_member("0"_cs)->to<HeaderInstance>()->get_valid()->is_false());
+    EXPECT_TRUE(stack->get_member("1"_cs)->to<HeaderInstance>()->get_valid()->is_false());
+    EXPECT_EQ(state.get_var<EnumInstance>("e"_cs)->get_val()->get_numeral_uint(), 0U);
+    EXPECT_EQ(state.get_var<SerEnumInstance>("z"_cs)->get_val()->get_numeral_uint(), 0U);
+}
+
 TEST_F(ReceiverTest, SizeMethodDoesNotEvaluateItsReceiver) {
     evaluate(R"(
         header H { bit<7> x; varbit<9> y; }
