@@ -146,6 +146,7 @@ install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 if(ENABLE_GTESTS)
   set(TOZ3_UNIT_TEST_SRCS
     tests/gtest/type_simple.cpp
+    tests/gtest/util.cpp
   )
   add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS})
   target_link_libraries(toz3_tests PRIVATE p4toz3lib gtest_main)
