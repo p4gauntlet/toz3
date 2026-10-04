@@ -537,7 +537,8 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
     } else if (type->is<IR::Type_InfInt>()) {
         instance = new Z3Int(this, gen_z3_expr(name, type));
     } else if (type->is<IR::Type_Base>()) {
-        instance = new Z3Bitvector(this, type, gen_z3_expr(name, type));
+        const auto *bits = type->to<IR::Type_Bits>();
+        instance = new Z3Bitvector(this, type, gen_z3_expr(name, type), bits && bits->isSigned);
     } else {
         P4C_UNIMPLEMENTED("Instance generation for %s of type \"%s\" not supported!.", type,
                           type->node_type_name());

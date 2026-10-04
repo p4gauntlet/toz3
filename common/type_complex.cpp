@@ -189,8 +189,9 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
             if (z3_var->get_p4_type()->is<IR::Type_Boolean>()) {
                 extract_var = extract_var > 0;
             }
+            const auto *bits = z3_var->get_p4_type()->to<IR::Type_Bits>();
             auto *bind_bv =
-                new Z3Bitvector(state, z3_var->get_p4_type(), extract_var, z3_var->bv_is_signed());
+                new Z3Bitvector(state, z3_var->get_p4_type(), extract_var, bits && bits->isSigned);
             update_member(member_name, bind_bv);
             bit_idx -= var_width;
         } else {
