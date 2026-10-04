@@ -107,10 +107,7 @@ void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
     }
     auto model = s.get_model();
     std::cerr << "\nSolution :\n";
-    for (size_t idx = 0; idx < model.size(); idx++) {
-        auto var = model[idx];
-        std::cerr << var.name() << " = " << model.get_const_interp(var) << std::endl;
-    }
+    std::cerr << model << std::endl;
 }
 
 z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
@@ -205,10 +202,14 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr
         Logger::log_msg(1, "Equation:\n%s", equ);
         s->add(tv_equiv);
         auto ret = s->check();
-        s->pop();
-        if (ret != z3::unsat) {
+        if (ret == z3::sat) {
+            // Keep the failing assertion in scope so diagnostics can retrieve its model.
             std::cerr << "Violation holds despite undefined behavior check.";
             return ret;
+        }
+        s->pop();
+        if (ret == z3::unknown) {
+            throw Z3Error("Could not determine equality during undefined behavior check");
         }
     }
     std::cerr << "Violation was caused by undefined behavior." << std::endl;
@@ -244,9 +245,9 @@ int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool all
         auto ret = s.check();
         Logger::log_msg(1, "Result: %s", ret);
         if (ret == z3::sat) {
-            s.pop();
             std::cerr << "Programs are not equal!" << std::endl;
             if (allow_undefined) {
+                s.pop();
                 std::cerr << "Rechecking whether violation is caused by "
                              "undefined behavior."
                           << std::endl;
