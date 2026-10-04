@@ -23,6 +23,8 @@ class DoBitFolding : public Modifier {
 class Z3Visitor : public Inspector {
  private:
     P4State *state;
+    // Inspector updates this context while visiting standalone roots.
+    Context root_context;
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
@@ -130,8 +132,8 @@ class Z3Visitor : public Inspector {
     explicit Z3Visitor(P4State *state, bool gen_ctx = true) : state(state) {
         visitDagOnce = false;
         if (gen_ctx) {
-            const auto ctx = Context();
-            Visitor::init_apply(nullptr, &ctx);
+            root_context.node = root_context.original = new IR::EmptyStatement();
+            Visitor::init_apply(nullptr, &root_context);
         }
     }
 };
