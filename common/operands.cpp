@@ -20,17 +20,8 @@ bool Z3Visitor::preorder(const IR::Member *m) {
 }
 
 bool Z3Visitor::preorder(const IR::ArrayIndex *ai) {
-    visit(ai->right);
-    const auto *index = state->get_expr_result();
-    const auto *val_container = index->to<ValContainer>();
-    BUG_CHECK(val_container,
-              "Access index of type %s not "
-              "implemented for indexable types.",
-              index->get_static_type());
-    const auto expr = val_container->get_val()->simplify();
-    visit(ai->left);
-    const auto *indexable_class = state->get_expr_result<IndexableInstance>();
-    state->set_expr_result(indexable_class->get_member(expr));
+    auto member = get_member_struct(state, this, ai);
+    state->set_expr_result(get_member(state, member));
     return false;
 }
 

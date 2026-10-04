@@ -24,6 +24,7 @@
 namespace P4::ToZ3 {
 
 MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expression *target);
+P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct);
 std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
                                                                const MemberStruct &member_struct);
 

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -65,72 +66,42 @@ z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
 
 MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expression *target) {
     MemberStruct member_struct;
-    const auto *tmp_target = target;
-
-    bool is_first = true;
-    while (true) {
-        if (const auto *member = tmp_target->to<IR::Member>()) {
-            tmp_target = member->expr;
-            if (is_first) {
-                member_struct.target_member = member->member.name;
-                is_first = false;
-            } else {
-                member_struct.mid_members.emplace_back(member->member.name);
-            }
-        } else if (const auto *a = tmp_target->to<IR::ArrayIndex>()) {
-            tmp_target = a->left;
-            visitor->visit(a->right);
-            const auto *index = state->get_expr_result();
-            const auto *val_container = index->to<ValContainer>();
-            BUG_CHECK(val_container,
-                      "Setting with an index of type %s not "
-                      "implemented for stacks.",
-                      index->get_static_type());
-            const auto expr = val_container->get_val()->simplify();
-            if (is_first) {
-                member_struct.target_member = expr;
-                is_first = false;
-            } else {
-                member_struct.mid_members.emplace_back(expr);
-            }
-            member_struct.has_stack = true;
-        } else if (const auto *sl = tmp_target->to<IR::Slice>()) {
-            tmp_target = sl->e0;
-            const z3::expr *hi = nullptr;
-            const z3::expr *lo = nullptr;
-            visitor->visit(sl->e1);
-            const auto *hi_expr = state->copy_expr_result();
-            if (const auto *z3_val = hi_expr->to<NumericVal>()) {
-                hi = z3_val->get_val();
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported hi of type %s for slice.",
-                                  hi_expr->get_static_type());
-            }
-            visitor->visit(sl->e2);
-            const auto *lo_expr = state->get_expr_result();
-            if (const auto *z3_val = lo_expr->to<NumericVal>()) {
-                lo = z3_val->get_val();
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported lo of type %s for slice.",
-                                  lo_expr->get_static_type());
-            }
-            auto z3_slice = Z3Slice{
-                *hi,
-                *lo,
-            };
-            member_struct.end_slices.push_back(z3_slice);
-        } else if (const auto *path = tmp_target->to<IR::PathExpression>()) {
-            member_struct.main_member = path->path->name.name;
-            break;
-        } else if (const auto *expr = tmp_target->to<IR::TypeNameExpression>()) {
-            // TODO: Think about the lookup here...
-            member_struct.main_member = expr->typeName->checkedTo<IR::Type_Name>()->path->name.name;
-            break;
-        } else {
-            P4C_UNIMPLEMENTED("Unknown target %s!", tmp_target->node_type_name());
+    member_struct.is_flat = true;
+    const auto append = [&](const NameOrIndex &member) {
+        if (!member_struct.is_flat) {
+            member_struct.mid_members.insert(member_struct.mid_members.begin(),
+                                             member_struct.target_member);
         }
-    }
-    member_struct.is_flat = is_first;
+        member_struct.target_member = member;
+        member_struct.is_flat = false;
+    };
+    std::function<void(const IR::Expression *)> resolve = [&](const IR::Expression *expression) {
+        if (const auto *member = expression->to<IR::Member>()) {
+            resolve(member->expr);
+            append(member->member.name);
+        } else if (const auto *index = expression->to<IR::ArrayIndex>()) {
+            resolve(index->left);
+            visitor->visit(index->right);
+            const auto value = state->get_expr_result<ValContainer>()->get_val()->simplify();
+            append(value);
+            member_struct.has_index = true;
+        } else if (const auto *slice = expression->to<IR::Slice>()) {
+            resolve(slice->e0);
+            visitor->visit(slice->e1);
+            const auto hi = *state->get_expr_result<NumericVal>()->get_val();
+            visitor->visit(slice->e2);
+            const auto lo = *state->get_expr_result<NumericVal>()->get_val();
+            member_struct.end_slices.insert(member_struct.end_slices.begin(), {hi, lo});
+        } else if (const auto *path = expression->to<IR::PathExpression>()) {
+            member_struct.main_member = path->path->name;
+        } else if (const auto *name = expression->to<IR::TypeNameExpression>()) {
+            member_struct.main_member = name->typeName->checkedTo<IR::Type_Name>()->path->name;
+        } else {
+            visitor->visit(expression);
+            member_struct.temporary = state->copy_expr_result();
+        }
+    };
+    resolve(target);
     return member_struct;
 }
 
@@ -139,7 +110,8 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
     std::vector<std::pair<z3::expr, P4Z3Instance *>> parent_pairs;
     auto tmp_parent_pairs = parent_pairs;
     parent_pairs.emplace_back(state->get_z3_ctx()->bool_val(true),
-                              state->get_var(member_struct.main_member));
+                              member_struct.temporary ? member_struct.temporary
+                                                      : state->get_var(member_struct.main_member));
     // Collect all the headers that need to be set
     for (auto it = member_struct.mid_members.rbegin(); it != member_struct.mid_members.rend();
          ++it) {
@@ -240,7 +212,8 @@ void set_stack(P4State *state, const MemberStruct &member_struct, P4Z3Instance *
 
 P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
     // TODO: Clarify this.
-    auto *parent_class = state->get_var(member_struct.main_member);
+    auto *parent_class = member_struct.temporary ? member_struct.temporary
+                                                 : state->get_var(member_struct.main_member);
     P4Z3Instance *end_var = nullptr;
     if (member_struct.is_flat) {
         // This means we are essentially dealing with a path expression.
@@ -253,9 +226,14 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
             if (const auto *name = std::get_if<cstring>(&mid_member)) {
                 parent_class = parent_class->get_member(*name);
             } else if (const auto *z3_expr = std::get_if<z3::expr>(&mid_member)) {
-                auto *stack_class = parent_class->to_mut<StackInstance>();
-                BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
-                parent_class = stack_class->get_member(*z3_expr);
+                std::string index;
+                if (z3_expr->is_numeral(index)) {
+                    parent_class = parent_class->get_member(index);
+                } else {
+                    const auto *array = parent_class->to<IndexableInstance>();
+                    BUG_CHECK(array, "Expected indexable value");
+                    parent_class = array->get_member(*z3_expr);
+                }
             } else {
                 P4C_UNIMPLEMENTED("Member type not implemented.");
             }
@@ -264,9 +242,14 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
         if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
             end_var = parent_class->get_member(*name);
         } else if (const auto *z3_expr = std::get_if<z3::expr>(&member_struct.target_member)) {
-            auto *stack_class = parent_class->to_mut<StackInstance>();
-            BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
-            end_var = stack_class->get_member(*z3_expr);
+            std::string index;
+            if (z3_expr->is_numeral(index)) {
+                end_var = parent_class->get_member(index);
+            } else {
+                const auto *array = parent_class->to<IndexableInstance>();
+                BUG_CHECK(array, "Expected indexable value");
+                end_var = array->get_member(*z3_expr);
+            }
         } else {
             P4C_UNIMPLEMENTED("Member type not implemented.");
         }
@@ -318,7 +301,7 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     }
     // If we are dealing with a stack, start with a complicated procedure
     // We need to do this to resolve symbolic indices
-    if (member_struct.has_stack) {
+    if (member_struct.has_index) {
         set_stack(this, member_struct, rval);
         return;
     }

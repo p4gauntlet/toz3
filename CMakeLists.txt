@@ -155,6 +155,7 @@ if(ENABLE_GTESTS)
     tests/gtest/enums.cpp
     tests/gtest/slices.cpp
     tests/gtest/visitor.cpp
+    tests/gtest/receivers.cpp
   )
   add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS} validate/passes.cpp)
   target_link_libraries(toz3_tests PRIVATE p4toz3lib gtest_main)

@@ -169,7 +169,9 @@ void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &me
 FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
                                        int num_args) {
     const P4Z3Instance *parent_class = nullptr;
-    if (const auto *decl = state->find_static_decl(member_struct.main_member)) {
+    if (member_struct.temporary) {
+        parent_class = member_struct.temporary;
+    } else if (const auto *decl = state->find_static_decl(member_struct.main_member)) {
         parent_class = decl;
     } else {
         // try to find the result in vars and fail otherwise
@@ -285,7 +287,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     } else if (const auto *member = method_type->to<IR::Member>()) {
         auto member_struct = get_member_struct(state, this, member);
         // try to resolve and find a function pointer
-        if (member_struct.has_stack) {
+        if (member_struct.has_index) {
             resolve_stack_call(this, state, member_struct, arguments);
             return false;
         }

@@ -20,6 +20,7 @@ namespace P4::ToZ3 {
 
 using namespace P4::literals;  // NOLINT
 
+class P4Z3Instance;
 class Z3Int;
 class Z3Bitvector;
 class VoidResult;
@@ -97,9 +98,12 @@ using NameOrIndex = std::variant<cstring, z3::expr>;
 class MemberStruct {
  public:
     cstring main_member = nullptr;
+    // Evaluated receiver without a variable name, e.g. a header returned by f() in f().isValid().
+    P4Z3Instance *temporary = nullptr;
     std::vector<NameOrIndex> mid_members;
     NameOrIndex target_member = nullptr;
-    bool has_stack = false;
+    // Indexed receivers require conditional dispatch when their index is symbolic.
+    bool has_index = false;
     bool is_flat = false;
     std::vector<Z3Slice> end_slices;
 
