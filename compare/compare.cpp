@@ -86,7 +86,11 @@ z3::expr create_z3_struct(z3::context *ctx,
         ctx->tuple_sort("State", z3_vec.size(), names.data(), z3_vec_sorts.data(), getters);
 
     // Rewrite the complete summary once so Z3 can share work across output fields.
-    return before_sort(z3_vec).simplify();
+    z3::params normalization(*ctx);
+    // P4C strength reduction replaces multiplication by powers of two with shifts.
+    // Canonicalize both forms before they become arguments of packet-read functions.
+    normalization.set("mul2concat", true);
+    return before_sort(z3_vec).simplify(normalization);
 }
 
 void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,

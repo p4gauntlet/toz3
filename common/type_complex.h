@@ -229,8 +229,12 @@ class StackInstance : public IndexableInstance, public FunctionClass {
         return ret;
     }
     size_t get_int_size() const override { return int_size; }
+    // Bounds use the internal integer index; the P4 nextIndex member remains bit<32>.
+    const z3::expr &get_next_index() const { return *nextIndex.get_val(); }
     void push_front(EvaluationContext *, const IR::Vector<IR::Argument> *);
     void pop_front(EvaluationContext *, const IR::Vector<IR::Argument> *);
+    void advance_next();
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
 
     // copy constructor
     StackInstance *copy() const override;

@@ -96,8 +96,6 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
             cstring apply_name = mangle_name(cstring("apply"), params->size());
             fun_call = ctrl_instance->get_function(apply_name);
         } else if (const auto *p = resolved_type->to<IR::P4Parser>()) {
-            P4::warning("Ignoring parser output.");
-            return {};
             auto type_mapping = specialize_arch_blocks(param_type, resolved_type);
             for (const auto &mapped_type : type_mapping) {
                 if (meta_params.getDeclByName(mapped_type.first) != nullptr &&
@@ -126,6 +124,31 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
     state->push_scope();
 
     std::vector<cstring> param_names;
+    if (resolved_type->is<IR::P4Parser>()) {
+        unsigned packet_inputs = 0;
+        for (const auto *parameter : *params) {
+            const auto *type = state->resolve_type(parameter->type)->to<IR::Type_Extern>();
+            if (type && type->name == "packet_in") ++packet_inputs;
+        }
+        if (packet_inputs > 1)
+            throw UnsupportedFeatureError("Parser with multiple independent packet inputs");
+        state->declare_var("$parser_accepted"_cs,
+                           new Z3Bitvector(state, &BOOL_TYPE, state->get_z3_ctx()->bool_val(true)),
+                           &BOOL_TYPE);
+        param_names.push_back("$parser_accepted"_cs);
+        const auto *error_bits = IR::Type_Bits::get(INT_WIDTH);
+        state->declare_var(
+            "$parser_error"_cs,
+            new Z3Bitvector(state, error_bits, state->get_z3_ctx()->bv_val(0, INT_WIDTH)),
+            error_bits);
+        param_names.push_back("$parser_error"_cs);
+        state->declare_var("$packet_cursor"_cs, new Z3Int(state, 0), &INT_TYPE);
+        state->declare_var("$packet_id"_cs,
+                           new Z3Bitvector(state, &STRING_TYPE,
+                                           state->get_z3_ctx()->string_val(param_name.c_str())),
+                           &STRING_TYPE);
+        param_names.push_back("$packet_cursor"_cs);
+    }
     IR::Vector<IR::Argument> synthesized_args;
     for (const auto *param : *params) {
         const auto *par_type = state->resolve_type(param->type);

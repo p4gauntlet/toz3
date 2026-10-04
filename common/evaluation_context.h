@@ -14,6 +14,8 @@ class EvaluationContext {
  public:
     virtual ~EvaluationContext() = default;
     virtual void evaluate(const IR::Node *node) = 0;
+    virtual void reject_parser(const z3::expr &condition, cstring error) = 0;
+    virtual void run_parser(cstring start) = 0;
 };
 
 }  // namespace P4::ToZ3

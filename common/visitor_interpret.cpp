@@ -419,6 +419,10 @@ bool Z3Visitor::preorder(const IR::ExitStatement * /*e*/) {
 
     auto scopes = state->get_state();
     auto old_state = state->clone_state();
+    if (in_parser && state->find_var("$parser_accepted"_cs)) {
+        state->update_var("$parser_accepted"_cs,
+                          new Z3Bitvector(state, &BOOL_TYPE, state->get_z3_ctx()->bool_val(false)));
+    }
     // Note the lack of leq in the i > 0 comparison.
     // We do not want to pop the last scope since we use it to get state
     // TODO: There has to be a cleaner way here...
@@ -430,13 +434,6 @@ bool Z3Visitor::preorder(const IR::ExitStatement * /*e*/) {
         for (const auto &arg_tuple : copy_out_args) {
             auto source = arg_tuple.second;
             auto *val = state->get_var(source);
-            // Exit in parsers means that everything is invalid
-            if (in_parser) {
-                if (auto *si = val->to_mut<StructBase>()) {
-                    auto invalid_bool = state->get_z3_ctx()->bool_val(false);
-                    si->propagate_validity(&invalid_bool);
-                }
-            }
             copy_out_vals.push_back(val);
         }
 

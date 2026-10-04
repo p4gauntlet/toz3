@@ -1,5 +1,6 @@
 #ifndef TOZ3_COMMON_VISITOR_INTERPRET_H_
 #define TOZ3_COMMON_VISITOR_INTERPRET_H_
+#include <functional>
 #include <vector>
 
 #include "evaluation_context.h"
@@ -47,6 +48,7 @@ class Z3Visitor : public Inspector, public EvaluationContext {
     }
     // This is used for some specific behavior in exit statements
     bool in_parser = false;
+    std::function<void(cstring)> parser_transition;
 
     /***** Declarations *****/
 
@@ -152,6 +154,10 @@ class Z3Visitor : public Inspector, public EvaluationContext {
     P4State *get_state() const { return state; }
     void set_in_parser(bool is_in_parser) { in_parser = is_in_parser; }
     bool is_in_parser() const { return in_parser; }
+    void reject_parser(const z3::expr &condition, cstring error = "NoError"_cs) override;
+    void reject_parser(const z3::expr &condition, const z3::expr &error);
+    void visit_parser_state(cstring name);
+    void run_parser(cstring start) override;
     explicit Z3Visitor(P4State *state, bool gen_ctx = true) : state(state) {
         visitDagOnce = false;
         if (gen_ctx) {

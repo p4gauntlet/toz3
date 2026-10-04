@@ -18,6 +18,7 @@
 #include "lib/cstring.h"
 #include "lib/exceptions.h"
 #include "lib/stringify.h"
+#include "packet.h"
 #include "toz3/common/state.h"
 #include "toz3/common/type_complex.h"
 #include "toz3/common/type_simple.h"
@@ -191,6 +192,10 @@ FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &membe
         auto mid_member = *it;
         if (const auto *name = std::get_if<cstring>(&mid_member)) {
             parent_class = parent_class->get_member(*name);
+        } else if (const auto *index = std::get_if<z3::expr>(&mid_member)) {
+            const auto *array = parent_class->to<IndexableInstance>();
+            CHECK_NULL(array);
+            parent_class = array->get_member(*index);
         } else {
             throw UnsupportedFeatureError("Member type not supported.");
         }
@@ -258,8 +263,20 @@ P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
     return new VoidResult();
 }
 
-P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
+P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m, bool packet_in) {
     auto *state = visitor->get_state();
+    packet_in = packet_in && state->find_var("$packet_id"_cs);
+    if (packet_in) return execute_packet_method(visitor, m);
+    if (m->name == "verify" && state->find_var("$parser_error"_cs)) {
+        const auto *condition =
+            state->get_var(m->getParameters()->getParameter(0)->name)->to<NumericVal>();
+        const auto *error =
+            state->get_var(m->getParameters()->getParameter(1)->name)->to<EnumBase>();
+        CHECK_NULL(condition);
+        CHECK_NULL(error);
+        visitor->reject_parser(!*condition->get_val(), *error->get_val());
+        return new VoidResult();
+    }
     auto method_name = infer_name(m, m->name.name);
     const auto *method_type = state->resolve_type(m->type->returnType);
     // TODO: Different types of arguments and multiple calls
@@ -309,6 +326,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         }
     }
     const IR::Node *callable = nullptr;
+    bool packet_in = false;
     const auto *arguments = mce->arguments;
     auto arg_size = arguments->size();
 
@@ -318,10 +336,21 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
         callable = state->resolve_callable(path_identifier, *arguments);
     } else if (const auto *member = method_type->to<IR::Member>()) {
         auto member_struct = get_member_struct(state, this, member);
+        if (state->find_var(member_struct.main_member)) {
+            const auto parents = get_hdr_pairs(state, member_struct);
+            if (parents.size() == 1) {
+                const auto *type = parents.front().second->get_p4_type()->to<IR::Type_Extern>();
+                packet_in = type && type->name == "packet_in";
+            }
+        }
         // try to resolve and find a function pointer
         if (member_struct.has_index) {
-            resolve_stack_call(this, state, member_struct, arguments);
-            return false;
+            const auto parents = get_hdr_pairs(state, member_struct);
+            if (parents.size() != 1 || !parents.front().first.simplify().is_true() ||
+                !parents.front().second->is<ExternInstance>()) {
+                resolve_stack_call(this, state, member_struct, arguments);
+                return false;
+            }
         }
         auto resolved_call = resolve_var_or_decl_parent(state, member_struct, *arguments);
         if (const auto *function = std::get_if<P4Z3Function>(&resolved_call)) {
@@ -350,6 +379,11 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
     // Now we set all the inputs we have mapped.
     state->copy_in(this, param_info);
+    if (state->has_exited()) {
+        state->pop_scope();
+        state->set_expr_result(new VoidResult());
+        return false;
+    }
     // Switch based on the dynamic callable type. The visitor is too cumbersome.
     P4Z3Instance *return_expr = nullptr;
     if (const auto *a = callable->to<IR::P4Action>()) {
@@ -357,14 +391,26 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     } else if (const auto *a = callable->to<IR::Function>()) {
         return_expr = exec_function(this, a);
     } else if (const auto *a = callable->to<IR::Method>()) {
-        return_expr = exec_method(this, a);
+        return_expr = exec_method(this, a, packet_in);
     } else {
         throw UnsupportedFeatureError("Can not call callable " + callable->node_type_name());
     }
     // Set the result.
     state->set_expr_result(return_expr);
     // Copy back the inputs that matter.
+    const auto saved_outputs = state->get_copy_out_args();
     state->copy_out();
+    if (packet_in && !state->has_exited() && callable->checkedTo<IR::Method>()->name == "extract") {
+        // The out destination was saved before any other arguments were evaluated.
+        for (const auto &argument : saved_outputs) {
+            if (argument.first.next_stack) {
+                auto *stack =
+                    get_member(state, *argument.first.next_stack)->to_mut<StackInstance>();
+                CHECK_NULL(stack);
+                stack->advance_next();
+            }
+        }
+    }
     return false;
 }
 

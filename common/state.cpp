@@ -81,7 +81,22 @@ MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
     std::function<void(const IR::Expression *)> resolve = [&](const IR::Expression *expression) {
         if (const auto *member = expression->to<IR::Member>()) {
             resolve(member->expr);
-            append(member->member.name);
+            auto *parent = member->member == "next" || member->member == "last"
+                               ? get_member(state, member_struct)
+                               : nullptr;
+            if (auto *stack = parent ? parent->to_mut<StackInstance>() : nullptr) {
+                // Evaluating next saves the destination; extraction advances it later.
+                const auto index = stack->get_next_index();
+                const bool next = member->member == "next";
+                const auto bound = state->get_z3_ctx()->int_val(stack->get_int_size());
+                visitor->reject_parser(next ? index >= bound : index < 1 || index > bound,
+                                       "StackOutOfBounds"_cs);
+                if (next) member_struct.next_stack = new MemberStruct(member_struct);
+                append(z3::int2bv(32, next ? index : index - 1).simplify());
+                member_struct.has_index = true;
+            } else {
+                append(member->member.name);
+            }
         } else if (const auto *index = expression->to<IR::ArrayIndex>()) {
             resolve(index->left);
             visitor->evaluate(index->right);
@@ -403,6 +418,7 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(EvaluationContext *v
             arg_result = get_expr_result();
         }
         CHECK_NULL(arg_result);
+        if (has_exited()) break;
         if (const auto *tn = param->type->to<IR::Type_Name>()) {
             cstring type_name = tn->path->name.name;
             if (type_params.getDeclByName(type_name) != nullptr) {
@@ -431,29 +447,33 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(EvaluationContext *v
 
 void P4State::copy_in(EvaluationContext *visitor, const ParamInfo &param_info) {
     push_scope();
-
-    // Specialize
-    size_t idx = 0;
-    auto type_args_len = param_info.type_args.size();
-    IR::TypeParameters missing_type_params;
-    for (const auto &param : param_info.type_params.parameters) {
-        if (idx >= type_args_len) {
-            missing_type_params.push_back(param);
+    try {
+        // Specialize
+        size_t idx = 0;
+        auto type_args_len = param_info.type_args.size();
+        IR::TypeParameters missing_type_params;
+        for (const auto &param : param_info.type_params.parameters) {
+            if (idx >= type_args_len) {
+                missing_type_params.push_back(param);
+            }
+            idx++;
         }
-        idx++;
+        auto var_tuple = merge_args_with_params(visitor, param_info.arguments, param_info.params,
+                                                missing_type_params);
+        auto copy_out_args = var_tuple.first;
+        auto merged_vec = var_tuple.second;
+        // Now we actually set the variables.
+        // After we have resolved and collected them.
+        for (auto arg_tuple : merged_vec) {
+            cstring param_name = arg_tuple.first;
+            auto arg_val = arg_tuple.second;
+            declare_var(param_name, arg_val.first, arg_val.second);
+        }
+        set_copy_out_args(copy_out_args);
+    } catch (...) {
+        pop_scope();
+        throw;
     }
-    auto var_tuple = merge_args_with_params(visitor, param_info.arguments, param_info.params,
-                                            missing_type_params);
-    auto copy_out_args = var_tuple.first;
-    auto merged_vec = var_tuple.second;
-    // Now we actually set the variables.
-    // After we have resolved and collected them.
-    for (auto arg_tuple : merged_vec) {
-        cstring param_name = arg_tuple.first;
-        auto arg_val = arg_tuple.second;
-        declare_var(param_name, arg_val.first, arg_val.second);
-    }
-    set_copy_out_args(copy_out_args);
 }
 
 void P4State::copy_out() {

@@ -26,9 +26,8 @@
 #include "type_base.h"
 #include "type_simple.h"
 #include "util.h"
-#include "visitor_specialize.h"
-
 #include "evaluation_context.h"
+#include "visitor_specialize.h"
 
 namespace P4::ToZ3 {
 /***
@@ -559,25 +558,48 @@ StackInstance &StackInstance::operator=(const StackInstance &other) {
 }
 
 P4Z3Instance *StackInstance::get_member(cstring name) const {
-    if (name == "size") {
-        return &size;
-    }
-    if (name == "nextIndex") {
-        return &nextIndex;
-    }
-    if (name == "lastIndex") {
-        return &lastIndex;
+    if (name == "size" || name == "nextIndex" || name == "lastIndex") {
+        const auto *type = IR::Type_Bits::get(32);
+        const auto &value = name == "size" ? size : name == "nextIndex" ? nextIndex : lastIndex;
+        auto result = z3::int2bv(32, *value.get_val()).simplify();
+        if (name == "lastIndex") {
+            result = z3::ite(*nextIndex.get_val() == 0,
+                             state->gen_z3_expr(cstring(UNDEF_LABEL), type), result)
+                         .simplify();
+        }
+        return new Z3Bitvector(state, type, result);
     }
     if (name == "next") {
-        // TODO: Move this into extract as functionality
-        lastIndex = nextIndex;
-        // nextIndex = Z3Int(state, *nextIndex.get_val() + 1);
-        return get_member(*lastIndex.get_val());
+        const auto index = nextIndex.get_val()->simplify();
+        return get_member(z3::int2bv(32, index).simplify());
     }
     if (name == "last") {
-        return get_member(*lastIndex.get_val());
+        return get_member(z3::int2bv(32, *nextIndex.get_val() - 1).simplify());
+    }
+    if (!members.count(name)) {
+        // Ordinary runtime indexing outside a stack is undefined, not parser rejection.
+        auto *undefined = state->gen_instance(cstring(UNDEF_LABEL), elem_type);
+        if (auto *aggregate = undefined->to_mut<StructBase>()) {
+            aggregate->propagate_validity(nullptr);
+            aggregate->bind(nullptr, 0);
+        }
+        return undefined;
     }
     return StructBase::get_member(name);
+}
+
+void StackInstance::advance_next() {
+    nextIndex = Z3Int(state, (*nextIndex.get_val() + 1).simplify());
+    lastIndex = Z3Int(state, (*nextIndex.get_val() - 1).simplify());
+}
+
+void StackInstance::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
+    StructBase::merge(cond, then_expr);
+    const auto *other = then_expr.to<StackInstance>();
+    CHECK_NULL(other);
+    nextIndex.merge(cond, other->nextIndex);
+    // Defer rewriting until this index is read; exit-state merges can have large guards.
+    lastIndex = Z3Int(state, *nextIndex.get_val() - 1);
 }
 
 const IR::Type *StackInstance::get_member_type(cstring /*name*/) const { return elem_type; }
@@ -601,14 +623,14 @@ void StackInstance::update_member(cstring name, P4Z3Instance *val) {
     if (name == "last") {
         name = lastIndex.get_val()->to_string();
     }
-    members.at(name) = val;
+    if (members.count(name)) members.at(name) = val;
 }
 
 P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     auto val = index.simplify();
     std::string val_str;
     if (val.is_numeral(val_str, 0)) {
-        return StructBase::get_member(val_str);
+        return get_member(cstring(val_str));
     }
     // We create a new header that we return
     // This header is the merge of all the sub headers of this stack
@@ -1295,7 +1317,8 @@ void ControlInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
         for (const auto &parser_state : parser_states) {
             state->declare_static_decl(parser_state->name.name, new P4Declaration(parser_state));
         }
-        visitor->evaluate(state->get_static_decl("start"_cs)->get_decl());
+        // A subparser starts its own worklist; its states must not enter the caller's queue.
+        visitor->run_parser("start"_cs);
     }
     if (body != nullptr) {
         visitor->evaluate(body);

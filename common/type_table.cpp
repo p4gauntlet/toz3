@@ -22,7 +22,6 @@
 #include "toz3/common/type_simple.h"
 #include "toz3/common/util.h"
 #include "type_complex.h"
-
 #include "evaluation_context.h"
 
 namespace P4::ToZ3 {

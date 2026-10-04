@@ -102,6 +102,8 @@ class MemberStruct {
     // Indexed receivers require conditional dispatch when their index is symbolic.
     bool has_index = false;
     bool is_flat = false;
+    // Saved stack address for the nextIndex effect of extract(stack.next).
+    MemberStruct *next_stack = nullptr;
     std::vector<Z3Slice> end_slices;
 
     cstring to_string() const {

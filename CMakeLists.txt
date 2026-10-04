@@ -23,6 +23,7 @@ set(
   common/type_complex.cpp
   common/visitor_interpret.cpp
   common/visitor_specialize.cpp
+  common/packet.cpp
   common/parser.cpp
   common/expressions.cpp
   common/loops.cpp
@@ -36,6 +37,7 @@ set(
   common/evaluation_context.h
   common/defaults.h
   common/type_inference.h
+  common/packet.h
   common/scope.h
   common/state.h
   common/type_base.h
@@ -161,6 +163,7 @@ if(ENABLE_GTESTS)
     tests/gtest/slices.cpp
     tests/gtest/visitor.cpp
     tests/gtest/receivers.cpp
+    tests/gtest/parser.cpp
   )
   add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS} validate/passes.cpp)
   target_link_libraries(toz3_tests PRIVATE p4toz3lib gtest_main)
@@ -258,8 +261,6 @@ set(
   VIOLATION_XFAIL_TESTS
   extensions/toz3/tests/violated/2314_regression
   extensions/toz3/tests/violated/parser_loop
-  # Fails because the parser is disabled.
-  extensions/toz3/tests/violated/2591_regression
 )
 
 set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-violation")
