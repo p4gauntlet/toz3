@@ -124,6 +124,7 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Range *) override;
     bool preorder(const IR::Cast *c) override;
     bool preorder(const IR::Slice *s) override;
+    bool preorder(const IR::PlusSlice *s) override;
     bool preorder(const IR::Mux *m) override;
 
  public:

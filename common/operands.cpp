@@ -311,6 +311,30 @@ bool Z3Visitor::preorder(const IR::Slice *sl) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::PlusSlice *sl) {
+    visit(sl->e0);
+    const auto value = *state->get_expr_result<NumericVal>()->get_val();
+    visit(sl->e1);
+    auto offset = *state->get_expr_result<NumericVal>()->get_val();
+    visit(sl->e2);
+    const auto width = state->get_expr_result<NumericVal>()->get_val()->get_numeral_uint();
+    if (width == 0) {
+        // Z3 has no zero-width bitvectors; the only value of bit<0> is zero.
+        state->set_expr_result(new Z3Int(state, 0));
+        return false;
+    }
+    if (offset.is_bv()) offset = z3::bv2int(offset, false);
+    const auto sourceWidth = value.get_sort().bv_size();
+    auto shifted = z3::lshr(value, z3::int2bv(sourceWidth, offset));
+    shifted = z3::ite(offset >= static_cast<int>(sourceWidth),
+                      state->get_z3_ctx()->bv_val(0, sourceWidth), shifted);
+    auto result = width <= sourceWidth ? shifted.extract(width - 1, 0)
+                                       : z3::zext(shifted, width - sourceWidth);
+    state->set_expr_result(
+        new Z3Bitvector(state, IR::Type_Bits::get(width, false), result.simplify()));
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::Cast *c) {
     // Resolve the type.
     const auto *resolved_type = state->resolve_type(c->destType);

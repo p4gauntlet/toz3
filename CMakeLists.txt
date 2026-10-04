@@ -150,6 +150,7 @@ if(ENABLE_GTESTS)
     tests/gtest/type_simple.cpp
     tests/gtest/util.cpp
     tests/gtest/passes.cpp
+    tests/gtest/slices.cpp
     tests/gtest/visitor.cpp
   )
   add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS} validate/passes.cpp)
