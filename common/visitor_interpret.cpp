@@ -97,11 +97,14 @@ bool Z3Visitor::preorder(const IR::Type_SerEnum *t) {
     } else {
         ordered_map<cstring, P4Z3Instance *> input_members;
         const auto *member_type = state->resolve_type(t->type);
+        state->push_scope();
         for (const auto *member : t->members) {
             visit(member->value);
-            input_members.emplace(member->name.name,
-                                  state->get_expr_result()->cast_allocate(member_type));
+            auto *value = state->get_expr_result()->cast_allocate(member_type);
+            input_members.emplace(member->name.name, value);
+            state->declare_var(member->name.name, value, member_type);
         }
+        state->pop_scope();
         state->add_type(name, t);
         state->declare_var(name, new SerEnumInstance(state, input_members, t, ""_cs, 0), t);
     }
