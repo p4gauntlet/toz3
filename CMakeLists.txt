@@ -197,67 +197,45 @@ set(P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
 set(P4C_VALIDATION_XFAIL_TESTS)
 
-# These tests need to be remove because they have spurious behavior (timeouts).
+# These programs need additional interpreter support or exceed validation limits.
 set(
   SKIPPED_TESTS
-  # Spurious timeouts.
-  ${P4C_TEST_DIR}/lpm_ubpf.p4
-  # Unreliable test.
-  ${P4C_TEST_DIR}/pna-issue3041.p4
-  # Crashes.
+  # Zero-width values.
   ${P4C_TEST_DIR}/bit0-bmv2.p4
-  ${P4C_TEST_DIR}/bool_to_bit_cast.p4
-  ${P4C_TEST_DIR}/enumCast.p4
-  ${P4C_TEST_DIR}/issue1208-1.p4
+  # Callable overloads and omitted or don't-care arguments.
   ${P4C_TEST_DIR}/issue1334.p4
-  ${P4C_TEST_DIR}/issue1717.p4
-  ${P4C_TEST_DIR}/issue3001-1.p4
-  ${P4C_TEST_DIR}/issue3001.p4
   ${P4C_TEST_DIR}/issue3051.p4
-  ${P4C_TEST_DIR}/minsize.p4
-  ${P4C_TEST_DIR}/issue2800a.p4
-  ${P4C_TEST_DIR}/issue2800b.p4
-  ${P4C_TEST_DIR}/issue2800c.p4
-  ${P4C_TEST_DIR}/issue2800d.p4
-  ${P4C_TEST_DIR}/issue3091-1.p4
-  ${P4C_TEST_DIR}/issue3091.p4
-  ${P4C_TEST_DIR}/issue1914.p4
-  ${P4C_TEST_DIR}/issue1914-1.p4
-  ${P4C_TEST_DIR}/issue1914-2.p4
-  ${P4C_TEST_DIR}/pna-example-mirror-packet-error3.p4
-  ${P4C_TEST_DIR}/issue3283.p4
-  ${P4C_TEST_DIR}/invalid-header.p4
   ${P4C_TEST_DIR}/issue3616.p4
-  ${P4C_TEST_DIR}/methodArgs.p4
-  ${P4C_TEST_DIR}/issue3779.p4
-  ${P4C_TEST_DIR}/default-initializer.p4
-  ${P4C_TEST_DIR}/invalid-union.p4
-  ${P4C_TEST_DIR}/stack-init.p4
-  ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
-  ${P4C_TEST_DIR}/forloop1.p4
-  ${P4C_TEST_DIR}/forloop2.p4
-  ${P4C_TEST_DIR}/forloop3.p4
-  ${P4C_TEST_DIR}/forloop4.p4
-  ${P4C_TEST_DIR}/forloop5.p4
-  ${P4C_TEST_DIR}/forloop5a.p4
-  ${P4C_TEST_DIR}/forloop6.p4
-  ${P4C_TEST_DIR}/forloop7.p4
-  ${P4C_TEST_DIR}/forloop8.p4
-  ${P4C_TEST_DIR}/forloop9.p4
-  ${P4C_TEST_DIR}/forloop10.p4
-  ${P4C_TEST_DIR}/issue4625_remove_compile_time_bool_methodcall_of_mcs.p4
-  ${P4C_TEST_DIR}/issue4739.p4
   ${P4C_TEST_DIR}/issue4760_dontcare_action_out_arg.p4
   ${P4C_TEST_DIR}/issue4775-2.p4
   ${P4C_TEST_DIR}/localize_action_dont_care_args.p4
-  ${P4C_TEST_DIR}/loop-3-clause-tricky2.p4
-  ${P4C_TEST_DIR}/opassign1-bmv2.p4
-  ${P4C_TEST_DIR}/opassign1.p4
+  # Generic type inference and compile-time size methods.
+  ${P4C_TEST_DIR}/minsize.p4
+  ${P4C_TEST_DIR}/issue1914.p4
+  ${P4C_TEST_DIR}/issue1914-1.p4
+  ${P4C_TEST_DIR}/issue3091-1.p4
+  ${P4C_TEST_DIR}/issue3091.p4
+  ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
+  # Member or index access on temporary expressions.
+  ${P4C_TEST_DIR}/issue3001-1.p4
+  ${P4C_TEST_DIR}/issue3001.p4
+  ${P4C_TEST_DIR}/issue3283.p4
+  ${P4C_TEST_DIR}/issue3779.p4
   ${P4C_TEST_DIR}/opassign2-bmv2.p4
-  ${P4C_TEST_DIR}/parser-unroll-issue4006_twice_extracted_header.p4
+  # Default initialization and extern arrays.
+  ${P4C_TEST_DIR}/default-initializer.p4
   ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack.p4
   ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack_nested.p4
   ${P4C_TEST_DIR}/externArray1.p4
+  # For-in collections and symbolic range bounds.
+  ${P4C_TEST_DIR}/forloop1.p4
+  ${P4C_TEST_DIR}/forloop3.p4
+  ${P4C_TEST_DIR}/forloop4.p4
+  # Symbolic popcount: validation timeout.
+  ${P4C_TEST_DIR}/forloop2.p4
+  # Loops exceeding the interpretation limit.
+  ${P4C_TEST_DIR}/forloop9.p4
+  ${P4C_TEST_DIR}/forloop10.p4
 )
 
 if(SKIPPED_TESTS)
