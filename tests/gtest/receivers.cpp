@@ -109,6 +109,29 @@ TEST_F(ReceiverTest, SizeMethodDoesNotEvaluateItsReceiver) {
     EXPECT_EQ(value("element"_cs), 16U);
 }
 
+TEST_F(ReceiverTest, ZeroWidthValuesRemainZeroAcrossArithmeticAndBinding) {
+    evaluate(R"(
+        enum bit<0> E { Z = 0 }
+        header H { bit<0> empty; bit<8> field; }
+        control C() {
+        bit<0> a = 7;
+        bit<0> b = a + (bit<0>) 255;
+        bit<8> c = (bit<8>) b;
+        H h; apply {} }
+    )");
+    EXPECT_EQ(value("a"_cs), 0U);
+    state.get_var("a"_cs)->set_undefined();
+    EXPECT_EQ(value("a"_cs), 0U);
+    EXPECT_EQ(value("b"_cs), 0U);
+    EXPECT_EQ(value("c"_cs), 0U);
+    const auto *enumeration = state.get_var<SerEnumInstance>("E"_cs);
+    EXPECT_EQ(enumeration->get_val()->get_numeral_uint(), 0U);
+    auto *header = state.get_var<HeaderInstance>("h"_cs)->copy();
+    header->bind(nullptr, 0);
+    EXPECT_EQ(header->get_width(), 8U);
+    EXPECT_EQ(header->get_member("empty"_cs)->to<NumericVal>()->get_val()->get_numeral_uint(), 0U);
+}
+
 TEST_F(ReceiverTest, MatchKindsFromSeparateDeclarationsHaveDistinctValues) {
     evaluate(R"(
         match_kind { exact, ternary }

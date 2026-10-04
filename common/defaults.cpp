@@ -12,7 +12,7 @@ P4Z3Instance *DefaultInstance::cast_allocate(const IR::Type *type) const {
     if (type->is<IR::Type_Boolean>()) return new Z3Bitvector(state, type, ctx->bool_val(false));
     if (const auto *bits = type->to<IR::Type_Bits>()) {
         return new Z3Bitvector(state, type,
-                               ctx->bv_val(0, bits->size),
+                               bits->size == 0 ? ctx->int_val(0) : ctx->bv_val(0, bits->size),
                                bits->isSigned);
     }
     if (const auto *enumeration = type->to<IR::Type_Enum>()) {

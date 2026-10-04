@@ -32,7 +32,8 @@ namespace P4::ToZ3 {
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        auto expr = state->get_z3_ctx()->bv_val(val_string.c_str(), tb->size);
+        auto expr = tb->size == 0 ? state->get_z3_ctx()->int_val(0)
+                                  : state->get_z3_ctx()->bv_val(val_string.c_str(), tb->size);
         auto *wrapper = new Z3Bitvector(state, tb, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;

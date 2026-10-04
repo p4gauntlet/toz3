@@ -479,6 +479,7 @@ void P4State::copy_out() {
 
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (const auto *tbi = type->to<IR::Type_Bits>()) {
+        if (tbi->size == 0) return ctx->int_val(0);
         return ctx->bv_const(name.c_str(), tbi->size);
     }
     if (const auto *tvb = type->to<IR::Type_Varbits>()) {

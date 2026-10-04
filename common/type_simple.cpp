@@ -19,6 +19,8 @@
 namespace P4::ToZ3 {
 
 z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type, bool is_signed) {
+    // Integer destinations encode the singleton bit<0>, since Z3 has no empty bitvectors.
+    if (dest_type.is_int()) return expr.ctx().int_val(0);
     // TODO: Clean this up.
     uint64_t expr_size = 0;
     auto cast_expr = expr;
@@ -83,16 +85,19 @@ Z3Bitvector::Z3Bitvector(const P4State *state, const IR::Type *p4_type, const z3
     } else {
         P4C_UNIMPLEMENTED("Unknown bit type %s", p4_type->node_type_name());
     }
-    BUG_CHECK(width, "Width can not be zero.");
+    // Z3 has no zero-width bitvectors; bit<0> has the unique value integer zero.
+    if (p4_type->is<IR::Type_Bits>() && width == 0) this->val = state->get_z3_ctx()->int_val(0);
 }
 
 /****** UNARY OPERANDS ******/
 
 P4Z3Instance *Z3Bitvector::operator-() const {
+    if (width == 0) return copy();
     return new Z3Bitvector(state, p4_type, -val, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator~() const {
+    if (width == 0) return copy();
     return new Z3Bitvector(state, p4_type, ~val, is_signed);
 }
 
@@ -103,11 +108,13 @@ P4Z3Instance *Z3Bitvector::operator!() const {
 /****** BINARY OPERANDS ******/
 
 P4Z3Instance *Z3Bitvector::operator*(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "*"_cs);
     return new Z3Bitvector(state, p4_type, val * other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator/(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "/"_cs);
     if (is_signed) {
         return new Z3Bitvector(state, p4_type, val / other_expr, is_signed);
@@ -116,16 +123,19 @@ P4Z3Instance *Z3Bitvector::operator/(const P4Z3Instance &other) const {
 }
 
 P4Z3Instance *Z3Bitvector::operator%(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "%"_cs);
     return new Z3Bitvector(state, p4_type, z3::urem(val, other_expr), is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator+(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "+"_cs);
     return new Z3Bitvector(state, p4_type, val + other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|+|"_cs);
     auto no_overflow = z3::bvadd_no_overflow(val, other_expr, false);
     auto no_underflow = z3::bvadd_no_underflow(val, other_expr);
@@ -138,11 +148,13 @@ P4Z3Instance *Z3Bitvector::operatorAddSat(const P4Z3Instance &other) const {
 }
 
 P4Z3Instance *Z3Bitvector::operator-(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "!="_cs);
     return new Z3Bitvector(state, p4_type, val - other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operatorSubSat(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|-|"_cs);
     auto no_overflow = z3::bvsub_no_overflow(val, other_expr);
     auto no_underflow = z3::bvsub_no_underflow(val, other_expr, false);
@@ -154,6 +166,7 @@ P4Z3Instance *Z3Bitvector::operatorSubSat(const P4Z3Instance &other) const {
 }
 
 P4Z3Instance *Z3Bitvector::operator>>(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     const z3::expr *cast_other = nullptr;
     const z3::expr *cast_this = nullptr;
     auto this_sort = val.get_sort();
@@ -184,6 +197,7 @@ P4Z3Instance *Z3Bitvector::operator>>(const P4Z3Instance &other) const {
 }
 
 P4Z3Instance *Z3Bitvector::operator<<(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     const z3::expr *cast_other = nullptr;
     const z3::expr *cast_this = nullptr;
     auto this_sort = val.get_sort();
@@ -274,16 +288,19 @@ z3::expr Z3Bitvector::operator||(const P4Z3Instance &other) const {
 }
 
 P4Z3Instance *Z3Bitvector::operator&(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "&"_cs);
     return new Z3Bitvector(state, p4_type, val & other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator|(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "|"_cs);
     return new Z3Bitvector(state, p4_type, val | other_expr, is_signed);
 }
 
 P4Z3Instance *Z3Bitvector::operator^(const P4Z3Instance &other) const {
+    if (width == 0) return copy();
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "^"_cs);
     return new Z3Bitvector(state, p4_type, val ^ other_expr, is_signed);
 }
@@ -291,6 +308,8 @@ P4Z3Instance *Z3Bitvector::operator^(const P4Z3Instance &other) const {
 P4Z3Instance *Z3Bitvector::concat(const P4Z3Instance &other) const {
     const z3::expr *other_expr = nullptr;
     if (const auto *other_val = other.to<Z3Bitvector>()) {
+        if (width == 0) return other_val->cast_allocate(IR::Type_Bits::get(other_val->width));
+        if (other_val->width == 0) return cast_allocate(IR::Type_Bits::get(width));
         other_expr = other_val->get_val();
         if (p4_type->is<IR::Type_String>() && other_val->get_p4_type()->is<IR::Type_String>()) {
             return new Z3Bitvector(state, p4_type, z3::concat(val, *other_expr));
@@ -313,6 +332,7 @@ P4Z3Instance *Z3Bitvector::cast_allocate(const IR::Type *dest_type) const {
     }
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
         auto *ctx = &val.get_sort().ctx();
+        if (tb->size == 0) return new Z3Bitvector(state, dest_type, ctx->int_val(0));
         auto dest_sort = ctx->bv_sort(tb->size);
         return new Z3Bitvector(state, dest_type, pure_bv_cast(val, dest_sort, is_signed),
                                tb->isSigned);
@@ -683,6 +703,8 @@ P4Z3Instance *Z3Int::cast_allocate(const IR::Type *dest_type) const {
         dest_type = state->resolve_type(tn);
     }
     if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
+        if (tb->size == 0)
+            return new Z3Bitvector(state, dest_type, state->get_z3_ctx()->int_val(0));
         // TODO: Resolve this
         auto dest_sort = state->get_z3_ctx()->bv_sort(tb->size);
         return new Z3Bitvector(state, tb, pure_bv_cast(val, dest_sort), tb->isSigned);

@@ -78,6 +78,9 @@ class Z3Bitvector : public NumericVal {
                          bool is_signed = false);
     uint64_t get_width() const { return width; }
     bool bv_is_signed() const { return is_signed; }
+    void set_undefined() override {
+        if (width != 0) NumericVal::set_undefined();
+    }
     /****** UNARY OPERANDS ******/
     P4Z3Instance *operator-() const override;
     P4Z3Instance *operator~() const override;

@@ -183,6 +183,7 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
             bit_idx -= si->get_width();
         } else if (const auto *z3_var = member_var->to<Z3Bitvector>()) {
             auto var_width = z3_var->get_width();
+            if (var_width == 0) continue;
             // TODO: Better casting
             auto extract_var = bind_var->extract(bit_idx - 1, bit_idx - var_width);
             if (z3_var->get_p4_type()->is<IR::Type_Boolean>()) {
@@ -805,7 +806,7 @@ void EnumBase::add_enum_member(cstring error_name) {
 void EnumBase::set_undefined() { val = state->gen_z3_expr(cstring(UNDEF_LABEL), member_type); }
 
 void EnumBase::bind(const z3::expr *bind_var, uint64_t offset) {
-    if (bind_var != nullptr) {
+    if (bind_var != nullptr && get_width() != 0) {
         auto var_width = get_width();
         val = bind_var->extract(offset - 1, offset - var_width);
     }
@@ -934,7 +935,8 @@ SerEnumInstance::SerEnumInstance(P4State *p4_state,
     if (const auto *tb = resolved_type->to<IR::Type_Bits>()) {
         member_type = tb;
         width = tb->size;
-        val = pure_bv_cast(val, state->get_z3_ctx()->bv_sort(width));
+        val = width == 0 ? state->get_z3_ctx()->int_val(0)
+                         : pure_bv_cast(val, state->get_z3_ctx()->bv_sort(width));
     } else {
         P4C_UNIMPLEMENTED("Type %s not supported for SerEnum!", type->type->node_type_name());
     }
