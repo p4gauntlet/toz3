@@ -19,6 +19,10 @@ class TypeModifier : public Transform {
  private:
     const std::map<cstring, const IR::Type *> *type_mapping;
     const IR::Node *postorder(IR::Type *type) override;
+    const IR::Node *preorder(IR::TypeParameters *parameters) override {
+        prune();
+        return parameters;
+    }
 
  public:
     explicit TypeModifier(const std::map<cstring, const IR::Type *> *type_mapping)

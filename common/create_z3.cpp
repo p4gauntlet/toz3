@@ -205,6 +205,14 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
         }
         CHECK_NULL(arg_expr);
         if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
+            if (visitor->get_state()->resolve_type(cce->constructedType)->is<IR::Type_Package>()) {
+                const auto *instance = new IR::Declaration_Instance(
+                    IR::ID(param_name), cce->constructedType, cce->arguments);
+                for (const auto &sub_result : gen_state_from_instance(visitor, instance)) {
+                    merged_vec.insert({param_name + sub_result.first, sub_result.second});
+                }
+                continue;
+            }
             auto state_result =
                 run_arch_block(visitor, cce, visitor->get_state()->resolve_type(param_type),
                                param_name, param_info.type_params);

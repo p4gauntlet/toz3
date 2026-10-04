@@ -340,6 +340,31 @@ ConstructorCallExpression
 ===============================================================================
 ***/
 
+const IR::Type_Extern *Z3Visitor::specialize_extern(const IR::Type_Extern *type,
+                                                    const IR::Vector<IR::Argument> &arguments) {
+    if (type->getTypeParameters()->empty()) return type;
+    const auto *constructor = type->lookupConstructor(&arguments);
+    CHECK_NULL(constructor);
+    std::map<cstring, const IR::Type *> mapping;
+    for (size_t idx = 0; idx < arguments.size(); ++idx) {
+        const auto *argument = arguments.at(idx);
+        const auto *parameter =
+            argument->name ? constructor->getParameters()->getParameter(argument->name.name)
+                           : constructor->getParameters()->getParameter(idx);
+        cstring name;
+        if (const auto *tn = parameter->type->to<IR::Type_Name>()) name = tn->path->name;
+        if (const auto *tv = parameter->type->to<IR::Type_Var>()) name = tv->name;
+        if (name.isNullOrEmpty() || !type->getTypeParameters()->getDeclByName(name)) continue;
+        visit(argument->expression);
+        const auto *argumentType = state->get_expr_result()->get_p4_type();
+        const auto [it, inserted] = mapping.emplace(name, argumentType);
+        BUG_CHECK(inserted || it->second->equiv(*argumentType),
+                  "Conflicting constructor inference for %s", name);
+    }
+    TypeModifier modifier(&mapping);
+    return type->apply(modifier)->checkedTo<IR::Type_Extern>();
+}
+
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
     const IR::ParameterList *params = nullptr;
@@ -355,7 +380,8 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         // TODO: How to cleanly resolve this?
         // params = new IR::ParameterList();
         // const auto *ext_const = ext->lookupConstructor(arguments);
-        auto *ext_instance = state->gen_instance(cstring(UNDEF_LABEL), ext);
+        auto *ext_instance =
+            state->gen_instance(cstring(UNDEF_LABEL), specialize_extern(ext, *arguments));
         state->set_expr_result(ext_instance);
         return false;
     } else {

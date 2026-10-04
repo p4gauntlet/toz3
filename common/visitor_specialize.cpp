@@ -14,6 +14,11 @@ const IR::Node *TypeModifier::postorder(IR::Type *type) {
             return type_mapping->at(tn->path->name.name);
         }
     }
+    if (const auto *tv = type->to<IR::Type_Var>()) {
+        if (type_mapping->count(tv->name.name) > 0) {
+            return type_mapping->at(tv->name.name);
+        }
+    }
     return type;
 }
 

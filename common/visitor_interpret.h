@@ -25,6 +25,8 @@ class Z3Visitor : public Inspector {
     P4State *state;
     // Inspector updates this context while visiting standalone roots.
     Context root_context;
+    const IR::Type_Extern *specialize_extern(const IR::Type_Extern *type,
+                                             const IR::Vector<IR::Argument> &arguments);
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {

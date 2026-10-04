@@ -249,6 +249,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
         // const auto *ext_const = te->lookupConstructor(di->arguments);
         // const IR::ParameterList *params = nullptr;
         // params = ext_const->getParameters();
+        te = specialize_extern(te, *di->arguments);
         state->declare_var(instance_name, new ExternInstance(state, te), te);
         return false;
     }
