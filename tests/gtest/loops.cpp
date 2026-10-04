@@ -147,6 +147,19 @@ TEST_F(LoopTest, ReturnsLeaveTheLoopAndPreserveTheOuterScope) {
     EXPECT_EQ(results.front().second->to<NumericVal>()->get_val()->get_numeral_uint(), 42U);
 }
 
+TEST_F(LoopTest, BreakInSwitchExitsTheLoopWithoutExecutingItsUpdates) {
+    number("sum"_cs, 0);
+    const auto *statement = new IR::SwitchStatement(
+        path("i"_cs),
+        {new IR::SwitchCase(new IR::Constant(0), new IR::BlockStatement({increment("sum"_cs)})),
+         new IR::SwitchCase(new IR::Constant(1),
+                            new IR::BlockStatement({new IR::BreakStatement()})),
+         new IR::SwitchCase(new IR::DefaultExpression(),
+                            new IR::BlockStatement({increment("sum"_cs)}))});
+    visitor.visit(loop("i"_cs, new IR::Lss(path("i"_cs), new IR::Constant(4)), statement));
+    equivalent(value("sum"_cs), ctx.bv_val(1, 16));
+}
+
 TEST_F(LoopTest, SignedRangesIncludeNegativeValues) {
     number("sum"_cs, 0);
     const auto *type = IR::Type_Bits::get(4, true);

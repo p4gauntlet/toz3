@@ -626,9 +626,13 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
     BUG_CHECK(!stmt_vector.empty(), "Statement vector can not be empty.");
     bool has_exited = true;
     bool has_returned = true;
+    const auto loop_stopped = !loops.empty() && loops.back().stopped;
+    bool all_stopped = true;
     std::vector<std::pair<z3::expr, VarMap>> case_states;
     for (auto &stmt : stmt_vector) {
-        auto case_match = stmt.first;
+        auto case_match = stmt.first.simplify();
+        if (case_match.is_false()) continue;
+        if (!loops.empty()) loops.back().stopped = loop_stopped;
         const auto *case_stmt = stmt.second;
         auto old_vars = state->clone_vars();
         state->push_forward_cond(case_match);
@@ -637,8 +641,9 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
         auto call_has_exited = state->has_exited();
         auto stmt_has_returned = state->has_returned();
         if (!(call_has_exited || stmt_has_returned)) {
-            case_states.emplace_back(case_match, state->get_vars());
+            case_states.emplace_back(case_match, state->clone_vars());
         }
+        all_stopped = all_stopped && !loops.empty() && loops.back().stopped;
         has_exited = has_exited && call_has_exited;
         has_returned = has_returned && stmt_has_returned;
         state->set_exit(false);
@@ -647,6 +652,7 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
     }
     state->set_exit(has_exited);
     state->set_returned(has_returned);
+    if (!loops.empty()) loops.back().stopped = all_stopped;
 
     for (auto it = case_states.rbegin(); it != case_states.rend(); ++it) {
         state->merge_vars(it->first, it->second);
