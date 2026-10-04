@@ -1,5 +1,7 @@
 #ifndef TOZ3_COMMON_VISITOR_INTERPRET_H_
 #define TOZ3_COMMON_VISITOR_INTERPRET_H_
+#include <vector>
+
 #include "ir/indexed_vector.h"
 #include "ir/ir.h"
 #include "ir/node.h"
@@ -27,6 +29,15 @@ class Z3Visitor : public Inspector {
     Context root_context;
     const IR::Type_Extern *specialize_extern(const IR::Type_Extern *type,
                                              const IR::Vector<IR::Argument> &arguments);
+    struct LoopContext {
+        bool stopped = false;
+        z3::expr break_condition;
+        z3::expr continue_condition;
+        explicit LoopContext(z3::context *ctx)
+            : break_condition(ctx->bool_val(false)), continue_condition(ctx->bool_val(false)) {}
+    };
+    std::vector<LoopContext> loops;
+    bool try_additive_loop(const IR::ForStatement *loop, cstring index);
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
@@ -76,6 +87,10 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::EmptyStatement *es) override;
     bool preorder(const IR::ExitStatement *es) override;
     bool preorder(const IR::ReturnStatement *rs) override;
+    bool preorder(const IR::ForStatement *loop) override;
+    bool preorder(const IR::ForInStatement *loop) override;
+    bool preorder(const IR::BreakStatement *statement) override;
+    bool preorder(const IR::ContinueStatement *statement) override;
 
     /***** Parser *****/
     bool preorder(const IR::ParserState *ps) override;

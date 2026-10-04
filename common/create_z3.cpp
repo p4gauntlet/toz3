@@ -145,6 +145,8 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
         synthesized_args.push_back(arg);
     }
     // Call the apply function of the pipeline
+    const auto enclosingTermination = state->get_termination_condition();
+    state->set_termination_condition(state->get_z3_ctx()->bool_val(true));
     if (const auto *function = std::get_if<P4Z3Function>(&fun_call)) {
         (*function)(visitor, &synthesized_args);
     } else {
@@ -170,6 +172,17 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
         }
     }
 
+    const auto termination = state->get_termination_condition().simplify();
+    for (auto &variable : state_vars) {
+        auto &value = variable.second;
+        auto zero = value.is_bool()  ? state->get_z3_ctx()->bool_val(false)
+                    : value.is_bv()  ? state->get_z3_ctx()->bv_val(0, value.get_sort().bv_size())
+                    : value.is_int() ? state->get_z3_ctx()->int_val(0)
+                                     : state->get_z3_ctx()->string_val("");
+        value = z3::ite(termination, value, zero).simplify();
+    }
+    state_vars.emplace_back("$terminated"_cs, termination);
+    state->set_termination_condition(enclosingTermination);
     state->pop_scope();
 
     return state_vars;

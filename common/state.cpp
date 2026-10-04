@@ -553,6 +553,18 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
     return instance;
 }
 
+void P4State::pop_lexical_scope() {
+    const auto scope = get_current_scope();
+    pop_scope();
+    for (const auto &entry : scope.get_return_exprs()) push_return_expr(entry.first, entry.second);
+    for (auto entry : scope.get_return_states()) {
+        for (const auto &local : scope.get_var_map()) entry.second.erase(local.first);
+        push_return_state(entry.first, entry.second);
+    }
+    for (const auto &condition : scope.get_return_conds()) push_return_cond(condition);
+    if (scope.has_returned()) set_returned(true);
+}
+
 void P4State::push_scope() { scopes.push_back(P4Scope()); }
 
 void P4State::pop_scope() { scopes.pop_back(); }
@@ -763,6 +775,17 @@ VarMap P4State::clone_vars() const {
         cloned_vars.insert(sub_vars.begin(), sub_vars.end());
     }
     return cloned_vars;
+}
+
+VarMap P4State::clone_vars(const std::set<cstring> &names) const {
+    VarMap result;
+    for (const auto &entry : get_vars()) {
+        if (names.count(entry.first)) {
+            result.emplace(entry.first,
+                           std::make_pair(entry.second.first->copy(), entry.second.second));
+        }
+    }
+    return result;
 }
 
 VarMap P4State::get_vars() const {

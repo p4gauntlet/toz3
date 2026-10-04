@@ -33,6 +33,7 @@ class P4State {
     P4Scope main_scope;
     z3::context *ctx;
     P4Z3Instance *expr_result = nullptr;
+    z3::expr termination_condition = ctx->bool_val(true);
     // Exit vars
     bool is_exited = false;
     std::vector<std::pair<z3::expr, VarMap>> exit_states;
@@ -45,6 +46,9 @@ class P4State {
 
  public:
     const P4Scope &get_current_scope() const { return scopes.back(); }
+    z3::expr get_termination_condition() const { return termination_condition; }
+    void set_termination_condition(const z3::expr &condition) { termination_condition = condition; }
+    void pop_lexical_scope();
     bool has_exited() const { return is_exited; }
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
@@ -115,6 +119,7 @@ class P4State {
     ProgState clone_state() const;
     VarMap get_vars() const;
     VarMap clone_vars() const;
+    VarMap clone_vars(const std::set<cstring> &names) const;
     void restore_vars(const VarMap &input_map);
     void merge_vars(const z3::expr &cond, const VarMap &then_map) const;
     z3::expr get_exit_cond() const { return exit_cond; }

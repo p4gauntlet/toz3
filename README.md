@@ -42,3 +42,11 @@ ctest --output-on-failure -R '^toz3-unit$'
 ```
 
 The pass-generation tests use Python 3 to simulate compiler output.
+
+Loop interpretation supports `break`, `continue`, and inclusive constant ranges.
+Control results include a `$terminated` flag; output values are compared on
+terminating paths. Simple additive loops use exact arithmetic summaries. Other
+loops support up to 1,000 interpreted iterations and report an unsupported-feature
+error beyond that limit. A repeated counter proves nontermination only when
+condition and update inputs other than the counter stay unchanged, and the body
+has no calls or early exits.

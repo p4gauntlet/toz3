@@ -23,6 +23,7 @@ set(
   common/visitor_specialize.cpp
   common/parser.cpp
   common/expressions.cpp
+  common/loops.cpp
   common/operands.cpp
   common/util.cpp
 )
@@ -150,7 +151,7 @@ if(ENABLE_GTESTS)
     tests/gtest/type_simple.cpp
     tests/gtest/util.cpp
     tests/gtest/passes.cpp
-    tests/gtest/stacks.cpp
+    tests/gtest/loops.cpp
     tests/gtest/slices.cpp
     tests/gtest/visitor.cpp
   )

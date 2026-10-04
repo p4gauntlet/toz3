@@ -665,11 +665,13 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
         return false;
     }
     auto old_vars = state->clone_vars();
+    const auto loop_stopped = !loops.empty() && loops.back().stopped;
     state->push_forward_cond(z3_cond);
     visit(ifs->ifTrue);
     state->pop_forward_cond();
     auto then_has_exited = state->has_exited();
     auto then_has_returned = state->has_returned();
+    const auto then_stopped = !loops.empty() && loops.back().stopped;
     VarMap then_vars;
     if (then_has_exited || then_has_returned) {
         then_vars = old_vars;
@@ -678,6 +680,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     }
     state->set_exit(false);
     state->set_returned(false);
+    if (!loops.empty()) loops.back().stopped = loop_stopped;
 
     state->restore_vars(old_vars);
     auto old_state = state->clone_vars();
@@ -686,6 +689,7 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     state->pop_forward_cond();
     auto else_has_exited = state->has_exited();
     auto else_has_returned = state->has_returned();
+    if (!loops.empty()) loops.back().stopped = then_stopped && loops.back().stopped;
     if (else_has_exited || else_has_returned) {
         state->restore_vars(old_state);
     }
@@ -706,10 +710,25 @@ BlockStatement
 
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
     for (const auto *c : b->components) {
-        visit(c);
+        auto guard = state->get_z3_ctx()->bool_val(true);
+        if (!loops.empty()) {
+            guard = !(loops.back().break_condition || loops.back().continue_condition);
+            guard = guard.simplify();
+        }
+        if (guard.is_false()) break;
+        if (guard.is_true()) {
+            visit(c);
+        } else {
+            const auto skipped = state->clone_vars();
+            state->push_forward_cond(guard);
+            visit(c);
+            state->pop_forward_cond();
+            state->merge_vars(!guard, skipped);
+        }
         if (state->has_returned() || state->has_exited()) {
             break;
         }
+        if (!loops.empty() && loops.back().stopped) break;
     }
     return false;
 }
