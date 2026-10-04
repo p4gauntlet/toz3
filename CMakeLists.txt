@@ -67,10 +67,12 @@ set(
   compare/compare.cpp
   validate/options.cpp
   validate/main.cpp
+  validate/passes.cpp
 )
 set(
   TOZ3V2_VALIDATE_HDRS
   validate/options.h
+  validate/passes.h
 )
 
 file(
@@ -147,8 +149,9 @@ if(ENABLE_GTESTS)
   set(TOZ3_UNIT_TEST_SRCS
     tests/gtest/type_simple.cpp
     tests/gtest/util.cpp
+    tests/gtest/passes.cpp
   )
-  add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS})
+  add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS} validate/passes.cpp)
   target_link_libraries(toz3_tests PRIVATE p4toz3lib gtest_main)
   add_test(NAME toz3-unit COMMAND toz3_tests)
   set_tests_properties(toz3-unit PROPERTIES LABELS "gtest;toz3")

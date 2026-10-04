@@ -2,9 +2,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
-#include <iterator>
-#include <string>
-#include <vector>
 
 #include "../common/exceptions.h"
 #include "../common/util.h"
@@ -15,8 +12,9 @@
 #include "lib/cstring.h"
 #include "lib/error.h"
 #include "options.h"
+#include "passes.h"
 
-using namespace P4::literals;
+using namespace P4::literals;  // NOLINT
 
 namespace fs = std::filesystem;
 
@@ -24,64 +22,9 @@ static const auto FILE_DIR = fs::path(__FILE__).parent_path();
 static const auto COMPILER_BIN = FILE_DIR / "../../../../p4c/build/p4test";
 static const auto DUMP_DIR = fs::path("validated");
 
-static constexpr auto PASSES = "--top4 FrontEnd,MidEnd,PassManager ";
 static constexpr auto SEC_TO_MS = 1000000.0;
 
 namespace P4::ToZ3 {
-
-std::vector<std::filesystem::path> generatePassList(const fs::path &p4_file,
-                                                    const fs::path &dump_dir,
-                                                    const fs::path &compiler_bin) {
-    // FIXME: use absl::StrConcat
-    // First, get the pass names.
-    std::string passListCmd = compiler_bin.c_str();
-    passListCmd += " " + std::string(PASSES) + " --dump " + dump_dir.string() + " ";
-    passListCmd += " --Wdisable  -v " + p4_file.string();
-    passListCmd += " 2>&1 ";
-    passListCmd += R"#(| sed -e '/FrontEnd\|MidEnd\|PassManager/!d' )#";
-    passListCmd += R"#(| grep 'Writing program to' )#";
-    passListCmd += R"#(| sed -n 's/.*"\(.*\)".*/\1/p' )#";
-    std::stringstream passes;
-    if (exec(passListCmd.c_str(), passes) != 0) {
-        throw CompilerExecutionError("Failed to list compiler passes. Command:\n" + passListCmd);
-    }
-
-    std::string pass;
-    std::vector<std::filesystem::path> passList;
-    while (std::getline(passes, pass, '\n')) {
-        passList.emplace_back(pass);
-    }
-
-    if (passList.size() < 2) {
-        return passList;
-    }
-    // Then, write the actual programs. Do not use -v here to avoid polluting the dumped files.
-    std::string dumpCmd = compiler_bin.c_str();
-    dumpCmd += " " + std::string(PASSES) + " ";
-    dumpCmd += "--dump " + dump_dir.string() + " " + p4_file.c_str();
-    dumpCmd += " 2>&1";
-    std::stringstream output;
-    if (exec(dumpCmd.c_str(), output) != 0) {
-        throw CompilerExecutionError("Failed to dump compiler passes. Command:\n" + dumpCmd);
-    }
-
-    // Now, we remove all the dumped programs where no change was made.
-    std::vector<std::filesystem::path> prunedPassList;
-    auto it = passList.begin();
-    auto passBefore = *it;
-    prunedPassList.emplace_back(passBefore);
-    std::advance(it, 1);
-    for (; it != passList.end(); ++it) {
-        auto passAfter = *it;
-        if (compare_files(passBefore, passAfter)) {
-            fs::remove(passAfter.c_str());
-        } else {
-            prunedPassList.emplace_back(passAfter);
-            passBefore = passAfter;
-        }
-    }
-    return prunedPassList;
-}
 
 int validateTranslation(const fs::path &p4_file, const fs::path &dump_dir,
                         const fs::path &compiler_bin, ValidateOptions *options) {
