@@ -801,7 +801,10 @@ std::vector<std::pair<cstring, z3::expr>> EnumBase::get_z3_vars(cstring prefix,
 }
 
 void EnumBase::add_enum_member(cstring error_name) {
-    insert_member(error_name, new Z3Bitvector(state, member_type, val));
+    if (members.count(error_name)) return;
+    insert_member(error_name,
+                  new Z3Bitvector(state, member_type,
+                                  state->get_z3_ctx()->bv_val(members.size(), INT_WIDTH)));
 }
 
 void EnumBase::set_undefined() { val = state->gen_z3_expr(cstring(UNDEF_LABEL), member_type); }
@@ -954,6 +957,9 @@ SerEnumInstance *SerEnumInstance::instantiate(const NumericVal &enum_val) const 
 
 P4Z3Instance *SerEnumInstance::cast_allocate(const IR::Type *dest_type) const {
     dest_type = state->resolve_type(dest_type);
+    if (dest_type->is<IR::Type_SerEnum>()) {
+        return Z3Bitvector(state, member_type, val, member_type->isSigned).cast_allocate(dest_type);
+    }
     if (dest_type->equiv(*member_type)) {
         return Z3Bitvector(state, member_type, val, member_type->isSigned).cast_allocate(dest_type);
     }

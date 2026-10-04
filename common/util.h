@@ -29,9 +29,9 @@
 #define LOG_LEVEL 1
 #endif
 
-// If INT_WIDTH is not defined, define it as the size of int
+// Z3 bitvector widths are measured in bits.
 #ifndef INT_WIDTH
-#define INT_WIDTH sizeof(int)
+#define INT_WIDTH (sizeof(int) * CHAR_BIT)
 #endif
 
 namespace P4::ToZ3 {
