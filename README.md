@@ -50,3 +50,29 @@ loops support up to 1,000 interpreted iterations and report an unsupported-featu
 error beyond that limit. A repeated counter proves nontermination only when
 condition and update inputs other than the counter stay unchanged, and the body
 has no calls or early exits.
+
+Parser outputs are validated independently of the other architecture blocks.
+Their summaries include extracted fields, acceptance, parser error, and packet
+cursor, including the state preserved when parsing rejects. Packet extraction,
+lookahead, advance, length, and `verify` have explicit effect models.
+
+Parser paths merge with guarded `If` expressions and combined reachability.
+Acyclic joins run once per unfolding round; back edges start another round.
+When every cycle unconditionally extracts a stack's `next` element and no operation
+can reset a stack, analysis derives a bound from the combined stack capacities.
+These cycles avoid solver queries on each back edge. Conditional extraction,
+stack replacement, `pop_front`, and unknown calls prevent this proof; an extraction
+elsewhere in the same cycle component is insufficient if a cycle can bypass it.
+Other cycles retain the 1,000-round limit, and all parsers retain a 10,000-state
+execution limit. Remaining paths produce an unsupported-feature error. Cycles
+that consume packet data without advancing stacks can terminate on a finite
+packet, but may still require loop summaries beyond these limits.
+
+Packet reads are abstracted by packet identity, position, and width. Equal-width
+lookahead and extraction share data, but different widths are not generally
+constrained as views of the same bytes. Variable-width extraction includes its
+requested size in the read model; full runtime `varbit` length semantics remain
+incomplete. `FlattenHeaderUnion` remains excluded from pass comparisons.
+
+The [short-packet regression](tests/violated/parser_short_extract_def_use/README.md)
+documents a reduced `SimplifyDefUse` compiler mismatch detected by parser validation.
