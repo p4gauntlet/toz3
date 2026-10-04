@@ -30,6 +30,13 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/../p4c/extensions/
           cp -r $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
           ln -sf $GITHUB_WORKSPACE $GITHUB_WORKSPACE/../p4c/extensions/toz3
+          # Keep exact golden comparisons; apply the required upstream printer fix.
+          patch="$GITHUB_WORKSPACE/patches/p4c-top4-system-declarations.patch"
+          if git -C "$GITHUB_WORKSPACE/../p4c" apply --check "$patch"; then
+            git -C "$GITHUB_WORKSPACE/../p4c" apply "$patch"
+          else
+            git -C "$GITHUB_WORKSPACE/../p4c" apply --reverse --check "$patch"
+          fi
           mkdir $GITHUB_WORKSPACE/../p4c/build
           cd $GITHUB_WORKSPACE/../p4c/build
           cmake .. -DCMAKE_RUN_CLANG_TIDY=OFF \
@@ -51,4 +58,4 @@ jobs:
       - name: Test Pruner with CMake
         run: |
           cd $GITHUB_WORKSPACE/../p4c/build
-          ctest -R pruner/ --output-on-failure --schedule-random
+          ctest -R '^pruner' --output-on-failure --schedule-random

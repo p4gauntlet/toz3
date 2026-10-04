@@ -159,12 +159,12 @@ This is a subclass of `P4::RemoveUnusedDeclarations` where we try to aggressivel
 
 To reproduce pruning of old bugs, we maintain a folder of binaries with bugs in the `tests` folder.
 
-We use `check_prog.p4` for testing. The program takes a P4 file along with a P4C binary ( and optionally a validation binary) as input, prunes the provided program with a fixed seed, and then compares the output to a reference file. If the output and reference file match, the test passes.
+We use `check_prog.py` for testing. The driver takes a P4 file along with a P4C binary (and optionally a validation binary), prunes the provided program with a fixed seed, and then compares the output to a reference file. If pruning succeeds and the output and reference file match, the test passes. Each test uses a temporary directory for its output and working files, allowing parallel runs without modifying the source tree.
 
 Note that the provided P4 program must have a reference present in the `references` directory.
 
 ### Usage
 
-`check_prog.py  --pruner_path [PATH_TO_PRUNER_BIN] --compiler [PATH_TO_COMPILER_BIN] --validation [PATH_TO_VALIDATION_BIN] --p4prog [P4_PROG] --type [V/C]`
+`check_prog.py --pruner_path [PATH_TO_PRUNER_BIN] --compiler [PATH_TO_COMPILER_BIN] --validation [PATH_TO_VALIDATION_BIN] --p4prog [P4_PROG] --type [VALIDATION/CRASH]`
 
 Also, there is a folder called `p4c_bins` which will house various versions of the P4C compiler each named after the commit hash of the time it was compiled.
