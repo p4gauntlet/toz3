@@ -600,6 +600,21 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
     return base_hdr;
 }
 
+namespace {
+void invalidateStackElement(P4Z3Instance *element, Visitor *visitor) {
+    if (auto *header = element->to_mut<HeaderInstance>()) {
+        header->setInvalid(visitor, {});
+    } else if (auto *headerUnion = element->to_mut<HeaderUnionInstance>()) {
+        for (const auto &member : *headerUnion->get_member_map()) {
+            invalidateStackElement(member.second, visitor);
+        }
+    } else {
+        BUG("Stack operation requires a header or header union, got %s",
+            element->get_static_type());
+    }
+}
+}  // namespace
+
 void StackInstance::push_front(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
     if (args->size() != 1) {
         error("Expected one argument for push_front, received %s", args->size());
@@ -608,46 +623,37 @@ void StackInstance::push_front(Visitor *visitor, const IR::Vector<IR::Argument> 
     const auto *numeric_val = state->get_expr_result<NumericVal>();
     const auto z3_push_size = numeric_val->get_val()->simplify();
     auto int_push_size = z3_push_size.get_numeral_uint64();
-    // TODO: Checks
-    for (size_t idx = 0; idx < int_push_size; ++idx) {
-        // Check if we are pushing beyond the stack size
-        if (idx >= int_size) {
-            break;
-        }
-        auto *member = get_member(std::to_string(idx));
-        auto *hdr = member->to_mut<HeaderInstance>();
-        hdr->setInvalid(visitor, {});
+    const auto count = std::min<uint64_t>(int_push_size, int_size);
+    for (size_t idx = int_size; idx > count; --idx) {
+        members.at(std::to_string(idx - 1)) = get_member(std::to_string(idx - 1 - count))->copy();
+    }
+    for (size_t idx = 0; idx < count; ++idx) {
+        invalidateStackElement(get_member(std::to_string(idx)), visitor);
     }
     nextIndex = Z3Int(state, (*nextIndex.get_val() + z3_push_size).simplify());
-    if ((nextIndex > size).is_true()) {
-        nextIndex = size;
-    }
-    lastIndex = nextIndex;
+    nextIndex = Z3Int(state, z3::ite(*nextIndex.get_val() > *size.get_val(), *size.get_val(),
+                                     *nextIndex.get_val())
+                                 .simplify());
+    lastIndex = Z3Int(state, (*nextIndex.get_val() - 1).simplify());
 }
 void StackInstance::pop_front(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
     if (args->size() != 1) {
-        error("Expected one argument for push_front, received %s", args->size());
+        error("Expected one argument for pop_front, received %s", args->size());
     }
     visitor->visit(args->at(0)->expression);
     const auto *numeric_val = state->get_expr_result<NumericVal>();
     const auto z3_pop_size = numeric_val->get_val()->simplify();
     auto int_pop_size = z3_pop_size.get_numeral_uint64();
     auto last_range = int_pop_size > int_size ? 0 : int_size - int_pop_size;
+    for (size_t idx = 0; idx < last_range; ++idx) {
+        members.at(std::to_string(idx)) = get_member(std::to_string(idx + int_pop_size))->copy();
+    }
     for (size_t idx = last_range; idx < int_size; ++idx) {
-        // Check if we are pushing beyond the stack size
-        if (idx >= int_size) {
-            break;
-        }
-        auto *member = get_member(std::to_string(idx));
-        auto *hdr = member->to_mut<HeaderInstance>();
-        hdr->setInvalid(visitor, {});
+        invalidateStackElement(get_member(std::to_string(idx)), visitor);
     }
-    if ((*nextIndex.get_val() < z3_pop_size).is_true()) {
-        nextIndex = Z3Int(state, state->get_z3_ctx()->int_val(0));
-    } else {
-        nextIndex = Z3Int(state, (*nextIndex.get_val() - z3_pop_size).simplify());
-    }
-    lastIndex = nextIndex;
+    auto index = *nextIndex.get_val() - z3_pop_size;
+    nextIndex = Z3Int(state, z3::ite(index < 0, state->get_z3_ctx()->int_val(0), index).simplify());
+    lastIndex = Z3Int(state, (*nextIndex.get_val() - 1).simplify());
 }
 
 std::vector<std::pair<cstring, z3::expr>> StackInstance::get_z3_vars(

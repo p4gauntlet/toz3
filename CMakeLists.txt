@@ -150,6 +150,7 @@ if(ENABLE_GTESTS)
     tests/gtest/type_simple.cpp
     tests/gtest/util.cpp
     tests/gtest/passes.cpp
+    tests/gtest/stacks.cpp
     tests/gtest/slices.cpp
     tests/gtest/visitor.cpp
   )
