@@ -28,6 +28,7 @@
 #include "toz3/common/scope.h"
 #include "toz3/common/util.h"
 #include "type_base.h"
+#include "type_inference.h"
 #include "visitor_specialize.h"
 
 namespace P4::ToZ3 {
@@ -357,19 +358,17 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
                                                             const IR::TypeParameters &type_params) {
     CopyArgs resolved_args;
     VarMap merged_vec;
+    // Save inputs and copy-back destinations in call-site order, including named arguments.
     ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
-    for (const auto &param : params) {
-        // This may have a nullptr, but we need to maintain order
-        param_mapping.emplace(param, param->defaultValue);
-    }
     for (size_t idx = 0; idx < args.size(); ++idx) {
         const auto *arg = args.at(idx);
-        // We override the mapping here.
-        if (arg->name) {
-            param_mapping[params.getParameter(arg->name.name)] = arg->expression;
-        } else {
-            param_mapping[params.getParameter(idx)] = arg->expression;
-        }
+        const auto *param =
+            arg->name ? params.getParameter(arg->name.name) : params.getParameter(idx);
+        BUG_CHECK(param && !param_mapping.count(param), "Invalid argument %s", arg);
+        param_mapping.emplace(param, arg->expression);
+    }
+    for (const auto *param : params) {
+        if (!param_mapping.count(param)) param_mapping.emplace(param, param->defaultValue);
     }
 
     for (const auto &mapping : param_mapping) {
@@ -705,6 +704,34 @@ const P4Declaration *P4State::get_static_decl(cstring name) const {
     }
     error("Static Declaration %s not found in scope.", name);
     exit(1);
+}
+
+const IR::Node *P4State::resolve_callable(cstring name,
+                                          const IR::Vector<IR::Argument> &arguments) const {
+    const P4Scope *owner = &main_scope;
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+        if (scope.has_static_decl(name)) {
+            owner = &scope;
+            break;
+        }
+    }
+    const IR::Node *result = nullptr;
+    for (const auto *declaration : owner->get_overloads(name)) {
+        const auto *node = declaration->get_decl();
+        const IR::ParameterList *parameters = nullptr;
+        if (const auto *function = node->to<IR::Function>())
+            parameters = function->getParameters();
+        else if (const auto *method = node->to<IR::Method>())
+            parameters = method->getParameters();
+        else if (const auto *action = node->to<IR::P4Action>())
+            parameters = action->getParameters();
+        if (!parameters || !arguments_match(*parameters, arguments, node->is<IR::P4Action>()))
+            continue;
+        BUG_CHECK(!result, "Ambiguous callable %s", name);
+        result = node;
+    }
+    BUG_CHECK(result, "No matching overload for %s", name);
+    return result;
 }
 
 P4Declaration *P4State::find_static_decl(cstring name) const {

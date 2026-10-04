@@ -175,7 +175,7 @@ void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &me
 }
 
 FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
-                                       int num_args) {
+                                       const IR::Vector<IR::Argument> &arguments) {
     const P4Z3Instance *parent_class = nullptr;
     if (member_struct.temporary) {
         parent_class = member_struct.temporary;
@@ -196,8 +196,19 @@ FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &membe
         }
     }
     if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
-        // FIXME: This is a very rough version of overloading...
-        auto member_identifier = mangle_name(*name, num_args);
+        if (parent_class->is<ExternInstance>()) {
+            const auto *type = parent_class->get_p4_type()->checkedTo<IR::Type_Extern>();
+            const IR::Method *selected = nullptr;
+            for (const auto *method : type->methods) {
+                if (method->name != *name || !arguments_match(*method->getParameters(), arguments))
+                    continue;
+                BUG_CHECK(!selected, "Ambiguous extern method %s", name);
+                selected = method;
+            }
+            BUG_CHECK(selected, "No matching extern method %s", name);
+            return selected;
+        }
+        auto member_identifier = mangle_name(*name, arguments.size());
         return get_function(parent_class, member_identifier);
     }
     throw UnsupportedFeatureError("Member type not implemented.");
@@ -303,9 +314,8 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
     const auto *method_type = mce->method;
     if (const auto *path_expr = method_type->to<IR::PathExpression>()) {
-        // FIXME: This is a very rough version of overloading...
         auto path_identifier = mangle_name(path_expr->path->name.name, arg_size);
-        callable = state->get_static_decl(path_identifier)->get_decl();
+        callable = state->resolve_callable(path_identifier, *arguments);
     } else if (const auto *member = method_type->to<IR::Member>()) {
         auto member_struct = get_member_struct(state, this, member);
         // try to resolve and find a function pointer
@@ -313,7 +323,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             resolve_stack_call(this, state, member_struct, arguments);
             return false;
         }
-        auto resolved_call = resolve_var_or_decl_parent(state, member_struct, arg_size);
+        auto resolved_call = resolve_var_or_decl_parent(state, member_struct, *arguments);
         if (const auto *function = std::get_if<P4Z3Function>(&resolved_call)) {
             // call the function directly for now
             (*function)(this, arguments);

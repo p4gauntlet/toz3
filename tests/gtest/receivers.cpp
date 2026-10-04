@@ -63,6 +63,25 @@ TEST_F(ReceiverTest, CompoundAssignmentSavesIndexAndOldValueBeforeRightSide) {
               7U);
 }
 
+TEST_F(ReceiverTest, NamedArgumentsEvaluateInCallSiteOrder) {
+    evaluate(R"(
+        bit<8> next(inout bit<8> i) { bit<8> old = i; i += 1; return old; }
+        void capture(inout bit<8> z, in bit<8> first, in bit<8> second) {
+            z = (first << 4) + second;
+        }
+        void run(inout bit<8> z, inout bit<8> i) {
+            capture(z = z, second = next(i), first = next(i));
+        }
+        control C() { bit<8> calls = 0; bit<8> result = 0; apply {} }
+    )");
+    const IR::MethodCallExpression call(
+        new IR::PathExpression("run"_cs),
+        {new IR::PathExpression("result"_cs), new IR::PathExpression("calls"_cs)});
+    visitor.visit(&call);
+    EXPECT_EQ(value("calls"_cs), 2U);
+    EXPECT_EQ(value("result"_cs), 16U);
+}
+
 TEST_F(ReceiverTest, DefaultHeaderDiffersFromDefaultFieldInitializer) {
     evaluate(R"(
         header H { bit<8> x; }

@@ -1,11 +1,30 @@
 #include "type_inference.h"
 
 #include <algorithm>
+#include <set>
 
 #include "exceptions.h"
 #include "state.h"
 
 namespace P4::ToZ3 {
+bool arguments_match(const IR::ParameterList &parameters, const IR::Vector<IR::Argument> &arguments,
+                     bool action) {
+    if (arguments.size() > parameters.size()) return false;
+    std::set<const IR::Parameter *> supplied;
+    for (size_t i = 0; i < arguments.size(); ++i) {
+        const auto *argument = arguments.at(i);
+        const auto *parameter =
+            argument->name ? parameters.getParameter(argument->name) : parameters.getParameter(i);
+        if (!parameter || !supplied.insert(parameter).second) return false;
+    }
+    for (const auto *parameter : parameters) {
+        if (!supplied.count(parameter) && !parameter->isOptional() && !parameter->defaultValue &&
+            !(action && parameter->direction == IR::Direction::None))
+            return false;
+    }
+    return true;
+}
+
 const IR::Type *expression_type(const P4State &state, const IR::Expression *expression) {
     if (const auto *name = expression->to<IR::TypeNameExpression>()) {
         return state.resolve_type(name->typeName);
@@ -17,7 +36,7 @@ const IR::Type *expression_type(const P4State &state, const IR::Expression *expr
     if (const auto *call = expression->to<IR::MethodCallExpression>()) {
         if (const auto *path = call->method->to<IR::PathExpression>()) {
             const auto name = mangle_name(path->path->name, call->arguments->size());
-            const auto *callable = state.get_static_decl(name)->get_decl();
+            const auto *callable = state.resolve_callable(name, *call->arguments);
             if (const auto *function = callable->to<IR::Function>())
                 return state.resolve_type(function->type->returnType);
             if (const auto *method = callable->to<IR::Method>())

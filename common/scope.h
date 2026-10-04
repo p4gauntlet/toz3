@@ -14,6 +14,7 @@ class P4Scope {
  private:
     // maps of local values and types
     std::map<cstring, P4Declaration *> static_decls;
+    std::map<cstring, std::vector<P4Declaration *>> overloads;
     VarMap var_map;
     std::map<cstring, const IR::Type *> type_map;
     bool is_returned = false;
@@ -34,7 +35,13 @@ class P4Scope {
         }
         BUG("Key %s not found in static declaration map.", name);
     }
-    void declare_static_decl(cstring name, P4Declaration *val) { static_decls[name] = val; }
+    void declare_static_decl(cstring name, P4Declaration *val) {
+        static_decls[name] = val;
+        overloads[name].push_back(val);
+    }
+    const std::vector<P4Declaration *> &get_overloads(cstring name) const {
+        return overloads.at(name);
+    }
     bool has_static_decl(cstring name) const { return static_decls.count(name) > 0; }
     const std::map<cstring, P4Declaration *> *get_decl_map() const { return &static_decls; }
     /****** VARIABLES ******/

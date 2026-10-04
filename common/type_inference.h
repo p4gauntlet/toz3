@@ -9,5 +9,7 @@ class P4State;
 // Determine a receiver's type without evaluating it or its indexing expressions.
 const IR::Type *expression_type(const P4State &state, const IR::Expression *expression);
 big_int serialized_size(const P4State &state, const IR::Type *type, bool maximum);
+bool arguments_match(const IR::ParameterList &parameters, const IR::Vector<IR::Argument> &arguments,
+                     bool action = false);
 }  // namespace P4::ToZ3
 #endif  // TOZ3_COMMON_TYPE_INFERENCE_H_

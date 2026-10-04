@@ -207,6 +207,7 @@ class P4State {
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *decl);
     const P4Declaration *get_static_decl(cstring name) const;
+    const IR::Node *resolve_callable(cstring name, const IR::Vector<IR::Argument> &arguments) const;
     P4Declaration *find_static_decl(cstring name) const;
     template <typename T>
     const T *get_static_decl(cstring name) const {
