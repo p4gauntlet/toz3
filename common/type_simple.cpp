@@ -78,6 +78,8 @@ Z3Bitvector::Z3Bitvector(const P4State *state, const IR::Type *p4_type, const z3
     } else if (p4_type->is<IR::Type_Boolean>() || p4_type->is<IR::Type_String>()) {
         // What does a type string mean?
         width = 1;
+    } else if (p4_type->is<IR::Type_MatchKind>()) {
+        width = 32;
     } else {
         P4C_UNIMPLEMENTED("Unknown bit type %s", p4_type->node_type_name());
     }

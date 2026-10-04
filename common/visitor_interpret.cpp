@@ -313,9 +313,16 @@ bool Z3Visitor::preorder(const IR::P4ValueSet *pvs) {
     return false;
 }
 
-bool Z3Visitor::preorder(const IR::Declaration_MatchKind * /*dm */) {
-    // TODO: Figure out purpose of Declaration_MatchKind
-    // state->add_decl(dm->name.name, dm);
+bool Z3Visitor::preorder(const IR::Declaration_MatchKind *dm) {
+    for (const auto *member : dm->members) {
+        if (state->find_var(member->name.name)) continue;
+        const auto *type = IR::Type_MatchKind::get();
+        state->declare_var(
+            member->name.name,
+            new Z3Bitvector(state, type,
+                            state->get_z3_ctx()->bv_val(state->allocate_match_kind(), 32)),
+            type);
+    }
     return false;
 }
 

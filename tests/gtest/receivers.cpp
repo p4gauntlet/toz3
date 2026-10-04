@@ -109,5 +109,19 @@ TEST_F(ReceiverTest, SizeMethodDoesNotEvaluateItsReceiver) {
     EXPECT_EQ(value("element"_cs), 16U);
 }
 
+TEST_F(ReceiverTest, MatchKindsFromSeparateDeclarationsHaveDistinctValues) {
+    evaluate(R"(
+        match_kind { exact, ternary }
+        match_kind { range }
+        control C() { apply {} }
+    )");
+    const auto *exact = state.get_var<NumericVal>("exact"_cs);
+    const auto *ternary = state.get_var<NumericVal>("ternary"_cs);
+    const auto *range = state.get_var<NumericVal>("range"_cs);
+    EXPECT_TRUE((*exact->get_val() != *ternary->get_val()).simplify().is_true());
+    EXPECT_TRUE((*exact->get_val() != *range->get_val()).simplify().is_true());
+    EXPECT_TRUE((*ternary->get_val() != *range->get_val()).simplify().is_true());
+}
+
 }  // namespace
 }  // namespace P4::ToZ3

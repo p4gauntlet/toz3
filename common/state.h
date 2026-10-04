@@ -34,6 +34,7 @@ class P4State {
     P4Scope main_scope;
     z3::context *ctx;
     P4Z3Instance *expr_result = nullptr;
+    unsigned next_match_kind = 0;
     z3::expr termination_condition = ctx->bool_val(true);
     // Exit vars
     bool is_exited = false;
@@ -64,6 +65,7 @@ class P4State {
     /****** GETTERS ******/
     ProgState get_state() const { return scopes; }
     z3::context *get_z3_ctx() const { return ctx; }
+    unsigned allocate_match_kind() { return next_match_kind++; }
     const P4Z3Instance *get_expr_result() const { return expr_result; }
     template <typename T>
     const T *get_expr_result() const {
