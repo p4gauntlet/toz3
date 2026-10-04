@@ -48,9 +48,10 @@ class Logger {
         cstring reg_str = cstring(__FILE__) + ":" + std::to_string(LOG_LEVEL);
         Log::addDebugSpec(reg_str.c_str());
     }
+    static bool enabled(size_t level) { return level <= LOG_LEVEL && LOGGING(level); }
     template <typename... Args>
     static void log_msg(size_t level, const std::string &msg, Args &...args) {
-        if (level > LOG_LEVEL) {
+        if (!enabled(level)) {
             return;
         }
         boost::format f(msg);

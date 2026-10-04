@@ -123,7 +123,9 @@ class P4Scope {
     void push_return_state(const z3::expr &cond, const VarMap &state) {
         return_states.emplace_back(cond, state);
     }
-    std::vector<std::pair<z3::expr, VarMap>> get_return_states() const { return return_states; }
+    const std::vector<std::pair<z3::expr, VarMap>> &get_return_states() const {
+        return return_states;
+    }
     void clear_return_states() { return_states.clear(); }
     void clear_return_exprs() { return_exprs.clear(); }
 
@@ -147,7 +149,7 @@ class P4Scope {
         return cloned_map;
     }
     friend inline std::ostream &operator<<(std::ostream &out, const P4Scope &scope) {
-        auto var_map = scope.get_var_map();
+        const auto &var_map = scope.get_var_map();
         for (auto it = var_map.begin(); it != var_map.end(); ++it) {
             const cstring name = it->first;
             auto val = it->second;

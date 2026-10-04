@@ -490,7 +490,7 @@ void P4State::copy_in(EvaluationContext *visitor, const ParamInfo &param_info) {
 void P4State::copy_out() {
     auto copy_out_args = get_copy_out_args();
     // merge all the state of the different return points
-    auto return_states = get_return_states();
+    const auto &return_states = get_return_states();
     for (auto it = return_states.rbegin(); it != return_states.rend(); ++it) {
         merge_vars(it->first, it->second);
     }
@@ -583,7 +583,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
 }
 
 void P4State::pop_lexical_scope() {
-    const auto scope = get_current_scope();
+    const auto scope = std::move(scopes.back());
     pop_scope();
     for (const auto &entry : scope.get_return_exprs()) push_return_expr(entry.first, entry.second);
     for (auto entry : scope.get_return_states()) {
@@ -849,7 +849,7 @@ VarMap P4State::get_vars() const {
     VarMap concat_map;
     // this also implicitly shadows
     for (const auto &scope : boost::adaptors::reverse(scopes)) {
-        auto sub_vars = scope.get_var_map();
+        const auto &sub_vars = scope.get_var_map();
         concat_map.insert(sub_vars.begin(), sub_vars.end());
     }
     return concat_map;

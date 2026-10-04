@@ -97,7 +97,7 @@ class P4State {
         scope->set_copy_out_args(out_args);
     }
     CopyArgs get_copy_out_args() const {
-        auto scope = get_current_scope();
+        const auto &scope = get_current_scope();
         return scope.get_copy_out_args();
     }
     /****** PARSER STATES ******/
@@ -186,7 +186,7 @@ class P4State {
     void push_return_state(const z3::expr &cond, const VarMap &state) {
         return get_mut_current_scope()->push_return_state(cond, state);
     }
-    std::vector<std::pair<z3::expr, VarMap>> get_return_states() const {
+    const std::vector<std::pair<z3::expr, VarMap>> &get_return_states() const {
         return get_current_scope().get_return_states();
     }
 

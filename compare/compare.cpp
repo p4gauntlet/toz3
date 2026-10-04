@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdlib>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <list>
@@ -249,8 +250,10 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr
         }
         // Check the equivalence of the modified clause.
         Logger::log_msg(1, "Checking member %s... ", idx);
-        cstring equ = tv_equiv.to_string();
-        Logger::log_msg(1, "Equation:\n%s", equ);
+        if (Logger::enabled(1)) {
+            cstring equ = tv_equiv.to_string();
+            Logger::log_msg(1, "Equation:\n%s", equ);
+        }
         s->add(tv_equiv);
         auto ret = s->check();
         if (ret == z3::sat) {
@@ -267,13 +270,16 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr
     return z3::check_result::unsat;
 }
 
-int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool allow_undefined) {
+int compareProgs(z3::context *ctx, const std::vector<std::filesystem::path> &prog_list,
+                 const std::function<Z3Prog(const std::filesystem::path &)> &interpret,
+                 bool allow_undefined) {
     z3::solver s(*ctx);
-    auto prog_before = z3_progs[0];
+    auto prog_before = interpret(prog_list.front());
     auto z3_prog_before = create_z3_struct(ctx, prog_before.second);
-    for (size_t i = 1; i < z3_progs.size(); ++i) {
-        auto prog_after = z3_progs[i];
-        auto z3_prog_after = create_z3_struct(ctx, z3_progs[i].second);
+    for (size_t i = 1; i < prog_list.size(); ++i) {
+        // Retain only adjacent summaries, and stop interpreting at the first violation.
+        auto prog_after = interpret(prog_list[i]);
+        auto z3_prog_after = create_z3_struct(ctx, prog_after.second);
 
         bool found = false;
         for (auto banned_pass : SKIPPED_PASSES) {
@@ -328,11 +334,9 @@ int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool all
 
 int process_programs(const std::vector<std::filesystem::path> &prog_list, ParserOptions *options,
                      bool allow_undefined) {
+    if (prog_list.empty()) return EXIT_SKIPPED;
     z3::context ctx;
-    // Parse the first program
-    // Use a little trick here to get the second program
-    std::vector<Z3Prog> z3Progs;
-    for (const auto &prog : prog_list) {
+    const auto interpret = [&](const std::filesystem::path &prog) -> Z3Prog {
         options->file = prog;
         const auto *progParsed = P4::parseP4File(*options);
         if (progParsed == nullptr || P4::errorCount() > 0) {
@@ -341,9 +345,9 @@ int process_programs(const std::vector<std::filesystem::path> &prog_list, Parser
         auto z3ReprProg = get_z3_repr(prog, progParsed, &ctx);
         std::vector<std::pair<cstring, z3::expr>> resultVec;
         unroll_result(z3ReprProg, &resultVec);
-        z3Progs.emplace_back(prog, resultVec);
-    }
-    return compareProgs(&ctx, z3Progs, allow_undefined);
+        return Z3Prog(prog, std::move(resultVec));
+    };
+    return compareProgs(&ctx, prog_list, interpret, allow_undefined);
 }
 
 }  // namespace P4::ToZ3
