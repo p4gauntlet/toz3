@@ -338,6 +338,13 @@ bool Z3Visitor::preorder(const IR::PlusSlice *sl) {
 bool Z3Visitor::preorder(const IR::Cast *c) {
     // Resolve the type.
     const auto *resolved_type = state->resolve_type(c->destType);
+    if (c->expr->is<IR::Invalid>()) {
+        BUG_CHECK(resolved_type->is<IR::Type_Header>() || resolved_type->is<IR::Type_HeaderUnion>(),
+                  "Invalid literal cast to %s", resolved_type);
+        // Fresh headers and header unions have all members invalid.
+        state->set_expr_result(state->gen_instance(cstring(UNDEF_LABEL), resolved_type));
+        return false;
+    }
     // Resolve the expression.
     visit(c->expr);
     const auto *resolved_expr = state->get_expr_result();
