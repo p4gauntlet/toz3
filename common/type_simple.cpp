@@ -48,21 +48,16 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type, bool is_s
 
 z3::expr align_bitvectors(const P4Z3Instance *target, const z3::sort &bv_cast,
                           bool align_bv = false, cstring op = ""_cs) {
-    const z3::expr *cast_expr = nullptr;
     if (const auto *target_int = target->to<Z3Int>()) {
-        auto cast_val = pure_bv_cast(*target_int->get_val(), bv_cast);
-        cast_expr = &cast_val;
-    } else if (const auto *target_expr = target->to<Z3Bitvector>()) {
-        if (align_bv) {
-            auto cast_val = pure_bv_cast(*target_expr->get_val(), bv_cast);
-            cast_expr = &cast_val;
-        } else {
-            cast_expr = target_expr->get_val();
-        }
-    } else {
-        P4C_UNIMPLEMENTED("%s: Alignment not implemented for %s.", op, target->get_static_type());
+        return pure_bv_cast(*target_int->get_val(), bv_cast);
     }
-    return *cast_expr;
+    if (const auto *target_expr = target->to<Z3Bitvector>()) {
+        if (align_bv) {
+            return pure_bv_cast(*target_expr->get_val(), bv_cast);
+        }
+        return *target_expr->get_val();
+    }
+    P4C_UNIMPLEMENTED("%s: Alignment not implemented for %s.", op, target->get_static_type());
 }
 
 /***

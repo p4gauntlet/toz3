@@ -85,6 +85,8 @@ file(
   pruner/*.h
   validate/*.cpp
   validate/*.h
+  tests/gtest/*.cpp
+  tests/gtest/*.h
 )
 # Filter some folders from the CI checks.
 list(FILTER TOZ3_LINT_LIST EXCLUDE REGEX "pruner/src/contrib")
@@ -140,6 +142,16 @@ install(TARGETS p4compare RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})
 target_link_libraries(p4validate p4toz3lib)
 install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
+
+if(ENABLE_GTESTS)
+  set(TOZ3_UNIT_TEST_SRCS
+    tests/gtest/type_simple.cpp
+  )
+  add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS})
+  target_link_libraries(toz3_tests PRIVATE p4toz3lib gtest_main)
+  add_test(NAME toz3-unit COMMAND toz3_tests)
+  set_tests_properties(toz3-unit PROPERTIES LABELS "gtest;toz3")
+endif()
 
 
 add_custom_target(
