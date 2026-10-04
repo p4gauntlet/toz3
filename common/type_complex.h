@@ -376,6 +376,7 @@ class SerEnumInstance : public EnumBase {
     // TODO: SerEnumInstance is static, so no copy allowed
     SerEnumInstance *copy() const override;
     SerEnumInstance *instantiate(const NumericVal &enum_val) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     P4Z3Instance *operator&(const P4Z3Instance &other) const override;
     P4Z3Instance *operator|(const P4Z3Instance &other) const override;
 };

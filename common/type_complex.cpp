@@ -941,6 +941,7 @@ SerEnumInstance::SerEnumInstance(P4State *p4_state,
     if (const auto *tb = resolved_type->to<IR::Type_Bits>()) {
         member_type = tb;
         width = tb->size;
+        val = pure_bv_cast(val, state->get_z3_ctx()->bv_sort(width));
     } else {
         P4C_UNIMPLEMENTED("Type %s not supported for SerEnum!", type->type->node_type_name());
     }
@@ -953,6 +954,14 @@ SerEnumInstance *SerEnumInstance::instantiate(const NumericVal &enum_val) const 
     auto current_sort = val.get_sort();
     enum_copy->set_enum_val(pure_bv_cast(*enum_val.get_val(), current_sort));
     return enum_copy;
+}
+
+P4Z3Instance *SerEnumInstance::cast_allocate(const IR::Type *dest_type) const {
+    dest_type = state->resolve_type(dest_type);
+    if (dest_type->equiv(*member_type)) {
+        return Z3Bitvector(state, member_type, val, member_type->isSigned).cast_allocate(dest_type);
+    }
+    return StructBase::cast_allocate(dest_type);
 }
 
 P4Z3Instance *SerEnumInstance::operator&(const P4Z3Instance &other) const {

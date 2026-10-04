@@ -152,6 +152,7 @@ if(ENABLE_GTESTS)
     tests/gtest/util.cpp
     tests/gtest/passes.cpp
     tests/gtest/loops.cpp
+    tests/gtest/enums.cpp
     tests/gtest/slices.cpp
     tests/gtest/visitor.cpp
   )
@@ -227,14 +228,8 @@ set(
   ${P4C_TEST_DIR}/issue1914.p4
   ${P4C_TEST_DIR}/issue1914-1.p4
   ${P4C_TEST_DIR}/issue1914-2.p4
-  ${P4C_TEST_DIR}/pna-direction-main-parser-err.p4
-  ${P4C_TEST_DIR}/pna-direction.p4
   ${P4C_TEST_DIR}/pna-example-mirror-packet-error3.p4
   ${P4C_TEST_DIR}/issue3283.p4
-  ${P4C_TEST_DIR}/issue3374.p4
-  ${P4C_TEST_DIR}/pna-elim-hdr-copy-dpdk.p4
-  ${P4C_TEST_DIR}/pna-example-varIndex.p4
-  ${P4C_TEST_DIR}/pna-too-big-label-name-dpdk.p4
   ${P4C_TEST_DIR}/invalid-header.p4
   ${P4C_TEST_DIR}/issue3616.p4
   ${P4C_TEST_DIR}/methodArgs.p4

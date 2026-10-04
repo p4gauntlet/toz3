@@ -215,6 +215,8 @@ P4Z3Instance *Z3Bitvector::operator<<(const P4Z3Instance &other) const {
 }
 
 z3::expr Z3Bitvector::operator==(const P4Z3Instance &other) const {
+    // Explicit dispatch avoids C++20's reversed comparison candidates for symbolic equality.
+    if (other.is<EnumBase>()) return other.operator==(*this);
     auto other_expr = align_bitvectors(&other, val.get_sort(), false, "=="_cs);
     // Mismatched bit vectors evaluate to false.
     // TODO: Check if this is allowed and clean this up.
