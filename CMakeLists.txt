@@ -33,6 +33,7 @@ set(
 set(
   TOZ3V2_COMMON_HDRS
   common/create_z3.h
+  common/evaluation_context.h
   common/defaults.h
   common/type_inference.h
   common/scope.h

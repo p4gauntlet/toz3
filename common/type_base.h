@@ -13,6 +13,7 @@
 #include <boost/range/adaptor/reversed.hpp>
 
 #include "ir/ir.h"
+#include "lib/castable.h"
 #include "lib/cstring.h"
 #include "util.h"
 
@@ -20,6 +21,7 @@ namespace P4::ToZ3 {
 
 using namespace P4::literals;  // NOLINT
 
+class EvaluationContext;
 class P4Z3Instance;
 class Z3Int;
 class Z3Bitvector;
@@ -34,7 +36,7 @@ class ListInstance;
 class ExternInstance;
 class P4TableInstance;
 
-using P4Z3Function = std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
+using P4Z3Function = std::function<void(EvaluationContext *, const IR::Vector<IR::Argument> *)>;
 using FunOrMethod = std::variant<P4Z3Function, const IR::Method *>;
 
 struct Z3Slice {
@@ -71,19 +73,14 @@ struct TableProperties {
     bool immutable;
 };
 
-class P4Z3Node {
+class P4Z3Node : public ICastable {
+ public:
+    DECLARE_TYPEINFO(P4Z3Node);
+
  public:
     template <typename T>
-    bool is() const {
-        return to<T>() != nullptr;
-    }
-    template <typename T>
-    const T *to() const {
-        return dynamic_cast<const T *>(this);
-    }
-    template <typename T>
     T *to_mut() {
-        return dynamic_cast<T *>(this);
+        return to<T>();
     }
 
     virtual cstring get_static_type() const = 0;
@@ -135,6 +132,9 @@ struct ParserError : public std::exception {
 };
 
 class P4Z3Instance : public P4Z3Node {
+ public:
+    DECLARE_TYPEINFO(P4Z3Instance, P4Z3Node);
+
  protected:
     const IR::Type *p4_type = nullptr;
 

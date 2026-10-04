@@ -28,6 +28,8 @@
 #include "util.h"
 #include "visitor_specialize.h"
 
+#include "evaluation_context.h"
+
 namespace P4::ToZ3 {
 /***
 ===============================================================================
@@ -331,41 +333,47 @@ HeaderInstance::HeaderInstance(P4State *state, const IR::Type_Header *type, cstr
     // When we first instantiate a header, all its members need to be invalid.
     HeaderInstance::propagate_validity(&valid);
 
-    add_function("setValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        setValid(visitor, args);
-    });
-    add_function("setInvalid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        setInvalid(visitor, args);
-    });
-    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        isValid(visitor, args);
-    });
+    add_function("setValid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     setValid(visitor, args);
+                 });
+    add_function("setInvalid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     setInvalid(visitor, args);
+                 });
+    add_function("isValid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     isValid(visitor, args);
+                 });
     add_function("minSizeInBytes0"_cs,
-                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
                      minSizeInBytes(visitor, args);
                  });
     add_function("minSizeInBits0"_cs,
-                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
                      minSizeInBits(visitor, args);
                  });
 }
 
 HeaderInstance::HeaderInstance(const HeaderInstance &other) : StructInstance(other) {
-    add_function("setValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        setValid(visitor, args);
-    });
-    add_function("setInvalid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        setInvalid(visitor, args);
-    });
-    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        isValid(visitor, args);
-    });
+    add_function("setValid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     setValid(visitor, args);
+                 });
+    add_function("setInvalid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     setInvalid(visitor, args);
+                 });
+    add_function("isValid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     isValid(visitor, args);
+                 });
     add_function("minSizeInBytes0"_cs,
-                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
                      minSizeInBytes(visitor, args);
                  });
     add_function("minSizeInBits0"_cs,
-                 [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
                      minSizeInBits(visitor, args);
                  });
 }
@@ -407,29 +415,32 @@ void HeaderInstance::set_valid(const z3::expr &valid_val) {
 
 const z3::expr *HeaderInstance::get_valid() const { return &valid; }
 
-void HeaderInstance::setValid(Visitor * /*visitor*/, const IR::Vector<IR::Argument> * /*args*/) {
+void HeaderInstance::setValid(EvaluationContext * /*visitor*/,
+                              const IR::Vector<IR::Argument> * /*args*/) {
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
     state->set_expr_result(new VoidResult());
 }
 
-void HeaderInstance::setInvalid(Visitor * /*visitor*/, const IR::Vector<IR::Argument> * /*args*/) {
+void HeaderInstance::setInvalid(EvaluationContext * /*visitor*/,
+                                const IR::Vector<IR::Argument> * /*args*/) {
     set_valid(state->get_z3_ctx()->bool_val(false));
     propagate_validity(&valid);
     set_undefined();
     state->set_expr_result(new VoidResult());
 }
 
-void HeaderInstance::isValid(Visitor * /*visitor*/, const IR::Vector<IR::Argument> * /*args*/) {
+void HeaderInstance::isValid(EvaluationContext * /*visitor*/,
+                             const IR::Vector<IR::Argument> * /*args*/) {
     state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, valid));
 }
 
-void HeaderInstance::minSizeInBits(Visitor * /*visitor*/,
+void HeaderInstance::minSizeInBits(EvaluationContext * /*visitor*/,
                                    const IR::Vector<IR::Argument> * /*args*/) {
     state->set_expr_result(new Z3Int(state, width));
 }
 
-void HeaderInstance::minSizeInBytes(Visitor * /*visitor*/,
+void HeaderInstance::minSizeInBytes(EvaluationContext * /*visitor*/,
                                     const IR::Vector<IR::Argument> * /*args*/) {
     state->set_expr_result(new Z3Int(state, (width + 7) >> 3));
 }
@@ -507,12 +518,14 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Array *type, cstring
         insert_member(member_name, member_var);
         member_types.insert({member_name, elem_type});
     }
-    add_function("push_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        push_front(visitor, args);
-    });
-    add_function("pop_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        pop_front(visitor, args);
-    });
+    add_function("push_front1"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     push_front(visitor, args);
+                 });
+    add_function("pop_front1"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     pop_front(visitor, args);
+                 });
 }
 
 StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
@@ -524,12 +537,14 @@ StackInstance::StackInstance(const StackInstance &other)
       size(other.size),
       int_size(other.int_size),
       elem_type(other.elem_type) {
-    add_function("push_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        push_front(visitor, args);
-    });
-    add_function("pop_front1"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        pop_front(visitor, args);
-    });
+    add_function("push_front1"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     push_front(visitor, args);
+                 });
+    add_function("pop_front1"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     pop_front(visitor, args);
+                 });
 }
 
 StackInstance &StackInstance::operator=(const StackInstance &other) {
@@ -611,7 +626,7 @@ P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
 }
 
 namespace {
-void invalidateStackElement(P4Z3Instance *element, Visitor *visitor) {
+void invalidateStackElement(P4Z3Instance *element, EvaluationContext *visitor) {
     if (auto *header = element->to_mut<HeaderInstance>()) {
         header->setInvalid(visitor, {});
     } else if (auto *headerUnion = element->to_mut<HeaderUnionInstance>()) {
@@ -625,11 +640,11 @@ void invalidateStackElement(P4Z3Instance *element, Visitor *visitor) {
 }
 }  // namespace
 
-void StackInstance::push_front(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+void StackInstance::push_front(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
     if (args->size() != 1) {
         error("Expected one argument for push_front, received %s", args->size());
     }
-    visitor->visit(args->at(0)->expression);
+    visitor->evaluate(args->at(0)->expression);
     const auto *numeric_val = state->get_expr_result<NumericVal>();
     const auto z3_push_size = numeric_val->get_val()->simplify();
     auto int_push_size = z3_push_size.get_numeral_uint64();
@@ -646,11 +661,11 @@ void StackInstance::push_front(Visitor *visitor, const IR::Vector<IR::Argument> 
                                  .simplify());
     lastIndex = Z3Int(state, (*nextIndex.get_val() - 1).simplify());
 }
-void StackInstance::pop_front(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+void StackInstance::pop_front(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
     if (args->size() != 1) {
         error("Expected one argument for pop_front, received %s", args->size());
     }
-    visitor->visit(args->at(0)->expression);
+    visitor->evaluate(args->at(0)->expression);
     const auto *numeric_val = state->get_expr_result<NumericVal>();
     const auto z3_pop_size = numeric_val->get_val()->simplify();
     auto int_pop_size = z3_pop_size.get_numeral_uint64();
@@ -696,15 +711,17 @@ HeaderUnionInstance::HeaderUnionInstance(P4State *state, const IR::Type_HeaderUn
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!", field->type);
         }
     }
-    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        isValid(visitor, args);
-    });
+    add_function("isValid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     isValid(visitor, args);
+                 });
 }
 
 HeaderUnionInstance::HeaderUnionInstance(const HeaderUnionInstance &other) : StructBase(other) {
-    add_function("isValid0"_cs, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        isValid(visitor, args);
-    });
+    add_function("isValid0"_cs,
+                 [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                     isValid(visitor, args);
+                 });
 }
 
 HeaderUnionInstance &HeaderUnionInstance::operator=(const HeaderUnionInstance &other) {
@@ -751,7 +768,7 @@ z3::expr HeaderUnionInstance::get_valid() const {
     return valid_var;
 }
 
-void HeaderUnionInstance::isValid(Visitor * /*visitor*/,
+void HeaderUnionInstance::isValid(EvaluationContext * /*visitor*/,
                                   const IR::Vector<IR::Argument> * /*args*/) {
     state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, get_valid()));
 }
@@ -1224,9 +1241,10 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     }
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         cstring apply_str = mangle_name(cstring("apply"), num_params + idx);
-        add_function(apply_str, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-            apply(visitor, args);
-        });
+        add_function(apply_str,
+                     [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
+                         apply(visitor, args);
+                     });
     }
     for (const auto &arg : resolved_const_args) {
         const auto arg_name = arg.first;
@@ -1241,7 +1259,7 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
     }
 }
 
-void ControlInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+void ControlInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
     IR::IndexedVector<IR::Declaration> local_decls;
@@ -1268,16 +1286,16 @@ void ControlInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
         state->declare_var(const_arg.first, const_arg.second.first, const_arg.second.second);
     }
     for (const auto *local_decl : local_decls) {
-        visitor->visit(local_decl);
+        visitor->evaluate(local_decl);
     }
     if (!parser_states.empty()) {
         for (const auto &parser_state : parser_states) {
             state->declare_static_decl(parser_state->name.name, new P4Declaration(parser_state));
         }
-        visitor->visit(state->get_static_decl("start"_cs)->get_decl());
+        visitor->evaluate(state->get_static_decl("start"_cs)->get_decl());
     }
     if (body != nullptr) {
-        visitor->visit(body);
+        visitor->evaluate(body);
     }
     state->copy_out();
 }

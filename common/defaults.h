@@ -11,6 +11,9 @@ class DefaultInstance : public P4Z3Instance {
     P4State *state;
 
  public:
+    DECLARE_TYPEINFO(DefaultInstance, P4Z3Instance);
+
+ public:
     explicit DefaultInstance(P4State *state)
         : P4Z3Instance(IR::Type_Dontcare::get()), state(state) {}
     P4Z3Instance *cast_allocate(const IR::Type *type) const override;

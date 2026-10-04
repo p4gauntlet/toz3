@@ -17,6 +17,7 @@
 #include <boost/multiprecision/number.hpp>
 #include <boost/range/adaptor/reversed.hpp>
 
+#include "evaluation_context.h"
 #include "ir/id.h"
 #include "ir/node.h"
 #include "ir/visitor.h"
@@ -65,7 +66,8 @@ z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
     return z3::concat(assemble);
 }
 
-MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expression *target) {
+MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
+                               const IR::Expression *target) {
     MemberStruct member_struct;
     member_struct.is_flat = true;
     const auto append = [&](const NameOrIndex &member) {
@@ -82,15 +84,15 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expre
             append(member->member.name);
         } else if (const auto *index = expression->to<IR::ArrayIndex>()) {
             resolve(index->left);
-            visitor->visit(index->right);
+            visitor->evaluate(index->right);
             const auto value = state->get_expr_result<ValContainer>()->get_val()->simplify();
             append(value);
             member_struct.has_index = true;
         } else if (const auto *slice = expression->to<IR::Slice>()) {
             resolve(slice->e0);
-            visitor->visit(slice->e1);
+            visitor->evaluate(slice->e1);
             const auto hi = *state->get_expr_result<NumericVal>()->get_val();
-            visitor->visit(slice->e2);
+            visitor->evaluate(slice->e2);
             const auto lo = *state->get_expr_result<NumericVal>()->get_val();
             member_struct.end_slices.insert(member_struct.end_slices.begin(), {hi, lo});
         } else if (const auto *path = expression->to<IR::PathExpression>()) {
@@ -98,7 +100,7 @@ MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expre
         } else if (const auto *name = expression->to<IR::TypeNameExpression>()) {
             member_struct.main_member = name->typeName->checkedTo<IR::Type_Name>()->path->name;
         } else {
-            visitor->visit(expression);
+            visitor->evaluate(expression);
             member_struct.temporary = state->copy_expr_result();
         }
     };
@@ -322,7 +324,8 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     }
 }
 
-void P4State::set_var(Visitor *visitor, const IR::Expression *target, P4Z3Instance *rval) {
+void P4State::set_var(EvaluationContext *visitor, const IR::Expression *target,
+                      P4Z3Instance *rval) {
     if (const auto *name = target->to<IR::PathExpression>()) {
         const auto *dest_type = get_var_type(name->path->name.name);
         auto *cast_val = rval->cast_allocate(dest_type);
@@ -335,10 +338,11 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target, P4Z3Instan
     set_var(member_struct, rval);
 }
 
-void P4State::set_var(Visitor *visitor, const IR::Expression *target, const IR::Expression *rval) {
+void P4State::set_var(EvaluationContext *visitor, const IR::Expression *target,
+                      const IR::Expression *rval) {
     if (const auto *name = target->to<IR::PathExpression>()) {
         const auto *dest_type = get_var_type(name->path->name.name);
-        visitor->visit(rval);
+        visitor->evaluate(rval);
         const auto *tmp_rval = get_expr_result();
         auto *cast_val = tmp_rval->cast_allocate(dest_type);
         update_var(name->path->name, cast_val);
@@ -347,12 +351,12 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target, const IR::
     auto member_struct = get_member_struct(this, visitor, target);
     // Collection phase done
     // Now begins the setting phase...
-    visitor->visit(rval);
+    visitor->evaluate(rval);
     auto *tmp_rval = copy_expr_result();
     set_var(member_struct, tmp_rval);
 }
 
-std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
+std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(EvaluationContext *visitor,
                                                             const IR::Vector<IR::Argument> &args,
                                                             const IR::ParameterList &params,
                                                             const IR::TypeParameters &type_params) {
@@ -395,7 +399,7 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
             resolved_args.push_back({member_struct, param->name.name});
             arg_result = get_member(this, member_struct);
         } else {
-            visitor->visit(arg_expr);
+            visitor->evaluate(arg_expr);
             arg_result = get_expr_result();
         }
         CHECK_NULL(arg_result);
@@ -425,7 +429,7 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
     return std::pair<CopyArgs, VarMap>{resolved_args, merged_vec};
 }
 
-void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
+void P4State::copy_in(EvaluationContext *visitor, const ParamInfo &param_info) {
     push_scope();
 
     // Specialize

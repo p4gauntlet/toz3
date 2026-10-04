@@ -23,6 +23,8 @@
 #include "toz3/common/util.h"
 #include "type_complex.h"
 
+#include "evaluation_context.h"
+
 namespace P4::ToZ3 {
 /***
 ===============================================================================
@@ -95,9 +97,8 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
     members.insert({"hit"_cs, new Z3Bitvector(state, &BOOL_TYPE, hit)});
     members.insert({"miss"_cs, new Z3Bitvector(state, &BOOL_TYPE, !hit)});
     cstring apply_str = mangle_name(cstring("apply"), p4t->getApplyParameters()->size());
-    add_function(apply_str, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        apply(visitor, args);
-    });
+    add_function(apply_str, [this](EvaluationContext *visitor,
+                                   const IR::Vector<IR::Argument> *args) { apply(visitor, args); });
 
     table_props.table_name = infer_name(p4t, p4t->name.name);
     // We first collect all the necessary properties
@@ -117,12 +118,11 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3:
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str = mangle_name(apply_str, table->getApplyParameters()->size());
     }
-    add_function(apply_str, [this](Visitor *visitor, const IR::Vector<IR::Argument> *args) {
-        apply(visitor, args);
-    });
+    add_function(apply_str, [this](EvaluationContext *visitor,
+                                   const IR::Vector<IR::Argument> *args) { apply(visitor, args); });
 }
 
-z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
+z3::expr compute_table_hit(EvaluationContext *visitor, P4State *state, cstring table_name,
                            const std::vector<const IR::KeyElement *> &keys,
                            std::vector<const P4Z3Instance *> *evaluated_keys) {
     auto *ctx = state->get_z3_ctx();
@@ -130,7 +130,7 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
         const auto *key = keys.at(idx);
         // TODO: Actually look up the match type here. Not sure why needed...
-        visitor->visit(key->expression);
+        visitor->evaluate(key->expression);
         const auto *key_eval = state->copy_expr_result();
         evaluated_keys->push_back(key_eval);
         const auto *val_container = key_eval->to<ValContainer>();
@@ -174,8 +174,8 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
     return hit;
 }
 
-void handle_table_action(Visitor *visitor, P4State *state, const IR::MethodCallExpression *act,
-                         cstring action_label) {
+void handle_table_action(EvaluationContext *visitor, P4State *state,
+                         const IR::MethodCallExpression *act, cstring action_label) {
     const IR::Expression *call_name = nullptr;
     IR::Vector<IR::Argument> ctrl_args;
     const IR::ParameterList *method_params = nullptr;
@@ -214,10 +214,10 @@ void handle_table_action(Visitor *visitor, P4State *state, const IR::MethodCallE
     }
 
     const auto *action_with_ctrl_args = new IR::MethodCallExpression(call_name, &ctrl_args);
-    visitor->visit(action_with_ctrl_args);
+    visitor->evaluate(action_with_ctrl_args);
 }
 
-z3::expr P4TableInstance::produce_const_match(Visitor *visitor,
+z3::expr P4TableInstance::produce_const_match(EvaluationContext *visitor,
                                               std::vector<const P4Z3Instance *> *evaluated_keys,
                                               const IR::ListExpression *entry_keys) const {
     z3::expr match = state->get_z3_ctx()->bool_val(true);
@@ -228,25 +228,25 @@ z3::expr P4TableInstance::produce_const_match(Visitor *visitor,
             continue;
         }
         if (const auto *range = c_key->to<IR::Range>()) {
-            visitor->visit(range->left);
+            visitor->evaluate(range->left);
             const auto *min = state->copy_expr_result();
-            visitor->visit(range->right);
+            visitor->evaluate(range->right);
             const auto *max = state->get_expr_result();
             match = match && (*min <= *key_eval && *key_eval <= *max);
         } else if (const auto *mask_expr = c_key->to<IR::Mask>()) {
-            visitor->visit(mask_expr->left);
+            visitor->evaluate(mask_expr->left);
             const auto *val = state->copy_expr_result();
-            visitor->visit(mask_expr->right);
+            visitor->evaluate(mask_expr->right);
             const auto *mask = state->get_expr_result();
             match = match && (*(*key_eval & *mask) == *(*val & *mask));
         } else {
-            visitor->visit(c_key);
+            visitor->evaluate(c_key);
             match = match && (*key_eval == *state->get_expr_result());
         }
     }
     return match;
 }
-void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *args) {
+void P4TableInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
     auto *ctx = state->get_z3_ctx();
     const auto *table_decl = get_decl()->checkedTo<IR::P4Table>();
     const auto *params = table_decl->getApplyParameters();

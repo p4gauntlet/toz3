@@ -21,6 +21,9 @@ z3::expr pure_bv_cast(const z3::expr &expr, const z3::sort &dest_type, bool is_s
 
 class VoidResult : public P4Z3Instance {
  public:
+    DECLARE_TYPEINFO(VoidResult, P4Z3Instance);
+
+ public:
     VoidResult() : P4Z3Instance(IR::Type_Void::get()) {}
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {
         // Merge is a no-op here.
@@ -37,7 +40,10 @@ class VoidResult : public P4Z3Instance {
     }
 };
 
-class ValContainer {
+class ValContainer : public ICastable {
+ public:
+    DECLARE_TYPEINFO(ValContainer);
+
  protected:
     z3::expr val;
 
@@ -47,6 +53,9 @@ class ValContainer {
 };
 
 class NumericVal : public P4Z3Instance, public ValContainer {
+ public:
+    DECLARE_TYPEINFO(NumericVal, P4Z3Instance, ValContainer);
+
  protected:
     const P4State *state;
 
@@ -69,6 +78,9 @@ class NumericVal : public P4Z3Instance, public ValContainer {
 };
 
 class Z3Bitvector : public NumericVal {
+ public:
+    DECLARE_TYPEINFO(Z3Bitvector, NumericVal);
+
  private:
     uint64_t width = 0;
     bool is_signed;
@@ -138,6 +150,9 @@ class Z3Bitvector : public NumericVal {
 };
 
 class Z3Int : public NumericVal {
+ public:
+    DECLARE_TYPEINFO(Z3Int, NumericVal);
+
  public:
     explicit Z3Int(const P4State *state, const z3::expr &val);
     explicit Z3Int(const P4State *state, int64_t int_val);

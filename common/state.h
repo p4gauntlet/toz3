@@ -23,7 +23,8 @@
 
 namespace P4::ToZ3 {
 
-MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expression *target);
+MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
+                               const IR::Expression *target);
 P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct);
 std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
                                                                const MemberStruct &member_struct);
@@ -41,7 +42,7 @@ class P4State {
     std::vector<std::pair<z3::expr, VarMap>> exit_states;
     z3::expr exit_cond = ctx->bool_val(true);
     P4Scope *get_mut_current_scope() { return &scopes.back(); }
-    void set_var(Visitor *visitor, const IR::Expression *target, P4Z3Instance *rval);
+    void set_var(EvaluationContext *visitor, const IR::Expression *target, P4Z3Instance *rval);
     P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
     const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
@@ -79,11 +80,11 @@ class P4State {
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type, uint64_t id = 0);
 
     /****** COPY-IN/COPY-OUT ******/
-    std::pair<CopyArgs, VarMap> merge_args_with_params(Visitor *visitor,
+    std::pair<CopyArgs, VarMap> merge_args_with_params(EvaluationContext *visitor,
                                                        const IR::Vector<IR::Argument> &args,
                                                        const IR::ParameterList &params,
                                                        const IR::TypeParameters &type_params);
-    void copy_in(Visitor *visitor, const ParamInfo &param_info);
+    void copy_in(EvaluationContext *visitor, const ParamInfo &param_info);
     void copy_out();
     void set_copy_out_args(const CopyArgs &out_args) {
         auto *scope = get_mut_current_scope();
@@ -201,7 +202,8 @@ class P4State {
         return var->to<T>();
     }
     const IR::Type *get_var_type(cstring decl_name) const;
-    void set_var(Visitor *visitor, const IR::Expression *target, const IR::Expression *rval);
+    void set_var(EvaluationContext *visitor, const IR::Expression *target,
+                 const IR::Expression *rval);
     void set_var(const MemberStruct &member_struct, P4Z3Instance *rval);
 
     /****** DECLARATIONS ******/

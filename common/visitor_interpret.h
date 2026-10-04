@@ -2,6 +2,7 @@
 #define TOZ3_COMMON_VISITOR_INTERPRET_H_
 #include <vector>
 
+#include "evaluation_context.h"
 #include "ir/indexed_vector.h"
 #include "ir/ir.h"
 #include "ir/node.h"
@@ -23,7 +24,7 @@ class DoBitFolding : public Modifier {
     explicit DoBitFolding(P4State *state) : state(state) { visitDagOnce = false; }
 };
 
-class Z3Visitor : public Inspector {
+class Z3Visitor : public Inspector, public EvaluationContext {
  private:
     P4State *state;
     // Inspector updates this context while visiting standalone roots.
@@ -147,6 +148,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::Mux *m) override;
 
  public:
+    void evaluate(const IR::Node *node) override { visit(node); }
     P4State *get_state() const { return state; }
     void set_in_parser(bool is_in_parser) { in_parser = is_in_parser; }
     bool is_in_parser() const { return in_parser; }

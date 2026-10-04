@@ -145,7 +145,7 @@ FunOrMethod get_function(const P4Z3Instance *parent_class, cstring member_identi
                                   parent_class->get_static_type());
 }
 
-void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &member_struct,
+void resolve_stack_call(Z3Visitor *visitor, P4State *state, const MemberStruct &member_struct,
                         const IR::Vector<IR::Argument> *arguments) {
     auto arg_size = arguments->size();
     auto hdr_pairs = get_hdr_pairs(state, member_struct);
