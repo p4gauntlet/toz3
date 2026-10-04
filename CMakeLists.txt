@@ -215,10 +215,6 @@ set(
   ${P4C_TEST_DIR}/issue3001.p4
   ${P4C_TEST_DIR}/issue3051.p4
   ${P4C_TEST_DIR}/minsize.p4
-  ${P4C_TEST_DIR}/parser-unroll-test1.p4
-  ${P4C_TEST_DIR}/parser-unroll-test2.p4
-  ${P4C_TEST_DIR}/parser-unroll-test3.p4
-  ${P4C_TEST_DIR}/parser-unroll-test4.p4
   ${P4C_TEST_DIR}/issue2800a.p4
   ${P4C_TEST_DIR}/issue2800b.p4
   ${P4C_TEST_DIR}/issue2800c.p4
@@ -237,7 +233,6 @@ set(
   ${P4C_TEST_DIR}/default-initializer.p4
   ${P4C_TEST_DIR}/invalid-union.p4
   ${P4C_TEST_DIR}/stack-init.p4
-  ${P4C_TEST_DIR}/issue4057.p4
   ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
   ${P4C_TEST_DIR}/forloop1.p4
   ${P4C_TEST_DIR}/forloop2.p4
@@ -261,15 +256,9 @@ set(
   ${P4C_TEST_DIR}/opassign1.p4
   ${P4C_TEST_DIR}/opassign2-bmv2.p4
   ${P4C_TEST_DIR}/parser-unroll-issue4006_twice_extracted_header.p4
-  ${P4C_TEST_DIR}/array1.p4
-  ${P4C_TEST_DIR}/array2.p4
-  ${P4C_TEST_DIR}/array3.p4
-  ${P4C_TEST_DIR}/array5.p4
   ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack.p4
   ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack_nested.p4
   ${P4C_TEST_DIR}/externArray1.p4
-  ${P4C_TEST_DIR}/tuple5.p4
-  ${P4C_TEST_DIR}/tuple5a.p4
 )
 
 if(SKIPPED_TESTS)

@@ -250,7 +250,7 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type, 
 
 StructInstance *StructInstance::copy() const { return new StructInstance(*this); }
 
-std::vector<std::pair<cstring, z3::expr>> StructInstance::get_z3_vars(
+std::vector<std::pair<cstring, z3::expr>> StructBase::get_z3_vars(
     cstring prefix, const z3::expr *valid_expr) const {
     // TODO: Clean this up and split it
     const z3::expr *tmp_valid = nullptr;
@@ -490,6 +490,9 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Array *type, cstring
         if (auto *si = member_var->to_mut<StructBase>()) {
             width += si->get_width();
             flat_id += si->get_width();
+        } else if (const auto *numeric = member_var->to<Z3Bitvector>()) {
+            width += numeric->get_width();
+            flat_id += numeric->get_width();
         } else {
             P4C_UNIMPLEMENTED("Type \"%s\" not supported!.", member_var->get_static_type());
         }
@@ -658,22 +661,7 @@ void StackInstance::pop_front(Visitor *visitor, const IR::Vector<IR::Argument> *
 
 std::vector<std::pair<cstring, z3::expr>> StackInstance::get_z3_vars(
     cstring prefix, const z3::expr *valid_expr) const {
-    // TODO: Clean this up and split it
-    std::vector<std::pair<cstring, z3::expr>> z3_vars;
-    for (auto member_tuple : members) {
-        cstring name = member_tuple.first;
-        if (prefix.size() != 0) {
-            name = prefix + "." + name;
-        }
-        const auto *member = member_tuple.second;
-        if (const auto *z3_var = member->to<StructBase>()) {
-            auto z3_sub_vars = z3_var->get_z3_vars(name, valid_expr);
-            z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(), z3_sub_vars.end());
-        } else {
-            BUG("Stack member is not a struct instance!");
-        }
-    }
-    return z3_vars;
+    return StructBase::get_z3_vars(prefix, valid_expr);
 }
 
 /***
@@ -1156,9 +1144,19 @@ TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type, cstring
                              uint64_t member_id)
     : IndexableInstance(state, type, name, member_id) {
     size_t idx = 0;
+    auto flat_id = member_id;
     for (const auto &field_type : type->components) {
         const IR::Type *resolved_type = state->resolve_type(field_type);
-        auto *member_var = state->gen_instance(name, resolved_type, member_id + idx);
+        auto *member_var = state->gen_instance(name, resolved_type, flat_id);
+        if (const auto *structure = member_var->to<StructBase>()) {
+            width += structure->get_width();
+            flat_id += structure->get_width();
+        } else if (const auto *numeric = member_var->to<Z3Bitvector>()) {
+            width += numeric->get_width();
+            flat_id += numeric->get_width();
+        } else {
+            P4C_UNIMPLEMENTED("Tuple member type %s not supported", resolved_type);
+        }
         cstring name = std::to_string(idx);
         insert_member(name, member_var);
         member_types.insert({name, resolved_type});

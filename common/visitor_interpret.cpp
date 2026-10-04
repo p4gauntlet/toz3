@@ -346,6 +346,13 @@ void DoBitFolding::postorder(IR::Type_Varbits *tb) {
     }
 }
 
+void DoBitFolding::postorder(IR::Type_Array *type) {
+    if (type->size->is<IR::Constant>()) return;
+    type->size->apply(Z3Visitor(state, false));
+    const auto value = state->get_expr_result<NumericVal>()->get_val()->simplify();
+    type->size = new IR::Constant(value.get_numeral_uint64());
+}
+
 /***
 ===============================================================================
 EmptyStatement

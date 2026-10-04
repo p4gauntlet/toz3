@@ -16,6 +16,7 @@ class DoBitFolding : public Modifier {
     P4State *state;
     void postorder(IR::Type_Bits *tb) override;
     void postorder(IR::Type_Varbits *tb) override;
+    void postorder(IR::Type_Array *type) override;
 
  public:
     using Modifier::postorder;

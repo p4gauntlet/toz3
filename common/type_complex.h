@@ -51,6 +51,8 @@ class StructBase : public P4Z3Instance {
     StructBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id);
 
     uint64_t get_width() const { return width; }
+    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
+        cstring prefix, const z3::expr *valid_expr = nullptr) const override;
 
     const P4Z3Instance *get_const_member(const cstring name) const {
         auto it = members.find(name);
@@ -100,8 +102,6 @@ class StructInstance : public StructBase {
     StructInstance(P4State *state, const IR::Type_StructLike *type, cstring name,
                    uint64_t member_id);
     StructInstance *copy() const override;
-    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
-        cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "StructInstance"_cs; }
     cstring to_string() const override {
         std::string ret = "StructInstance(";
