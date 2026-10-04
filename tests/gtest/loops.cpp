@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "frontends/common/parser_options.h"
 #include "toz3/common/exceptions.h"
 #include "toz3/common/state.h"
 #include "toz3/common/visitor_interpret.h"
@@ -158,6 +159,46 @@ TEST_F(LoopTest, BreakInSwitchExitsTheLoopWithoutExecutingItsUpdates) {
                             new IR::BlockStatement({increment("sum"_cs)}))});
     visitor.visit(loop("i"_cs, new IR::Lss(path("i"_cs), new IR::Constant(4)), statement));
     equivalent(value("sum"_cs), ctx.bv_val(1, 16));
+}
+
+TEST_F(LoopTest, ImmutableSwitchUsesEntriesAndDefaultForEveryKey) {
+    AutoCompileContext context(new P4CContextWithOptions<ParserOptions>);
+    const auto key = ctx.bv_const("key", 2);
+    const auto *bits = IR::Type_Bits::get(2);
+    state.declare_var("key"_cs, new Z3Bitvector(&state, bits, key), bits);
+    number("sum"_cs, 0);
+    const auto *entryAction = new IR::MethodCallExpression(path("entry"_cs));
+    const auto *defaultAction = new IR::MethodCallExpression(path("fallback"_cs));
+    TableProperties properties;
+    properties.immutable = true;
+    properties.keys = {new IR::KeyElement(path("key"_cs), path("exact"_cs))};
+    properties.entries = {{new IR::ListExpression({new IR::Constant(bits, 1)}), entryAction}};
+    properties.default_action = defaultAction;
+    const auto *actions = new IR::ActionList(
+        {new IR::ActionListElement(entryAction), new IR::ActionListElement(defaultAction)});
+    const auto *declaration = new IR::P4Table(
+        IR::ID("t"_cs), new IR::TableProperties({new IR::Property("actions", actions, false)}));
+    auto *table = new P4TableInstance(&state, declaration, ctx.bool_val(true), properties);
+    for (const auto name : {"entry"_cs, "fallback"_cs}) {
+        const auto *action =
+            new IR::P4Action(IR::ID(name), new IR::ParameterList, new IR::BlockStatement);
+        visitor.visit(action);
+    }
+    const IR::Vector<IR::Argument> arguments;
+    table->apply(&visitor, &arguments);
+    auto *result = state.get_expr_result<P4TableInstance>();
+    equivalent(result->hit, key == ctx.bv_val(1, 2));
+    state.declare_var("t"_cs, result->copy(), &BOOL_TYPE);
+    // action_run describes the lookup, even if its key variable later changes.
+    state.update_var("key"_cs, new Z3Bitvector(&state, bits, ctx.bv_val(0, 2)));
+    const auto *statement = new IR::SwitchStatement(
+        path("t"_cs),
+        {new IR::SwitchCase(path("entry"_cs), new IR::BlockStatement({increment("sum"_cs)})),
+         new IR::SwitchCase(path("fallback"_cs),
+                            new IR::BlockStatement({increment("sum"_cs), increment("sum"_cs)}))});
+    visitor.visit(statement);
+    equivalent(value("sum"_cs),
+               z3::ite(key == ctx.bv_val(1, 2), ctx.bv_val(1, 16), ctx.bv_val(2, 16)));
 }
 
 TEST_F(LoopTest, SignedRangesIncludeNegativeValues) {

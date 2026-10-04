@@ -464,29 +464,31 @@ SwitchCasePairs handle_immutable_table_switch(Z3Visitor *visitor, const P4TableI
     z3::expr fall_through = ctx->bool_val(false);
     z3::expr matches = ctx->bool_val(false);
     bool has_default = false;
-    std::vector<const P4Z3Instance *> evaluated_keys;
-    for (const auto *key : table->table_props.keys) {
-        // TODO: This should not be necessary
-        // We have this information already
-        visitor->visit(key->expression);
-        const auto *key_eval = state->copy_expr_result();
-        evaluated_keys.push_back(key_eval);
+    auto evaluated_keys = table->evaluated_keys;
+    if (evaluated_keys.empty()) {
+        for (const auto *key : table->table_props.keys) {
+            visitor->visit(key->expression);
+            evaluated_keys.push_back(state->copy_expr_result());
+        }
     }
-    auto new_entries = table->table_props.entries;
+    std::map<cstring, z3::expr> actionMatches;
+    auto matched = ctx->bool_val(false);
+    for (const auto &entry : table->table_props.entries) {
+        const auto match = table->produce_const_match(visitor, &evaluated_keys, entry.first);
+        const auto firstMatch = match && !matched;
+        const auto name = entry.second->method->toString();
+        auto result = actionMatches.emplace(name, firstMatch);
+        if (!result.second) result.first->second = result.first->second || firstMatch;
+        matched = matched || match;
+    }
+    if (const auto *defaultAction = table->table_props.default_action) {
+        auto result = actionMatches.emplace(defaultAction->method->toString(), !matched);
+        if (!result.second) result.first->second = result.first->second || !matched;
+    }
     for (const auto *switch_case : cases) {
         if (const auto *label = switch_case->label->to<IR::PathExpression>()) {
-            z3::expr cond = ctx->bool_val(false);
-            for (auto it = new_entries.begin(); it != new_entries.end();) {
-                auto entry = *it;
-                const auto *keys = entry.first;
-                const auto *action = entry.second;
-                if (label->toString() != action->method->toString()) {
-                    ++it;
-                    continue;
-                }
-                cond = cond || table->produce_const_match(visitor, &evaluated_keys, keys);
-                it = new_entries.erase(it);
-            }
+            const auto action = actionMatches.find(label->toString());
+            const auto cond = action == actionMatches.end() ? ctx->bool_val(false) : action->second;
             // There is no block for the switch.
             // This expressions falls through to the next switch case.
             fall_through = fall_through || cond;
@@ -494,11 +496,6 @@ SwitchCasePairs handle_immutable_table_switch(Z3Visitor *visitor, const P4TableI
                 continue;
             }
             auto case_match = fall_through;
-            // If the entries are empty we exhausted all possible matches
-            // TODO: Not sure if this is a good idea?
-            if (new_entries.empty()) {
-                case_match = ctx->bool_val(true);
-            }
             // Matches the condition OR all the other fall-through switches
             fall_through = ctx->bool_val(false);
             matches = matches || case_match;

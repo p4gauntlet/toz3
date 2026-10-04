@@ -473,6 +473,7 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
  public:
     z3::expr hit;
     TableProperties table_props;
+    std::vector<const P4Z3Instance *> evaluated_keys;
     // constructor
     explicit P4TableInstance(P4State *state, const IR::P4Table *p4t);
     explicit P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3::expr hit,
@@ -481,7 +482,9 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {}
 
     P4TableInstance *copy() const override {
-        return new P4TableInstance(state, get_decl(), hit, table_props);
+        auto *result = new P4TableInstance(state, get_decl(), hit, table_props);
+        result->evaluated_keys = evaluated_keys;
+        return result;
     }
 
     P4Z3Instance *get_member(cstring name) const override {

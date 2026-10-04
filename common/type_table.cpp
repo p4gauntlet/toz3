@@ -259,6 +259,14 @@ void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
         compute_table_hit(visitor, state, table_props.table_name, table_props.keys, &evaluated_keys)
             .simplify();
 
+    if (table_props.immutable) {
+        new_hit = ctx->bool_val(false);
+        for (const auto &entry : table_props.entries) {
+            new_hit = new_hit || produce_const_match(visitor, &evaluated_keys, entry.first);
+        }
+        new_hit = new_hit.simplify();
+    }
+
     std::vector<std::pair<z3::expr, VarMap>> action_vars;
     bool has_exited = true;
 
@@ -313,7 +321,7 @@ void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
 
     if (table_props.default_action != nullptr) {
         auto old_vars = state->clone_vars();
-        state->push_forward_cond(!hit || !matches);
+        state->push_forward_cond(!new_hit || !matches);
         auto action_label = table_props.table_name + "default";
         handle_table_action(visitor, state, table_props.default_action, action_label);
         state->pop_forward_cond();
@@ -326,7 +334,9 @@ void P4TableInstance::apply(Visitor *visitor, const IR::Vector<IR::Argument> *ar
     for (auto it = action_vars.rbegin(); it != action_vars.rend(); ++it) {
         state->merge_vars(it->first, it->second);
     }
-    state->set_expr_result(new P4TableInstance(state, get_decl(), new_hit, table_props));
+    auto *result = new P4TableInstance(state, get_decl(), new_hit, table_props);
+    result->evaluated_keys = evaluated_keys;
+    state->set_expr_result(result);
 
     state->copy_out();
 }
