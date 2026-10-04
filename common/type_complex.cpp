@@ -660,14 +660,11 @@ std::vector<std::pair<cstring, z3::expr>> StackInstance::get_z3_vars(
             name = prefix + "." + name;
         }
         const auto *member = member_tuple.second;
-        if (const auto *z3_var = member->to<HeaderInstance>()) {
-            auto z3_sub_vars = z3_var->get_z3_vars(name, valid_expr);
-            z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(), z3_sub_vars.end());
-        } else if (const auto *z3_var = member->to<HeaderUnionInstance>()) {
+        if (const auto *z3_var = member->to<StructBase>()) {
             auto z3_sub_vars = z3_var->get_z3_vars(name, valid_expr);
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(), z3_sub_vars.end());
         } else {
-            BUG("Var is neither type z3::expr nor HeaderInstance!");
+            BUG("Stack member is not a struct instance!");
         }
     }
     return z3_vars;
