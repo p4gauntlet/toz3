@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "frontends/p4/removeOpAssign.h"
 #include "ir/id.h"
 #include "ir/vector.h"
 #include "lib/cstring.h"
@@ -769,7 +768,38 @@ bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
 }
 
 bool Z3Visitor::preorder(const IR::OpAssignmentStatement *as) {
-    visit(as->apply(P4::RemoveOpAssign()));
+    const auto target = get_member_struct(state, this, as->left);
+    const auto *left = get_member(state, target)->copy();
+    visit(as->right);
+    const auto *right = state->get_expr_result();
+    P4Z3Instance *result = nullptr;
+    if (as->is<IR::MulAssign>())
+        result = *left * *right;
+    else if (as->is<IR::DivAssign>())
+        result = *left / *right;
+    else if (as->is<IR::ModAssign>())
+        result = *left % *right;
+    else if (as->is<IR::AddAssign>())
+        result = *left + *right;
+    else if (as->is<IR::SubAssign>())
+        result = *left - *right;
+    else if (as->is<IR::AddSatAssign>())
+        result = left->operatorAddSat(*right);
+    else if (as->is<IR::SubSatAssign>())
+        result = left->operatorSubSat(*right);
+    else if (as->is<IR::ShlAssign>())
+        result = *left << *right;
+    else if (as->is<IR::ShrAssign>())
+        result = *left >> *right;
+    else if (as->is<IR::BAndAssign>())
+        result = *left & *right;
+    else if (as->is<IR::BOrAssign>())
+        result = *left | *right;
+    else if (as->is<IR::BXorAssign>())
+        result = *left ^ *right;
+    else
+        P4C_UNIMPLEMENTED("Compound assignment %s not implemented", as);
+    state->set_var(target, result);
     return false;
 }
 
