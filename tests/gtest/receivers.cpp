@@ -63,5 +63,21 @@ TEST_F(ReceiverTest, CompoundAssignmentSavesIndexAndOldValueBeforeRightSide) {
               7U);
 }
 
+TEST_F(ReceiverTest, SizeMethodDoesNotEvaluateItsReceiver) {
+    evaluate(R"(
+        header H { bit<7> x; varbit<9> y; }
+        H f(inout bit<8> count) { count += 1; H h; return h; }
+        control C() { bit<8> calls = 0;
+        const int minimum = f(calls).minSizeInBits();
+        const int maximum = f(calls).maxSizeInBytes();
+        H[0] empty;
+        const int element = empty[0].maxSizeInBits(); apply {} }
+    )");
+    EXPECT_EQ(value("calls"_cs), 0U);
+    EXPECT_EQ(value("minimum"_cs), 7U);
+    EXPECT_EQ(value("maximum"_cs), 2U);
+    EXPECT_EQ(value("element"_cs), 16U);
+}
+
 }  // namespace
 }  // namespace P4::ToZ3

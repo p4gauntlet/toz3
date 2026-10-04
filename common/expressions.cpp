@@ -21,6 +21,7 @@
 #include "toz3/common/type_complex.h"
 #include "toz3/common/type_simple.h"
 #include "type_base.h"
+#include "type_inference.h"
 #include "util.h"
 #include "visitor_interpret.h"
 #include "visitor_specialize.h"
@@ -275,6 +276,20 @@ P4Z3Instance *exec_action(Z3Visitor *visitor, const IR::P4Action *a) {
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
+    if (const auto *member = mce->method->to<IR::Member>()) {
+        const auto name = member->member.name;
+        if (name == "minSizeInBits" || name == "minSizeInBytes" || name == "maxSizeInBits" ||
+            name == "maxSizeInBytes") {
+            BUG_CHECK(mce->arguments->empty(), "Size methods take no arguments");
+            const auto *type = expression_type(*state, member->expr);
+            auto size =
+                serialized_size(*state, type, name == "maxSizeInBits" || name == "maxSizeInBytes");
+            if (name == "minSizeInBytes" || name == "maxSizeInBytes") size = (size + 7) / 8;
+            state->set_expr_result(new Z3Int(
+                state, state->get_z3_ctx()->int_val(Util::toString(size, 0, false).c_str())));
+            return false;
+        }
+    }
     const IR::Node *callable = nullptr;
     const auto *arguments = mce->arguments;
     auto arg_size = arguments->size();
