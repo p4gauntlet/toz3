@@ -365,6 +365,8 @@ z3::expr mergeValues(const z3::expr &cond, const z3::expr &thenValue, const z3::
     if (cond.is_false() || z3::eq(thenValue, elseValue)) return elseValue;
     if (cond.is_true()) return thenValue;
     if (!thenValue.is_bv()) return z3::ite(cond, thenValue, elseValue);
+    if (thenValue.decl().decl_kind() != Z3_OP_BADD && elseValue.decl().decl_kind() != Z3_OP_BADD)
+        return z3::ite(cond, thenValue, elseValue);
     const auto left = thenValue.simplify();
     const auto right = elseValue.simplify();
     std::vector<z3::expr> leftTerms, rightTerms;
@@ -445,7 +447,8 @@ Z3Int *Z3Int::copy() const { return new Z3Int(state, val); }
 
 void Z3Int::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
     if (const auto *then_expr_var = then_expr.to<Z3Int>()) {
-        val = z3::ite(cond, then_expr_var->val, val);
+        if (cond.is_false() || z3::eq(val, then_expr_var->val)) return;
+        val = cond.is_true() ? then_expr_var->val : z3::ite(cond, then_expr_var->val, val);
     } else if (const auto *then_expr_var = then_expr.to<Z3Bitvector>()) {
         auto cast_val = pure_bv_cast(val, then_expr_var->get_val()->get_sort());
         val = z3::ite(cond, *then_expr_var->get_val(), cast_val);

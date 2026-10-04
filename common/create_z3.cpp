@@ -174,12 +174,13 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
 
     const auto termination = state->get_termination_condition().simplify();
     for (auto &variable : state_vars) {
+        if (termination.is_true()) continue;
         auto &value = variable.second;
         auto zero = value.is_bool()  ? state->get_z3_ctx()->bool_val(false)
                     : value.is_bv()  ? state->get_z3_ctx()->bv_val(0, value.get_sort().bv_size())
                     : value.is_int() ? state->get_z3_ctx()->int_val(0)
                                      : state->get_z3_ctx()->string_val("");
-        value = z3::ite(termination, value, zero).simplify();
+        value = z3::ite(termination, value, zero);
     }
     state_vars.emplace_back("$terminated"_cs, termination);
     state->set_termination_condition(enclosingTermination);

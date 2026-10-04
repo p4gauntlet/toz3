@@ -467,7 +467,10 @@ void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &then_expr) 
     const auto *then_struct = then_expr.to<HeaderInstance>();
 
     BUG_CHECK(then_struct, "Unsupported merge class.");
-    auto valid_merge = z3::ite(cond, *then_struct->get_valid(), valid).simplify();
+    const auto &incoming = *then_struct->get_valid();
+    auto valid_merge = cond.is_false() || z3::eq(incoming, valid) ? valid
+                       : cond.is_true()                           ? incoming
+                                                                  : z3::ite(cond, incoming, valid);
     set_valid(valid_merge);
     StructBase::merge(cond, then_expr);
 }

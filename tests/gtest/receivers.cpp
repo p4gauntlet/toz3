@@ -168,8 +168,10 @@ TEST_F(ReceiverTest, ForInArrayIteratesOverASnapshotWithoutAliasingElements) {
     visitor.visit(&call);
     EXPECT_EQ(value("sum"_cs), 10U);
     const auto *array = state.get_var<StackInstance>("values"_cs);
-    EXPECT_EQ(array->get_member("0"_cs)->to<NumericVal>()->get_val()->get_numeral_uint(), 3U);
-    EXPECT_EQ(array->get_member("1"_cs)->to<NumericVal>()->get_val()->get_numeral_uint(), 99U);
+    EXPECT_EQ(array->get_member("0"_cs)->to<NumericVal>()->get_val()->simplify().get_numeral_uint(),
+              3U);
+    EXPECT_EQ(array->get_member("1"_cs)->to<NumericVal>()->get_val()->simplify().get_numeral_uint(),
+              99U);
 }
 
 TEST_F(ReceiverTest, MatchKindsFromSeparateDeclarationsHaveDistinctValues) {

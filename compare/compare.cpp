@@ -85,7 +85,8 @@ z3::expr create_z3_struct(z3::context *ctx,
     auto before_sort =
         ctx->tuple_sort("State", z3_vec.size(), names.data(), z3_vec_sorts.data(), getters);
 
-    return before_sort(z3_vec);
+    // Rewrite the complete summary once so Z3 can share work across output fields.
+    return before_sort(z3_vec).simplify();
 }
 
 void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
