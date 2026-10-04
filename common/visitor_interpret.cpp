@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "frontends/p4/removeOpAssign.h"
 #include "ir/id.h"
 #include "ir/vector.h"
 #include "lib/cstring.h"
@@ -731,6 +732,11 @@ AssignmentStatement
 
 bool Z3Visitor::preorder(const IR::AssignmentStatement *as) {
     state->set_var(this, as->left, as->right);
+    return false;
+}
+
+bool Z3Visitor::preorder(const IR::OpAssignmentStatement *as) {
+    visit(as->apply(P4::RemoveOpAssign()));
     return false;
 }
 

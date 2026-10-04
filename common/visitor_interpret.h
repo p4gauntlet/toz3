@@ -67,6 +67,7 @@ class Z3Visitor : public Inspector {
     /***** Statements *****/
     bool preorder(const IR::BlockStatement *b) override;
     bool preorder(const IR::AssignmentStatement *as) override;
+    bool preorder(const IR::OpAssignmentStatement *as) override;
     bool preorder(const IR::MethodCallStatement *mcs) override;
     bool preorder(const IR::IfStatement *ifs) override;
     bool preorder(const IR::SwitchStatement *ss) override;
