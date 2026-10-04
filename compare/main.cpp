@@ -1,6 +1,10 @@
 
+#include <absl/strings/str_split.h>
+
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include "compare.h"
@@ -16,17 +20,9 @@ using namespace P4::literals;  // NOLINT
 
 std::vector<std::filesystem::path> splitInputProgs(P4::cstring inputProgs) {
     std::vector<std::filesystem::path> progList;
-    const char *pos = nullptr;
-    P4::cstring prog;
-
-    // FIXME: use absl::Split
-    while ((pos = inputProgs.find(static_cast<size_t>(','))) != nullptr) {
-        auto idx = static_cast<size_t>(pos - inputProgs.c_str());
-        prog = inputProgs.substr(0, idx);
-        progList.emplace_back(prog.c_str());
-        inputProgs = inputProgs.substr(idx + 1);
+    for (const auto prog : absl::StrSplit(inputProgs.string_view(), ',')) {
+        progList.emplace_back(std::string(prog));
     }
-    progList.emplace_back(inputProgs.c_str());
     return progList;
 }
 
