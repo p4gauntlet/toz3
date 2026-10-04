@@ -1,5 +1,7 @@
 #include <z3++.h>
 
+#include <absl/strings/str_cat.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <string>
@@ -136,7 +138,7 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
                   "Key type %s not "
                   "supported for tables.",
                   key_eval->get_static_type());
-        cstring key_name = table_name + "_table_key_" + std::to_string(idx);
+        cstring key_name = absl::StrCat(table_name.string_view(), "_table_key_", idx);
         const auto key_eval_z3 = val_container->get_val()->simplify();
         const auto key_z3_sort = key_eval_z3.get_sort();
         const auto key_match = ctx->constant(key_name.c_str(), key_z3_sort);
@@ -146,20 +148,19 @@ z3::expr compute_table_hit(Visitor *visitor, P4State *state, cstring table_name,
         if (key_string == "exact") {
             hit = hit || (key_eval_z3 == key_match);
         } else if (key_string == "lpm") {
-            // FIXME: switch to abseil routines for string manipulations
-            cstring mask_name = table_name + "_table_lpm_key_" + std::to_string(idx);
+            cstring mask_name = absl::StrCat(table_name.string_view(), "_table_lpm_key_", idx);
             const auto mask_var = ctx->constant(mask_name.c_str(), key_z3_sort);
             auto max_return =
                 ctx->bv_val(get_max_bv_val(key_z3_sort.bv_size()).c_str(), key_z3_sort.bv_size());
             auto lpm_mask = z3::shl(max_return, mask_var).simplify();
             hit = hit || (key_eval_z3 & lpm_mask) == (key_match & lpm_mask);
         } else if (key_string == "ternary") {
-            cstring mask_name = table_name + "_table_ternary_key_" + std::to_string(idx);
+            cstring mask_name = absl::StrCat(table_name.string_view(), "_table_ternary_key_", idx);
             const auto mask_var = ctx->constant(mask_name.c_str(), key_z3_sort);
             hit = hit || (key_eval_z3 & mask_var) == (key_match & mask_var);
         } else if (key_string == "range") {
-            cstring min_name = table_name + "_table_min_" + std::to_string(idx);
-            cstring max_name = table_name + "_table_max_" + std::to_string(idx);
+            cstring min_name = absl::StrCat(table_name.string_view(), "_table_min_", idx);
+            cstring max_name = absl::StrCat(table_name.string_view(), "_table_max_", idx);
             auto *min_key = state->gen_instance(min_name, key_eval->get_p4_type());
             auto *max_key = state->gen_instance(max_name, key_eval->get_p4_type());
             hit = hit ||
