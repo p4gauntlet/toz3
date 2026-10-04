@@ -151,6 +151,27 @@ TEST_F(ReceiverTest, ZeroWidthValuesRemainZeroAcrossArithmeticAndBinding) {
     EXPECT_EQ(header->get_member("empty"_cs)->to<NumericVal>()->get_val()->get_numeral_uint(), 0U);
 }
 
+TEST_F(ReceiverTest, ForInArrayIteratesOverASnapshotWithoutAliasingElements) {
+    evaluate(R"(
+        void run(inout bit<8>[2] values, inout bit<8> sum) {
+            for (bit<8> value in values) {
+                sum += value;
+                values[1] = 99;
+                value = 0;
+            }
+        }
+        control C() { bit<8>[2] values = { 3, 7 }; bit<8> sum = 0; apply {} }
+    )");
+    const IR::MethodCallExpression call(
+        new IR::PathExpression("run"_cs),
+        {new IR::PathExpression("values"_cs), new IR::PathExpression("sum"_cs)});
+    visitor.visit(&call);
+    EXPECT_EQ(value("sum"_cs), 10U);
+    const auto *array = state.get_var<StackInstance>("values"_cs);
+    EXPECT_EQ(array->get_member("0"_cs)->to<NumericVal>()->get_val()->get_numeral_uint(), 3U);
+    EXPECT_EQ(array->get_member("1"_cs)->to<NumericVal>()->get_val()->get_numeral_uint(), 99U);
+}
+
 TEST_F(ReceiverTest, MatchKindsFromSeparateDeclarationsHaveDistinctValues) {
     evaluate(R"(
         match_kind { exact, ternary }

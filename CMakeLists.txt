@@ -202,44 +202,21 @@ set(P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
 set(P4C_VALIDATION_XFAIL_TESTS)
 
-# These programs need additional interpreter support or exceed validation limits.
+# Remaining programs need architecture-specific support or exceed validation limits.
 set(
   SKIPPED_TESTS
-  # Zero-width values.
-  ${P4C_TEST_DIR}/bit0-bmv2.p4
-  # Callable overloads and omitted or don't-care arguments.
+  # Overloaded controls/packages and optional parameters on implemented controls
+  # are outside the P4 specification's rules for these constructs.
   ${P4C_TEST_DIR}/issue1334.p4
   ${P4C_TEST_DIR}/issue3051.p4
-  ${P4C_TEST_DIR}/issue3616.p4
-  ${P4C_TEST_DIR}/issue4760_dontcare_action_out_arg.p4
-  ${P4C_TEST_DIR}/issue4775-2.p4
-  ${P4C_TEST_DIR}/localize_action_dont_care_args.p4
-  # Generic type inference and compile-time size methods.
-  ${P4C_TEST_DIR}/minsize.p4
-  ${P4C_TEST_DIR}/issue1914.p4
-  ${P4C_TEST_DIR}/issue1914-1.p4
-  ${P4C_TEST_DIR}/issue3091-1.p4
-  ${P4C_TEST_DIR}/issue3091.p4
-  ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
-  # Member or index access on temporary expressions.
-  ${P4C_TEST_DIR}/issue3001-1.p4
-  ${P4C_TEST_DIR}/issue3001.p4
-  ${P4C_TEST_DIR}/issue3283.p4
-  ${P4C_TEST_DIR}/issue3779.p4
-  ${P4C_TEST_DIR}/opassign2-bmv2.p4
-  # Default initialization and extern arrays.
-  ${P4C_TEST_DIR}/default-initializer.p4
-  ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack.p4
-  ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack_nested.p4
+  # Arrays of extern objects need receiver selection and a suitable extern model.
   ${P4C_TEST_DIR}/externArray1.p4
-  # For-in collections and symbolic range bounds.
-  ${P4C_TEST_DIR}/forloop1.p4
+  # Finite symbolic ranges are supported, but these nested programs time out.
   ${P4C_TEST_DIR}/forloop3.p4
   ${P4C_TEST_DIR}/forloop4.p4
-  # Symbolic popcount: validation timeout.
+  # Symbolic bit-clearing popcount: validation timeout.
   ${P4C_TEST_DIR}/forloop2.p4
-  # Loops exceeding the interpretation limit.
-  ${P4C_TEST_DIR}/forloop9.p4
+  # A changing counter and modular conditional update exceed the iteration limit.
   ${P4C_TEST_DIR}/forloop10.p4
 )
 

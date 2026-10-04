@@ -230,5 +230,30 @@ TEST_F(LoopTest, ForInBreakPreservesAnExistingCounter) {
     equivalent(value("i"_cs), z3::ite(stop, ctx.bv_val(1, 16), ctx.bv_val(3, 16)));
 }
 
+TEST_F(LoopTest, SymbolicRangesIncludeBothBoundsAndPreserveSnapshot) {
+    number("sum"_cs, 0);
+    const auto *bits = IR::Type_Bits::get(2);
+    const auto lower = ctx.bv_const("lower", 2);
+    const auto upper = ctx.bv_const("upper", 2);
+    state.declare_var("lower"_cs, new Z3Bitvector(&state, bits, lower), bits);
+    state.declare_var("upper"_cs, new Z3Bitvector(&state, bits, upper), bits);
+    const auto *body = new IR::BlockStatement(
+        {increment("sum"_cs), new IR::AssignmentStatement(path("upper"_cs), new IR::Constant(0))});
+    const IR::ForInStatement statement(new IR::Declaration_Variable(IR::ID("i"_cs), bits),
+                                       new IR::Range(path("lower"_cs), path("upper"_cs)), body);
+    visitor.visit(&statement);
+    const auto count = z3::zext(upper, 14) - z3::zext(lower, 14) + ctx.bv_val(1, 16);
+    equivalent(value("sum"_cs), z3::ite(z3::ule(lower, upper), count, ctx.bv_val(0, 16)));
+}
+
+TEST_F(LoopTest, InvariantConditionReportsExactlyTheNonterminatingPaths) {
+    number("sum"_cs, 0);
+    auto infinite = ctx.bool_const("infinite");
+    state.declare_var("infinite"_cs, new Z3Bitvector(&state, &BOOL_TYPE, infinite), &BOOL_TYPE);
+    const IR::ForStatement statement({}, path("infinite"_cs), {}, increment("sum"_cs));
+    visitor.visit(&statement);
+    equivalent(state.get_termination_condition(), !infinite);
+}
+
 }  // namespace
 }  // namespace P4::ToZ3

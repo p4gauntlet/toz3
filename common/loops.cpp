@@ -23,7 +23,11 @@ class LoopReads : public Inspector {
 };
 
 class LoopWrites : public Inspector {
+    const P4State &state;
+    std::set<const IR::Node *> expanding;
+
  public:
+    explicit LoopWrites(const P4State &state) : state(state) { visitDagOnce = false; }
     std::set<cstring> names;
     bool has_calls = false;
     bool has_early_termination = false;
@@ -44,8 +48,31 @@ class LoopWrites : public Inspector {
         return true;
     }
     bool preorder(const IR::MethodCallExpression *call) override {
+        const IR::Node *body = nullptr;
+        if (const auto *path = call->method->to<IR::PathExpression>()) {
+            const auto name = mangle_name(path->path->name, call->arguments->size());
+            if (const auto *declaration = state.find_static_decl(name)) {
+                if (const auto *action = declaration->get_decl()->to<IR::P4Action>()) {
+                    if (action->getParameters()->empty() && call->arguments->empty())
+                        body = action->body;
+                }
+            }
+        }
         if (const auto *member = call->method->to<IR::Member>()) {
             if (member->member == "isValid") return false;
+            const auto *path = member->expr->to<IR::PathExpression>();
+            const auto *declaration = path ? state.find_static_decl(path->path->name) : nullptr;
+            const auto *table = declaration ? declaration->to<P4TableInstance>() : nullptr;
+            if (member->member == "apply" && table && call->arguments->empty() &&
+                table->table_props.immutable && table->table_props.keys.empty() &&
+                table->table_props.entries.empty()) {
+                body = table->table_props.default_action;
+            }
+        }
+        if (body && expanding.insert(body).second) {
+            visit(body);
+            expanding.erase(body);
+            return false;
         }
         has_calls = true;
         return false;
@@ -134,15 +161,37 @@ bool Z3Visitor::preorder(const IR::ForStatement *loop) {
     }
     LoopReads reads;
     loop->condition->apply(reads);
-    LoopWrites writes;
+    LoopWrites writes(*state);
     loop->body->apply(writes);
-    LoopWrites conditionWrites;
+    LoopWrites conditionWrites(*state);
     loop->condition->apply(conditionWrites);
-    LoopWrites updateWrites;
+    LoopWrites updateWrites(*state);
     LoopReads updateReads;
     for (const auto *update : loop->updates) {
         update->apply(updateWrites);
         update->apply(updateReads);
+    }
+    bool invariantCondition = !writes.has_calls && !writes.has_early_termination &&
+                              !conditionWrites.has_calls && conditionWrites.names.empty() &&
+                              !updateWrites.has_calls;
+    for (const auto &read : reads.names) {
+        for (const auto &write : writes.names) {
+            if (overlaps(read, write)) invariantCondition = false;
+        }
+        for (const auto &write : updateWrites.names) {
+            if (overlaps(read, write)) invariantCondition = false;
+        }
+    }
+    if (invariantCondition) {
+        visit(loop->condition);
+        auto nonterminating = *state->get_expr_result<NumericVal>()->get_val();
+        nonterminating = nonterminating && executionCondition(*state);
+        for (const auto &part : state->get_forward_conds()) nonterminating = nonterminating && part;
+        state->set_termination_condition(
+            (state->get_termination_condition() && !nonterminating).simplify());
+        loops.pop_back();
+        state->pop_lexical_scope();
+        return false;
     }
     bool canDetectCycle = !index.isNullOrEmpty() && !writes.has_calls &&
                           !writes.has_early_termination && !conditionWrites.has_calls &&
@@ -231,26 +280,60 @@ bool Z3Visitor::preorder(const IR::ForStatement *loop) {
 
 bool Z3Visitor::preorder(const IR::ForInStatement *loop) {
     const auto *range = loop->collection->to<IR::Range>();
-    if (!range) throw UnsupportedFeatureError("For-in collection is not a constant range");
+    if (!range) {
+        visit(loop->collection);
+        const auto *collection = state->copy_expr_result()->to<StructBase>();
+        if (!collection) throw UnsupportedFeatureError("Unsupported for-in collection");
+        state->push_scope();
+        if (loop->decl) visit(loop->decl);
+        loops.emplace_back(state->get_z3_ctx());
+        for (const auto &entry : *collection->get_member_map()) {
+            const auto active =
+                (!loops.back().break_condition && executionCondition(*state)).simplify();
+            if (active.is_false()) break;
+            const auto skipped = state->clone_vars();
+            const auto target = get_member_struct(state, this, loop->ref);
+            state->set_var(target, entry.second->copy());
+            loops.back().stopped = false;
+            loops.back().continue_condition = state->get_z3_ctx()->bool_val(false);
+            state->push_forward_cond(active);
+            visit(loop->body);
+            state->pop_forward_cond();
+            state->merge_vars(!active, skipped);
+            if (state->has_returned() || state->has_exited()) break;
+        }
+        loops.pop_back();
+        state->pop_lexical_scope();
+        return false;
+    }
     visit(range->left);
     auto lo = *state->get_expr_result<NumericVal>()->get_val();
     const auto *lowerBits = state->get_expr_result()->to<Z3Bitvector>();
     const auto lowerSigned = lowerBits && lowerBits->bv_is_signed();
+    const auto lowerWidth = lo.is_bv() ? lo.get_sort().bv_size() : 0;
     visit(range->right);
     auto hi = *state->get_expr_result<NumericVal>()->get_val();
     const auto *upperBits = state->get_expr_result()->to<Z3Bitvector>();
     const auto upperSigned = upperBits && upperBits->bv_is_signed();
+    const auto upperWidth = hi.is_bv() ? hi.get_sort().bv_size() : 0;
     if (lo.is_bv()) lo = z3::bv2int(lo, lowerSigned);
     if (hi.is_bv()) hi = z3::bv2int(hi, upperSigned);
     lo = lo.simplify();
     hi = hi.simplify();
-    if (!lo.is_numeral() || !hi.is_numeral()) {
-        throw UnsupportedFeatureError("For-in range bounds must be constant");
-    }
     std::string lowerString, upperString;
-    lo.is_numeral(lowerString);
-    hi.is_numeral(upperString);
-    const big_int lower(lowerString), upper(upperString);
+    big_int lower, upper;
+    if (lo.is_numeral(lowerString))
+        lower = big_int(lowerString);
+    else if (lowerWidth)
+        lower = lowerSigned ? -(big_int(1) << (lowerWidth - 1)) : big_int(0);
+    else
+        throw UnsupportedFeatureError("For-in lower bound has no finite range");
+    if (hi.is_numeral(upperString))
+        upper = big_int(upperString);
+    else if (upperWidth)
+        upper = (big_int(1) << (upperSigned ? upperWidth - 1 : upperWidth)) - 1;
+    else
+        throw UnsupportedFeatureError("For-in upper bound has no finite range");
     if (upper - lower >= 1000)
         throw UnsupportedFeatureError("For-in range exceeds 1000 iterations");
     state->push_scope();
@@ -258,9 +341,15 @@ bool Z3Visitor::preorder(const IR::ForInStatement *loop) {
     loops.emplace_back(state->get_z3_ctx());
     std::vector<std::pair<z3::expr, VarMap>> completed;
     for (big_int value = lower; value <= upper; ++value) {
-        const auto active =
-            (!loops.back().break_condition && executionCondition(*state)).simplify();
-        if (active.is_false()) break;
+        const auto current = state->get_z3_ctx()->int_val(Util::toString(value, 0, false).c_str());
+        const auto active = (!loops.back().break_condition && executionCondition(*state) &&
+                             lo <= current && current <= hi)
+                                .simplify();
+        if (active.is_false()) {
+            if (loops.back().break_condition.is_true() || executionCondition(*state).is_false())
+                break;
+            continue;
+        }
         const auto skipped = state->clone_vars();
         const IR::Constant constant(value);
         state->set_var(this, loop->ref, &constant);
