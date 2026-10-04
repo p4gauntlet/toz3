@@ -22,5 +22,20 @@ TEST(BitvectorAlignment, IntegerOperandsSurviveConversion) {
     EXPECT_TRUE((bits == equalInteger).simplify().is_true());
 }
 
+TEST(BitvectorMerging, FactoringSharedAddendsPreservesOverflow) {
+    z3::context ctx;
+    IR::Type_Bits type(8, false);
+    const auto base = ctx.bv_const("base", 8);
+    const auto condition = ctx.bool_const("condition");
+    const auto before = base + ctx.bv_val(255, 8);
+    const auto after = base + ctx.bv_val(3, 8);
+    Z3Bitvector merged(nullptr, &type, before);
+    Z3Bitvector branch(nullptr, &type, after);
+    merged.merge(condition, branch);
+    z3::solver solver(ctx);
+    solver.add(*merged.get_val() != z3::ite(condition, after, before));
+    EXPECT_EQ(solver.check(), z3::unsat);
+}
+
 }  // namespace
 }  // namespace P4::ToZ3

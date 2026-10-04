@@ -1,5 +1,8 @@
 #include "type_simple.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/multiprecision/detail/et_ops.hpp>
 #include <boost/multiprecision/number.hpp>
@@ -359,6 +362,46 @@ P4Z3Instance *Z3Bitvector::slice(const z3::expr &hi, const z3::expr &lo) const {
 
 Z3Bitvector *Z3Bitvector::copy() const { return new Z3Bitvector(state, p4_type, val, is_signed); }
 
+namespace {
+z3::expr mergeValues(const z3::expr &cond, const z3::expr &thenValue, const z3::expr &elseValue) {
+    if (cond.is_false() || z3::eq(thenValue, elseValue)) return elseValue;
+    if (cond.is_true()) return thenValue;
+    if (!thenValue.is_bv()) return z3::ite(cond, thenValue, elseValue);
+    const auto left = thenValue.simplify();
+    const auto right = elseValue.simplify();
+    std::vector<z3::expr> leftTerms, rightTerms;
+    auto terms = [](const z3::expr &value, std::vector<z3::expr> &result) {
+        if (value.decl().decl_kind() == Z3_OP_BADD) {
+            for (unsigned idx = 0; idx < value.num_args(); ++idx) result.push_back(value.arg(idx));
+        } else {
+            result.push_back(value);
+        }
+    };
+    terms(left, leftTerms);
+    terms(right, rightTerms);
+    auto common = left.ctx().bv_val(0, left.get_sort().bv_size());
+    bool factored = false;
+    for (auto it = leftTerms.begin(); it != leftTerms.end();) {
+        auto match = std::find_if(rightTerms.begin(), rightTerms.end(),
+                                  [&](const z3::expr &value) { return z3::eq(*it, value); });
+        if (match == rightTerms.end()) {
+            ++it;
+        } else {
+            common = common + *it;
+            it = leftTerms.erase(it);
+            rightTerms.erase(match);
+            factored = true;
+        }
+    }
+    if (!factored) return z3::ite(cond, left, right);
+    auto leftRest = left.ctx().bv_val(0, left.get_sort().bv_size());
+    auto rightRest = leftRest;
+    for (const auto &value : leftTerms) leftRest = leftRest + value;
+    for (const auto &value : rightTerms) rightRest = rightRest + value;
+    return (common + z3::ite(cond, leftRest, rightRest)).simplify();
+}
+}  // namespace
+
 void Z3Bitvector::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
     if (const auto *then_expr_var = then_expr.to<Z3Bitvector>()) {
         if (cond.is_false()) {
@@ -366,7 +409,7 @@ void Z3Bitvector::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
         } else if (cond.is_true()) {
             val = then_expr_var->val;
         } else {
-            val = z3::ite(cond, then_expr_var->val, val);
+            val = mergeValues(cond, then_expr_var->val, val);
         }
     } else if (const auto *then_expr_var = then_expr.to<Z3Int>()) {
         z3::expr cast_val = pure_bv_cast(*then_expr_var->get_val(), val.get_sort());
@@ -375,7 +418,7 @@ void Z3Bitvector::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
         } else if (cond.is_true()) {
             val = cast_val;
         } else {
-            val = z3::ite(cond, cast_val, val);
+            val = mergeValues(cond, cast_val, val);
         }
     } else {
         P4C_UNIMPLEMENTED("Z3Bitvector: Merge with %s of type %s not supported.",
