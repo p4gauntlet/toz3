@@ -382,6 +382,10 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
         CHECK_NULL(arg_expr);
         // If the expression is default, we can not save a copy
         if (arg_expr->is<IR::DefaultExpression>()) {
+            BUG_CHECK(param->direction == IR::Direction::Out, "Discarded argument must be out");
+            const auto *type = resolve_type(param->type);
+            merged_vec.emplace(param->name.name,
+                               std::make_pair(gen_instance(cstring(UNDEF_LABEL), type), type));
             continue;
         }
 
