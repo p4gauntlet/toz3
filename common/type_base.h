@@ -4,7 +4,8 @@
 #include <z3++.h>
 
 #include <cstdio>
-#include <map>      // std::map
+#include <map>  // std::map
+#include <memory>
 #include <stack>    // std::stack
 #include <utility>  // std::pair
 #include <variant>  // std::variant
@@ -22,6 +23,7 @@ namespace P4::ToZ3 {
 using namespace P4::literals;  // NOLINT
 
 class EvaluationContext;
+class P4State;
 class P4Z3Instance;
 class Z3Int;
 class Z3Bitvector;
@@ -103,7 +105,7 @@ class MemberStruct {
     bool has_index = false;
     bool is_flat = false;
     // Saved stack address for the nextIndex effect of extract(stack.next).
-    MemberStruct *next_stack = nullptr;
+    std::shared_ptr<MemberStruct> next_stack;
     std::vector<Z3Slice> end_slices;
 
     cstring to_string() const {
@@ -139,10 +141,14 @@ class P4Z3Instance : public P4Z3Node {
 
  protected:
     const IR::Type *p4_type = nullptr;
+    const P4State *allocation_owner = nullptr;
+
+    template <typename T, typename... Args>
+    friend T *allocate_instance(const P4State *state, Args &&...args);
 
  public:
     explicit P4Z3Instance(const IR::Type *p4_type) : p4_type(p4_type) {}
-    ~P4Z3Instance() = default;
+    virtual ~P4Z3Instance() = default;
 
     const IR::Type *get_p4_type() const { return p4_type; }
     /****** UNARY OPERANDS ******/
@@ -244,8 +250,22 @@ class P4Z3Instance : public P4Z3Node {
         P4C_UNIMPLEMENTED("get_member not implemented for %s.", get_static_type());
     }
 
-    P4Z3Instance(const P4Z3Instance &other) { p4_type = other.p4_type; }
+    P4Z3Instance(const P4Z3Instance &other)
+        : p4_type(other.p4_type), allocation_owner(other.allocation_owner) {}
 };
+
+void retain_instance(const P4State *state, std::unique_ptr<P4Z3Instance> instance);
+
+// Interpreter pointers can alias across snapshots of a scope. Own each allocation
+// once for the lifetime of its P4State, while the pointers in scopes remain borrowed.
+template <typename T, typename... Args>
+T *allocate_instance(const P4State *state, Args &&...args) {
+    auto instance = std::make_unique<T>(std::forward<Args>(args)...);
+    auto *result = instance.get();
+    result->allocation_owner = state;
+    retain_instance(state, std::move(instance));
+    return result;
+}
 
 using VarMap = ordered_map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
 using MainResult =

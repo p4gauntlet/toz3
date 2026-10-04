@@ -154,7 +154,7 @@ bool Z3Visitor::preorder(const IR::Equ *expr) {
     const auto *right = state->get_expr_result();
 
     auto &&result = *left == *right;
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, result));
+    state->set_expr_result(allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, result));
 
     return false;
 }
@@ -165,7 +165,8 @@ bool Z3Visitor::preorder(const IR::Neq *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left != *right));
+    state->set_expr_result(
+        allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, *left != *right));
 
     return false;
 }
@@ -176,7 +177,8 @@ bool Z3Visitor::preorder(const IR::Lss *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left < *right));
+    state->set_expr_result(
+        allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, *left < *right));
 
     return false;
 }
@@ -187,7 +189,8 @@ bool Z3Visitor::preorder(const IR::Leq *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left <= *right));
+    state->set_expr_result(
+        allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, *left <= *right));
 
     return false;
 }
@@ -198,7 +201,8 @@ bool Z3Visitor::preorder(const IR::Grt *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left > *right));
+    state->set_expr_result(
+        allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, *left > *right));
 
     return false;
 }
@@ -209,7 +213,8 @@ bool Z3Visitor::preorder(const IR::Geq *expr) {
     visit(expr->right);
     const auto *right = state->get_expr_result();
 
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, *left >= *right));
+    state->set_expr_result(
+        allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, *left >= *right));
 
     return false;
 }
@@ -257,7 +262,7 @@ bool Z3Visitor::preorder(const IR::LAnd *expr) {
     auto land_expr = *left && *state->get_expr_result();
     state->merge_vars(!*left->get_val(), old_vars);
 
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, land_expr));
+    state->set_expr_result(allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, land_expr));
 
     return false;
 }
@@ -276,7 +281,7 @@ bool Z3Visitor::preorder(const IR::LOr *expr) {
     auto lor_expr = *left || *state->get_expr_result();
     state->merge_vars(*left->get_val(), old_vars);
 
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, lor_expr));
+    state->set_expr_result(allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, lor_expr));
 
     return false;
 }
@@ -311,7 +316,7 @@ bool Z3Visitor::preorder(const IR::PlusSlice *sl) {
     const auto width = state->get_expr_result<NumericVal>()->get_val()->get_numeral_uint();
     if (width == 0) {
         // Z3 has no zero-width bitvectors; the only value of bit<0> is zero.
-        state->set_expr_result(new Z3Int(state, 0));
+        state->set_expr_result(allocate_instance<Z3Int>(state, state, 0));
         return false;
     }
     if (offset.is_bv()) offset = z3::bv2int(offset, false);
@@ -321,8 +326,8 @@ bool Z3Visitor::preorder(const IR::PlusSlice *sl) {
                       state->get_z3_ctx()->bv_val(0, sourceWidth), shifted);
     auto result = width <= sourceWidth ? shifted.extract(width - 1, 0)
                                        : z3::zext(shifted, width - sourceWidth);
-    state->set_expr_result(
-        new Z3Bitvector(state, IR::Type_Bits::get(width, false), result.simplify()));
+    state->set_expr_result(allocate_instance<Z3Bitvector>(
+        state, state, IR::Type_Bits::get(width, false), result.simplify()));
     return false;
 }
 

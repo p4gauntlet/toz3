@@ -65,16 +65,18 @@ P4Z3Instance *execute_packet_method(Z3Visitor *visitor, const IR::Method *method
     auto &ctx = *state->get_z3_ctx();
     const auto *return_type = state->resolve_type(method->type->returnType);
     if (method->name == "length") {
-        return new Z3Bitvector(state, IR::Type_Bits::get(32), packet_length(state));
+        return allocate_instance<Z3Bitvector>(state, state, IR::Type_Bits::get(32),
+                                              packet_length(state));
     }
     if (method->name == "advance") {
         const auto bits = z3::bv2int(argument(state, method, 0), false);
         check_packet_read(visitor, bits);
         if (!state->has_exited()) {
-            state->update_var("$packet_cursor"_cs,
-                              new Z3Int(state, (cursor(state) + bits).simplify()));
+            state->update_var(
+                "$packet_cursor"_cs,
+                allocate_instance<Z3Int>(state, state, (cursor(state) + bits).simplify()));
         }
-        return new VoidResult();
+        return allocate_instance<VoidResult>(state);
     }
     if (method->name == "lookahead") {
         const auto width = serialized_size(*state, return_type, false).convert_to<unsigned>();
@@ -98,7 +100,7 @@ P4Z3Instance *execute_packet_method(Z3Visitor *visitor, const IR::Method *method
         const bool variable = method->getParameters()->size() == 2;
         if (variable) bits = bits + z3::bv2int(argument(state, method, 1), false);
         check_packet_read(visitor, bits);
-        if (state->has_exited()) return new VoidResult();
+        if (state->has_exited()) return allocate_instance<VoidResult>(state);
         if (variable) {
             const auto maximum = serialized_size(*state, header_type, true);
             const auto outputs = state->get_copy_out_args();
@@ -107,7 +109,7 @@ P4Z3Instance *execute_packet_method(Z3Visitor *visitor, const IR::Method *method
                                    "HeaderTooShort"_cs);
             state->set_copy_out_args(outputs);
         }
-        if (state->has_exited()) return new VoidResult();
+        if (state->has_exited()) return allocate_instance<VoidResult>(state);
         auto *result = state->gen_instance(cstring(UNDEF_LABEL), header_type)->to_mut<StructBase>();
         CHECK_NULL(result);
         const auto valid = ctx.bool_val(true);
@@ -117,8 +119,10 @@ P4Z3Instance *execute_packet_method(Z3Visitor *visitor, const IR::Method *method
             result->bind(&input, result->get_width());
         }
         state->update_var(parameter->name, result);
-        state->update_var("$packet_cursor"_cs, new Z3Int(state, (cursor(state) + bits).simplify()));
-        return new VoidResult();
+        state->update_var(
+            "$packet_cursor"_cs,
+            allocate_instance<Z3Int>(state, state, (cursor(state) + bits).simplify()));
+        return allocate_instance<VoidResult>(state);
     }
     throw UnsupportedFeatureError("Unsupported packet_in method " + method->name.name);
 }

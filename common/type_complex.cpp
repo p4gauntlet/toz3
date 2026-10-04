@@ -191,8 +191,8 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
                 extract_var = extract_var > 0;
             }
             const auto *bits = z3_var->get_p4_type()->to<IR::Type_Bits>();
-            auto *bind_bv =
-                new Z3Bitvector(state, z3_var->get_p4_type(), extract_var, bits && bits->isSigned);
+            auto *bind_bv = allocate_instance<Z3Bitvector>(state, state, z3_var->get_p4_type(),
+                                                           extract_var, bits && bits->isSigned);
             update_member(member_name, bind_bv);
             bit_idx -= var_width;
         } else {
@@ -256,7 +256,9 @@ StructInstance::StructInstance(P4State *state, const IR::Type_StructLike *type, 
     }
 }
 
-StructInstance *StructInstance::copy() const { return new StructInstance(*this); }
+StructInstance *StructInstance::copy() const {
+    return allocate_instance<StructInstance>(state, *this);
+}
 
 std::vector<std::pair<cstring, z3::expr>> StructBase::get_z3_vars(
     cstring prefix, const z3::expr *valid_expr) const {
@@ -418,7 +420,7 @@ void HeaderInstance::setValid(EvaluationContext * /*visitor*/,
                               const IR::Vector<IR::Argument> * /*args*/) {
     set_valid(state->get_z3_ctx()->bool_val(true));
     propagate_validity(&valid);
-    state->set_expr_result(new VoidResult());
+    state->set_expr_result(allocate_instance<VoidResult>(state));
 }
 
 void HeaderInstance::setInvalid(EvaluationContext * /*visitor*/,
@@ -426,22 +428,22 @@ void HeaderInstance::setInvalid(EvaluationContext * /*visitor*/,
     set_valid(state->get_z3_ctx()->bool_val(false));
     propagate_validity(&valid);
     set_undefined();
-    state->set_expr_result(new VoidResult());
+    state->set_expr_result(allocate_instance<VoidResult>(state));
 }
 
 void HeaderInstance::isValid(EvaluationContext * /*visitor*/,
                              const IR::Vector<IR::Argument> * /*args*/) {
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, valid));
+    state->set_expr_result(allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, valid));
 }
 
 void HeaderInstance::minSizeInBits(EvaluationContext * /*visitor*/,
                                    const IR::Vector<IR::Argument> * /*args*/) {
-    state->set_expr_result(new Z3Int(state, width));
+    state->set_expr_result(allocate_instance<Z3Int>(state, state, width));
 }
 
 void HeaderInstance::minSizeInBytes(EvaluationContext * /*visitor*/,
                                     const IR::Vector<IR::Argument> * /*args*/) {
-    state->set_expr_result(new Z3Int(state, (width + 7) >> 3));
+    state->set_expr_result(allocate_instance<Z3Int>(state, state, (width + 7) >> 3));
 }
 
 void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
@@ -460,7 +462,9 @@ void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
     }
 }
 
-HeaderInstance *HeaderInstance::copy() const { return new HeaderInstance(*this); }
+HeaderInstance *HeaderInstance::copy() const {
+    return allocate_instance<HeaderInstance>(state, *this);
+}
 
 void HeaderInstance::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
     const auto *then_struct = then_expr.to<HeaderInstance>();
@@ -530,7 +534,9 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Array *type, cstring
                  });
 }
 
-StackInstance *StackInstance::copy() const { return new StackInstance(*this); }
+StackInstance *StackInstance::copy() const {
+    return allocate_instance<StackInstance>(state, *this);
+}
 
 StackInstance::StackInstance(const StackInstance &other)
     : IndexableInstance(other),
@@ -567,7 +573,7 @@ P4Z3Instance *StackInstance::get_member(cstring name) const {
                              state->gen_z3_expr(cstring(UNDEF_LABEL), type), result)
                          .simplify();
         }
-        return new Z3Bitvector(state, type, result);
+        return allocate_instance<Z3Bitvector>(state, state, type, result);
     }
     if (name == "next") {
         const auto index = nextIndex.get_val()->simplify();
@@ -795,10 +801,12 @@ z3::expr HeaderUnionInstance::get_valid() const {
 
 void HeaderUnionInstance::isValid(EvaluationContext * /*visitor*/,
                                   const IR::Vector<IR::Argument> * /*args*/) {
-    state->set_expr_result(new Z3Bitvector(state, &BOOL_TYPE, get_valid()));
+    state->set_expr_result(allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, get_valid()));
 }
 
-HeaderUnionInstance *HeaderUnionInstance::copy() const { return new HeaderUnionInstance(*this); }
+HeaderUnionInstance *HeaderUnionInstance::copy() const {
+    return allocate_instance<HeaderUnionInstance>(state, *this);
+}
 
 void HeaderUnionInstance::update_validity(const HeaderInstance * /*child*/,
                                           const z3::expr &valid_val) {
@@ -844,8 +852,8 @@ std::vector<std::pair<cstring, z3::expr>> EnumBase::get_z3_vars(cstring prefix,
 
 void EnumBase::add_enum_member(cstring error_name) {
     if (members.count(error_name)) return;
-    insert_member(error_name,
-                  new Z3Bitvector(state, member_type,
+    insert_member(error_name, allocate_instance<Z3Bitvector>(
+                                  state, state, member_type,
                                   state->get_z3_ctx()->bv_val(members.size(), INT_WIDTH)));
 }
 
@@ -907,18 +915,18 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type, cstring
     width = INT_WIDTH;
     uint64_t idx = 0;
     for (const auto *member : type->members) {
-        auto *member_var =
-            new Z3Bitvector(state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
+        auto *member_var = allocate_instance<Z3Bitvector>(
+            state, state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
         member_types.insert({member->name.name, member_type});
         idx++;
     }
 }
 
-EnumInstance *EnumInstance::copy() const { return new EnumInstance(*this); }
+EnumInstance *EnumInstance::copy() const { return allocate_instance<EnumInstance>(state, *this); }
 
 EnumInstance *EnumInstance::instantiate(const NumericVal &enum_val) const {
-    auto *enum_copy = new EnumInstance(*this);
+    auto *enum_copy = allocate_instance<EnumInstance>(state, *this);
     auto current_sort = val.get_sort();
     enum_copy->set_enum_val(pure_bv_cast(*enum_val.get_val(), current_sort));
     return enum_copy;
@@ -947,18 +955,20 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type, cstr
     width = INT_WIDTH;
     uint64_t idx = 0;
     for (const auto *member : type->members) {
-        auto *member_var =
-            new Z3Bitvector(state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
+        auto *member_var = allocate_instance<Z3Bitvector>(
+            state, state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
         member_types.insert({member->name.name, member_type});
         idx++;
     }
 }
 
-ErrorInstance *ErrorInstance::copy() const { return new ErrorInstance(*this); }
+ErrorInstance *ErrorInstance::copy() const {
+    return allocate_instance<ErrorInstance>(state, *this);
+}
 
 ErrorInstance *ErrorInstance::instantiate(const NumericVal &enum_val) const {
-    auto *enum_copy = new ErrorInstance(*this);
+    auto *enum_copy = allocate_instance<ErrorInstance>(state, *this);
     auto current_sort = val.get_sort();
     enum_copy->set_enum_val(pure_bv_cast(*enum_val.get_val(), current_sort));
     return enum_copy;
@@ -988,10 +998,12 @@ SerEnumInstance::SerEnumInstance(P4State *p4_state,
     }
 }
 
-SerEnumInstance *SerEnumInstance::copy() const { return new SerEnumInstance(*this); }
+SerEnumInstance *SerEnumInstance::copy() const {
+    return allocate_instance<SerEnumInstance>(state, *this);
+}
 
 SerEnumInstance *SerEnumInstance::instantiate(const NumericVal &enum_val) const {
-    auto *enum_copy = new SerEnumInstance(*this);
+    auto *enum_copy = allocate_instance<SerEnumInstance>(state, *this);
     auto current_sort = val.get_sort();
     enum_copy->set_enum_val(pure_bv_cast(*enum_val.get_val(), current_sort));
     return enum_copy;
@@ -1128,9 +1140,9 @@ P4Z3Instance *ListInstance::cast_allocate(const IR::Type *dest_type) const {
 
 ListInstance *ListInstance::copy() const {
     if (isLabelled) {
-        return new ListInstance(state, get_val_map(), p4_type);
+        return allocate_instance<ListInstance>(state, state, get_val_map(), p4_type);
     }
-    return new ListInstance(state, get_val_list(), p4_type);
+    return allocate_instance<ListInstance>(state, state, get_val_list(), p4_type);
 }
 
 std::vector<P4Z3Instance *> ListInstance::get_val_list() const {
@@ -1220,7 +1232,9 @@ TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type, cstring
     }
 }
 
-TupleInstance *TupleInstance::copy() const { return new TupleInstance(*this); }
+TupleInstance *TupleInstance::copy() const {
+    return allocate_instance<TupleInstance>(state, *this);
+}
 
 P4Z3Instance *TupleInstance::get_member(const z3::expr &index) const {
     auto val = index.simplify();
@@ -1315,7 +1329,8 @@ void ControlInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
     }
     if (!parser_states.empty()) {
         for (const auto &parser_state : parser_states) {
-            state->declare_static_decl(parser_state->name.name, new P4Declaration(parser_state));
+            state->declare_static_decl(parser_state->name.name,
+                                       allocate_instance<P4Declaration>(state, parser_state));
         }
         // A subparser starts its own worklist; its states must not enter the caller's queue.
         visitor->run_parser("start"_cs);
@@ -1359,7 +1374,7 @@ P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
                                                        control_dst_type->getApplyParameters());
             TypeModifier type_modifier(&type_mapping);
             const auto *cast_type = p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
-            return new ControlInstance(state, cast_type, resolved_const_args);
+            return allocate_instance<ControlInstance>(state, state, cast_type, resolved_const_args);
         }
     }
     if (const auto *parser = p4_type->to<IR::P4Parser>()) {
@@ -1370,7 +1385,7 @@ P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
                                                        parser_dst_type->getApplyParameters());
             TypeModifier type_modifier(&type_mapping);
             const auto *cast_type = p4_type->clone()->apply(type_modifier)->checkedTo<IR::Type>();
-            return new ControlInstance(state, cast_type, resolved_const_args);
+            return allocate_instance<ControlInstance>(state, state, cast_type, resolved_const_args);
         }
     }
     P4C_UNIMPLEMENTED("Unsupported cast from type %s to type %s for %s", p4_type, dest_type,

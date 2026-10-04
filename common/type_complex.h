@@ -476,7 +476,7 @@ class ControlInstance : public P4Z3Instance, public FunctionClass {
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
     ControlInstance *copy() const override {
-        return new ControlInstance(state, p4_type, resolved_const_args);
+        return allocate_instance<ControlInstance>(state, state, p4_type, resolved_const_args);
     }
 
     void apply(EvaluationContext *, const IR::Vector<IR::Argument> *);
@@ -505,7 +505,9 @@ class P4Declaration : public P4Z3Instance {
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
     // TODO: This is a little pointless....
-    P4Declaration *copy() const override { return new P4Declaration(decl); }
+    P4Declaration *copy() const override {
+        return allocate_instance<P4Declaration>(allocation_owner, decl);
+    }
 
     cstring get_static_type() const override { return "P4Declaration"_cs; }
     cstring to_string() const override {
@@ -537,7 +539,8 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {}
 
     P4TableInstance *copy() const override {
-        auto *result = new P4TableInstance(state, get_decl(), hit, table_props);
+        auto *result =
+            allocate_instance<P4TableInstance>(state, state, get_decl(), hit, table_props);
         result->evaluated_keys = evaluated_keys;
         return result;
     }
@@ -588,7 +591,9 @@ class ExternInstance : public P4Z3Instance, public FunctionClass {
         return FunctionClass::get_function(name);
     }
     // TODO: This is a little pointless....
-    ExternInstance *copy() const override { return new ExternInstance(state, extern_type); }
+    ExternInstance *copy() const override {
+        return allocate_instance<ExternInstance>(state, state, extern_type);
+    }
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 

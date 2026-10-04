@@ -140,11 +140,11 @@ bool Z3Visitor::try_additive_loop(const IR::ForStatement *loop, cstring index) {
         pure_bv_cast(*state->get_expr_result<NumericVal>()->get_val(), before.get_sort());
     const auto result = (before + pure_bv_cast(count, before.get_sort()) * increment).simplify();
     const auto target = get_member_struct(state, this, assignment->left);
-    state->set_var(target, new Z3Bitvector(state, accumulator->get_p4_type(), result,
-                                           accumulator->bv_is_signed()));
-    state->update_var(index,
-                      new Z3Bitvector(state, counter->get_p4_type(),
-                                      z3::ite(z3::ult(start, bound), bound, start).simplify()));
+    state->set_var(target, allocate_instance<Z3Bitvector>(state, state, accumulator->get_p4_type(),
+                                                          result, accumulator->bv_is_signed()));
+    state->update_var(index, allocate_instance<Z3Bitvector>(
+                                 state, state, counter->get_p4_type(),
+                                 z3::ite(z3::ult(start, bound), bound, start).simplify()));
     return true;
 }
 

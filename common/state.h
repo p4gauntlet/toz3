@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <ostream>
 #include <set>
 #include <typeinfo>
@@ -31,6 +32,7 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
 
 class P4State {
  private:
+    mutable std::vector<std::unique_ptr<P4Z3Instance>> instances;
     ProgState scopes;
     P4Scope main_scope;
     z3::context *ctx;
@@ -58,9 +60,10 @@ class P4State {
     explicit P4State(z3::context *context) : ctx(context) {
         // These two labels are part of the built in declarations.
         // We only need to add them once.
-        declare_static_decl(IR::ParserState::accept,
-                            new P4Declaration(new IR::ReturnStatement(nullptr)));
-        declare_static_decl(IR::ParserState::reject, new P4Declaration(new IR::ExitStatement()));
+        declare_static_decl(IR::ParserState::accept, allocate_instance<P4Declaration>(
+                                                         this, new IR::ReturnStatement(nullptr)));
+        declare_static_decl(IR::ParserState::reject,
+                            allocate_instance<P4Declaration>(this, new IR::ExitStatement()));
     }
 
     /****** GETTERS ******/
@@ -76,6 +79,9 @@ class P4State {
         BUG("Could not cast to type %s.", typeid(T).name());
     }
     /****** ALLOCATIONS ******/
+    void own_instance(std::unique_ptr<P4Z3Instance> instance) const {
+        instances.push_back(std::move(instance));
+    }
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type, uint64_t id = 0);
 

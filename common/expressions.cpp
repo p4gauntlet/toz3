@@ -35,14 +35,14 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = tb->size == 0 ? state->get_z3_ctx()->int_val(0)
                                   : state->get_z3_ctx()->bv_val(val_string.c_str(), tb->size);
-        auto *wrapper = new Z3Bitvector(state, tb, expr, tb->isSigned);
+        auto *wrapper = allocate_instance<Z3Bitvector>(state, state, tb, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
     }
     if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->int_val(val_string.c_str());
-        auto *var = new Z3Int(state, expr);
+        auto *var = allocate_instance<Z3Int>(state, state, expr);
         state->set_expr_result(var);
         return false;
     }
@@ -52,14 +52,14 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     auto expr = state->get_z3_ctx()->bool_val(bl->value);
-    auto *wrapper = new Z3Bitvector(state, &BOOL_TYPE, expr);
+    auto *wrapper = allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::StringLiteral *sl) {
     auto expr = state->get_z3_ctx()->string_val(sl->value.c_str());
-    auto *wrapper = new Z3Bitvector(state, &STRING_TYPE, expr);
+    auto *wrapper = allocate_instance<Z3Bitvector>(state, state, &STRING_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
@@ -71,7 +71,7 @@ bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
 }
 
 bool Z3Visitor::preorder(const IR::Dots *) {
-    state->set_expr_result(new DefaultInstance(state));
+    state->set_expr_result(allocate_instance<DefaultInstance>(state, state));
     return false;
 }
 
@@ -81,7 +81,7 @@ bool Z3Visitor::preorder(const IR::ListExpression *le) {
         visit(component);
         members.push_back(state->copy_expr_result());
     }
-    state->set_expr_result(new ListInstance(state, members, le->type));
+    state->set_expr_result(allocate_instance<ListInstance>(state, state, members, le->type));
     return false;
 }
 
@@ -101,7 +101,7 @@ bool Z3Visitor::preorder(const IR::StructExpression *se) {
         }
         state->set_expr_result(instance);
     } else {
-        state->set_expr_result(new ListInstance(state, members, se->type));
+        state->set_expr_result(allocate_instance<ListInstance>(state, state, members, se->type));
     }
     return false;
 }
@@ -260,7 +260,7 @@ P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
         return merged_return;
     }
     // If there are no return expressions, return a void result
-    return new VoidResult();
+    return allocate_instance<VoidResult>(state);
 }
 
 P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m, bool packet_in) {
@@ -275,7 +275,7 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m, bool packet_i
         CHECK_NULL(condition);
         CHECK_NULL(error);
         visitor->reject_parser(!*condition->get_val(), *error->get_val());
-        return new VoidResult();
+        return allocate_instance<VoidResult>(state);
     }
     auto method_name = infer_name(m, m->name.name);
     const auto *method_type = state->resolve_type(m->type->returnType);
@@ -307,7 +307,7 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m, bool packet_i
 
 P4Z3Instance *exec_action(Z3Visitor *visitor, const IR::P4Action *a) {
     visitor->visit(a->body);
-    return new VoidResult();
+    return allocate_instance<VoidResult>(visitor->get_state());
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
@@ -320,8 +320,9 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
             auto size =
                 serialized_size(*state, type, name == "maxSizeInBits" || name == "maxSizeInBytes");
             if (name == "minSizeInBytes" || name == "maxSizeInBytes") size = (size + 7) / 8;
-            state->set_expr_result(new Z3Int(
-                state, state->get_z3_ctx()->int_val(Util::toString(size, 0, false).c_str())));
+            state->set_expr_result(allocate_instance<Z3Int>(
+                state, state,
+                state->get_z3_ctx()->int_val(Util::toString(size, 0, false).c_str())));
             return false;
         }
     }
@@ -381,7 +382,7 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     state->copy_in(this, param_info);
     if (state->has_exited()) {
         state->pop_scope();
-        state->set_expr_result(new VoidResult());
+        state->set_expr_result(allocate_instance<VoidResult>(state));
         return false;
     }
     // Switch based on the dynamic callable type. The visitor is too cumbersome.
@@ -470,7 +471,8 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
                                       " not supported.");
     }
     auto var_map = state->merge_args_with_params(this, *arguments, *params, *type_params);
-    state->set_expr_result(new ControlInstance(state, resolved_type, var_map.second));
+    state->set_expr_result(
+        allocate_instance<ControlInstance>(state, state, resolved_type, var_map.second));
     return false;
 }
 }  // namespace P4::ToZ3

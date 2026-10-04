@@ -17,7 +17,9 @@ class DefaultInstance : public P4Z3Instance {
     explicit DefaultInstance(P4State *state)
         : P4Z3Instance(IR::Type_Dontcare::get()), state(state) {}
     P4Z3Instance *cast_allocate(const IR::Type *type) const override;
-    DefaultInstance *copy() const override { return new DefaultInstance(state); }
+    DefaultInstance *copy() const override {
+        return allocate_instance<DefaultInstance>(state, state);
+    }
     cstring get_static_type() const override { return "DefaultInstance"_cs; }
     cstring to_string() const override { return "..."_cs; }
 };

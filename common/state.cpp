@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <memory>
 #include <cstdlib>
 #include <functional>
 #include <string>
@@ -33,6 +34,15 @@
 #include "visitor_specialize.h"
 
 namespace P4::ToZ3 {
+
+void retain_instance(const P4State *state, std::unique_ptr<P4Z3Instance> instance) {
+    if (state) {
+        state->own_instance(std::move(instance));
+    } else {
+        // Copies of standalone values retain the caller's ownership convention.
+        instance.release();
+    }
+}
 
 z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
                        const std::vector<Z3Slice> &end_slices) {
@@ -91,7 +101,7 @@ MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
                 const auto bound = state->get_z3_ctx()->int_val(stack->get_int_size());
                 visitor->reject_parser(next ? index >= bound : index < 1 || index > bound,
                                        "StackOutOfBounds"_cs);
-                if (next) member_struct.next_stack = new MemberStruct(member_struct);
+                if (next) member_struct.next_stack = std::make_shared<MemberStruct>(member_struct);
                 append(z3::int2bv(32, next ? index : index - 1).simplify());
                 member_struct.has_index = true;
             } else {
@@ -308,7 +318,8 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
         // We progressively slice and merge the lval
         target_rval = compute_slice(target_lval, target_rval, member_struct.end_slices);
         const auto *bit_type = IR::Type_Bits::get(target_rval.get_sort().bv_size(), false);
-        auto *resolved_rval = new Z3Bitvector(this, bit_type, target_rval, is_signed);
+        auto *resolved_rval =
+            allocate_instance<Z3Bitvector>(this, this, bit_type, target_rval, is_signed);
         set_var(slice_less_member_struct, resolved_rval);
         return;
     }
@@ -524,9 +535,9 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
     }
     // TODO: Split this up to not muddle things.
     if (const auto *t = type->to<IR::Type_Struct>()) {
-        instance = new StructInstance(this, t, name, id);
+        instance = allocate_instance<StructInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Header>()) {
-        instance = new HeaderInstance(this, t, name, id);
+        instance = allocate_instance<HeaderInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Enum>()) {
         // TODO: Clean this up
         // For Enums we just return a copy of the declaration
@@ -547,22 +558,23 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
         enum_instance->set_enum_val(gen_z3_expr(name, resolve_type(t->type)));
         instance = enum_instance;
     } else if (const auto *t = type->to<IR::Type_Array>()) {
-        instance = new StackInstance(this, t, name, id);
+        instance = allocate_instance<StackInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {
-        instance = new HeaderUnionInstance(this, t, name, id);
+        instance = allocate_instance<HeaderUnionInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_List>()) {
-        instance = new ListInstance(this, t, name, id);
+        instance = allocate_instance<ListInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Tuple>()) {
-        instance = new TupleInstance(this, t, name, id);
+        instance = allocate_instance<TupleInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Extern>()) {
-        instance = new ExternInstance(this, t);
+        instance = allocate_instance<ExternInstance>(this, this, t);
     } else if (type->is<IR::Type_Void>()) {
-        instance = new VoidResult();
+        instance = allocate_instance<VoidResult>(this);
     } else if (type->is<IR::Type_InfInt>()) {
-        instance = new Z3Int(this, gen_z3_expr(name, type));
+        instance = allocate_instance<Z3Int>(this, this, gen_z3_expr(name, type));
     } else if (type->is<IR::Type_Base>()) {
         const auto *bits = type->to<IR::Type_Bits>();
-        instance = new Z3Bitvector(this, type, gen_z3_expr(name, type), bits && bits->isSigned);
+        instance = allocate_instance<Z3Bitvector>(this, this, type, gen_z3_expr(name, type),
+                                                  bits && bits->isSigned);
     } else {
         P4C_UNIMPLEMENTED("Instance generation for %s of type \"%s\" not supported!.", type,
                           type->node_type_name());

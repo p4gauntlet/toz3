@@ -93,8 +93,8 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
 P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
     : P4Declaration(p4t), state(state), hit(state->get_z3_ctx()->bool_val(false)) {
     members.insert({"action_run"_cs, this});
-    members.insert({"hit"_cs, new Z3Bitvector(state, &BOOL_TYPE, hit)});
-    members.insert({"miss"_cs, new Z3Bitvector(state, &BOOL_TYPE, !hit)});
+    members.insert({"hit"_cs, allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, hit)});
+    members.insert({"miss"_cs, allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, !hit)});
     cstring apply_str = mangle_name(cstring("apply"), p4t->getApplyParameters()->size());
     add_function(apply_str, [this](EvaluationContext *visitor,
                                    const IR::Vector<IR::Argument> *args) { apply(visitor, args); });
@@ -111,8 +111,8 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3:
                                  TableProperties table_props)
     : P4Declaration(decl), state(state), hit(hit), table_props(std::move(table_props)) {
     members.insert({"action_run"_cs, this});
-    members.insert({"hit"_cs, new Z3Bitvector(state, &BOOL_TYPE, hit)});
-    members.insert({"miss"_cs, new Z3Bitvector(state, &BOOL_TYPE, !hit)});
+    members.insert({"hit"_cs, allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, hit)});
+    members.insert({"miss"_cs, allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, !hit)});
     cstring apply_str = "apply"_cs;
     if (const auto *table = decl->to<IR::P4Table>()) {
         apply_str = mangle_name(apply_str, table->getApplyParameters()->size());
@@ -333,7 +333,8 @@ void P4TableInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
     for (auto it = action_vars.rbegin(); it != action_vars.rend(); ++it) {
         state->merge_vars(it->first, it->second);
     }
-    auto *result = new P4TableInstance(state, get_decl(), new_hit, table_props);
+    auto *result =
+        allocate_instance<P4TableInstance>(state, state, get_decl(), new_hit, table_props);
     result->evaluated_keys = evaluated_keys;
     state->set_expr_result(result);
 

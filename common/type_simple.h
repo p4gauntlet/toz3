@@ -28,7 +28,7 @@ class VoidResult : public P4Z3Instance {
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {
         // Merge is a no-op here.
     }
-    VoidResult *copy() const override { return new VoidResult(); }
+    VoidResult *copy() const override { return allocate_instance<VoidResult>(allocation_owner); }
     cstring get_static_type() const override { return "VoidResult"_cs; }
     cstring to_string() const override {
         std::string ret = "VoidResult(";
@@ -36,7 +36,7 @@ class VoidResult : public P4Z3Instance {
         return ret;
     }
     P4Z3Instance *cast_allocate(const IR::Type * /*dest_type*/) const override {
-        return new VoidResult();
+        return allocate_instance<VoidResult>(allocation_owner);
     }
 };
 

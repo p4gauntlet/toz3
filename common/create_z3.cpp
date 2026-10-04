@@ -133,20 +133,23 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
         if (packet_inputs > 1)
             throw UnsupportedFeatureError("Parser with multiple independent packet inputs");
         state->declare_var("$parser_accepted"_cs,
-                           new Z3Bitvector(state, &BOOL_TYPE, state->get_z3_ctx()->bool_val(true)),
+                           allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE,
+                                                          state->get_z3_ctx()->bool_val(true)),
                            &BOOL_TYPE);
         param_names.push_back("$parser_accepted"_cs);
         const auto *error_bits = IR::Type_Bits::get(INT_WIDTH);
-        state->declare_var(
-            "$parser_error"_cs,
-            new Z3Bitvector(state, error_bits, state->get_z3_ctx()->bv_val(0, INT_WIDTH)),
-            error_bits);
+        state->declare_var("$parser_error"_cs,
+                           allocate_instance<Z3Bitvector>(
+                               state, state, error_bits, state->get_z3_ctx()->bv_val(0, INT_WIDTH)),
+                           error_bits);
         param_names.push_back("$parser_error"_cs);
-        state->declare_var("$packet_cursor"_cs, new Z3Int(state, 0), &INT_TYPE);
-        state->declare_var("$packet_id"_cs,
-                           new Z3Bitvector(state, &STRING_TYPE,
+        state->declare_var("$packet_cursor"_cs, allocate_instance<Z3Int>(state, state, 0),
+                           &INT_TYPE);
+        state->declare_var(
+            "$packet_id"_cs,
+            allocate_instance<Z3Bitvector>(state, state, &STRING_TYPE,
                                            state->get_z3_ctx()->string_val(param_name.c_str())),
-                           &STRING_TYPE);
+            &STRING_TYPE);
         param_names.push_back("$packet_cursor"_cs);
     }
     IR::Vector<IR::Argument> synthesized_args;

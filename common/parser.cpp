@@ -36,9 +36,10 @@ void Z3Visitor::reject_parser(const z3::expr &condition, const z3::expr &error) 
     const auto reject = condition.simplify();
     if (reject.is_false()) return;
     const auto *previous = state->get_var("$parser_error"_cs)->copy();
-    state->update_var("$parser_error"_cs,
-                      new Z3Bitvector(state, &P4_STD_BIT_TYPE,
-                                      pure_bv_cast(error, state->get_z3_ctx()->bv_sort(32))));
+    state->update_var(
+        "$parser_error"_cs,
+        allocate_instance<Z3Bitvector>(state, state, &P4_STD_BIT_TYPE,
+                                       pure_bv_cast(error, state->get_z3_ctx()->bv_sort(32))));
     state->push_forward_cond(reject);
     const auto saved = in_parser;
     in_parser = true;
@@ -288,7 +289,7 @@ class ParserStackProgress : public Inspector {
 };
 
 std::optional<size_t> parser_stack_bound(P4State *state, const std::vector<cstring> &order,
-                                       const std::map<cstring, unsigned> &ranks) {
+                                         const std::map<cstring, unsigned> &ranks) {
     ParserStackProgress effects(state);
     std::set<const StackInstance *> stacks;
     std::set<cstring> progress_states;
@@ -479,7 +480,8 @@ void Z3Visitor::run_parser(cstring start) {
                 if (outcome == z3::unsat) break;
                 if (outcome == z3::sat)
                     throw InternalError("Parser reached a path beyond its proved stack bound");
-                throw UnsupportedFeatureError("Parser stack bound could not discharge remaining paths");
+                throw UnsupportedFeatureError(
+                    "Parser stack bound could not discharge remaining paths");
             }
             if (!stack_bound && depth >= 1000)
                 throw UnsupportedFeatureError("Parser exceeds 1000 unfolding rounds");

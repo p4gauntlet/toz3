@@ -52,7 +52,7 @@ bool Z3Visitor::preorder(const IR::Type_Enum *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, new EnumInstance(state, t, ""_cs, 0), t);
+        state->declare_var(name, allocate_instance<EnumInstance>(state, state, t, ""_cs, 0), t);
     }
     return false;
 }
@@ -73,7 +73,7 @@ bool Z3Visitor::preorder(const IR::Type_Error *t) {
         }
     } else {
         state->add_type(name, t);
-        state->declare_var(name, new ErrorInstance(state, t, ""_cs, 0), t);
+        state->declare_var(name, allocate_instance<ErrorInstance>(state, state, t, ""_cs, 0), t);
     }
     return false;
 }
@@ -105,7 +105,8 @@ bool Z3Visitor::preorder(const IR::Type_SerEnum *t) {
         }
         state->pop_scope();
         state->add_type(name, t);
-        state->declare_var(name, new SerEnumInstance(state, input_members, t, ""_cs, 0), t);
+        state->declare_var(
+            name, allocate_instance<SerEnumInstance>(state, state, input_members, t, ""_cs, 0), t);
     }
     return false;
 }
@@ -151,7 +152,8 @@ bool Z3Visitor::preorder(const IR::P4Parser *p) {
     // Parsers can be both a var and a type
     // TODO: Take a closer look at this...
     state->add_type(p->name.name, p);
-    state->declare_var(p->name.name, new ControlInstance(state, p, {}), p);
+    state->declare_var(p->name.name, allocate_instance<ControlInstance>(state, state, p, VarMap{}),
+                       p);
     return false;
 }
 
@@ -159,7 +161,8 @@ bool Z3Visitor::preorder(const IR::P4Control *c) {
     // Controls can be both a decl and a type
     // TODO: Take a closer look at this...
     state->add_type(c->name.name, c);
-    state->declare_var(c->name.name, new ControlInstance(state, c, {}), c);
+    state->declare_var(c->name.name, allocate_instance<ControlInstance>(state, state, c, VarMap{}),
+                       c);
 
     return false;
 }
@@ -176,7 +179,7 @@ bool Z3Visitor::preorder(const IR::Function *f) {
             num_params += 1;
         }
     }
-    auto *decl = new P4Declaration(f);
+    auto *decl = allocate_instance<P4Declaration>(state, f);
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         // The IR has bizarre side effects when storing pointers in a map
         // TODO: Think about how to simplify this, maybe use their vector
@@ -198,7 +201,7 @@ bool Z3Visitor::preorder(const IR::Method *m) {
             num_params += 1;
         }
     }
-    auto *decl = new P4Declaration(m);
+    auto *decl = allocate_instance<P4Declaration>(state, m);
     for (auto idx = 0; idx <= num_optional_params; ++idx) {
         // The IR has bizarre side effects when storing pointers in a map
         // TODO: Think about how to simplify this, maybe use their vector
@@ -221,7 +224,7 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
             num_params += 1;
         }
     }
-    auto *decl = new P4Declaration(a);
+    auto *decl = allocate_instance<P4Declaration>(state, a);
     cstring name_basic = mangle_name(overloaded_name, num_params);
     state->declare_static_decl(name_basic, decl);
     // The IR has bizarre side effects when storing pointers in a map
@@ -234,7 +237,7 @@ bool Z3Visitor::preorder(const IR::P4Action *a) {
 }
 
 bool Z3Visitor::preorder(const IR::P4Table *t) {
-    state->declare_static_decl(t->name.name, new P4TableInstance(state, t));
+    state->declare_static_decl(t->name.name, allocate_instance<P4TableInstance>(state, state, t));
     return false;
 }
 
@@ -243,7 +246,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     const IR::Type *resolved_type = state->resolve_type(di->type);
     // TODO: Figure out a way to process packages
     if (resolved_type->is<IR::Type_Package>()) {
-        state->declare_static_decl(instance_name, new P4Declaration(di));
+        state->declare_static_decl(instance_name, allocate_instance<P4Declaration>(state, di));
         return false;
     }
     if (const auto *te = resolved_type->to<IR::Type_Extern>()) {
@@ -252,7 +255,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
         // const IR::ParameterList *params = nullptr;
         // params = ext_const->getParameters();
         te = specialize_extern(te, *di->arguments);
-        state->declare_var(instance_name, new ExternInstance(state, te), te);
+        state->declare_var(instance_name, allocate_instance<ExternInstance>(state, state, te), te);
         return false;
     }
     if (const auto *ctrl_decl = resolved_type->to<IR::Type_Declaration>()) {
@@ -269,8 +272,9 @@ bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
                               ctrl_decl->node_type_name());
         }
         auto var_map = state->merge_args_with_params(this, *di->arguments, *params, *type_params);
-        state->declare_var(instance_name, new ControlInstance(state, ctrl_decl, var_map.second),
-                           ctrl_decl);
+        state->declare_var(
+            instance_name,
+            allocate_instance<ControlInstance>(state, state, ctrl_decl, var_map.second), ctrl_decl);
         return false;
     }
     P4C_UNIMPLEMENTED("Resolved type %s of type %s not supported, ", resolved_type,
@@ -319,8 +323,8 @@ bool Z3Visitor::preorder(const IR::Declaration_MatchKind *dm) {
         const auto *type = IR::Type_MatchKind::get();
         state->declare_var(
             member->name.name,
-            new Z3Bitvector(state, type,
-                            state->get_z3_ctx()->bv_val(state->allocate_match_kind(), 32)),
+            allocate_instance<Z3Bitvector>(
+                state, state, type, state->get_z3_ctx()->bv_val(state->allocate_match_kind(), 32)),
             type);
     }
     return false;
@@ -421,7 +425,8 @@ bool Z3Visitor::preorder(const IR::ExitStatement * /*e*/) {
     auto old_state = state->clone_state();
     if (in_parser && state->find_var("$parser_accepted"_cs)) {
         state->update_var("$parser_accepted"_cs,
-                          new Z3Bitvector(state, &BOOL_TYPE, state->get_z3_ctx()->bool_val(false)));
+                          allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE,
+                                                         state->get_z3_ctx()->bool_val(false)));
     }
     // Note the lack of leq in the i > 0 comparison.
     // We do not want to pop the last scope since we use it to get state

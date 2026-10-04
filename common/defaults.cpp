@@ -7,13 +7,15 @@ namespace P4::ToZ3 {
 P4Z3Instance *DefaultInstance::cast_allocate(const IR::Type *type) const {
     type = state->resolve_type(type);
     auto *ctx = state->get_z3_ctx();
-    if (type->is<IR::Type_InfInt>()) return new Z3Int(state, ctx->int_val(0));
-    if (type->is<IR::Type_String>()) return new Z3Bitvector(state, type, ctx->string_val(""));
-    if (type->is<IR::Type_Boolean>()) return new Z3Bitvector(state, type, ctx->bool_val(false));
+    if (type->is<IR::Type_InfInt>()) return allocate_instance<Z3Int>(state, state, ctx->int_val(0));
+    if (type->is<IR::Type_String>())
+        return allocate_instance<Z3Bitvector>(state, state, type, ctx->string_val(""));
+    if (type->is<IR::Type_Boolean>())
+        return allocate_instance<Z3Bitvector>(state, state, type, ctx->bool_val(false));
     if (const auto *bits = type->to<IR::Type_Bits>()) {
-        return new Z3Bitvector(state, type,
-                               bits->size == 0 ? ctx->int_val(0) : ctx->bv_val(0, bits->size),
-                               bits->isSigned);
+        return allocate_instance<Z3Bitvector>(
+            state, state, type, bits->size == 0 ? ctx->int_val(0) : ctx->bv_val(0, bits->size),
+            bits->isSigned);
     }
     if (const auto *enumeration = type->to<IR::Type_Enum>()) {
         const auto *definition = state->get_var<EnumInstance>(enumeration->name.name);
