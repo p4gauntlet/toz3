@@ -290,6 +290,9 @@ P4Z3Instance *Z3Bitvector::concat(const P4Z3Instance &other) const {
     const z3::expr *other_expr = nullptr;
     if (const auto *other_val = other.to<Z3Bitvector>()) {
         other_expr = other_val->get_val();
+        if (p4_type->is<IR::Type_String>() && other_val->get_p4_type()->is<IR::Type_String>()) {
+            return new Z3Bitvector(state, p4_type, z3::concat(val, *other_expr));
+        }
         const auto *concat_type =
             IR::Type_Bits::get(other_expr->get_sort().bv_size() + val.get_sort().bv_size(), false);
 

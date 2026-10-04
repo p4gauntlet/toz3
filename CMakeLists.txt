@@ -261,7 +261,6 @@ set(
   ${P4C_TEST_DIR}/opassign1.p4
   ${P4C_TEST_DIR}/opassign2-bmv2.p4
   ${P4C_TEST_DIR}/parser-unroll-issue4006_twice_extracted_header.p4
-  ${P4C_TEST_DIR}/spec-issue1297-string-cat.p4
   ${P4C_TEST_DIR}/array1.p4
   ${P4C_TEST_DIR}/array2.p4
   ${P4C_TEST_DIR}/array3.p4
