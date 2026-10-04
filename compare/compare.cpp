@@ -7,6 +7,7 @@
 #include <list>
 #include <set>
 #include <string>
+#include <unordered_map>
 
 #include "frontends/common/parseInput.h"
 #include "ir/ir.h"
@@ -115,8 +116,44 @@ void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
     std::cerr << model << std::endl;
 }
 
-z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
-                          std::set<z3::expr> *taint_vars) {
+namespace {
+
+class UndefinedAnalysis {
+    // Retain the ASTs so Z3 cannot recycle an ID when a field's simplified root dies.
+    std::unordered_map<unsigned, std::pair<z3::expr, bool>> undefined;
+
+ public:
+    bool contains(const z3::expr &expression) {
+        // Traverse the shared DAG once, rather than expanding it as an expression tree.
+        // Keep the traversal iterative because parser summaries can be deeply nested.
+        std::vector<std::pair<z3::expr, bool>> pending{{expression, false}};
+        while (!pending.empty()) {
+            auto [node, expanded] = pending.back();
+            pending.pop_back();
+            if (undefined.count(node.id())) continue;
+            if (node.is_const()) {
+                undefined.emplace(node.id(), std::make_pair(node, is_undefined_const(node)));
+            } else if (!expanded) {
+                pending.emplace_back(node, true);
+                for (unsigned i = 0; i < node.num_args(); ++i)
+                    if (!undefined.count(node.arg(i).id()))
+                        pending.emplace_back(node.arg(i), false);
+            } else {
+                bool tainted = false;
+                for (unsigned i = 0; i < node.num_args(); ++i)
+                    tainted = tainted || undefined.at(node.arg(i).id()).second;
+                undefined.emplace(node.id(), std::make_pair(node, tainted));
+            }
+        }
+        return undefined.at(expression.id()).second;
+    }
+};
+
+z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var, std::set<z3::expr> *taint_vars,
+                          UndefinedAnalysis *analysis) {
+    if (!analysis->contains(z3_var)) return z3_var;
+    // Do not memoize rewritten tainted nodes: each occurrence must retain its own
+    // fresh symbol, even when the original expression shares the same DAG node.
     auto decl = z3_var.decl();
     auto z3_sort = z3_var.get_sort();
     if (decl.decl_kind() == Z3_OP_ITE) {
@@ -124,7 +161,7 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
         auto then_expr = z3_var.arg(1);
         auto else_expr = z3_var.arg(2);
         std::set<z3::expr> cond_taint_vars;
-        cond_expr = substitute_taint(ctx, cond_expr, &cond_taint_vars);
+        cond_expr = substitute_taint(ctx, cond_expr, &cond_taint_vars, analysis);
         // Check if the cond expr is an ite statement after substitution.
         // If the condition is tainted, do not even bother to evaluate the rest.
         if (cond_expr.decl().decl_kind() != Z3_OP_ITE && !cond_taint_vars.empty()) {
@@ -134,9 +171,9 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
         }
         // Evaluate the branches.
         std::set<z3::expr> then_taint_vars;
-        then_expr = substitute_taint(ctx, then_expr, &then_taint_vars);
+        then_expr = substitute_taint(ctx, then_expr, &then_taint_vars, analysis);
         std::set<z3::expr> else_taint_vars;
-        else_expr = substitute_taint(ctx, else_expr, &else_taint_vars);
+        else_expr = substitute_taint(ctx, else_expr, &else_taint_vars, analysis);
         // Check if the branches are an ite statement after substitution.
         if (then_expr.decl().decl_kind() != Z3_OP_ITE &&
             else_expr.decl().decl_kind() != Z3_OP_ITE && !then_taint_vars.empty() &&
@@ -167,7 +204,7 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
     for (size_t idx = 0; idx < arg_num; ++idx) {
         auto child = z3_var.arg(idx);
         std::set<z3::expr> child_taint_vars;
-        child = substitute_taint(ctx, child, &child_taint_vars);
+        child = substitute_taint(ctx, child, &child_taint_vars, analysis);
         // Replace entire expression if one non-ite member is tainted.
         if (child.decl().decl_kind() != Z3_OP_ITE && !child_taint_vars.empty()) {
             // The expression is tained. Replace it.
@@ -185,16 +222,25 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
     return z3_var;
 }
 
+}  // namespace
+
+z3::expr substitute_taint(z3::context *ctx, const z3::expr &expression,
+                          std::set<z3::expr> *taint_vars) {
+    UndefinedAnalysis analysis;
+    return substitute_taint(ctx, expression, taint_vars, &analysis);
+}
+
 z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr &z3_prog_before,
                                  const z3::expr &z3_prog_after) {
     auto arg_num = z3_prog_before.num_args();
+    UndefinedAnalysis analysis;
     s->reset();
     for (size_t idx = 0; idx < arg_num; ++idx) {
         s->push();
         auto m_before = z3_prog_before.arg(idx).simplify();
         auto m_after = z3_prog_after.arg(idx).simplify();
         std::set<z3::expr> taint_vars;
-        m_before = substitute_taint(ctx, m_before, &taint_vars);
+        m_before = substitute_taint(ctx, m_before, &taint_vars, &analysis);
         z3::expr tv_equiv = (m_before != m_after);
         for (const auto &taint_var : taint_vars) {
             if (m_before.get_sort().sort_kind() == taint_var.get_sort().sort_kind()) {

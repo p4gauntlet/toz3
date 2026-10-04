@@ -164,8 +164,9 @@ if(ENABLE_GTESTS)
     tests/gtest/visitor.cpp
     tests/gtest/receivers.cpp
     tests/gtest/parser.cpp
+    tests/gtest/compare.cpp
   )
-  add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS} validate/passes.cpp)
+  add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS} compare/compare.cpp validate/passes.cpp)
   target_link_libraries(toz3_tests PRIVATE p4toz3lib gtest_main)
   add_test(NAME toz3-unit COMMAND toz3_tests)
   set_tests_properties(toz3-unit PROPERTIES LABELS "gtest;toz3")
