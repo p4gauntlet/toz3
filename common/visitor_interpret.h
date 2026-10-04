@@ -1,5 +1,9 @@
 #ifndef TOZ3_COMMON_VISITOR_INTERPRET_H_
 #define TOZ3_COMMON_VISITOR_INTERPRET_H_
+#include <functional>
+#include <vector>
+
+#include "evaluation_context.h"
 #include "ir/indexed_vector.h"
 #include "ir/ir.h"
 #include "ir/node.h"
@@ -14,15 +18,29 @@ class DoBitFolding : public Modifier {
     P4State *state;
     void postorder(IR::Type_Bits *tb) override;
     void postorder(IR::Type_Varbits *tb) override;
+    void postorder(IR::Type_Array *type) override;
 
  public:
     using Modifier::postorder;
     explicit DoBitFolding(P4State *state) : state(state) { visitDagOnce = false; }
 };
 
-class Z3Visitor : public Inspector {
+class Z3Visitor : public Inspector, public EvaluationContext {
  private:
     P4State *state;
+    // Inspector updates this context while visiting standalone roots.
+    Context root_context;
+    const IR::Type_Extern *specialize_extern(const IR::Type_Extern *type,
+                                             const IR::Vector<IR::Argument> &arguments);
+    struct LoopContext {
+        bool stopped = false;
+        z3::expr break_condition;
+        z3::expr continue_condition;
+        explicit LoopContext(z3::context *ctx)
+            : break_condition(ctx->bool_val(false)), continue_condition(ctx->bool_val(false)) {}
+    };
+    std::vector<LoopContext> loops;
+    bool try_additive_loop(const IR::ForStatement *loop, cstring index);
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
@@ -30,6 +48,7 @@ class Z3Visitor : public Inspector {
     }
     // This is used for some specific behavior in exit statements
     bool in_parser = false;
+    std::function<void(cstring)> parser_transition;
 
     /***** Declarations *****/
 
@@ -65,12 +84,17 @@ class Z3Visitor : public Inspector {
     /***** Statements *****/
     bool preorder(const IR::BlockStatement *b) override;
     bool preorder(const IR::AssignmentStatement *as) override;
+    bool preorder(const IR::OpAssignmentStatement *as) override;
     bool preorder(const IR::MethodCallStatement *mcs) override;
     bool preorder(const IR::IfStatement *ifs) override;
     bool preorder(const IR::SwitchStatement *ss) override;
     bool preorder(const IR::EmptyStatement *es) override;
     bool preorder(const IR::ExitStatement *es) override;
     bool preorder(const IR::ReturnStatement *rs) override;
+    bool preorder(const IR::ForStatement *loop) override;
+    bool preorder(const IR::ForInStatement *loop) override;
+    bool preorder(const IR::BreakStatement *statement) override;
+    bool preorder(const IR::ContinueStatement *statement) override;
 
     /***** Parser *****/
     bool preorder(const IR::ParserState *ps) override;
@@ -88,6 +112,7 @@ class Z3Visitor : public Inspector {
     bool preorder(const IR::MethodCallExpression *mce) override;
     bool preorder(const IR::BoolLiteral *bl) override;
     bool preorder(const IR::StringLiteral *sl) override;
+    bool preorder(const IR::Dots *dots) override;
     // bool preorder(const IR::DefaultExpression *) override;
 
     /****** UNARY OPERANDS ******/
@@ -121,17 +146,23 @@ class Z3Visitor : public Inspector {
     // bool preorder(const IR::Range *) override;
     bool preorder(const IR::Cast *c) override;
     bool preorder(const IR::Slice *s) override;
+    bool preorder(const IR::PlusSlice *s) override;
     bool preorder(const IR::Mux *m) override;
 
  public:
+    void evaluate(const IR::Node *node) override { visit(node); }
     P4State *get_state() const { return state; }
     void set_in_parser(bool is_in_parser) { in_parser = is_in_parser; }
     bool is_in_parser() const { return in_parser; }
+    void reject_parser(const z3::expr &condition, cstring error = "NoError"_cs) override;
+    void reject_parser(const z3::expr &condition, const z3::expr &error);
+    void visit_parser_state(cstring name);
+    void run_parser(cstring start) override;
     explicit Z3Visitor(P4State *state, bool gen_ctx = true) : state(state) {
         visitDagOnce = false;
         if (gen_ctx) {
-            const auto ctx = Context();
-            Visitor::init_apply(nullptr, &ctx);
+            root_context.node = root_context.original = new IR::EmptyStatement();
+            Visitor::init_apply(nullptr, &root_context);
         }
     }
 };

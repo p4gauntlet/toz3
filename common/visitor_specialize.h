@@ -19,6 +19,10 @@ class TypeModifier : public Transform {
  private:
     const std::map<cstring, const IR::Type *> *type_mapping;
     const IR::Node *postorder(IR::Type *type) override;
+    const IR::Node *preorder(IR::TypeParameters *parameters) override {
+        prune();
+        return parameters;
+    }
 
  public:
     explicit TypeModifier(const std::map<cstring, const IR::Type *> *type_mapping)
@@ -31,6 +35,7 @@ class TypeSpecializer : public Transform {
  private:
     const P4State &state;
     const IR::Vector<IR::Type> &types;
+    const IR::Node *specialize(const IR::Node *node, const IR::TypeParameters *parameters);
 
     const IR::Node *preorder(IR::Node *node) override {
         P4C_UNIMPLEMENTED("TypeSpecializer: IR Node %s not implemented!", node->node_type_name());

@@ -50,9 +50,7 @@ set(PRUNER_COMPILER_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_prog.py")
 
 file(GLOB CRASH_TESTS "${TEST_DIR}/references/crash_bugs/*.p4")
 
-# Remove references from the list of tests.
-# TODO: Make this more systematic
-file(GLOB CRASH_REFS "${TEST_DIR}/references/crash_bugs/*_reference.p4")
-list(REMOVE_ITEM CRASH_TESTS ${CRASH_REFS})
+# References and output from manual pruning runs are not test inputs.
+list(FILTER CRASH_TESTS EXCLUDE REGEX "_(reference|stripped)\\.p4$")
 
 pruner_add_tests("pruner" ${PRUNER_COMPILER_DRIVER} "${CRASH_TESTS}" "" "--pruner_path ${PRUNER_BIN} --compiler ${P4C_TEST_BIN} -ll DEBUG --type CRASH --p4prog")
