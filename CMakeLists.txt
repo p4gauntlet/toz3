@@ -205,7 +205,55 @@ set(
 )
 set(P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
-set(P4C_VALIDATION_XFAIL_TESTS)
+set(
+  P4C_VALIDATION_XFAIL_TESTS
+  # Confirmed compiler defects at P4C 3d9a20e985; reduced witnesses are in
+  # tests/violated/parser_short_extract_def_use and parser_stack_argument_order.
+  # SimplifyDefUse removes an assignment observable after extraction rejects.
+  ${P4C_TEST_DIR}/invalid-hdr-warnings4.p4
+  # SideEffectOrdering moves lookahead before a rejecting stack.next argument.
+  ${P4C_TEST_DIR}/issue2090.p4
+  ${P4C_TEST_DIR}/spec-ex19.p4
+  # Interpreter: construction/selection of arrays of extern instances is unsupported.
+  ${P4C_TEST_DIR}/generic-extern-inference.p4
+  # Interpreter: packet-consuming parser cycles exceed 1,000 unfolding rounds;
+  # these cycles have no proved stack-progress bound and still need summaries.
+  ${P4C_TEST_DIR}/gauntlet_infinite_loop.p4
+  ${P4C_TEST_DIR}/issue2314.p4
+  ${P4C_TEST_DIR}/parser-unroll-test1.p4
+  # Interpreter: Z3 runs out of memory while constructing the first parser summary,
+  # before comparison (observed with a 3 GiB process limit).
+  ${P4C_TEST_DIR}/invalid-hdr-warnings1.p4
+  # Compiler: p4test throws std::bad_alloc in LocalCopyPropagation while dumping
+  # passes, before interpretation (observed with the same 3 GiB process limit).
+  ${P4C_TEST_DIR}/switch_p4_16.p4
+)
+
+# CTest's WILL_FAIL does not invert a timeout. Keep these out of registration
+# separately from XFAILs, which still run and must return a failure.
+set(
+  P4C_VALIDATION_TIMEOUT_TESTS
+  # Interpreter: repeated nested control-loop unfolding consumes the time budget.
+  ${P4C_TEST_DIR}/forloop3.p4
+  ${P4C_TEST_DIR}/forloop4.p4
+  # Interpreter: a packet-consuming VLAN loop repeatedly invokes subparsers and
+  # builds growing summaries, before any pass comparison.
+  ${P4C_TEST_DIR}/issue281.p4
+  # Interpreter: symbolic evaluation of the large pipeline has not reached comparison.
+  ${P4C_TEST_DIR}/fabric_20190420/fabric.p4
+  # Interpreter: parser-loop unfolding builds growing path guards; this includes
+  # Z3 reachability queries inside interpretation, rather than pass comparison.
+  ${P4C_TEST_DIR}/lookahead_ubpf.p4
+  ${P4C_TEST_DIR}/parser-unroll-issue3537.p4
+  ${P4C_TEST_DIR}/parser-unroll-issue3537-1.p4
+  # Z3 comparison: both summaries are built; equality stalls between
+  # FrontEnd_26_TableKeyNames and FrontEnd_27_PassRepeated.
+  ${P4C_TEST_DIR}/issue561-bmv2.p4
+  # Z3 comparison: symbolic popcount stalls between FrontEnd_35_MoveDeclarations
+  # and FrontEnd_47_RemoveReturns, after summaries are built in under a second.
+  ${P4C_TEST_DIR}/forloop2.p4
+)
+list(REMOVE_ITEM P4C_VALIDATION_TESTS ${P4C_VALIDATION_TIMEOUT_TESTS})
 
 # Remaining programs need architecture-specific support or exceed validation limits.
 set(
@@ -216,11 +264,6 @@ set(
   ${P4C_TEST_DIR}/issue3051.p4
   # Arrays of extern objects need receiver selection and a suitable extern model.
   ${P4C_TEST_DIR}/externArray1.p4
-  # Finite symbolic ranges are supported, but these nested programs time out.
-  ${P4C_TEST_DIR}/forloop3.p4
-  ${P4C_TEST_DIR}/forloop4.p4
-  # Symbolic bit-clearing popcount: validation timeout.
-  ${P4C_TEST_DIR}/forloop2.p4
   # A changing counter and modular conditional update exceed the iteration limit.
   ${P4C_TEST_DIR}/forloop10.p4
 )
@@ -260,7 +303,10 @@ file(GLOB VIOLATION_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/violated/*")
 
 set(
   VIOLATION_XFAIL_TESTS
+  # Interpreter: the packet-consuming subparser loop exceeds 1,000 unfolding rounds.
   extensions/toz3/tests/violated/2314_regression
+  # The loop branches on an uninitialized header field. With --allow-undefined,
+  # comparison tolerates the mismatch, but this fixture requires a violation.
   extensions/toz3/tests/violated/parser_loop
 )
 
@@ -276,6 +322,8 @@ file(GLOB UNDEFINED_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/undef_violated
 
 set(
   UNDEFINED_XFAIL_TESTS
+  # Invalid-header output masking makes these pairs equal even in strict mode;
+  # the fixtures instead require a strict mismatch followed by undefined tolerance.
   extensions/toz3/tests/undef_violated/NestedStructs_1
   extensions/toz3/tests/undef_violated/NestedStructs_2
 )

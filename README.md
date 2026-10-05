@@ -41,6 +41,16 @@ cmake --build . --target toz3_tests
 ctest --output-on-failure -R '^toz3-unit$'
 ```
 
+Run the full extension suite, including pruner tests when enabled, with two
+workers and the 3 GiB process limit used to audit the memory-failure XFAILs:
+
+```sh
+(
+  ulimit -v 3145728
+  ctest --output-on-failure -j 2 -R '^(toz3-|pruner)'
+)
+```
+
 The pass-generation tests use Python 3 to simulate compiler output.
 
 Loop interpretation supports `break`, `continue`, and inclusive constant ranges.
@@ -75,4 +85,14 @@ requested size in the read model; full runtime `varbit` length semantics remain
 incomplete. `FlattenHeaderUnion` remains excluded from pass comparisons.
 
 The [short-packet regression](tests/violated/parser_short_extract_def_use/README.md)
-documents a reduced `SimplifyDefUse` compiler mismatch detected by parser validation.
+documents the `SimplifyDefUse` compiler defect detected in `invalid-hdr-warnings4`.
+The [argument-order regression](tests/violated/parser_stack_argument_order/README.md)
+documents the `SideEffectOrdering` compiler defect detected in `issue2090` and
+`spec-ex19`. Both reports include concrete packets and before/after parser outputs
+verified at P4C revision `3d9a20e985`. These are expected violations in the reduced
+comparison tests; the original P4C sample validation tests still report them.
+The sample tests are registered as XFAILs, together with unsupported extern
+arrays, parser unfolding limits, and known memory failures. Programs that time
+out are excluded separately in `P4C_VALIDATION_TIMEOUT_TESTS`; its comments
+distinguish interpretation from Z3 comparison. XFAILs continue to run, and an
+unexpected success fails CTest so the expectation can be removed.
