@@ -52,6 +52,50 @@ class ParserTest : public ::testing::Test {
     }
 };
 
+TEST(ArchitectureTypes, GenericPackagesPreserveControlAndParserOutputs) {
+    AutoCompileContext context{new P4CContextWithOptions<CompilerOptions>};
+    z3::context ctx;
+    P4State state(&ctx);
+    const auto *program = parseP4String(R"(
+        error { NoError, NoMatch }
+        control C8(out bit<8> value) { apply { value = 8; } }
+        control C16(out bit<16> value) { apply { value = 16; } }
+        parser P(out bit<8> value) {
+            state start { value = 24; transition accept; }
+        }
+        package Generic<Block>(Block block);
+        Generic(C8()) inferred;
+        Generic<C16>(C16()) explicit;
+        C8() control_instance;
+        Generic(control_instance) named;
+        Generic(P()) parser_instance;
+        package Wrapper<Package>(Package inner, @optional Package unused);
+        Wrapper(inferred) nested;
+        package Top(Generic<C8> a, Generic<C16> b, Generic<C8> c,
+                    Generic<P> d, Wrapper<Generic<C8>> e);
+        Top(inferred, explicit, named, parser_instance, nested) main;
+    )");
+    ASSERT_NE(program, nullptr);
+    Z3Visitor declarations(&state, false);
+    program->apply(declarations);
+    Z3Visitor interpreter(&state);
+    const auto summary = gen_state_from_instance(&interpreter, get_main_decl(&state));
+    ASSERT_EQ(summary.size(), 5U);
+    const auto value = [&](cstring block, cstring field) {
+        for (const auto &entry : summary.at(block).first)
+            if (entry.first == field) return entry.second.simplify();
+        ADD_FAILURE() << "Missing output " << block << "." << field;
+        return ctx.bool_val(false);
+    };
+    for (const auto block : {"ablock"_cs, "cblock"_cs, "einnerblock"_cs}) {
+        EXPECT_EQ(value(block, "value"_cs).get_sort().bv_size(), 8U);
+        EXPECT_EQ(value(block, "value"_cs).get_numeral_uint(), 8U);
+    }
+    EXPECT_EQ(value("bblock"_cs, "value"_cs).get_sort().bv_size(), 16U);
+    EXPECT_EQ(value("bblock"_cs, "value"_cs).get_numeral_uint(), 16U);
+    EXPECT_EQ(value("dblock"_cs, "value"_cs).get_numeral_uint(), 24U);
+    EXPECT_TRUE(value("dblock"_cs, "$parser_accepted"_cs).is_true());
+}
 TEST_F(ParserTest, StackExtractionAdvancesAndRejectionPreservesExtractedHeaders) {
     evaluate(R"(
         header H { bit<8> x; }

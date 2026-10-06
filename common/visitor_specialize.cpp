@@ -22,76 +22,41 @@ const IR::Node *TypeModifier::postorder(IR::Type *type) {
     return type;
 }
 
-const IR::Node *TypeSpecializer::preorder(IR::Type_Extern *te) {
+const IR::Node *TypeSpecializer::specialize(const IR::Node *node,
+                                          const IR::TypeParameters *parameters) {
+    BUG_CHECK(types.size() <= parameters->parameters.size(),
+              "Too many type arguments when specializing %1%", node);
     std::map<cstring, const IR::Type *> type_mapping;
-    auto type_args_size = types.size();
-    for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = te->getTypeParameters()->parameters.at(idx);
-        type_mapping.insert({type_param->getName().name, matched_type});
+    for (size_t idx = 0; idx < types.size(); ++idx) {
+        type_mapping.emplace(parameters->parameters.at(idx)->name.name,
+                             state.resolve_type(types.at(idx)));
     }
-    TypeModifier type_modifier(&type_mapping);
     prune();
-    return te->apply(type_modifier);
+    return node->apply(TypeModifier(&type_mapping));
+}
+
+const IR::Node *TypeSpecializer::preorder(IR::Type_Extern *te) {
+    return specialize(te, te->getTypeParameters());
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Package *tp) {
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto type_args_size = types.size();
-    for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = tp->getTypeParameters()->parameters.at(idx);
-        type_mapping.insert({type_param->getName().name, matched_type});
-    }
-    TypeModifier type_modifier(&type_mapping);
-    prune();
-    return tp->apply(type_modifier);
+    return specialize(tp, tp->getTypeParameters());
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::P4Control *c) {
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto type_args_size = types.size();
-    for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = c->getTypeParameters()->parameters.at(idx);
-        type_mapping.insert({type_param->getName().name, matched_type});
-    }
-    TypeModifier type_modifier(&type_mapping);
-    prune();
-    return c->apply(type_modifier);
+    return specialize(c, c->getTypeParameters());
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::P4Parser *p) {
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto type_args_size = types.size();
-    for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = p->getTypeParameters()->parameters.at(idx);
-        type_mapping.insert({type_param->getName().name, matched_type});
-    }
-    TypeModifier type_modifier(&type_mapping);
-    prune();
-    return p->apply(type_modifier);
+    return specialize(p, p->getTypeParameters());
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Control *tc) {
-    std::map<cstring, const IR::Type *> type_mapping;
-    for (size_t idx = 0; idx < types.size(); ++idx) {
-        type_mapping.emplace(tc->getTypeParameters()->parameters.at(idx)->name.name,
-                             state.resolve_type(types.at(idx)));
-    }
-    prune();
-    return tc->apply(TypeModifier(&type_mapping));
+    return specialize(tc, tc->getTypeParameters());
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_Parser *tp) {
-    std::map<cstring, const IR::Type *> type_mapping;
-    for (size_t idx = 0; idx < types.size(); ++idx) {
-        type_mapping.emplace(tp->getTypeParameters()->parameters.at(idx)->name.name,
-                             state.resolve_type(types.at(idx)));
-    }
-    prune();
-    return tp->apply(TypeModifier(&type_mapping));
+    return specialize(tp, tp->getTypeParameters());
 }
 const IR::Node *TypeSpecializer::preorder(IR::Type_Name *tn) {
     prune();
@@ -106,29 +71,11 @@ const IR::Node *TypeSpecializer::preorder(IR::Type_Var *tv) {
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Type_StructLike *ts) {
-    prune();
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto type_args_size = types.size();
-    for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = ts->getTypeParameters()->parameters.at(idx);
-        type_mapping.insert({type_param->getName().name, matched_type});
-    }
-    TypeModifier type_modifier(&type_mapping);
-    return ts->apply(type_modifier);
+    return specialize(ts, ts->getTypeParameters());
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Method *m) {
-    prune();
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto type_args_size = types.size();
-    for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = m->type->getTypeParameters()->parameters.at(idx);
-        type_mapping.insert({type_param->getName().name, matched_type});
-    }
-    TypeModifier type_modifier(&type_mapping);
-    return m->apply(type_modifier);
+    return specialize(m, m->type->getTypeParameters());
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::P4Action *a) {
@@ -137,16 +84,7 @@ const IR::Node *TypeSpecializer::preorder(IR::P4Action *a) {
 }
 
 const IR::Node *TypeSpecializer::preorder(IR::Function *f) {
-    prune();
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto type_args_size = types.size();
-    for (size_t idx = 0; idx < type_args_size; ++idx) {
-        const auto *matched_type = state.resolve_type(types.at(idx));
-        const auto *type_param = f->type->getTypeParameters()->parameters.at(idx);
-        type_mapping.insert({type_param->getName().name, matched_type});
-    }
-    TypeModifier type_modifier(&type_mapping);
-    return f->apply(type_modifier);
+    return specialize(f, f->type->getTypeParameters());
 }
 
 }  // namespace P4::ToZ3

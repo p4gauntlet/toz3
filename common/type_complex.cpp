@@ -24,6 +24,7 @@
 #include "lib/stringify.h"
 #include "state.h"
 #include "type_base.h"
+#include "type_inference.h"
 #include "type_simple.h"
 #include "util.h"
 #include "evaluation_context.h"
@@ -1339,28 +1340,6 @@ void ControlInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
         visitor->evaluate(body);
     }
     state->copy_out();
-}
-
-std::map<cstring, const IR::Type *> get_type_mapping(const IR::ParameterList *src_params,
-                                                     const IR::TypeParameters *src_type_params,
-                                                     const IR::ParameterList *dest_params) {
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto dest_params_size = dest_params->size();
-    for (size_t idx = 0; idx < src_params->size(); ++idx) {
-        // Ignore optional parameters.
-        if (idx >= dest_params_size) {
-            continue;
-        }
-        const auto *src_param = src_params->getParameter(idx);
-        if (const auto *tn = src_param->type->to<IR::Type_Name>()) {
-            auto src_type_name = tn->path->name.name;
-            if (src_type_params->getDeclByName(src_type_name) != nullptr) {
-                const auto *dst_param = dest_params->getParameter(idx);
-                type_mapping.emplace(src_type_name, dst_param->type);
-            }
-        }
-    }
-    return type_mapping;
 }
 
 P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {

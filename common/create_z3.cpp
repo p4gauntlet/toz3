@@ -18,32 +18,19 @@
 #include "toz3/common/type_complex.h"
 #include "toz3/common/type_simple.h"
 #include "toz3/common/visitor_interpret.h"
+#include "type_inference.h"
 #include "visitor_specialize.h"
 #include "z3++.h"
 
 namespace P4::ToZ3 {
-
-std::map<cstring, const IR::Type *> get_type_mapping_2(const IR::ParameterList *src_params,
-                                                       const IR::TypeParameters *src_type_params,
-                                                       const IR::ParameterList *dest_params) {
-    std::map<cstring, const IR::Type *> type_mapping;
-    auto dest_params_size = dest_params->size();
-    for (size_t idx = 0; idx < src_params->size(); ++idx) {
-        // Ignore optional params
-        if (idx >= dest_params_size) {
-            continue;
-        }
-        const auto *src_param = src_params->getParameter(idx);
-        const auto *dst_param = dest_params->getParameter(idx);
-        if (const auto *tn = src_param->type->to<IR::Type_Name>()) {
-            auto src_type_name = tn->path->name.name;
-            if (src_type_params->getDeclByName(src_type_name) != nullptr) {
-                type_mapping.emplace(src_type_name, dst_param->type);
-            }
-        }
-    }
-    return type_mapping;
+namespace {
+const IR::Type *architecture_type(const IR::Type *type) {
+    // An implementation used as a package type argument denotes its apply signature.
+    if (const auto *control = type->to<IR::P4Control>()) return control->type;
+    if (const auto *parser = type->to<IR::P4Parser>()) return parser->type;
+    return type;
 }
+}  // namespace
 
 std::map<cstring, const IR::Type *> specialize_arch_blocks(const IR::Type *src_type,
                                                            const IR::Type *dest_type) {
@@ -51,9 +38,8 @@ std::map<cstring, const IR::Type *> specialize_arch_blocks(const IR::Type *src_t
         if (const auto *control_dst_type = dest_type->to<IR::P4Control>()) {
             const auto *src_params = control->getApplyParameters();
             const auto *src_type_params = control->getTypeParameters();
-            auto type_mapping = get_type_mapping_2(src_params, src_type_params,
+            auto type_mapping = get_type_mapping(src_params, src_type_params,
                                                    control_dst_type->getApplyParameters());
-            TypeModifier type_modifier(&type_mapping);
             return type_mapping;
         }
     }
@@ -61,7 +47,7 @@ std::map<cstring, const IR::Type *> specialize_arch_blocks(const IR::Type *src_t
         if (const auto *parser_dst_type = dest_type->to<IR::P4Parser>()) {
             const auto *src_params = parser->getApplyParameters();
             const auto *src_type_params = parser->getTypeParameters();
-            auto type_mapping = get_type_mapping_2(src_params, src_type_params,
+            auto type_mapping = get_type_mapping(src_params, src_type_params,
                                                    parser_dst_type->getApplyParameters());
             return type_mapping;
         }
@@ -71,13 +57,14 @@ std::map<cstring, const IR::Type *> specialize_arch_blocks(const IR::Type *src_t
 }
 
 std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
-                                                         const IR::ConstructorCallExpression *cce,
+                                                         const IR::Expression *block,
                                                          const IR::Type *param_type,
                                                          cstring param_name,
                                                          const IR::TypeParameters &meta_params) {
     auto *state = visitor->get_state();
 
-    visitor->visit(cce);
+    visitor->visit(block);
+    param_type = architecture_type(param_type);
     const IR::ParameterList *params = nullptr;
     FunOrMethod fun_call;
     // TODO: Refactor all of this into a separate pass
@@ -241,7 +228,33 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
     // which may themselves use these type parameters.
     auto *state = visitor->get_state();
     std::map<cstring, const IR::Type *> inferred_types;
+    const auto infer = [&](cstring name, const IR::Type *type) {
+        const auto existing = inferred_types.find(name);
+        if (existing != inferred_types.end()) {
+            BUG_CHECK(existing->second->equiv(*type), "Conflicting architecture type inference");
+        } else {
+            inferred_types.emplace(name, type);
+        }
+    };
     for (const auto &mapping : param_mapping) {
+        if (!mapping.second) continue;
+        if (const auto *formal = mapping.first->type->to<IR::Type_Name>()) {
+            if (param_info.type_params.getDeclByName(formal->path->name)) {
+                const IR::Type *actual = nullptr;
+                if (const auto *constructor =
+                        mapping.second->to<IR::ConstructorCallExpression>()) {
+                    actual = state->resolve_type(constructor->constructedType);
+                } else if (const auto *path = mapping.second->to<IR::PathExpression>()) {
+                    if (const auto *declaration = state->find_static_decl(path->path->name)) {
+                        const auto *instance =
+                            declaration->get_decl()->checkedTo<IR::Declaration_Instance>();
+                        actual = state->resolve_type(instance->type);
+                    }
+                }
+                if (!actual) actual = expression_type(*state, mapping.second);
+                infer(formal->path->name, architecture_type(actual));
+            }
+        }
         const auto *specialized = mapping.first->type->to<IR::Type_Specialized>();
         const auto *constructor =
             mapping.second ? mapping.second->to<IR::ConstructorCallExpression>() : nullptr;
@@ -276,13 +289,7 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
             if (!formal || !param_info.type_params.getDeclByName(formal->path->name)) continue;
             const auto *inferred = state->resolve_type(actual_params->getParameter(i)->type);
             const auto name = formal->path->name.name;
-            const auto existing = inferred_types.find(name);
-            if (existing != inferred_types.end()) {
-                BUG_CHECK(existing->second->equiv(*inferred),
-                          "Conflicting architecture type inference");
-            } else {
-                inferred_types.emplace(name, inferred);
-            }
+            infer(name, inferred);
         }
     }
 
@@ -313,7 +320,13 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
                                param_name, IR::TypeParameters{});
             merged_vec.insert({param_name, {state_result, param_type}});
         } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
-            const auto *decl = visitor->get_state()->get_static_decl(path->path->name.name);
+            const auto *decl = state->find_static_decl(path->path->name);
+            if (!decl) {
+                auto state_result = run_arch_block(visitor, path, state->resolve_type(param_type),
+                                                   param_name, IR::TypeParameters{});
+                merged_vec.insert({param_name, {state_result, param_type}});
+                continue;
+            }
             const auto *di = decl->get_decl()->checkedTo<IR::Declaration_Instance>();
             auto sub_results = gen_state_from_instance(visitor, di);
             for (const auto &sub_result : sub_results) {

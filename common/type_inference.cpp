@@ -7,6 +7,28 @@
 #include "state.h"
 
 namespace P4::ToZ3 {
+std::map<cstring, const IR::Type *> get_type_mapping(const IR::ParameterList *src_params,
+                                                     const IR::TypeParameters *src_type_params,
+                                                     const IR::ParameterList *dest_params) {
+    std::map<cstring, const IR::Type *> type_mapping;
+    auto dest_params_size = dest_params->size();
+    for (size_t idx = 0; idx < src_params->size(); ++idx) {
+        // Ignore optional parameters.
+        if (idx >= dest_params_size) {
+            continue;
+        }
+        const auto *src_param = src_params->getParameter(idx);
+        if (const auto *tn = src_param->type->to<IR::Type_Name>()) {
+            auto src_type_name = tn->path->name.name;
+            if (src_type_params->getDeclByName(src_type_name) != nullptr) {
+                const auto *dst_param = dest_params->getParameter(idx);
+                type_mapping.emplace(src_type_name, dst_param->type);
+            }
+        }
+    }
+    return type_mapping;
+}
+
 bool arguments_match(const IR::ParameterList &parameters, const IR::Vector<IR::Argument> &arguments,
                      bool action) {
     if (arguments.size() > parameters.size()) return false;

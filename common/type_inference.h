@@ -1,10 +1,17 @@
 #ifndef TOZ3_COMMON_TYPE_INFERENCE_H_
 #define TOZ3_COMMON_TYPE_INFERENCE_H_
 
+#include <map>
+
 #include "ir/ir.h"
 
 namespace P4::ToZ3 {
 class P4State;
+
+// Infer generic apply parameter types from the corresponding architecture signature.
+std::map<cstring, const IR::Type *> get_type_mapping(const IR::ParameterList *src_params,
+                                                  const IR::TypeParameters *src_type_params,
+                                                  const IR::ParameterList *dest_params);
 
 // Determine a receiver's type without evaluating it or its indexing expressions.
 const IR::Type *expression_type(const P4State &state, const IR::Expression *expression);
