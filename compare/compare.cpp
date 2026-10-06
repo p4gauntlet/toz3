@@ -2,11 +2,13 @@
 
 #include <array>
 #include <cstdlib>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <list>
 #include <set>
 #include <string>
+#include <unordered_map>
 
 #include "frontends/common/parseInput.h"
 #include "ir/ir.h"
@@ -85,7 +87,12 @@ z3::expr create_z3_struct(z3::context *ctx,
     auto before_sort =
         ctx->tuple_sort("State", z3_vec.size(), names.data(), z3_vec_sorts.data(), getters);
 
-    return before_sort(z3_vec);
+    // Rewrite the complete summary once so Z3 can share work across output fields.
+    z3::params normalization(*ctx);
+    // P4C strength reduction replaces multiplication by powers of two with shifts.
+    // Canonicalize both forms before they become arguments of packet-read functions.
+    normalization.set("mul2concat", true);
+    return before_sort(z3_vec).simplify(normalization);
 }
 
 void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
@@ -107,14 +114,47 @@ void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
     }
     auto model = s.get_model();
     std::cerr << "\nSolution :\n";
-    for (size_t idx = 0; idx < model.size(); idx++) {
-        auto var = model[idx];
-        std::cerr << var.name() << " = " << model.get_const_interp(var) << std::endl;
-    }
+    std::cerr << model << std::endl;
 }
 
-z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
-                          std::set<z3::expr> *taint_vars) {
+namespace {
+
+class UndefinedAnalysis {
+    // Retain the ASTs so Z3 cannot recycle an ID when a field's simplified root dies.
+    std::unordered_map<unsigned, std::pair<z3::expr, bool>> undefined;
+
+ public:
+    bool contains(const z3::expr &expression) {
+        // Traverse the shared DAG once, rather than expanding it as an expression tree.
+        // Keep the traversal iterative because parser summaries can be deeply nested.
+        std::vector<std::pair<z3::expr, bool>> pending{{expression, false}};
+        while (!pending.empty()) {
+            auto [node, expanded] = pending.back();
+            pending.pop_back();
+            if (undefined.count(node.id())) continue;
+            if (node.is_const()) {
+                undefined.emplace(node.id(), std::make_pair(node, is_undefined_const(node)));
+            } else if (!expanded) {
+                pending.emplace_back(node, true);
+                for (unsigned i = 0; i < node.num_args(); ++i)
+                    if (!undefined.count(node.arg(i).id()))
+                        pending.emplace_back(node.arg(i), false);
+            } else {
+                bool tainted = false;
+                for (unsigned i = 0; i < node.num_args(); ++i)
+                    tainted = tainted || undefined.at(node.arg(i).id()).second;
+                undefined.emplace(node.id(), std::make_pair(node, tainted));
+            }
+        }
+        return undefined.at(expression.id()).second;
+    }
+};
+
+z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var, std::set<z3::expr> *taint_vars,
+                          UndefinedAnalysis *analysis) {
+    if (!analysis->contains(z3_var)) return z3_var;
+    // Do not memoize rewritten tainted nodes: each occurrence must retain its own
+    // fresh symbol, even when the original expression shares the same DAG node.
     auto decl = z3_var.decl();
     auto z3_sort = z3_var.get_sort();
     if (decl.decl_kind() == Z3_OP_ITE) {
@@ -122,7 +162,7 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
         auto then_expr = z3_var.arg(1);
         auto else_expr = z3_var.arg(2);
         std::set<z3::expr> cond_taint_vars;
-        cond_expr = substitute_taint(ctx, cond_expr, &cond_taint_vars);
+        cond_expr = substitute_taint(ctx, cond_expr, &cond_taint_vars, analysis);
         // Check if the cond expr is an ite statement after substitution.
         // If the condition is tainted, do not even bother to evaluate the rest.
         if (cond_expr.decl().decl_kind() != Z3_OP_ITE && !cond_taint_vars.empty()) {
@@ -132,9 +172,9 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
         }
         // Evaluate the branches.
         std::set<z3::expr> then_taint_vars;
-        then_expr = substitute_taint(ctx, then_expr, &then_taint_vars);
+        then_expr = substitute_taint(ctx, then_expr, &then_taint_vars, analysis);
         std::set<z3::expr> else_taint_vars;
-        else_expr = substitute_taint(ctx, else_expr, &else_taint_vars);
+        else_expr = substitute_taint(ctx, else_expr, &else_taint_vars, analysis);
         // Check if the branches are an ite statement after substitution.
         if (then_expr.decl().decl_kind() != Z3_OP_ITE &&
             else_expr.decl().decl_kind() != Z3_OP_ITE && !then_taint_vars.empty() &&
@@ -165,7 +205,7 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
     for (size_t idx = 0; idx < arg_num; ++idx) {
         auto child = z3_var.arg(idx);
         std::set<z3::expr> child_taint_vars;
-        child = substitute_taint(ctx, child, &child_taint_vars);
+        child = substitute_taint(ctx, child, &child_taint_vars, analysis);
         // Replace entire expression if one non-ite member is tainted.
         if (child.decl().decl_kind() != Z3_OP_ITE && !child_taint_vars.empty()) {
             // The expression is tained. Replace it.
@@ -183,16 +223,25 @@ z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
     return z3_var;
 }
 
+}  // namespace
+
+z3::expr substitute_taint(z3::context *ctx, const z3::expr &expression,
+                          std::set<z3::expr> *taint_vars) {
+    UndefinedAnalysis analysis;
+    return substitute_taint(ctx, expression, taint_vars, &analysis);
+}
+
 z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr &z3_prog_before,
                                  const z3::expr &z3_prog_after) {
     auto arg_num = z3_prog_before.num_args();
+    UndefinedAnalysis analysis;
     s->reset();
     for (size_t idx = 0; idx < arg_num; ++idx) {
         s->push();
         auto m_before = z3_prog_before.arg(idx).simplify();
         auto m_after = z3_prog_after.arg(idx).simplify();
         std::set<z3::expr> taint_vars;
-        m_before = substitute_taint(ctx, m_before, &taint_vars);
+        m_before = substitute_taint(ctx, m_before, &taint_vars, &analysis);
         z3::expr tv_equiv = (m_before != m_after);
         for (const auto &taint_var : taint_vars) {
             if (m_before.get_sort().sort_kind() == taint_var.get_sort().sort_kind()) {
@@ -201,27 +250,36 @@ z3::check_result check_undefined(z3::context *ctx, z3::solver *s, const z3::expr
         }
         // Check the equivalence of the modified clause.
         Logger::log_msg(1, "Checking member %s... ", idx);
-        cstring equ = tv_equiv.to_string();
-        Logger::log_msg(1, "Equation:\n%s", equ);
+        if (Logger::enabled(1)) {
+            cstring equ = tv_equiv.to_string();
+            Logger::log_msg(1, "Equation:\n%s", equ);
+        }
         s->add(tv_equiv);
         auto ret = s->check();
-        s->pop();
-        if (ret != z3::unsat) {
+        if (ret == z3::sat) {
+            // Keep the failing assertion in scope so diagnostics can retrieve its model.
             std::cerr << "Violation holds despite undefined behavior check.";
             return ret;
+        }
+        s->pop();
+        if (ret == z3::unknown) {
+            throw Z3Error("Could not determine equality during undefined behavior check");
         }
     }
     std::cerr << "Violation was caused by undefined behavior." << std::endl;
     return z3::check_result::unsat;
 }
 
-int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool allow_undefined) {
+int compareProgs(z3::context *ctx, const std::vector<std::filesystem::path> &prog_list,
+                 const std::function<Z3Prog(const std::filesystem::path &)> &interpret,
+                 bool allow_undefined) {
     z3::solver s(*ctx);
-    auto prog_before = z3_progs[0];
+    auto prog_before = interpret(prog_list.front());
     auto z3_prog_before = create_z3_struct(ctx, prog_before.second);
-    for (size_t i = 1; i < z3_progs.size(); ++i) {
-        auto prog_after = z3_progs[i];
-        auto z3_prog_after = create_z3_struct(ctx, z3_progs[i].second);
+    for (size_t i = 1; i < prog_list.size(); ++i) {
+        // Retain only adjacent summaries, and stop interpreting at the first violation.
+        auto prog_after = interpret(prog_list[i]);
+        auto z3_prog_after = create_z3_struct(ctx, prog_after.second);
 
         bool found = false;
         for (auto banned_pass : SKIPPED_PASSES) {
@@ -244,9 +302,9 @@ int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool all
         auto ret = s.check();
         Logger::log_msg(1, "Result: %s", ret);
         if (ret == z3::sat) {
-            s.pop();
             std::cerr << "Programs are not equal!" << std::endl;
             if (allow_undefined) {
+                s.pop();
                 std::cerr << "Rechecking whether violation is caused by "
                              "undefined behavior."
                           << std::endl;
@@ -276,11 +334,9 @@ int compareProgs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs, bool all
 
 int process_programs(const std::vector<std::filesystem::path> &prog_list, ParserOptions *options,
                      bool allow_undefined) {
+    if (prog_list.empty()) return EXIT_SKIPPED;
     z3::context ctx;
-    // Parse the first program
-    // Use a little trick here to get the second program
-    std::vector<Z3Prog> z3Progs;
-    for (const auto& prog : prog_list) {
+    const auto interpret = [&](const std::filesystem::path &prog) -> Z3Prog {
         options->file = prog;
         const auto *progParsed = P4::parseP4File(*options);
         if (progParsed == nullptr || P4::errorCount() > 0) {
@@ -289,9 +345,9 @@ int process_programs(const std::vector<std::filesystem::path> &prog_list, Parser
         auto z3ReprProg = get_z3_repr(prog, progParsed, &ctx);
         std::vector<std::pair<cstring, z3::expr>> resultVec;
         unroll_result(z3ReprProg, &resultVec);
-        z3Progs.emplace_back(prog, resultVec);
-    }
-    return compareProgs(&ctx, z3Progs, allow_undefined);
+        return Z3Prog(prog, std::move(resultVec));
+    };
+    return compareProgs(&ctx, prog_list, interpret, allow_undefined);
 }
 
 }  // namespace P4::ToZ3

@@ -51,4 +51,6 @@ jobs:
       - name: Test toz3 with CMake
         run: |
           cd $GITHUB_WORKSPACE/../p4c/build
-          ctest -j4 -R toz3-validate --output-on-failure --schedule-random
+          # Match the budget used to audit the memory-failure XFAILs.
+          ulimit -v 3145728
+          ctest -j2 -R toz3-validate --output-on-failure --schedule-random

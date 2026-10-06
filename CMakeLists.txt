@@ -15,14 +15,18 @@ OPTION (ENABLE_GAUNTLET_PRUNER "Build the Gauntlet Pruner." OFF)
 set(
   TOZ3V2_COMMON_SRCS
   common/create_z3.cpp
+  common/defaults.cpp
+  common/type_inference.cpp
   common/state.cpp
   common/type_simple.cpp
   common/type_table.cpp
   common/type_complex.cpp
   common/visitor_interpret.cpp
   common/visitor_specialize.cpp
+  common/packet.cpp
   common/parser.cpp
   common/expressions.cpp
+  common/loops.cpp
   common/operands.cpp
   common/util.cpp
 )
@@ -30,6 +34,10 @@ set(
 set(
   TOZ3V2_COMMON_HDRS
   common/create_z3.h
+  common/evaluation_context.h
+  common/defaults.h
+  common/type_inference.h
+  common/packet.h
   common/scope.h
   common/state.h
   common/type_base.h
@@ -67,10 +75,12 @@ set(
   compare/compare.cpp
   validate/options.cpp
   validate/main.cpp
+  validate/passes.cpp
 )
 set(
   TOZ3V2_VALIDATE_HDRS
   validate/options.h
+  validate/passes.h
 )
 
 file(
@@ -85,6 +95,8 @@ file(
   pruner/*.h
   validate/*.cpp
   validate/*.h
+  tests/gtest/*.cpp
+  tests/gtest/*.h
 )
 # Filter some folders from the CI checks.
 list(FILTER TOZ3_LINT_LIST EXCLUDE REGEX "pruner/src/contrib")
@@ -141,6 +153,25 @@ add_executable(p4validate ${TOZ3V2_VALIDATE_SRCS})
 target_link_libraries(p4validate p4toz3lib)
 install(TARGETS p4validate RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
+if(ENABLE_GTESTS)
+  set(TOZ3_UNIT_TEST_SRCS
+    tests/gtest/type_simple.cpp
+    tests/gtest/util.cpp
+    tests/gtest/passes.cpp
+    tests/gtest/loops.cpp
+    tests/gtest/enums.cpp
+    tests/gtest/slices.cpp
+    tests/gtest/visitor.cpp
+    tests/gtest/receivers.cpp
+    tests/gtest/parser.cpp
+    tests/gtest/compare.cpp
+  )
+  add_executable(toz3_tests ${TOZ3_UNIT_TEST_SRCS} compare/compare.cpp validate/passes.cpp)
+  target_link_libraries(toz3_tests PRIVATE p4toz3lib gtest_main)
+  add_test(NAME toz3-unit COMMAND toz3_tests)
+  set_tests_properties(toz3-unit PROPERTIES LABELS "gtest;toz3")
+endif()
+
 
 add_custom_target(
   linkp4toz3
@@ -174,88 +205,64 @@ set(
 )
 set(P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
-set(P4C_VALIDATION_XFAIL_TESTS)
-
-# These tests need to be remove because they have spurious behavior (timeouts).
 set(
-  SKIPPED_TESTS
-  # Spurious timeouts.
-  ${P4C_TEST_DIR}/lpm_ubpf.p4
-  # Unreliable test.
-  ${P4C_TEST_DIR}/pna-issue3041.p4
-  # Crashes.
-  ${P4C_TEST_DIR}/bit0-bmv2.p4
-  ${P4C_TEST_DIR}/bool_to_bit_cast.p4
-  ${P4C_TEST_DIR}/enumCast.p4
-  ${P4C_TEST_DIR}/issue1208-1.p4
-  ${P4C_TEST_DIR}/issue1334.p4
-  ${P4C_TEST_DIR}/issue1717.p4
-  ${P4C_TEST_DIR}/issue3001-1.p4
-  ${P4C_TEST_DIR}/issue3001.p4
-  ${P4C_TEST_DIR}/issue3051.p4
-  ${P4C_TEST_DIR}/minsize.p4
+  P4C_VALIDATION_XFAIL_TESTS
+  # Confirmed compiler defects at P4C 3d9a20e985; reduced witnesses are in
+  # tests/violated/parser_short_extract_def_use and parser_stack_argument_order.
+  # SimplifyDefUse removes an assignment observable after extraction rejects.
+  ${P4C_TEST_DIR}/invalid-hdr-warnings4.p4
+  # SideEffectOrdering moves lookahead before a rejecting stack.next argument.
+  ${P4C_TEST_DIR}/issue2090.p4
+  ${P4C_TEST_DIR}/spec-ex19.p4
+  # Interpreter: construction/selection of arrays of extern instances is unsupported.
+  ${P4C_TEST_DIR}/generic-extern-inference.p4
+  # Interpreter: packet-consuming parser cycles exceed 1,000 unfolding rounds;
+  # these cycles have no proved stack-progress bound and still need summaries.
+  ${P4C_TEST_DIR}/gauntlet_infinite_loop.p4
+  ${P4C_TEST_DIR}/issue2314.p4
   ${P4C_TEST_DIR}/parser-unroll-test1.p4
-  ${P4C_TEST_DIR}/parser-unroll-test2.p4
-  ${P4C_TEST_DIR}/parser-unroll-test3.p4
-  ${P4C_TEST_DIR}/parser-unroll-test4.p4
-  ${P4C_TEST_DIR}/issue2800a.p4
-  ${P4C_TEST_DIR}/issue2800b.p4
-  ${P4C_TEST_DIR}/issue2800c.p4
-  ${P4C_TEST_DIR}/issue2800d.p4
-  ${P4C_TEST_DIR}/issue3091-1.p4
-  ${P4C_TEST_DIR}/issue3091.p4
-  ${P4C_TEST_DIR}/issue1914.p4
-  ${P4C_TEST_DIR}/issue1914-1.p4
-  ${P4C_TEST_DIR}/issue1914-2.p4
-  ${P4C_TEST_DIR}/pna-direction-main-parser-err.p4
-  ${P4C_TEST_DIR}/pna-direction.p4
-  ${P4C_TEST_DIR}/pna-example-mirror-packet-error3.p4
-  ${P4C_TEST_DIR}/issue3283.p4
-  ${P4C_TEST_DIR}/issue3374.p4
-  ${P4C_TEST_DIR}/pna-elim-hdr-copy-dpdk.p4
-  ${P4C_TEST_DIR}/pna-example-varIndex.p4
-  ${P4C_TEST_DIR}/pna-too-big-label-name-dpdk.p4
-  ${P4C_TEST_DIR}/invalid-header.p4
-  ${P4C_TEST_DIR}/issue3616.p4
-  ${P4C_TEST_DIR}/methodArgs.p4
-  ${P4C_TEST_DIR}/issue3779.p4
-  ${P4C_TEST_DIR}/default-initializer.p4
-  ${P4C_TEST_DIR}/invalid-union.p4
-  ${P4C_TEST_DIR}/stack-init.p4
-  ${P4C_TEST_DIR}/issue4057.p4
-  ${P4C_TEST_DIR}/pna-dpdk-header-stack-assignment.p4
-  ${P4C_TEST_DIR}/forloop1.p4
-  ${P4C_TEST_DIR}/forloop2.p4
+  # Interpreter: Z3 runs out of memory while constructing the first parser summary,
+  # before comparison (observed with a 3 GiB process limit).
+  ${P4C_TEST_DIR}/invalid-hdr-warnings1.p4
+)
+
+# CTest's WILL_FAIL does not invert a timeout. Keep these out of registration
+# separately from XFAILs, which still run and must return a failure.
+set(
+  P4C_VALIDATION_TIMEOUT_TESTS
+  # Interpreter: repeated nested control-loop unfolding consumes the time budget.
   ${P4C_TEST_DIR}/forloop3.p4
   ${P4C_TEST_DIR}/forloop4.p4
-  ${P4C_TEST_DIR}/forloop5.p4
-  ${P4C_TEST_DIR}/forloop5a.p4
-  ${P4C_TEST_DIR}/forloop6.p4
-  ${P4C_TEST_DIR}/forloop7.p4
-  ${P4C_TEST_DIR}/forloop8.p4
-  ${P4C_TEST_DIR}/forloop9.p4
-  ${P4C_TEST_DIR}/forloop10.p4
-  ${P4C_TEST_DIR}/forloop11.p4
-  ${P4C_TEST_DIR}/issue4625_remove_compile_time_bool_methodcall_of_mcs.p4
-  ${P4C_TEST_DIR}/issue4739.p4
-  ${P4C_TEST_DIR}/issue4760_dontcare_action_out_arg.p4
-  ${P4C_TEST_DIR}/issue4775-2.p4
-  ${P4C_TEST_DIR}/localize_action_dont_care_args.p4
-  ${P4C_TEST_DIR}/loop-3-clause-tricky2.p4
-  ${P4C_TEST_DIR}/opassign1-bmv2.p4
-  ${P4C_TEST_DIR}/opassign1.p4
-  ${P4C_TEST_DIR}/opassign2-bmv2.p4
-  ${P4C_TEST_DIR}/parser-unroll-issue4006_twice_extracted_header.p4
-  ${P4C_TEST_DIR}/spec-issue1297-string-cat.p4
-  ${P4C_TEST_DIR}/array1.p4
-  ${P4C_TEST_DIR}/array2.p4
-  ${P4C_TEST_DIR}/array3.p4
-  ${P4C_TEST_DIR}/array5.p4
-  ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack.p4
-  ${P4C_TEST_DIR}/issue5335_default_initialized_non_header_stack_nested.p4
+  # Interpreter: a packet-consuming VLAN loop repeatedly invokes subparsers and
+  # builds growing summaries, before any pass comparison.
+  ${P4C_TEST_DIR}/issue281.p4
+  # Interpreter: symbolic evaluation of the large pipeline has not reached comparison.
+  ${P4C_TEST_DIR}/fabric_20190420/fabric.p4
+  # Interpreter: parser-loop unfolding builds growing path guards; this includes
+  # Z3 reachability queries inside interpretation, rather than pass comparison.
+  ${P4C_TEST_DIR}/lookahead_ubpf.p4
+  ${P4C_TEST_DIR}/parser-unroll-issue3537.p4
+  ${P4C_TEST_DIR}/parser-unroll-issue3537-1.p4
+  # Z3 comparison: both summaries are built; equality stalls between
+  # FrontEnd_26_TableKeyNames and FrontEnd_27_PassRepeated.
+  ${P4C_TEST_DIR}/issue561-bmv2.p4
+  # Z3 comparison: symbolic popcount stalls between FrontEnd_35_MoveDeclarations
+  # and FrontEnd_47_RemoveReturns, after summaries are built in under a second.
+  ${P4C_TEST_DIR}/forloop2.p4
+)
+list(REMOVE_ITEM P4C_VALIDATION_TESTS ${P4C_VALIDATION_TIMEOUT_TESTS})
+
+# Remaining programs need architecture-specific support or exceed validation limits.
+set(
+  SKIPPED_TESTS
+  # Overloaded controls/packages and optional parameters on implemented controls
+  # are outside the P4 specification's rules for these constructs.
+  ${P4C_TEST_DIR}/issue1334.p4
+  ${P4C_TEST_DIR}/issue3051.p4
+  # Arrays of extern objects need receiver selection and a suitable extern model.
   ${P4C_TEST_DIR}/externArray1.p4
-  ${P4C_TEST_DIR}/tuple5.p4
-  ${P4C_TEST_DIR}/tuple5a.p4
+  # A changing counter and modular conditional update exceed the iteration limit.
+  ${P4C_TEST_DIR}/forloop10.p4
 )
 
 if(SKIPPED_TESTS)
@@ -293,10 +300,11 @@ file(GLOB VIOLATION_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/violated/*")
 
 set(
   VIOLATION_XFAIL_TESTS
+  # Interpreter: the packet-consuming subparser loop exceeds 1,000 unfolding rounds.
   extensions/toz3/tests/violated/2314_regression
+  # The loop branches on an uninitialized header field. With --allow-undefined,
+  # comparison tolerates the mismatch, but this fixture requires a violation.
   extensions/toz3/tests/violated/parser_loop
-  # Fails because the parser is disabled.
-  extensions/toz3/tests/violated/2591_regression
 )
 
 set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} --compiler-bin ${COMPILER_BIN} --build-dir ${CMAKE_BINARY_DIR} --check-violation")
@@ -311,6 +319,8 @@ file(GLOB UNDEFINED_TESTS LIST_DIRECTORIES true "${TOZ3_TEST_DIR}/undef_violated
 
 set(
   UNDEFINED_XFAIL_TESTS
+  # Invalid-header output masking makes these pairs equal even in strict mode;
+  # the fixtures instead require a strict mismatch followed by undefined tolerance.
   extensions/toz3/tests/undef_violated/NestedStructs_1
   extensions/toz3/tests/undef_violated/NestedStructs_2
 )

@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "defaults.h"
 #include "exceptions.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
@@ -17,10 +18,12 @@
 #include "lib/cstring.h"
 #include "lib/exceptions.h"
 #include "lib/stringify.h"
+#include "packet.h"
 #include "toz3/common/state.h"
 #include "toz3/common/type_complex.h"
 #include "toz3/common/type_simple.h"
 #include "type_base.h"
+#include "type_inference.h"
 #include "util.h"
 #include "visitor_interpret.h"
 #include "visitor_specialize.h"
@@ -30,15 +33,16 @@ namespace P4::ToZ3 {
 bool Z3Visitor::preorder(const IR::Constant *c) {
     if (const auto *tb = c->type->to<IR::Type_Bits>()) {
         auto val_string = Util::toString(c->value, 0, false);
-        auto expr = state->get_z3_ctx()->bv_val(val_string.c_str(), tb->size);
-        auto *wrapper = new Z3Bitvector(state, tb, expr, tb->isSigned);
+        auto expr = tb->size == 0 ? state->get_z3_ctx()->int_val(0)
+                                  : state->get_z3_ctx()->bv_val(val_string.c_str(), tb->size);
+        auto *wrapper = allocate_instance<Z3Bitvector>(state, state, tb, expr, tb->isSigned);
         state->set_expr_result(wrapper);
         return false;
     }
     if (c->type->is<IR::Type_InfInt>()) {
         auto val_string = Util::toString(c->value, 0, false);
         auto expr = state->get_z3_ctx()->int_val(val_string.c_str());
-        auto *var = new Z3Int(state, expr);
+        auto *var = allocate_instance<Z3Int>(state, state, expr);
         state->set_expr_result(var);
         return false;
     }
@@ -48,14 +52,14 @@ bool Z3Visitor::preorder(const IR::Constant *c) {
 
 bool Z3Visitor::preorder(const IR::BoolLiteral *bl) {
     auto expr = state->get_z3_ctx()->bool_val(bl->value);
-    auto *wrapper = new Z3Bitvector(state, &BOOL_TYPE, expr);
+    auto *wrapper = allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
 
 bool Z3Visitor::preorder(const IR::StringLiteral *sl) {
     auto expr = state->get_z3_ctx()->string_val(sl->value.c_str());
-    auto *wrapper = new Z3Bitvector(state, &STRING_TYPE, expr);
+    auto *wrapper = allocate_instance<Z3Bitvector>(state, state, &STRING_TYPE, expr);
     state->set_expr_result(wrapper);
     return false;
 }
@@ -66,13 +70,18 @@ bool Z3Visitor::preorder(const IR::NamedExpression *ne) {
     return false;
 }
 
+bool Z3Visitor::preorder(const IR::Dots *) {
+    state->set_expr_result(allocate_instance<DefaultInstance>(state, state));
+    return false;
+}
+
 bool Z3Visitor::preorder(const IR::ListExpression *le) {
     std::vector<P4Z3Instance *> members;
     for (const auto *component : le->components) {
         visit(component);
         members.push_back(state->copy_expr_result());
     }
-    state->set_expr_result(new ListInstance(state, members, le->type));
+    state->set_expr_result(allocate_instance<ListInstance>(state, state, members, le->type));
     return false;
 }
 
@@ -92,7 +101,7 @@ bool Z3Visitor::preorder(const IR::StructExpression *se) {
         }
         state->set_expr_result(instance);
     } else {
-        state->set_expr_result(new ListInstance(state, members, se->type));
+        state->set_expr_result(allocate_instance<ListInstance>(state, state, members, se->type));
     }
     return false;
 }
@@ -137,7 +146,7 @@ FunOrMethod get_function(const P4Z3Instance *parent_class, cstring member_identi
                                   parent_class->get_static_type());
 }
 
-void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &member_struct,
+void resolve_stack_call(Z3Visitor *visitor, P4State *state, const MemberStruct &member_struct,
                         const IR::Vector<IR::Argument> *arguments) {
     auto arg_size = arguments->size();
     auto hdr_pairs = get_hdr_pairs(state, member_struct);
@@ -167,9 +176,11 @@ void resolve_stack_call(Visitor *visitor, P4State *state, const MemberStruct &me
 }
 
 FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &member_struct,
-                                       int num_args) {
+                                       const IR::Vector<IR::Argument> &arguments) {
     const P4Z3Instance *parent_class = nullptr;
-    if (const auto *decl = state->find_static_decl(member_struct.main_member)) {
+    if (member_struct.temporary) {
+        parent_class = member_struct.temporary;
+    } else if (const auto *decl = state->find_static_decl(member_struct.main_member)) {
         parent_class = decl;
     } else {
         // try to find the result in vars and fail otherwise
@@ -181,13 +192,28 @@ FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &membe
         auto mid_member = *it;
         if (const auto *name = std::get_if<cstring>(&mid_member)) {
             parent_class = parent_class->get_member(*name);
+        } else if (const auto *index = std::get_if<z3::expr>(&mid_member)) {
+            const auto *array = parent_class->to<IndexableInstance>();
+            CHECK_NULL(array);
+            parent_class = array->get_member(*index);
         } else {
             throw UnsupportedFeatureError("Member type not supported.");
         }
     }
     if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
-        // FIXME: This is a very rough version of overloading...
-        auto member_identifier = mangle_name(*name, num_args);
+        if (parent_class->is<ExternInstance>()) {
+            const auto *type = parent_class->get_p4_type()->checkedTo<IR::Type_Extern>();
+            const IR::Method *selected = nullptr;
+            for (const auto *method : type->methods) {
+                if (method->name != *name || !arguments_match(*method->getParameters(), arguments))
+                    continue;
+                BUG_CHECK(!selected, "Ambiguous extern method %s", name);
+                selected = method;
+            }
+            BUG_CHECK(selected, "No matching extern method %s", name);
+            return selected;
+        }
+        auto member_identifier = mangle_name(*name, arguments.size());
         return get_function(parent_class, member_identifier);
     }
     throw UnsupportedFeatureError("Member type not implemented.");
@@ -234,11 +260,23 @@ P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
         return merged_return;
     }
     // If there are no return expressions, return a void result
-    return new VoidResult();
+    return allocate_instance<VoidResult>(state);
 }
 
-P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
+P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m, bool packet_in) {
     auto *state = visitor->get_state();
+    packet_in = packet_in && state->find_var("$packet_id"_cs);
+    if (packet_in) return execute_packet_method(visitor, m);
+    if (m->name == "verify" && state->find_var("$parser_error"_cs)) {
+        const auto *condition =
+            state->get_var(m->getParameters()->getParameter(0)->name)->to<NumericVal>();
+        const auto *error =
+            state->get_var(m->getParameters()->getParameter(1)->name)->to<EnumBase>();
+        CHECK_NULL(condition);
+        CHECK_NULL(error);
+        visitor->reject_parser(!*condition->get_val(), *error->get_val());
+        return allocate_instance<VoidResult>(state);
+    }
     auto method_name = infer_name(m, m->name.name);
     const auto *method_type = state->resolve_type(m->type->returnType);
     // TODO: Different types of arguments and multiple calls
@@ -269,27 +307,53 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m) {
 
 P4Z3Instance *exec_action(Z3Visitor *visitor, const IR::P4Action *a) {
     visitor->visit(a->body);
-    return new VoidResult();
+    return allocate_instance<VoidResult>(visitor->get_state());
 }
 
 bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
+    if (const auto *member = mce->method->to<IR::Member>()) {
+        const auto name = member->member.name;
+        if (name == "minSizeInBits" || name == "minSizeInBytes" || name == "maxSizeInBits" ||
+            name == "maxSizeInBytes") {
+            BUG_CHECK(mce->arguments->empty(), "Size methods take no arguments");
+            const auto *type = expression_type(*state, member->expr);
+            auto size =
+                serialized_size(*state, type, name == "maxSizeInBits" || name == "maxSizeInBytes");
+            if (name == "minSizeInBytes" || name == "maxSizeInBytes") size = (size + 7) / 8;
+            state->set_expr_result(allocate_instance<Z3Int>(
+                state, state,
+                state->get_z3_ctx()->int_val(Util::toString(size, 0, false).c_str())));
+            return false;
+        }
+    }
     const IR::Node *callable = nullptr;
+    bool packet_in = false;
     const auto *arguments = mce->arguments;
     auto arg_size = arguments->size();
 
     const auto *method_type = mce->method;
     if (const auto *path_expr = method_type->to<IR::PathExpression>()) {
-        // FIXME: This is a very rough version of overloading...
         auto path_identifier = mangle_name(path_expr->path->name.name, arg_size);
-        callable = state->get_static_decl(path_identifier)->get_decl();
+        callable = state->resolve_callable(path_identifier, *arguments);
     } else if (const auto *member = method_type->to<IR::Member>()) {
         auto member_struct = get_member_struct(state, this, member);
-        // try to resolve and find a function pointer
-        if (member_struct.has_stack) {
-            resolve_stack_call(this, state, member_struct, arguments);
-            return false;
+        if (state->find_var(member_struct.main_member)) {
+            const auto parents = get_hdr_pairs(state, member_struct);
+            if (parents.size() == 1) {
+                const auto *type = parents.front().second->get_p4_type()->to<IR::Type_Extern>();
+                packet_in = type && type->name == "packet_in";
+            }
         }
-        auto resolved_call = resolve_var_or_decl_parent(state, member_struct, arg_size);
+        // try to resolve and find a function pointer
+        if (member_struct.has_index) {
+            const auto parents = get_hdr_pairs(state, member_struct);
+            if (parents.size() != 1 || !parents.front().first.simplify().is_true() ||
+                !parents.front().second->is<ExternInstance>()) {
+                resolve_stack_call(this, state, member_struct, arguments);
+                return false;
+            }
+        }
+        auto resolved_call = resolve_var_or_decl_parent(state, member_struct, *arguments);
         if (const auto *function = std::get_if<P4Z3Function>(&resolved_call)) {
             // call the function directly for now
             (*function)(this, arguments);
@@ -316,6 +380,11 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
     // Now we set all the inputs we have mapped.
     state->copy_in(this, param_info);
+    if (state->has_exited()) {
+        state->pop_scope();
+        state->set_expr_result(allocate_instance<VoidResult>(state));
+        return false;
+    }
     // Switch based on the dynamic callable type. The visitor is too cumbersome.
     P4Z3Instance *return_expr = nullptr;
     if (const auto *a = callable->to<IR::P4Action>()) {
@@ -323,14 +392,26 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     } else if (const auto *a = callable->to<IR::Function>()) {
         return_expr = exec_function(this, a);
     } else if (const auto *a = callable->to<IR::Method>()) {
-        return_expr = exec_method(this, a);
+        return_expr = exec_method(this, a, packet_in);
     } else {
         throw UnsupportedFeatureError("Can not call callable " + callable->node_type_name());
     }
     // Set the result.
     state->set_expr_result(return_expr);
     // Copy back the inputs that matter.
+    const auto saved_outputs = state->get_copy_out_args();
     state->copy_out();
+    if (packet_in && !state->has_exited() && callable->checkedTo<IR::Method>()->name == "extract") {
+        // The out destination was saved before any other arguments were evaluated.
+        for (const auto &argument : saved_outputs) {
+            if (argument.first.next_stack) {
+                auto *stack =
+                    get_member(state, *argument.first.next_stack)->to_mut<StackInstance>();
+                CHECK_NULL(stack);
+                stack->advance_next();
+            }
+        }
+    }
     return false;
 }
 
@@ -339,6 +420,31 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 ConstructorCallExpression
 ===============================================================================
 ***/
+
+const IR::Type_Extern *Z3Visitor::specialize_extern(const IR::Type_Extern *type,
+                                                    const IR::Vector<IR::Argument> &arguments) {
+    if (type->getTypeParameters()->empty()) return type;
+    const auto *constructor = type->lookupConstructor(&arguments);
+    CHECK_NULL(constructor);
+    std::map<cstring, const IR::Type *> mapping;
+    for (size_t idx = 0; idx < arguments.size(); ++idx) {
+        const auto *argument = arguments.at(idx);
+        const auto *parameter =
+            argument->name ? constructor->getParameters()->getParameter(argument->name.name)
+                           : constructor->getParameters()->getParameter(idx);
+        cstring name;
+        if (const auto *tn = parameter->type->to<IR::Type_Name>()) name = tn->path->name;
+        if (const auto *tv = parameter->type->to<IR::Type_Var>()) name = tv->name;
+        if (name.isNullOrEmpty() || !type->getTypeParameters()->getDeclByName(name)) continue;
+        visit(argument->expression);
+        const auto *argumentType = state->get_expr_result()->get_p4_type();
+        const auto [it, inserted] = mapping.emplace(name, argumentType);
+        BUG_CHECK(inserted || it->second->equiv(*argumentType),
+                  "Conflicting constructor inference for %s", name);
+    }
+    TypeModifier modifier(&mapping);
+    return type->apply(modifier)->checkedTo<IR::Type_Extern>();
+}
 
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
     const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
@@ -355,7 +461,8 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
         // TODO: How to cleanly resolve this?
         // params = new IR::ParameterList();
         // const auto *ext_const = ext->lookupConstructor(arguments);
-        auto *ext_instance = state->gen_instance(cstring(UNDEF_LABEL), ext);
+        auto *ext_instance =
+            state->gen_instance(cstring(UNDEF_LABEL), specialize_extern(ext, *arguments));
         state->set_expr_result(ext_instance);
         return false;
     } else {
@@ -364,7 +471,8 @@ bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
                                       " not supported.");
     }
     auto var_map = state->merge_args_with_params(this, *arguments, *params, *type_params);
-    state->set_expr_result(new ControlInstance(state, resolved_type, var_map.second));
+    state->set_expr_result(
+        allocate_instance<ControlInstance>(state, state, resolved_type, var_map.second));
     return false;
 }
 }  // namespace P4::ToZ3

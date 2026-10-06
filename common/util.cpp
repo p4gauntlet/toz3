@@ -15,6 +15,7 @@
 
 #include "ir/id.h"
 #include "lib/stringify.h"
+#include "toz3/common/exceptions.h"
 
 namespace P4::ToZ3 {
 
@@ -82,6 +83,10 @@ bool compare_files(const std::filesystem::path &filename1, const std::filesystem
                         std::ifstream::ate | std::ifstream::binary);  // open file at the end
     std::ifstream file2(filename2,
                         std::ifstream::ate | std::ifstream::binary);  // open file at the end
+    if (!file1 || !file2) {
+        throw GauntletException("Unable to open files for comparison: " + filename1.string() +
+                                " and " + filename2.string());
+    }
     const std::ifstream::pos_type fileSize = file1.tellg();
 
     if (fileSize != file2.tellg()) {

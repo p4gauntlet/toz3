@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,6 +18,7 @@
 #include <boost/multiprecision/number.hpp>
 #include <boost/range/adaptor/reversed.hpp>
 
+#include "evaluation_context.h"
 #include "ir/id.h"
 #include "ir/node.h"
 #include "ir/visitor.h"
@@ -27,9 +30,19 @@
 #include "toz3/common/scope.h"
 #include "toz3/common/util.h"
 #include "type_base.h"
+#include "type_inference.h"
 #include "visitor_specialize.h"
 
 namespace P4::ToZ3 {
+
+void retain_instance(const P4State *state, std::unique_ptr<P4Z3Instance> instance) {
+    if (state) {
+        state->own_instance(std::move(instance));
+    } else {
+        // Copies of standalone values retain the caller's ownership convention.
+        instance.release();
+    }
+}
 
 z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
                        const std::vector<Z3Slice> &end_slices) {
@@ -63,74 +76,60 @@ z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
     return z3::concat(assemble);
 }
 
-MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expression *target) {
+MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
+                               const IR::Expression *target) {
     MemberStruct member_struct;
-    const auto *tmp_target = target;
-
-    bool is_first = true;
-    while (true) {
-        if (const auto *member = tmp_target->to<IR::Member>()) {
-            tmp_target = member->expr;
-            if (is_first) {
-                member_struct.target_member = member->member.name;
-                is_first = false;
-            } else {
-                member_struct.mid_members.emplace_back(member->member.name);
-            }
-        } else if (const auto *a = tmp_target->to<IR::ArrayIndex>()) {
-            tmp_target = a->left;
-            visitor->visit(a->right);
-            const auto *index = state->get_expr_result();
-            const auto *val_container = index->to<ValContainer>();
-            BUG_CHECK(val_container,
-                      "Setting with an index of type %s not "
-                      "implemented for stacks.",
-                      index->get_static_type());
-            const auto expr = val_container->get_val()->simplify();
-            if (is_first) {
-                member_struct.target_member = expr;
-                is_first = false;
-            } else {
-                member_struct.mid_members.emplace_back(expr);
-            }
-            member_struct.has_stack = true;
-        } else if (const auto *sl = tmp_target->to<IR::Slice>()) {
-            tmp_target = sl->e0;
-            const z3::expr *hi = nullptr;
-            const z3::expr *lo = nullptr;
-            visitor->visit(sl->e1);
-            const auto *hi_expr = state->copy_expr_result();
-            if (const auto *z3_val = hi_expr->to<NumericVal>()) {
-                hi = z3_val->get_val();
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported hi of type %s for slice.",
-                                  hi_expr->get_static_type());
-            }
-            visitor->visit(sl->e2);
-            const auto *lo_expr = state->get_expr_result();
-            if (const auto *z3_val = lo_expr->to<NumericVal>()) {
-                lo = z3_val->get_val();
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported lo of type %s for slice.",
-                                  lo_expr->get_static_type());
-            }
-            auto z3_slice = Z3Slice{
-                *hi,
-                *lo,
-            };
-            member_struct.end_slices.push_back(z3_slice);
-        } else if (const auto *path = tmp_target->to<IR::PathExpression>()) {
-            member_struct.main_member = path->path->name.name;
-            break;
-        } else if (const auto *expr = tmp_target->to<IR::TypeNameExpression>()) {
-            // TODO: Think about the lookup here...
-            member_struct.main_member = expr->typeName->checkedTo<IR::Type_Name>()->path->name.name;
-            break;
-        } else {
-            P4C_UNIMPLEMENTED("Unknown target %s!", tmp_target->node_type_name());
+    member_struct.is_flat = true;
+    const auto append = [&](const NameOrIndex &member) {
+        if (!member_struct.is_flat) {
+            member_struct.mid_members.insert(member_struct.mid_members.begin(),
+                                             member_struct.target_member);
         }
-    }
-    member_struct.is_flat = is_first;
+        member_struct.target_member = member;
+        member_struct.is_flat = false;
+    };
+    std::function<void(const IR::Expression *)> resolve = [&](const IR::Expression *expression) {
+        if (const auto *member = expression->to<IR::Member>()) {
+            resolve(member->expr);
+            auto *parent = member->member == "next" || member->member == "last"
+                               ? get_member(state, member_struct)
+                               : nullptr;
+            if (auto *stack = parent ? parent->to_mut<StackInstance>() : nullptr) {
+                // Evaluating next saves the destination; extraction advances it later.
+                const auto index = stack->get_next_index();
+                const bool next = member->member == "next";
+                const auto bound = state->get_z3_ctx()->int_val(stack->get_int_size());
+                visitor->reject_parser(next ? index >= bound : index < 1 || index > bound,
+                                       "StackOutOfBounds"_cs);
+                if (next) member_struct.next_stack = std::make_shared<MemberStruct>(member_struct);
+                append(z3::int2bv(32, next ? index : index - 1).simplify());
+                member_struct.has_index = true;
+            } else {
+                append(member->member.name);
+            }
+        } else if (const auto *index = expression->to<IR::ArrayIndex>()) {
+            resolve(index->left);
+            visitor->evaluate(index->right);
+            const auto value = state->get_expr_result<ValContainer>()->get_val()->simplify();
+            append(value);
+            member_struct.has_index = true;
+        } else if (const auto *slice = expression->to<IR::Slice>()) {
+            resolve(slice->e0);
+            visitor->evaluate(slice->e1);
+            const auto hi = *state->get_expr_result<NumericVal>()->get_val();
+            visitor->evaluate(slice->e2);
+            const auto lo = *state->get_expr_result<NumericVal>()->get_val();
+            member_struct.end_slices.insert(member_struct.end_slices.begin(), {hi, lo});
+        } else if (const auto *path = expression->to<IR::PathExpression>()) {
+            member_struct.main_member = path->path->name;
+        } else if (const auto *name = expression->to<IR::TypeNameExpression>()) {
+            member_struct.main_member = name->typeName->checkedTo<IR::Type_Name>()->path->name;
+        } else {
+            visitor->evaluate(expression);
+            member_struct.temporary = state->copy_expr_result();
+        }
+    };
+    resolve(target);
     return member_struct;
 }
 
@@ -139,7 +138,8 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
     std::vector<std::pair<z3::expr, P4Z3Instance *>> parent_pairs;
     auto tmp_parent_pairs = parent_pairs;
     parent_pairs.emplace_back(state->get_z3_ctx()->bool_val(true),
-                              state->get_var(member_struct.main_member));
+                              member_struct.temporary ? member_struct.temporary
+                                                      : state->get_var(member_struct.main_member));
     // Collect all the headers that need to be set
     for (auto it = member_struct.mid_members.rbegin(); it != member_struct.mid_members.rend();
          ++it) {
@@ -240,7 +240,8 @@ void set_stack(P4State *state, const MemberStruct &member_struct, P4Z3Instance *
 
 P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
     // TODO: Clarify this.
-    auto *parent_class = state->get_var(member_struct.main_member);
+    auto *parent_class = member_struct.temporary ? member_struct.temporary
+                                                 : state->get_var(member_struct.main_member);
     P4Z3Instance *end_var = nullptr;
     if (member_struct.is_flat) {
         // This means we are essentially dealing with a path expression.
@@ -253,9 +254,14 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
             if (const auto *name = std::get_if<cstring>(&mid_member)) {
                 parent_class = parent_class->get_member(*name);
             } else if (const auto *z3_expr = std::get_if<z3::expr>(&mid_member)) {
-                auto *stack_class = parent_class->to_mut<StackInstance>();
-                BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
-                parent_class = stack_class->get_member(*z3_expr);
+                std::string index;
+                if (z3_expr->is_numeral(index)) {
+                    parent_class = parent_class->get_member(index);
+                } else {
+                    const auto *array = parent_class->to<IndexableInstance>();
+                    BUG_CHECK(array, "Expected indexable value");
+                    parent_class = array->get_member(*z3_expr);
+                }
             } else {
                 P4C_UNIMPLEMENTED("Member type not implemented.");
             }
@@ -264,9 +270,14 @@ P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct) {
         if (const auto *name = std::get_if<cstring>(&member_struct.target_member)) {
             end_var = parent_class->get_member(*name);
         } else if (const auto *z3_expr = std::get_if<z3::expr>(&member_struct.target_member)) {
-            auto *stack_class = parent_class->to_mut<StackInstance>();
-            BUG_CHECK(stack_class, "Expected Stack, got %s", parent_class->get_static_type());
-            end_var = stack_class->get_member(*z3_expr);
+            std::string index;
+            if (z3_expr->is_numeral(index)) {
+                end_var = parent_class->get_member(index);
+            } else {
+                const auto *array = parent_class->to<IndexableInstance>();
+                BUG_CHECK(array, "Expected indexable value");
+                end_var = array->get_member(*z3_expr);
+            }
         } else {
             P4C_UNIMPLEMENTED("Member type not implemented.");
         }
@@ -307,7 +318,8 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
         // We progressively slice and merge the lval
         target_rval = compute_slice(target_lval, target_rval, member_struct.end_slices);
         const auto *bit_type = IR::Type_Bits::get(target_rval.get_sort().bv_size(), false);
-        auto *resolved_rval = new Z3Bitvector(this, bit_type, target_rval, is_signed);
+        auto *resolved_rval =
+            allocate_instance<Z3Bitvector>(this, this, bit_type, target_rval, is_signed);
         set_var(slice_less_member_struct, resolved_rval);
         return;
     }
@@ -318,7 +330,7 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     }
     // If we are dealing with a stack, start with a complicated procedure
     // We need to do this to resolve symbolic indices
-    if (member_struct.has_stack) {
+    if (member_struct.has_index) {
         set_stack(this, member_struct, rval);
         return;
     }
@@ -338,7 +350,8 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     }
 }
 
-void P4State::set_var(Visitor *visitor, const IR::Expression *target, P4Z3Instance *rval) {
+void P4State::set_var(EvaluationContext *visitor, const IR::Expression *target,
+                      P4Z3Instance *rval) {
     if (const auto *name = target->to<IR::PathExpression>()) {
         const auto *dest_type = get_var_type(name->path->name.name);
         auto *cast_val = rval->cast_allocate(dest_type);
@@ -351,10 +364,11 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target, P4Z3Instan
     set_var(member_struct, rval);
 }
 
-void P4State::set_var(Visitor *visitor, const IR::Expression *target, const IR::Expression *rval) {
+void P4State::set_var(EvaluationContext *visitor, const IR::Expression *target,
+                      const IR::Expression *rval) {
     if (const auto *name = target->to<IR::PathExpression>()) {
         const auto *dest_type = get_var_type(name->path->name.name);
-        visitor->visit(rval);
+        visitor->evaluate(rval);
         const auto *tmp_rval = get_expr_result();
         auto *cast_val = tmp_rval->cast_allocate(dest_type);
         update_var(name->path->name, cast_val);
@@ -363,30 +377,28 @@ void P4State::set_var(Visitor *visitor, const IR::Expression *target, const IR::
     auto member_struct = get_member_struct(this, visitor, target);
     // Collection phase done
     // Now begins the setting phase...
-    visitor->visit(rval);
+    visitor->evaluate(rval);
     auto *tmp_rval = copy_expr_result();
     set_var(member_struct, tmp_rval);
 }
 
-std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
+std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(EvaluationContext *visitor,
                                                             const IR::Vector<IR::Argument> &args,
                                                             const IR::ParameterList &params,
                                                             const IR::TypeParameters &type_params) {
     CopyArgs resolved_args;
     VarMap merged_vec;
+    // Save inputs and copy-back destinations in call-site order, including named arguments.
     ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
-    for (const auto &param : params) {
-        // This may have a nullptr, but we need to maintain order
-        param_mapping.emplace(param, param->defaultValue);
-    }
     for (size_t idx = 0; idx < args.size(); ++idx) {
         const auto *arg = args.at(idx);
-        // We override the mapping here.
-        if (arg->name) {
-            param_mapping[params.getParameter(arg->name.name)] = arg->expression;
-        } else {
-            param_mapping[params.getParameter(idx)] = arg->expression;
-        }
+        const auto *param =
+            arg->name ? params.getParameter(arg->name.name) : params.getParameter(idx);
+        BUG_CHECK(param && !param_mapping.count(param), "Invalid argument %s", arg);
+        param_mapping.emplace(param, arg->expression);
+    }
+    for (const auto *param : params) {
+        if (!param_mapping.count(param)) param_mapping.emplace(param, param->defaultValue);
     }
 
     for (const auto &mapping : param_mapping) {
@@ -399,6 +411,10 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
         CHECK_NULL(arg_expr);
         // If the expression is default, we can not save a copy
         if (arg_expr->is<IR::DefaultExpression>()) {
+            BUG_CHECK(param->direction == IR::Direction::Out, "Discarded argument must be out");
+            const auto *type = resolve_type(param->type);
+            merged_vec.emplace(param->name.name,
+                               std::make_pair(gen_instance(cstring(UNDEF_LABEL), type), type));
             continue;
         }
 
@@ -409,10 +425,11 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
             resolved_args.push_back({member_struct, param->name.name});
             arg_result = get_member(this, member_struct);
         } else {
-            visitor->visit(arg_expr);
+            visitor->evaluate(arg_expr);
             arg_result = get_expr_result();
         }
         CHECK_NULL(arg_result);
+        if (has_exited()) break;
         if (const auto *tn = param->type->to<IR::Type_Name>()) {
             cstring type_name = tn->path->name.name;
             if (type_params.getDeclByName(type_name) != nullptr) {
@@ -439,37 +456,41 @@ std::pair<CopyArgs, VarMap> P4State::merge_args_with_params(Visitor *visitor,
     return std::pair<CopyArgs, VarMap>{resolved_args, merged_vec};
 }
 
-void P4State::copy_in(Visitor *visitor, const ParamInfo &param_info) {
+void P4State::copy_in(EvaluationContext *visitor, const ParamInfo &param_info) {
     push_scope();
-
-    // Specialize
-    size_t idx = 0;
-    auto type_args_len = param_info.type_args.size();
-    IR::TypeParameters missing_type_params;
-    for (const auto &param : param_info.type_params.parameters) {
-        if (idx >= type_args_len) {
-            missing_type_params.push_back(param);
+    try {
+        // Specialize
+        size_t idx = 0;
+        auto type_args_len = param_info.type_args.size();
+        IR::TypeParameters missing_type_params;
+        for (const auto &param : param_info.type_params.parameters) {
+            if (idx >= type_args_len) {
+                missing_type_params.push_back(param);
+            }
+            idx++;
         }
-        idx++;
+        auto var_tuple = merge_args_with_params(visitor, param_info.arguments, param_info.params,
+                                                missing_type_params);
+        auto copy_out_args = var_tuple.first;
+        auto merged_vec = var_tuple.second;
+        // Now we actually set the variables.
+        // After we have resolved and collected them.
+        for (auto arg_tuple : merged_vec) {
+            cstring param_name = arg_tuple.first;
+            auto arg_val = arg_tuple.second;
+            declare_var(param_name, arg_val.first, arg_val.second);
+        }
+        set_copy_out_args(copy_out_args);
+    } catch (...) {
+        pop_scope();
+        throw;
     }
-    auto var_tuple = merge_args_with_params(visitor, param_info.arguments, param_info.params,
-                                            missing_type_params);
-    auto copy_out_args = var_tuple.first;
-    auto merged_vec = var_tuple.second;
-    // Now we actually set the variables.
-    // After we have resolved and collected them.
-    for (auto arg_tuple : merged_vec) {
-        cstring param_name = arg_tuple.first;
-        auto arg_val = arg_tuple.second;
-        declare_var(param_name, arg_val.first, arg_val.second);
-    }
-    set_copy_out_args(copy_out_args);
 }
 
 void P4State::copy_out() {
     auto copy_out_args = get_copy_out_args();
     // merge all the state of the different return points
-    auto return_states = get_return_states();
+    const auto &return_states = get_return_states();
     for (auto it = return_states.rbegin(); it != return_states.rend(); ++it) {
         merge_vars(it->first, it->second);
     }
@@ -492,6 +513,7 @@ void P4State::copy_out() {
 
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (const auto *tbi = type->to<IR::Type_Bits>()) {
+        if (tbi->size == 0) return ctx->int_val(0);
         return ctx->bv_const(name.c_str(), tbi->size);
     }
     if (const auto *tvb = type->to<IR::Type_Varbits>()) {
@@ -500,6 +522,9 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (type->is<IR::Type_Boolean>()) {
         return ctx->bool_const(name.c_str());
     }
+    if (type->is<IR::Type_MatchKind>()) return ctx->bv_const(name.c_str(), 32);
+    if (type->is<IR::Type_InfInt>()) return ctx->int_const(name.c_str());
+    if (type->is<IR::Type_String>()) return ctx->constant(name.c_str(), ctx->string_sort());
     BUG("Type \"%v\" not supported for Z3 expressions!.", type);
 }
 
@@ -510,9 +535,9 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
     }
     // TODO: Split this up to not muddle things.
     if (const auto *t = type->to<IR::Type_Struct>()) {
-        instance = new StructInstance(this, t, name, id);
+        instance = allocate_instance<StructInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Header>()) {
-        instance = new HeaderInstance(this, t, name, id);
+        instance = allocate_instance<HeaderInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Enum>()) {
         // TODO: Clean this up
         // For Enums we just return a copy of the declaration
@@ -533,24 +558,40 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
         enum_instance->set_enum_val(gen_z3_expr(name, resolve_type(t->type)));
         instance = enum_instance;
     } else if (const auto *t = type->to<IR::Type_Array>()) {
-        instance = new StackInstance(this, t, name, id);
+        instance = allocate_instance<StackInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {
-        instance = new HeaderUnionInstance(this, t, name, id);
+        instance = allocate_instance<HeaderUnionInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_List>()) {
-        instance = new ListInstance(this, t, name, id);
+        instance = allocate_instance<ListInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Tuple>()) {
-        instance = new TupleInstance(this, t, name, id);
+        instance = allocate_instance<TupleInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Extern>()) {
-        instance = new ExternInstance(this, t);
+        instance = allocate_instance<ExternInstance>(this, this, t);
     } else if (type->is<IR::Type_Void>()) {
-        instance = new VoidResult();
+        instance = allocate_instance<VoidResult>(this);
+    } else if (type->is<IR::Type_InfInt>()) {
+        instance = allocate_instance<Z3Int>(this, this, gen_z3_expr(name, type));
     } else if (type->is<IR::Type_Base>()) {
-        instance = new Z3Bitvector(this, type, gen_z3_expr(name, type));
+        const auto *bits = type->to<IR::Type_Bits>();
+        instance = allocate_instance<Z3Bitvector>(this, this, type, gen_z3_expr(name, type),
+                                                  bits && bits->isSigned);
     } else {
         P4C_UNIMPLEMENTED("Instance generation for %s of type \"%s\" not supported!.", type,
                           type->node_type_name());
     }
     return instance;
+}
+
+void P4State::pop_lexical_scope() {
+    const auto scope = std::move(scopes.back());
+    pop_scope();
+    for (const auto &entry : scope.get_return_exprs()) push_return_expr(entry.first, entry.second);
+    for (auto entry : scope.get_return_states()) {
+        for (const auto &local : scope.get_var_map()) entry.second.erase(local.first);
+        push_return_state(entry.first, entry.second);
+    }
+    for (const auto &condition : scope.get_return_conds()) push_return_cond(condition);
+    if (scope.has_returned()) set_returned(true);
 }
 
 void P4State::push_scope() { scopes.push_back(P4Scope()); }
@@ -702,6 +743,34 @@ const P4Declaration *P4State::get_static_decl(cstring name) const {
     exit(1);
 }
 
+const IR::Node *P4State::resolve_callable(cstring name,
+                                          const IR::Vector<IR::Argument> &arguments) const {
+    const P4Scope *owner = &main_scope;
+    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+        if (scope.has_static_decl(name)) {
+            owner = &scope;
+            break;
+        }
+    }
+    const IR::Node *result = nullptr;
+    for (const auto *declaration : owner->get_overloads(name)) {
+        const auto *node = declaration->get_decl();
+        const IR::ParameterList *parameters = nullptr;
+        if (const auto *function = node->to<IR::Function>())
+            parameters = function->getParameters();
+        else if (const auto *method = node->to<IR::Method>())
+            parameters = method->getParameters();
+        else if (const auto *action = node->to<IR::P4Action>())
+            parameters = action->getParameters();
+        if (!parameters || !arguments_match(*parameters, arguments, node->is<IR::P4Action>()))
+            continue;
+        BUG_CHECK(!result, "Ambiguous callable %s", name);
+        result = node;
+    }
+    BUG_CHECK(result, "No matching overload for %s", name);
+    return result;
+}
+
 P4Declaration *P4State::find_static_decl(cstring name) const {
     for (const auto &scope : boost::adaptors::reverse(scopes)) {
         if (scope.has_static_decl(name)) {
@@ -765,11 +834,22 @@ VarMap P4State::clone_vars() const {
     return cloned_vars;
 }
 
+VarMap P4State::clone_vars(const std::set<cstring> &names) const {
+    VarMap result;
+    for (const auto &entry : get_vars()) {
+        if (names.count(entry.first)) {
+            result.emplace(entry.first,
+                           std::make_pair(entry.second.first->copy(), entry.second.second));
+        }
+    }
+    return result;
+}
+
 VarMap P4State::get_vars() const {
     VarMap concat_map;
     // this also implicitly shadows
     for (const auto &scope : boost::adaptors::reverse(scopes)) {
-        auto sub_vars = scope.get_var_map();
+        const auto &sub_vars = scope.get_var_map();
         concat_map.insert(sub_vars.begin(), sub_vars.end());
     }
     return concat_map;
