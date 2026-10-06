@@ -224,9 +224,6 @@ set(
   # Interpreter: Z3 runs out of memory while constructing the first parser summary,
   # before comparison (observed with a 3 GiB process limit).
   ${P4C_TEST_DIR}/invalid-hdr-warnings1.p4
-  # Compiler: p4test throws std::bad_alloc in LocalCopyPropagation while dumping
-  # passes, before interpretation (observed with the same 3 GiB process limit).
-  ${P4C_TEST_DIR}/switch_p4_16.p4
 )
 
 # CTest's WILL_FAIL does not invert a timeout. Keep these out of registration
