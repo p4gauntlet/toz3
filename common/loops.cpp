@@ -4,6 +4,7 @@
 
 #include "exceptions.h"
 #include "ir/ir.h"
+#include "type_inference.h"
 #include "visitor_interpret.h"
 
 namespace P4::ToZ3 {
@@ -59,7 +60,17 @@ class LoopWrites : public Inspector {
             }
         }
         if (const auto *member = call->method->to<IR::Member>()) {
-            if (member->member == "isValid") return false;
+            if (member->member == "isValid" && call->arguments->empty()) {
+                try {
+                    const auto *receiver = expression_type(state, member->expr);
+                    if (receiver->is<IR::Type_Header>() || receiver->is<IR::Type_HeaderUnion>()) {
+                        // The built-in is pure, but evaluating its receiver can call functions.
+                        return true;
+                    }
+                } catch (const UnsupportedFeatureError &) {
+                    // An unknown receiver cannot establish that this is a pure built-in.
+                }
+            }
             const auto *path = member->expr->to<IR::PathExpression>();
             const auto *declaration = path ? state.find_static_decl(path->path->name) : nullptr;
             const auto *table = declaration ? declaration->to<P4TableInstance>() : nullptr;

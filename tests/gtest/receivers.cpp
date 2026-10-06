@@ -41,6 +41,28 @@ TEST_F(ReceiverTest, ReturnedHeaderReceiverEvaluatesFunctionExactlyOnce) {
     EXPECT_TRUE(state.get_var("valid"_cs)->to<NumericVal>()->get_val()->simplify().is_true());
 }
 
+TEST_F(ReceiverTest, HeaderValidityReceiverEffectsArePreservedInLoops) {
+    evaluate(R"(
+        header H { bit<8> x; }
+        H f(inout bit<8> count) {
+            count += 1;
+            H h;
+            h.setValid();
+            return h;
+        }
+        control C() {
+            bit<8> calls = 0;
+            apply {
+                for (bit<8> i = 0; calls < 2; i += 1) {
+                    bool valid = f(calls).isValid();
+                }
+            }
+        }
+    )");
+    EXPECT_EQ(value("calls"_cs), 2U);
+    EXPECT_TRUE(state.get_termination_condition().simplify().is_true());
+}
+
 TEST_F(ReceiverTest, CompoundAssignmentSavesIndexAndOldValueBeforeRightSide) {
     evaluate(R"(
         bit<8> next(inout bit<8> i) { bit<8> old = i; i += 1; return old; }
