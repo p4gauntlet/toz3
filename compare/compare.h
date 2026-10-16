@@ -10,10 +10,15 @@
 #include "lib/cstring.h"
 
 namespace P4::ToZ3 {
-using Z3Prog = std::pair<cstring, std::vector<std::pair<cstring, z3::expr>>>;
+struct Z3Prog {
+    cstring name;
+    std::vector<std::pair<cstring, z3::expr>> outputs;
+    z3::expr input_constraints;
+};
 constexpr auto COLUMN_WIDTH = 40;
+z3::expr defined_when(const z3::expr &expression);
 int process_programs(const std::vector<std::filesystem::path> &prog_list, ParserOptions *options,
-                     bool allow_undefined = false);
+                     bool allow_undefined = false, bool diagnostics = true);
 
 }  // namespace P4::ToZ3
 

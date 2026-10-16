@@ -5,9 +5,9 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <ostream>
 #include <set>
-#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -20,101 +20,101 @@
 #include "toz3/common/type_base.h"
 #include "toz3/common/type_complex.h"
 #include "toz3/common/type_simple.h"
+#include "type_inference.h"
 
 namespace P4::ToZ3 {
 
-MemberStruct get_member_struct(P4State *state, Visitor *visitor, const IR::Expression *target);
-std::vector<std::pair<z3::expr, P4Z3Instance *>> get_hdr_pairs(P4State *state,
-                                                               const MemberStruct &member_struct);
+// Resolve an address once, including side effects in receivers and indices.
+MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
+                               const IR::Expression *target);
+P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct);
+P4Z3Instance *get_member_parent(P4State *state, const MemberStruct &member_struct);
+// Unlike a merged symbolic read, these concrete parents can be mutated under their guards.
+std::vector<std::pair<z3::expr, P4Z3Instance *>> get_member_parents(
+    P4State *state, const MemberStruct &member_struct, bool writing_field = false);
 
 class P4State {
  private:
+    mutable std::vector<std::unique_ptr<P4Z3Instance>> instances;
     ProgState scopes;
     P4Scope main_scope;
     z3::context *ctx;
     P4Z3Instance *expr_result = nullptr;
+    unsigned next_match_kind = 0;
+    z3::expr termination_condition = ctx->bool_val(true);
+    z3::expr input_constraints = ctx->bool_val(true);
     // Exit vars
     bool is_exited = false;
     std::vector<std::pair<z3::expr, VarMap>> exit_states;
     z3::expr exit_cond = ctx->bool_val(true);
     P4Scope *get_mut_current_scope() { return &scopes.back(); }
-    void set_var(Visitor *visitor, const IR::Expression *target, P4Z3Instance *rval);
-    P4Declaration *find_static_decl(cstring name, P4Scope **owner_scope);
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
-    const IR::Type *find_type(cstring type_name, P4Scope **owner_scope);
 
  public:
     const P4Scope &get_current_scope() const { return scopes.back(); }
+    z3::expr get_termination_condition() const { return termination_condition; }
+    void set_termination_condition(const z3::expr &condition) { termination_condition = condition; }
+    z3::expr get_input_constraints() const { return input_constraints; }
+    void constrain_input(const z3::expr &condition) {
+        input_constraints = input_constraints && condition;
+    }
+    void pop_lexical_scope();
     bool has_exited() const { return is_exited; }
     void set_exit(bool exit_state) { is_exited = exit_state; }
 
     explicit P4State(z3::context *context) : ctx(context) {
         // These two labels are part of the built in declarations.
         // We only need to add them once.
-        declare_static_decl(IR::ParserState::accept,
-                            new P4Declaration(new IR::ReturnStatement(nullptr)));
-        declare_static_decl(IR::ParserState::reject, new P4Declaration(new IR::ExitStatement()));
+        declare_static_decl(IR::ParserState::accept, allocate_instance<P4Declaration>(
+                                                         this, new IR::ReturnStatement(nullptr)));
+        declare_static_decl(IR::ParserState::reject,
+                            allocate_instance<P4Declaration>(this, new IR::ExitStatement()));
     }
 
     /****** GETTERS ******/
     ProgState get_state() const { return scopes; }
     z3::context *get_z3_ctx() const { return ctx; }
+    unsigned allocate_match_kind() { return next_match_kind++; }
     const P4Z3Instance *get_expr_result() const { return expr_result; }
     template <typename T>
     const T *get_expr_result() const {
-        if (auto cast_result = expr_result->to<T>()) {
-            return cast_result;
-        }
-        BUG("Could not cast to type %s.", typeid(T).name());
+        return expr_result->checkedTo<T>();
     }
     /****** ALLOCATIONS ******/
+    void own_instance(std::unique_ptr<P4Z3Instance> instance) const {
+        instances.push_back(std::move(instance));
+    }
     z3::expr gen_z3_expr(cstring name, const IR::Type *type);
     P4Z3Instance *gen_instance(cstring name, const IR::Type *type, uint64_t id = 0);
 
     /****** COPY-IN/COPY-OUT ******/
-    std::pair<CopyArgs, VarMap> merge_args_with_params(Visitor *visitor,
-                                                       const IR::Vector<IR::Argument> &args,
-                                                       const IR::ParameterList &params,
-                                                       const IR::TypeParameters &type_params);
-    void copy_in(Visitor *visitor, const ParamInfo &param_info);
+    struct BoundArguments {
+        CopyArgs copy_out;
+        VarMap values;
+        TypeBindings types;
+    };
+    BoundArguments merge_args_with_params(EvaluationContext *visitor,
+                                          const IR::Vector<IR::Argument> &args,
+                                          const IR::ParameterList &params,
+                                          const IR::TypeParameters &type_params);
+    TypeBindings copy_in(EvaluationContext *visitor, const ParamInfo &param_info);
     void copy_out();
     void set_copy_out_args(const CopyArgs &out_args) {
         auto *scope = get_mut_current_scope();
         scope->set_copy_out_args(out_args);
     }
     CopyArgs get_copy_out_args() const {
-        auto scope = get_current_scope();
+        const auto &scope = get_current_scope();
         return scope.get_copy_out_args();
-    }
-    /****** PARSER STATES ******/
-    void add_visited_state(cstring state_name) {
-        auto *scope = get_mut_current_scope();
-        scope->add_visited_state(state_name);
-    }
-    void clear_visited_states() {
-        auto *scope = get_mut_current_scope();
-        scope->clear_visited_states();
-    }
-    std::set<cstring> get_visited_states() {
-        auto *scope = get_mut_current_scope();
-        return scope->get_visited_states();
-    }
-    void set_visited_states(const std::set<cstring> &new_states) {
-        auto *scope = get_mut_current_scope();
-        scope->set_visited_states(new_states);
-    }
-    bool state_is_visited(cstring state_name) {
-        auto *scope = get_mut_current_scope();
-        return scope->state_is_visited(state_name);
     }
     /****** SCOPES AND STATES ******/
     void push_scope();
     void pop_scope();
-    void merge_state(const z3::expr &cond, const ProgState &else_state);
     void restore_state(const ProgState &set_scopes) { scopes = set_scopes; }
     ProgState clone_state() const;
     VarMap get_vars() const;
     VarMap clone_vars() const;
+    VarMap clone_vars(const std::set<cstring> &names) const;
     void restore_vars(const VarMap &input_map);
     void merge_vars(const z3::expr &cond, const VarMap &then_map) const;
     z3::expr get_exit_cond() const { return exit_cond; }
@@ -171,7 +171,7 @@ class P4State {
     void push_return_state(const z3::expr &cond, const VarMap &state) {
         return get_mut_current_scope()->push_return_state(cond, state);
     }
-    std::vector<std::pair<z3::expr, VarMap>> get_return_states() const {
+    const std::vector<std::pair<z3::expr, VarMap>> &get_return_states() const {
         return get_current_scope().get_return_states();
     }
 
@@ -193,12 +193,14 @@ class P4State {
         return var->to<T>();
     }
     const IR::Type *get_var_type(cstring decl_name) const;
-    void set_var(Visitor *visitor, const IR::Expression *target, const IR::Expression *rval);
+    void set_var(EvaluationContext *visitor, const IR::Expression *target,
+                 const IR::Expression *rval);
     void set_var(const MemberStruct &member_struct, P4Z3Instance *rval);
 
     /****** DECLARATIONS ******/
     void declare_static_decl(cstring name, P4Declaration *decl);
     const P4Declaration *get_static_decl(cstring name) const;
+    const IR::Node *resolve_callable(cstring name, const IR::Vector<IR::Argument> &arguments) const;
     P4Declaration *find_static_decl(cstring name) const;
     template <typename T>
     const T *get_static_decl(cstring name) const {
@@ -209,11 +211,7 @@ class P4State {
     P4Z3Instance *copy_expr_result() const { return expr_result->copy(); }
     template <typename T>
     T *copy_expr_result() const {
-        auto *intermediate = expr_result->copy();
-        if (auto cast_result = intermediate->to_mut<T>()) {
-            return cast_result;
-        }
-        BUG("Could not cast to type %s.", typeid(T).name());
+        return expr_result->copy()->checkedTo<T>();
     }
     void set_expr_result(P4Z3Instance *result) { expr_result = result; }
     friend inline std::ostream &operator<<(std::ostream &out, const P4State &state) {
