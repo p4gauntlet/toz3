@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "interpreter_state.h"
 #include "toz3/common/state.h"
 #include "toz3/common/type_complex.h"
 
@@ -61,6 +62,48 @@ void checkSerializedEnum(bool isSigned) {
 TEST(SerializedEnums, UnderlyingValuesPreserveWidthSignednessAndSymmetricEquality) {
     checkSerializedEnum(false);
     checkSerializedEnum(true);
+}
+
+TEST(SerializedEnums, OutputNamesJoinOnlyNonemptyComponents) {
+    z3::context ctx;
+    P4State state(&ctx);
+    const IR::Type_SerEnum type(IR::ID("E"_cs), IR::Type_Bits::get(ENUM_WIDTH), {});
+    const SerEnumInstance anonymous(&state, {}, &type, ""_cs, 0);
+    const SerEnumInstance named(&state, {}, &type, "field"_cs, 0);
+    EXPECT_EQ(anonymous.get_z3_vars("hdr.field"_cs).front().first, "hdr.field"_cs);
+    EXPECT_EQ(named.get_z3_vars().front().first, "field"_cs);
+    EXPECT_EQ(named.get_z3_vars("hdr"_cs).front().first, "hdr.field"_cs);
+}
+
+TEST(SerializedEnums, NestedOutputLabelsMatchLoweredBitFields) {
+    InterpreterTestState test;
+    const auto *program = parseP4String(R"(
+        enum bit<8> E { A = 1 }
+        struct Original { E field; }
+        struct Lowered { bit<8> field; }
+        struct NestedOriginal { Original inner; }
+        struct NestedLowered { Lowered inner; }
+    )");
+    ASSERT_NE(program, nullptr);
+    test.visitor.visit(program);
+    auto *original = test.state.gen_instance("out"_cs, test.state.get_type("NestedOriginal"_cs))
+                         ->to_mut<StructBase>();
+    auto *lowered = test.state.gen_instance("out"_cs, test.state.get_type("NestedLowered"_cs))
+                        ->to_mut<StructBase>();
+    ASSERT_NE(original, nullptr);
+    ASSERT_NE(lowered, nullptr);
+    const auto input = test.ctx.bv_const("input", ENUM_WIDTH);
+    original->bind(&input, ENUM_WIDTH);
+    lowered->bind(&input, ENUM_WIDTH);
+    const auto originalFields = original->get_z3_vars("out"_cs);
+    const auto loweredFields = lowered->get_z3_vars("out"_cs);
+    ASSERT_EQ(originalFields.size(), 1U);
+    ASSERT_EQ(loweredFields.size(), 1U);
+    EXPECT_EQ(originalFields.front().first, "out.inner.field"_cs);
+    EXPECT_EQ(originalFields.front().first, loweredFields.front().first);
+    z3::solver solver(test.ctx);
+    solver.add(originalFields.front().second != loweredFields.front().second);
+    EXPECT_EQ(solver.check(), z3::unsat);
 }
 
 }  // namespace
