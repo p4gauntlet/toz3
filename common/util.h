@@ -23,7 +23,8 @@
 #define EXIT_UNDEF 30
 
 #define UNDEF_LABEL "p4z3_undefined"
-#define INVALID_LABEL "invalid"
+// Invalid header fields are undefined observations for --allow-undefined too.
+#define INVALID_LABEL UNDEF_LABEL
 
 #ifndef LOG_LEVEL
 #define LOG_LEVEL 1
