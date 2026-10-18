@@ -2,6 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#include "toz3/common/state.h"
+#include "toz3/common/type_complex.h"
+
 namespace P4::ToZ3 {
 namespace {
 
@@ -66,6 +69,51 @@ TEST(Definedness, SimplifiedBooleanGuardsStillMaskUndefinedReads) {
     EXPECT_EQ(solver.check(), z3::sat);
     solver.reset();
     solver.add(defined_when(unknown || valid) != valid);
+    EXPECT_EQ(solver.check(), z3::unsat);
+}
+
+TEST(Definedness, InvalidHeaderOutputFieldsAreUndefinedButValidityRemainsDefined) {
+    z3::context ctx;
+    P4State state(&ctx);
+    const auto *bits = IR::Type_Bits::get(COMPARED_FIELD_WIDTH);
+    const IR::Type_Header type(IR::ID("H"_cs), {new IR::StructField("field"_cs, bits)});
+    HeaderInstance header(&state, &type, "input"_cs, 0);
+    const auto valid = ctx.bool_const("valid");
+    header.set_valid(valid);
+    const auto input = ctx.bv_const("input", COMPARED_FIELD_WIDTH);
+    header.bind(&input, COMPARED_FIELD_WIDTH);
+    const auto outputs = header.get_z3_vars("out"_cs);
+    ASSERT_EQ(outputs.size(), 2U);
+    EXPECT_EQ(outputs[0].first, "out.$valid"_cs);
+    EXPECT_TRUE(defined_when(outputs[0].second).is_true());
+    const auto &field = outputs[1].second;
+    z3::solver solver(ctx);
+    solver.add(defined_when(field) != valid);
+    EXPECT_EQ(solver.check(), z3::unsat);
+
+    // Strict comparison still sees arbitrary invalid-field values, while the
+    // definedness filter tolerates only mismatches on invalid paths.
+    const auto mismatch = field != ctx.bv_val(1, COMPARED_FIELD_WIDTH);
+    solver.reset();
+    solver.add(!valid && mismatch);
+    EXPECT_EQ(solver.check(), z3::sat);
+    solver.add(defined_when(field));
+    EXPECT_EQ(solver.check(), z3::unsat);
+    solver.reset();
+    solver.add(valid && defined_when(field) && mismatch);
+    EXPECT_EQ(solver.check(), z3::sat);
+}
+
+TEST(Definedness, InvalidSerializedEnumOutputsUseTheSameUndefinedMarker) {
+    z3::context ctx;
+    P4State state(&ctx);
+    const IR::Type_SerEnum type(IR::ID("E"_cs), IR::Type_Bits::get(COMPARED_FIELD_WIDTH), {});
+    SerEnumInstance value(&state, {}, &type, "field"_cs, 0);
+    value.set_enum_val(ctx.bv_const("input", COMPARED_FIELD_WIDTH));
+    const auto valid = ctx.bool_const("valid");
+    const auto field = value.get_z3_vars("out"_cs, &valid).front().second;
+    z3::solver solver(ctx);
+    solver.add(defined_when(field) != valid);
     EXPECT_EQ(solver.check(), z3::unsat);
 }
 
