@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -21,7 +22,7 @@
 
 using namespace P4::literals;  // NOLINT
 
-int main(int argc, char *const argv[]) {
+int main(int argc, char *const argv[]) try {
     P4::AutoCompileContext autoP4toZ3Context(new P4::ToZ3::P4toZ3Context);
     auto &options = P4::ToZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
@@ -56,8 +57,9 @@ int main(int argc, char *const argv[]) {
         P4::ToZ3::Z3Visitor toZ3Second(&state);
         auto declResult = gen_state_from_instance(&toZ3Second, decl);
         const auto input_constraints = state.get_input_constraints().simplify();
-        if (!input_constraints.is_true())
+        if (!input_constraints.is_true()) {
             std::cout << "Input constraints: " << input_constraints << "\n";
+        }
         for (const auto &pipeState : declResult) {
             P4::cstring pipeName = pipeState.first;
             const auto pipeVars = pipeState.second.first;
@@ -84,4 +86,10 @@ int main(int argc, char *const argv[]) {
     }
 
     return EXIT_SUCCESS;
+} catch (const std::exception &error) {
+    std::cerr << error.what() << '\n';
+    return EXIT_FAILURE;
+} catch (...) {
+    std::cerr << "Unhandled interpreter exception.\n";
+    return EXIT_FAILURE;
 }

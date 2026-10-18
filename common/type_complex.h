@@ -26,6 +26,14 @@ class FunctionClass {
     std::map<cstring, P4Z3Function> member_functions;
 
  public:
+    FunctionClass() = default;
+    // Callbacks capture their receiver. Copies must rebuild them for the new object.
+    FunctionClass(const FunctionClass &) = delete;
+    FunctionClass &operator=(const FunctionClass &) = delete;
+    FunctionClass(FunctionClass &&) = delete;
+    FunctionClass &operator=(FunctionClass &&) = delete;
+    virtual ~FunctionClass() = default;
+
     virtual FunOrMethod get_function(cstring name) const {
         auto it = member_functions.find(name);
         if (it != member_functions.end()) {
@@ -56,8 +64,9 @@ class StructBase : public P4Z3Instance {
     StructBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id);
 
     uint64_t get_width() const { return width; }
+    using P4Z3Instance::get_z3_vars;
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
-        cstring prefix, const z3::expr *valid_expr = nullptr) const override;
+        cstring prefix, const z3::expr *valid_expr) const override;
 
     const P4Z3Instance *get_const_member(const cstring name) const {
         auto it = members.find(name);
@@ -213,6 +222,7 @@ class StackInstance : public IndexableInstance, public FunctionClass {
     P4Z3Instance *get_member(cstring name) const override;
     const IR::Type *get_member_type(cstring name) const override;
     void update_member(cstring name, P4Z3Instance *val) override;
+    using StructBase::get_z3_vars;
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "StackInstance"_cs; }
@@ -310,6 +320,7 @@ class EnumBase : public StructBase, public ValContainer {
 
  public:
     EnumBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id);
+    using StructBase::get_z3_vars;
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "EnumBase"_cs; }
@@ -474,7 +485,7 @@ class ControlInstance : public P4Z3Instance, public FunctionClass {
     // constructor
     explicit ControlInstance(P4State *state, const IR::Type *decl, const VarMap &input_const_args);
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
     ControlInstance *copy() const override {
         return allocate_instance<ControlInstance>(state, state, p4_type, resolved_const_args);
     }
@@ -503,7 +514,7 @@ class P4Declaration : public P4Z3Instance {
     // TODO: This is a declaration, not an object. Distinguish!
     explicit P4Declaration(const IR::StatOrDecl *decl) : P4Z3Instance(nullptr), decl(decl) {}
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
     // TODO: This is a little pointless....
     P4Declaration *copy() const override {
         return allocate_instance<P4Declaration>(allocation_owner, decl);
@@ -533,7 +544,7 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
     std::vector<const P4Z3Instance *> evaluated_keys;
     // constructor
     explicit P4TableInstance(P4State *state, const IR::P4Table *p4t);
-    explicit P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3::expr hit,
+    explicit P4TableInstance(P4State *state, const IR::StatOrDecl *decl, const z3::expr &hit,
                              TableProperties table_props);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {}
@@ -576,7 +587,7 @@ class ExternInstance : public P4Z3Instance, public FunctionClass {
  public:
     explicit ExternInstance(P4State *state, const IR::Type_Extern *type);
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
     cstring get_static_type() const override { return "ExternInstance"_cs; }
     cstring to_string() const override {
         std::string ret = "ExternInstance(";

@@ -15,6 +15,7 @@
 #include <boost/multiprecision/number.hpp>
 
 #include "defaults.h"
+#include "evaluation_context.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
 #include "ir/node.h"
@@ -27,7 +28,6 @@
 #include "type_inference.h"
 #include "type_simple.h"
 #include "util.h"
-#include "evaluation_context.h"
 #include "visitor_specialize.h"
 
 namespace P4::ToZ3 {
@@ -39,16 +39,17 @@ StructBase
 StructBase::StructBase(P4State *state, const IR::Type *type, cstring name, uint64_t /*member_id*/)
     : P4Z3Instance(type),
       state(state),
+      width(0),
       valid(state->get_z3_ctx()->bool_val(true)),
-      instance_name(name) {
-    width = 0;
-}
+      instance_name(name) {}
 
-StructBase::StructBase(const StructBase &other) : P4Z3Instance(other), valid(other.valid) {
-    width = other.width;
-    state = other.state;
-    instance_name = other.instance_name;
-    member_types = other.member_types;
+StructBase::StructBase(const StructBase &other)
+    : P4Z3Instance(other),
+      state(other.state),
+      member_types(other.member_types),
+      width(other.width),
+      valid(other.valid),
+      instance_name(other.instance_name) {
     for (auto value_tuple : other.members) {
         cstring name = value_tuple.first;
         auto *member_cpy = value_tuple.second->copy();
@@ -65,10 +66,11 @@ void StructBase::set_undefined() {
 void StructBase::assign_member(cstring name, const P4Z3Instance *value) {
     if (const auto *list = value->to<ListInstance>()) {
         auto *target = get_member(name)->checkedTo<StructBase>();
-        if (list->hasLabels())
+        if (list->hasLabels()) {
             target->set_list(list->get_val_map());
-        else
+        } else {
             target->set_list(list->get_val_list());
+        }
     } else {
         update_member(name, value->cast_allocate(get_member_type(name)));
     }
@@ -101,8 +103,8 @@ void StructBase::set_list(const std::map<cstring, P4Z3Instance *> &input_map) {
         const P4Z3Instance *input_val = nullptr;
         // This may happen in the case of lists with default values.
         // We assume the rest of the list is undefined.
-        if (input_map.count(member_name) == 0) {
-            input_val = input_map.count("..."_cs)
+        if (!input_map.contains(member_name)) {
+            input_val = input_map.contains("..."_cs)
                             ? input_map.at("..."_cs)
                             : state->gen_instance(cstring(UNDEF_LABEL), target_val->get_p4_type());
         } else {
@@ -116,8 +118,9 @@ void StructBase::merge(const z3::expr &cond, const P4Z3Instance &then_expr) {
     const auto *then_struct = then_expr.to<StructBase>();
     BUG_CHECK(then_struct, "Unsupported merge class.");
     // Copy validity as state, without invoking P4 operations on union siblings.
-    if (!cond.is_false() && !z3::eq(then_struct->valid, valid))
+    if (!cond.is_false() && !z3::eq(then_struct->valid, valid)) {
         valid = cond.is_true() ? then_struct->valid : z3::ite(cond, then_struct->valid, valid);
+    }
     for (auto member_tuple : members) {
         cstring member_name = member_tuple.first;
         auto *then_var = member_tuple.second;
@@ -198,15 +201,18 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
             bit_idx -= si->get_width();
         } else if (const auto *z3_var = member_var->to<Z3Bitvector>()) {
             auto var_width = z3_var->get_width();
-            if (var_width == 0) continue;
+            if (var_width == 0) {
+                continue;
+            }
             // TODO: Better casting
             auto extract_var = bind_var->extract(bit_idx - 1, bit_idx - var_width);
             if (z3_var->get_p4_type()->is<IR::Type_Boolean>()) {
                 extract_var = extract_var > 0;
             }
             const auto *bits = z3_var->get_p4_type()->to<IR::Type_Bits>();
-            auto *bind_bv = allocate_instance<Z3Bitvector>(state, state, z3_var->get_p4_type(),
-                                                           extract_var, bits && bits->isSigned);
+            auto *bind_bv =
+                allocate_instance<Z3Bitvector>(state, state, z3_var->get_p4_type(), extract_var,
+                                               bits != nullptr && bits->isSigned);
             update_member(member_name, bind_bv);
             bit_idx -= var_width;
         } else {
@@ -216,7 +222,9 @@ void StructBase::bind(const z3::expr *bind_var, uint64_t offset) {
 }
 void StructBase::update_member(cstring name, P4Z3Instance *val) {
     if (!valid.simplify().is_false()) {
-        if (!valid.simplify().is_true()) val->merge(!valid, *members.at(name));
+        if (!valid.simplify().is_true()) {
+            val->merge(!valid, *members.at(name));
+        }
         members.at(name) = val;
     }
 }
@@ -286,7 +294,9 @@ std::vector<std::pair<cstring, z3::expr>> StructBase::get_z3_vars(
         tmp_valid = &valid;
     }
     std::vector<std::pair<cstring, z3::expr>> z3_vars;
-    if (is<HeaderInstance>()) z3_vars.emplace_back(prefix + ".$valid", *tmp_valid);
+    if (is<HeaderInstance>()) {
+        z3_vars.emplace_back(prefix + ".$valid", *tmp_valid);
+    }
     for (auto member_tuple : members) {
         cstring name = member_tuple.first;
         if (prefix.size() != 0) {
@@ -438,9 +448,8 @@ void HeaderInstance::propagate_validity(const z3::expr *valid_expr) {
     if (valid_expr == nullptr) {
         StructBase::propagate_validity(nullptr);
         return;
-    } else {
-        set_valid(*valid_expr);
     }
+    set_valid(*valid_expr);
     for (auto member_tuple : members) {
         auto *member = member_tuple.second;
         if (auto *z3_var = member->to_mut<StructBase>()) {
@@ -490,7 +499,7 @@ StackInstance::StackInstance(P4State *state, const IR::Type_Array *type, cstring
     : IndexableInstance(state, type, name, member_id),
       nextIndex(Z3Int(state, 0)),
       lastIndex(Z3Int(state, 0)),
-      size(Z3Int(state, type->getSize())),
+      size(Z3Int(state, state->get_z3_ctx()->int_val(type->getSize()))),
       int_size(type->getSize()),
       elem_type(state->resolve_type(type->elementType)) {
     auto flat_id = member_id;
@@ -552,9 +561,9 @@ StackInstance &StackInstance::operator=(const StackInstance &other) {
 
 P4Z3Instance *StackInstance::get_member(cstring name) const {
     if (name == "size" || name == "nextIndex" || name == "lastIndex") {
-        const auto *type = IR::Type_Bits::get(32);
+        const auto *type = IR::Type_Bits::get(STACK_INDEX_WIDTH);
         const auto &value = name == "size" ? size : name == "nextIndex" ? nextIndex : lastIndex;
-        auto result = z3::int2bv(32, *value.get_val()).simplify();
+        auto result = z3::int2bv(STACK_INDEX_WIDTH, *value.get_val()).simplify();
         if (name == "lastIndex") {
             result = z3::ite(*nextIndex.get_val() == 0,
                              state->gen_z3_expr(cstring(UNDEF_LABEL), type), result)
@@ -564,12 +573,12 @@ P4Z3Instance *StackInstance::get_member(cstring name) const {
     }
     if (name == "next") {
         const auto index = nextIndex.get_val()->simplify();
-        return get_member(z3::int2bv(32, index).simplify());
+        return get_member(z3::int2bv(STACK_INDEX_WIDTH, index).simplify());
     }
     if (name == "last") {
-        return get_member(z3::int2bv(32, *nextIndex.get_val() - 1).simplify());
+        return get_member(z3::int2bv(STACK_INDEX_WIDTH, *nextIndex.get_val() - 1).simplify());
     }
-    if (!members.count(name)) {
+    if (members.count(name) == 0U) {
         // Ordinary runtime indexing outside a stack is undefined, not parser rejection.
         auto *undefined = state->gen_instance(cstring(UNDEF_LABEL), elem_type);
         if (auto *aggregate = undefined->to_mut<StructBase>()) {
@@ -616,7 +625,9 @@ void StackInstance::update_member(cstring name, P4Z3Instance *val) {
     if (name == "last") {
         name = lastIndex.get_val()->to_string();
     }
-    if (members.count(name)) members.at(name) = val;
+    if (members.count(name) != 0U) {
+        members.at(name) = val;
+    }
 }
 
 P4Z3Instance *StackInstance::get_member(const z3::expr &index) const {
@@ -737,7 +748,9 @@ HeaderUnionInstance::HeaderUnionInstance(P4State *state, const IR::Type_HeaderUn
 }
 
 HeaderUnionInstance::HeaderUnionInstance(const HeaderUnionInstance &other) : StructBase(other) {
-    for (auto &member : members) member.second->checkedTo<HeaderInstance>()->bind_to_union(this);
+    for (auto &member : members) {
+        member.second->checkedTo<HeaderInstance>()->bind_to_union(this);
+    }
     add_function("isValid0"_cs,
                  [this](EvaluationContext *visitor, const IR::Vector<IR::Argument> *args) {
                      isValid(visitor, args);
@@ -775,7 +788,7 @@ HeaderUnionInstance *HeaderUnionInstance::copy() const {
 void HeaderUnionInstance::update_validity(const HeaderInstance *child, const z3::expr &valid_val) {
     // P4 spec, sec-expr-hu: setValid selects this member; setInvalid clears
     // whichever member was valid. A symbolic assignment has the same effect.
-    const auto selected_valid = valid_val;
+    const auto &selected_valid = valid_val;
     for (auto &member : members) {
         auto *header = member.second->checkedTo<HeaderInstance>();
         if (header == child) {
@@ -796,7 +809,9 @@ void HeaderUnionInstance::update_member(cstring name, P4Z3Instance *value) {
 
 void HeaderUnionInstance::invalidate_fields(const z3::expr &condition) {
     const auto guard = condition.simplify();
-    if (guard.is_false()) return;
+    if (guard.is_false()) {
+        return;
+    }
     auto *undefined = copy();
     undefined->set_undefined();
     merge(guard, *undefined);
@@ -832,7 +847,9 @@ std::vector<std::pair<cstring, z3::expr>> EnumBase::get_z3_vars(cstring prefix,
 }
 
 void EnumBase::add_enum_member(cstring error_name) {
-    if (members.count(error_name)) return;
+    if (members.count(error_name) != 0U) {
+        return;
+    }
     insert_member(error_name, allocate_instance<Z3Bitvector>(
                                   state, state, member_type,
                                   state->get_z3_ctx()->bv_val(members.size(), INT_WIDTH)));
@@ -1298,7 +1315,8 @@ void ControlInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
 P4Z3Instance *ControlInstance::cast_allocate(const IR::Type *dest_type) const {
     const auto *container = p4_type->checkedTo<IR::IContainer>();
     const auto *destination = dest_type->to<IR::IApply>();
-    if (destination && container->getType()->node_type_name() == dest_type->node_type_name()) {
+    if (destination != nullptr &&
+        container->getType()->node_type_name() == dest_type->node_type_name()) {
         const auto mapping =
             infer_type_arguments(*state, *container->getTypeParameters(), {{p4_type, dest_type}});
         const auto *cast_type = p4_type->apply(TypeModifier(&mapping))->checkedTo<IR::Type>();

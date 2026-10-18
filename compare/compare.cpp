@@ -28,9 +28,7 @@ bool is_undefined_const(const z3::expr &e) {
     if (!e.is_const()) {
         return false;
     }
-    // Check if the constant's name starts with the UNDEF_LABEL prefix.
-    // Using rfind with a 0 position is a reliable way to check for a prefix.
-    return std::string(e.decl().name().str()).rfind(UNDEF_LABEL, 0) == 0;
+    return e.decl().name().str().starts_with(UNDEF_LABEL);
 }
 
 MainResult get_z3_repr(const std::filesystem::path &prog_name, const IR::P4Program *program,
@@ -122,9 +120,46 @@ class Definedness {
     std::unordered_map<unsigned, std::pair<z3::expr, z3::expr>> conditions;
 
     static z3::expr both(const z3::expr &a, const z3::expr &b) {
-        if (a.is_false() || b.is_true()) return a;
-        if (b.is_false() || a.is_true() || z3::eq(a, b)) return b;
+        if (a.is_false() || b.is_true()) {
+            return a;
+        }
+        if (b.is_false() || a.is_true() || z3::eq(a, b)) {
+            return b;
+        }
         return a && b;
+    }
+
+    z3::expr combineArguments(const z3::expr &node) const {
+        if (node.is_ite()) {
+            const auto &yes = conditions.at(node.arg(1).id()).second;
+            const auto &no = conditions.at(node.arg(2).id()).second;
+            // Only the selected branch must be defined. An invalid-header read
+            // must not taint the valid-input path.
+            return both(conditions.at(node.arg(0).id()).second,
+                        z3::eq(yes, no) ? yes : z3::ite(node.arg(0), yes, no));
+        }
+        auto defined = node.ctx().bool_val(true);
+        for (unsigned i = 0; i < node.num_args(); ++i) {
+            defined = both(defined, conditions.at(node.arg(i).id()).second);
+        }
+        if (defined.is_true() || (!node.is_and() && !node.is_or())) {
+            return defined;
+        }
+        // Simplification may turn a guarded undefined read into an AND/OR.
+        // A defined false/true operand determines the result even when another
+        // operand is undefined.
+        for (unsigned i = 0; i < node.num_args(); ++i) {
+            const auto arg = node.arg(i);
+            const auto decisive = both(conditions.at(arg.id()).second, node.is_and() ? !arg : arg);
+            if (decisive.is_false()) {
+                continue;
+            }
+            defined = defined.is_false() || decisive.is_true() ? decisive : defined || decisive;
+            if (defined.is_true()) {
+                break;
+            }
+        }
+        return defined;
     }
 
  public:
@@ -135,44 +170,22 @@ class Definedness {
         while (!pending.empty()) {
             auto [node, expanded] = pending.back();
             pending.pop_back();
-            if (conditions.count(node.id())) continue;
+            if (conditions.contains(node.id())) {
+                continue;
+            }
             if (node.is_const()) {
                 conditions.emplace(
                     node.id(),
                     std::make_pair(node, node.ctx().bool_val(!is_undefined_const(node))));
             } else if (!expanded) {
                 pending.emplace_back(node, true);
-                for (unsigned i = 0; i < node.num_args(); ++i)
-                    if (!conditions.count(node.arg(i).id()))
+                for (unsigned i = 0; i < node.num_args(); ++i) {
+                    if (!conditions.contains(node.arg(i).id())) {
                         pending.emplace_back(node.arg(i), false);
-            } else {
-                auto defined = node.ctx().bool_val(true);
-                if (node.is_ite()) {
-                    const auto &yes = conditions.at(node.arg(1).id()).second;
-                    const auto &no = conditions.at(node.arg(2).id()).second;
-                    // Only the selected branch must be defined. In particular,
-                    // an invalid-header read must not taint the valid-input path.
-                    defined = both(conditions.at(node.arg(0).id()).second,
-                                   z3::eq(yes, no) ? yes : z3::ite(node.arg(0), yes, no));
-                } else {
-                    for (unsigned i = 0; i < node.num_args(); ++i)
-                        defined = both(defined, conditions.at(node.arg(i).id()).second);
-                    if (!defined.is_true() && (node.is_and() || node.is_or())) {
-                        // Simplification may turn a guarded undefined read into
-                        // an AND/OR. A defined false/true operand determines the
-                        // result even when another operand is undefined.
-                        for (unsigned i = 0; i < node.num_args(); ++i) {
-                            const auto &arg = node.arg(i);
-                            const auto decisive =
-                                both(conditions.at(arg.id()).second, node.is_and() ? !arg : arg);
-                            if (decisive.is_false()) continue;
-                            defined = defined.is_false() || decisive.is_true()
-                                          ? decisive
-                                          : defined || decisive;
-                            if (defined.is_true()) break;
-                        }
                     }
                 }
+            } else {
+                const auto defined = combineArguments(node);
                 conditions.emplace(node.id(), std::make_pair(node, defined));
             }
         }
@@ -249,7 +262,9 @@ int compareProgs(z3::context *ctx, const std::vector<std::filesystem::path> &pro
             ret = check_undefined(&s, z3_prog_before, z3_prog_after, input_constraints);
         }
         if (ret == z3::sat) {
-            if (diagnostics) print_violation_error(s, prog_before, prog_after);
+            if (diagnostics) {
+                print_violation_error(s, prog_before, prog_after);
+            }
             return EXIT_VIOLATION;
         }
         if (ret == z3::unknown) {
@@ -265,7 +280,9 @@ int compareProgs(z3::context *ctx, const std::vector<std::filesystem::path> &pro
 
 int process_programs(const std::vector<std::filesystem::path> &prog_list, ParserOptions *options,
                      bool allow_undefined, bool diagnostics) {
-    if (prog_list.empty()) return EXIT_SKIPPED;
+    if (prog_list.empty()) {
+        return EXIT_SKIPPED;
+    }
     z3::context ctx;
     const auto interpret = [&](const std::filesystem::path &prog) -> Z3Prog {
         options->file = prog;

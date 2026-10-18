@@ -25,15 +25,54 @@ std::string quotePath(const std::filesystem::path &path) {
 std::string passPrefix(const std::string &name) {
     const auto managerEnd = name.find('_');
     const auto manager = name.substr(0, managerEnd);
-    if (manager != "FrontEnd" && manager != "MidEnd" && manager != "PassManager") return {};
-    if (managerEnd == std::string::npos) return {};
+    if (manager != "FrontEnd" && manager != "MidEnd" && manager != "PassManager") {
+        return {};
+    }
+    if (managerEnd == std::string::npos) {
+        return {};
+    }
     const auto numberEnd = name.find('_', managerEnd + 1);
-    if (numberEnd == std::string::npos || numberEnd + 1 == name.size()) return {};
+    if (numberEnd == std::string::npos || numberEnd + 1 == name.size()) {
+        return {};
+    }
     const auto number = name.substr(managerEnd + 1, numberEnd - managerEnd - 1);
-    if (number.empty() || number.find_first_not_of("0123456789") != std::string::npos) return {};
+    if (number.empty() || number.find_first_not_of("0123456789") != std::string::npos) {
+        return {};
+    }
     return name.substr(0, numberEnd + 1);
 }
 
+std::set<std::string> selectCheckpoints(const std::vector<std::string> &passes) {
+    std::set<std::string> selected{passPrefix(passes.front()), passPrefix(passes.back())};
+    std::string frontend;
+    std::string midend;
+    for (const auto &pass : passes) {
+        if (pass.starts_with("FrontEnd_")) {
+            frontend = pass;
+        }
+        if (pass.starts_with("MidEnd_")) {
+            midend = pass;
+        }
+    }
+    if (!frontend.empty()) {
+        selected.insert(passPrefix(frontend));
+    }
+    if (!midend.empty()) {
+        selected.insert(passPrefix(midend));
+    }
+    return selected;
+}
+
+std::string checkpointFilter(const std::set<std::string> &selected) {
+    std::string filter;
+    for (const auto &prefix : selected) {
+        if (!filter.empty()) {
+            filter += ",";
+        }
+        filter += "^" + prefix;
+    }
+    return filter;
+}
 }  // namespace
 
 std::vector<std::filesystem::path> generatePassList(const std::filesystem::path &p4_file,
@@ -54,31 +93,19 @@ std::vector<std::filesystem::path> generatePassList(const std::filesystem::path 
     std::vector<std::string> passes;
     std::string line;
     while (std::getline(output, line)) {
-        if (!passPrefix(line).empty()) passes.push_back(line);
-    }
-    if (passes.empty()) return {};
-
-    std::set<std::string> selected;
-    if (selection == PassSelection::Checkpoints) {
-        selected.insert(passPrefix(passes.front()));
-        std::string frontend, midend;
-        for (const auto &pass : passes) {
-            if (pass.rfind("FrontEnd_", 0) == 0) frontend = pass;
-            if (pass.rfind("MidEnd_", 0) == 0) midend = pass;
-        }
-        if (!frontend.empty()) selected.insert(passPrefix(frontend));
-        if (!midend.empty()) selected.insert(passPrefix(midend));
-        selected.insert(passPrefix(passes.back()));
-    }
-
-    std::string filter = "^FrontEnd_,^MidEnd_,^PassManager_";
-    if (selection == PassSelection::Checkpoints) {
-        filter.clear();
-        for (const auto &prefix : selected) {
-            if (!filter.empty()) filter += ",";
-            filter += "^" + prefix;
+        if (!passPrefix(line).empty()) {
+            passes.push_back(line);
         }
     }
+    if (passes.empty()) {
+        return {};
+    }
+
+    const auto selected = selection == PassSelection::Checkpoints ? selectCheckpoints(passes)
+                                                                  : std::set<std::string>{};
+    const auto filter = selection == PassSelection::Checkpoints
+                            ? checkpointFilter(selected)
+                            : "^FrontEnd_,^MidEnd_,^PassManager_";
     std::filesystem::create_directories(dump_dir);
     // Write the actual programs without -v, which adds diagnostics to the dumps.
     const auto dumpCmd =
@@ -93,14 +120,17 @@ std::vector<std::filesystem::path> generatePassList(const std::filesystem::path 
     std::vector<std::filesystem::path> prunedPassList;
     unsigned sequence = 0;
     for (const auto &pass : passes) {
-        if (selection == PassSelection::Checkpoints && !selected.count(passPrefix(pass))) continue;
+        if (selection == PassSelection::Checkpoints && !selected.contains(passPrefix(pass))) {
+            continue;
+        }
         // P4C numbers only the dumps selected by --top4, in execution order.
         std::ostringstream filename;
         filename << p4_file.stem().string() << '-' << std::setfill('0') << std::setw(4)
                  << ++sequence << '-' << pass << p4_file.extension().string();
         const auto path = dump_dir / filename.str();
-        if (!std::filesystem::is_regular_file(path))
+        if (!std::filesystem::is_regular_file(path)) {
             throw CompilerExecutionError("Missing compiler dump: " + path.string());
+        }
         if (!prunedPassList.empty() && compare_files(prunedPassList.back(), path)) {
             std::filesystem::remove(path);
         } else {
@@ -118,16 +148,22 @@ int validatePasses(
     if (!all_passes) {
         const auto checkpoints = generatePassList(p4_file, dump_dir / "checkpoints", compiler_bin,
                                                   PassSelection::Checkpoints);
-        if (checkpoints.size() < 2) return EXIT_SKIPPED;
+        if (checkpoints.size() < 2) {
+            return EXIT_SKIPPED;
+        }
         const auto result = compare(checkpoints, false);
-        if (result != EXIT_VIOLATION) return result;
+        if (result != EXIT_VIOLATION) {
+            return result;
+        }
         std::cerr
             << "Phase-boundary mismatch; checking all compiler passes to locate the change.\n";
     }
     const auto passes = generatePassList(p4_file, dump_dir / "passes", compiler_bin);
     // The detailed check is authoritative: it evaluates undefined behavior at
     // each individual transition.
-    if (passes.size() < 2) return EXIT_SKIPPED;
+    if (passes.size() < 2) {
+        return EXIT_SKIPPED;
+    }
     return compare(passes, true);
 }
 

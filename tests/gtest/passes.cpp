@@ -16,16 +16,18 @@
 namespace P4::ToZ3 {
 namespace {
 
-class PassGeneration : public testing::Test {
- protected:
+struct PassGenerationPaths {
     std::filesystem::path root;
     std::filesystem::path input;
     std::filesystem::path dump;
     std::filesystem::path compiler;
+};
 
+class PassGeneration : public testing::Test, protected PassGenerationPaths {
+ protected:
     void SetUp() override {
-        char pathTemplate[] = "/tmp/toz3-tests-XXXXXX";
-        const auto *temp = mkdtemp(pathTemplate);
+        std::string pathTemplate = "/tmp/toz3-tests-XXXXXX";
+        const auto *temp = mkdtemp(pathTemplate.data());
         ASSERT_NE(temp, nullptr);
         root = temp;
         const auto specialDir = root / "paths with spaces ' \" \\ $ ;";

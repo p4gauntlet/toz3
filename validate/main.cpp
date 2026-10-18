@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <iostream>
 
@@ -22,8 +23,6 @@ static const auto FILE_DIR = fs::path(__FILE__).parent_path();
 static const auto COMPILER_BIN = FILE_DIR / "../../../../p4c/build/p4test";
 static const auto DUMP_DIR = fs::path("validated");
 
-static constexpr auto SEC_TO_MS = 1000000.0;
-
 namespace P4::ToZ3 {
 
 int validateTranslation(const fs::path &p4_file, const fs::path &dump_dir,
@@ -38,8 +37,7 @@ int validateTranslation(const fs::path &p4_file, const fs::path &dump_dir,
             },
             options->all_passes);
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-        auto timeElapsed =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / SEC_TO_MS;
+        const auto timeElapsed = std::chrono::duration<double>(end - begin).count();
         Logger::log_msg(0, "Validation took %s seconds.", timeElapsed);
         return result;
     } catch (const GauntletException &e) {
@@ -49,7 +47,7 @@ int validateTranslation(const fs::path &p4_file, const fs::path &dump_dir,
 }
 }  // namespace P4::ToZ3
 
-int main(int argc, char *const argv[]) {
+int main(int argc, char *const argv[]) try {
     P4::AutoCompileContext autoP4toZ3Context(new P4::ToZ3::P4toZ3Context);
     auto &options = P4::ToZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
@@ -75,4 +73,10 @@ int main(int argc, char *const argv[]) {
     P4::ToZ3::Logger::log_msg(0, "Using the compiler binary %s.", compilerBin);
 
     return P4::ToZ3::validateTranslation(p4File, dumpDir, compilerBin, &options);
+} catch (const std::exception &error) {
+    std::cerr << error.what() << '\n';
+    return EXIT_FAILURE;
+} catch (...) {
+    std::cerr << "Unhandled validation exception.\n";
+    return EXIT_FAILURE;
 }

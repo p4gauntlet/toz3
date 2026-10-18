@@ -24,37 +24,21 @@
 
 namespace P4::ToZ3 {
 
-std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
-                                                         const IR::Expression *block,
-                                                         const IR::Type *param_type,
-                                                         cstring param_name) {
-    auto *state = visitor->get_state();
-
-    visitor->visit(block);
-    param_type = architecture_type(param_type);
-    const auto *constructed_expr = state->get_expr_result()->cast_allocate(param_type);
-    const auto *resolved_type = constructed_expr->get_p4_type();
-    // Externs have no executable architecture block or observable output summary.
-    if (constructed_expr->is<ExternInstance>()) return {};
-    const auto *ctrl_instance = constructed_expr->to<ControlInstance>();
-    if (!ctrl_instance) {
-        throw UnsupportedFeatureError("Type Declaration " + resolved_type->toString() +
-                                      " of type " + resolved_type->node_type_name() +
-                                      " not supported.");
-    }
-    const auto *params = resolved_type->checkedTo<IR::IApply>()->getApplyParameters();
-    const auto fun_call = ctrl_instance->get_function(mangle_name("apply"_cs, params->size()));
-    state->push_scope();
-
+namespace {
+std::vector<cstring> initializeParser(P4State *state, const IR::Type *resolved_type,
+                                      const IR::ParameterList *params, cstring param_name) {
     std::vector<cstring> param_names;
     if (resolved_type->is<IR::P4Parser>()) {
         unsigned packet_inputs = 0;
         for (const auto *parameter : *params) {
             const auto *type = state->resolve_type(parameter->type)->to<IR::Type_Extern>();
-            if (type && type->name == "packet_in") ++packet_inputs;
+            if ((type != nullptr) && type->name == "packet_in") {
+                ++packet_inputs;
+            }
         }
-        if (packet_inputs > 1)
+        if (packet_inputs > 1) {
             throw UnsupportedFeatureError("Parser with multiple independent packet inputs");
+        }
         state->declare_var("$parser_accepted"_cs,
                            allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE,
                                                           state->get_z3_ctx()->bool_val(true)),
@@ -75,6 +59,60 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
             &STRING_TYPE);
         param_names.push_back("$packet_cursor"_cs);
     }
+    return param_names;
+}
+z3::expr zeroValue(const z3::expr &value) {
+    auto &ctx = value.ctx();
+    if (value.is_bool()) {
+        return ctx.bool_val(false);
+    }
+    if (value.is_bv()) {
+        return ctx.bv_val(0, value.get_sort().bv_size());
+    }
+    return value.is_int() ? ctx.int_val(0) : ctx.string_val("");
+}
+
+std::vector<std::pair<cstring, z3::expr>> collectOutputs(const P4State *state,
+                                                         const std::vector<cstring> &names) {
+    std::vector<std::pair<cstring, z3::expr>> outputs;
+    for (const auto name : names) {
+        const auto *value = state->get_var(name);
+        if (const auto *numeric = value->to<NumericVal>()) {
+            outputs.emplace_back(name, *numeric->get_val());
+        } else if (const auto *aggregate = value->to<StructBase>()) {
+            const auto fields = aggregate->get_z3_vars(name);
+            outputs.insert(outputs.end(), fields.begin(), fields.end());
+        } else if (!value->is<ExternInstance>()) {
+            throw InternalError("Var is neither type z3::expr nor P4Z3Instance!");
+        }
+    }
+    return outputs;
+}
+}  // namespace
+
+std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
+                                                         const IR::Expression *block,
+                                                         const IR::Type *param_type,
+                                                         cstring param_name) {
+    auto *state = visitor->get_state();
+    visitor->visit(block);
+    param_type = architecture_type(param_type);
+    const auto *constructed_expr = state->get_expr_result()->cast_allocate(param_type);
+    const auto *resolved_type = constructed_expr->get_p4_type();
+    // Externs have no executable architecture block or observable output summary.
+    if (constructed_expr->is<ExternInstance>()) {
+        return {};
+    }
+    const auto *ctrl_instance = constructed_expr->to<ControlInstance>();
+    if (ctrl_instance == nullptr) {
+        throw UnsupportedFeatureError("Type Declaration " + resolved_type->toString() +
+                                      " of type " + resolved_type->node_type_name() +
+                                      " not supported.");
+    }
+    const auto *params = resolved_type->checkedTo<IR::IApply>()->getApplyParameters();
+    const auto fun_call = ctrl_instance->get_function(mangle_name("apply"_cs, params->size()));
+    state->push_scope();
+    auto param_names = initializeParser(state, resolved_type, params, param_name);
     IR::Vector<IR::Argument> synthesized_args;
     for (const auto *param : *params) {
         const auto *par_type = state->resolve_type(param->type);
@@ -105,31 +143,15 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
     state->merge_exit_states();
 
     // COLLECT
-    std::vector<std::pair<cstring, z3::expr>> state_vars;
-    for (auto param_name : param_names) {
-        const auto *var = state->get_var(param_name);
-        if (const auto *z3_var = var->to<NumericVal>()) {
-            state_vars.emplace_back(param_name, *z3_var->get_val());
-        } else if (const auto *z3_var = var->to<StructBase>()) {
-            auto z3_sub_vars = z3_var->get_z3_vars(param_name);
-            state_vars.insert(state_vars.end(), z3_sub_vars.begin(), z3_sub_vars.end());
-        } else if (var->is<ExternInstance>()) {
-            // warning("Skipping extern because we do not know how to represent
-            // "it.");
-        } else {
-            throw InternalError("Var is neither type z3::expr nor P4Z3Instance!");
-        }
-    }
+    auto state_vars = collectOutputs(state, param_names);
 
     const auto termination = state->get_termination_condition().simplify();
     for (auto &variable : state_vars) {
-        if (termination.is_true()) continue;
+        if (termination.is_true()) {
+            continue;
+        }
         auto &value = variable.second;
-        auto zero = value.is_bool()  ? state->get_z3_ctx()->bool_val(false)
-                    : value.is_bv()  ? state->get_z3_ctx()->bv_val(0, value.get_sort().bv_size())
-                    : value.is_int() ? state->get_z3_ctx()->int_val(0)
-                                     : state->get_z3_ctx()->string_val("");
-        value = z3::ite(termination, value, zero);
+        value = z3::ite(termination, value, zeroValue(value));
     }
     state_vars.emplace_back("$terminated"_cs, termination);
     state->set_termination_condition(enclosingTermination);
@@ -138,11 +160,13 @@ std::vector<std::pair<cstring, z3::expr>> run_arch_block(Z3Visitor *visitor,
     return state_vars;
 }
 
-MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
-    MainResult merged_vec;
+namespace {
+using ConstructorArguments = ordered_map<const IR::Parameter *, const IR::Expression *>;
+
+ConstructorArguments mapConstructorArguments(const ParamInfo &param_info) {
     size_t idx = 0;
 
-    ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
+    ConstructorArguments param_mapping;
     for (const auto &param : param_info.params) {
         // This may have a nullptr, but we need to maintain order
         param_mapping.emplace(param, param->defaultValue);
@@ -151,86 +175,105 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
         // We override the mapping here.
         if (arg->name) {
             const auto *parameter = param_info.params.getParameter(arg->name.name);
-            if (!parameter)
+            if (parameter == nullptr) {
                 throw UnsupportedFeatureError("Unknown constructor argument " + arg->name.name);
+            }
             param_mapping[parameter] = arg->expression;
         } else {
             param_mapping[param_info.params.getParameter(idx)] = arg->expression;
         }
         idx++;
     }
+    return param_mapping;
+}
 
+TypeBindings inferArchitectureTypes(const P4State *state, const ParamInfo &param_info,
+                                    const ConstructorArguments &param_mapping) {
     // Infer architecture types from supplied blocks before constructing defaults,
     // which may themselves use these type parameters.
-    auto *state = visitor->get_state();
     std::vector<TypeConstraint> constraints;
     for (const auto &mapping : param_mapping) {
-        if (!mapping.second ||
-            !contains_type_variables(mapping.first->type, param_info.type_params))
+        if ((mapping.second == nullptr) ||
+            !contains_type_variables(mapping.first->type, param_info.type_params)) {
             continue;
+        }
         // A default such as Empty<H>() consumes the inferred H; it supplies no
         // evidence until another constructor argument has determined that type.
         if (const auto *constructor = mapping.second->to<IR::ConstructorCallExpression>()) {
-            if (contains_type_variables(constructor->constructedType, param_info.type_params))
+            if (contains_type_variables(constructor->constructedType, param_info.type_params)) {
                 continue;
+            }
         }
         constraints.push_back({mapping.first->type, expression_type(*state, mapping.second)});
     }
-    const auto inferred_types = infer_type_arguments(*state, param_info.type_params, constraints);
+    return infer_type_arguments(*state, param_info.type_params, constraints);
+}
 
-    const auto *concrete_params =
-        param_info.params.apply(TypeModifier(&inferred_types))->checkedTo<IR::ParameterList>();
-    for (const auto &mapping : param_mapping) {
-        const auto *param = concrete_params->getParameter(mapping.first->name);
-        cstring param_name = param->name.name;
-        const auto *param_type = param->type;
-        const auto *arg_expr =
-            mapping.second == mapping.first->defaultValue ? param->defaultValue : mapping.second;
-        // Ignore empty optional parameters, they can not be used properly
-        if (param->isOptional() && arg_expr == nullptr) {
-            continue;
+void appendArchitectureArgument(Z3Visitor *visitor, const IR::Parameter *param,
+                                const IR::Expression *arg_expr, MainResult *merged_vec) {
+    auto *state = visitor->get_state();
+    cstring param_name = param->name.name;
+    const auto *param_type = param->type;
+    // Ignore empty optional parameters, they can not be used properly
+    if (param->isOptional() && arg_expr == nullptr) {
+        return;
+    }
+    CHECK_NULL(arg_expr);
+    if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
+        if (visitor->get_state()->resolve_type(cce->constructedType)->is<IR::Type_Package>()) {
+            const auto *instance = new IR::Declaration_Instance(
+                IR::ID(param_name), cce->constructedType, cce->arguments);
+            for (const auto &sub_result : gen_state_from_instance(visitor, instance)) {
+                merged_vec->insert({param_name + sub_result.first, sub_result.second});
+            }
+            return;
         }
-        CHECK_NULL(arg_expr);
-        if (const auto *cce = arg_expr->to<IR::ConstructorCallExpression>()) {
-            if (visitor->get_state()->resolve_type(cce->constructedType)->is<IR::Type_Package>()) {
-                const auto *instance = new IR::Declaration_Instance(
-                    IR::ID(param_name), cce->constructedType, cce->arguments);
-                for (const auto &sub_result : gen_state_from_instance(visitor, instance)) {
-                    merged_vec.insert({param_name + sub_result.first, sub_result.second});
-                }
-                continue;
-            }
-            auto state_result = run_arch_block(
-                visitor, cce, visitor->get_state()->resolve_type(param_type), param_name);
-            merged_vec.insert({param_name, {state_result, param_type}});
-        } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
-            const auto *decl = state->find_static_decl(path->path->name);
-            if (!decl) {
-                auto state_result =
-                    run_arch_block(visitor, path, state->resolve_type(param_type), param_name);
-                merged_vec.insert({param_name, {state_result, param_type}});
-                continue;
-            }
-            const auto *di = decl->get_decl()->checkedTo<IR::Declaration_Instance>();
-            auto sub_results = gen_state_from_instance(visitor, di);
-            for (const auto &sub_result : sub_results) {
-                auto merged_name = param_name + sub_result.first;
-                auto variables = sub_result.second;
-                merged_vec.insert({merged_name, variables});
-            }
-        } else if (const auto *cst = arg_expr->to<IR::Literal>()) {
-            visitor->visit(cst);
-            if (const auto *z3_val = visitor->get_state()->get_expr_result()->to<ValContainer>()) {
-                merged_vec.insert(
-                    {param->name.name, {{{param->name.name, *z3_val->get_val()}}, param_type}});
-            } else {
-                throw UnsupportedFeatureError("Unsupported main argument " + arg_expr->toString() +
-                                              " of type " + arg_expr->node_type_name());
-            }
+        auto state_result = run_arch_block(
+            visitor, cce, visitor->get_state()->resolve_type(param_type), param_name);
+        merged_vec->insert({param_name, {state_result, param_type}});
+    } else if (const auto *path = arg_expr->to<IR::PathExpression>()) {
+        const auto *decl = state->find_static_decl(path->path->name);
+        if (decl == nullptr) {
+            auto state_result =
+                run_arch_block(visitor, path, state->resolve_type(param_type), param_name);
+            merged_vec->insert({param_name, {state_result, param_type}});
+            return;
+        }
+        const auto *di = decl->get_decl()->checkedTo<IR::Declaration_Instance>();
+        auto sub_results = gen_state_from_instance(visitor, di);
+        for (const auto &sub_result : sub_results) {
+            auto merged_name = param_name + sub_result.first;
+            auto variables = sub_result.second;
+            merged_vec->insert({merged_name, variables});
+        }
+    } else if (const auto *cst = arg_expr->to<IR::Literal>()) {
+        visitor->visit(cst);
+        if (const auto *z3_val = visitor->get_state()->get_expr_result()->to<ValContainer>()) {
+            merged_vec->insert(
+                {param->name.name, {{{param->name.name, *z3_val->get_val()}}, param_type}});
         } else {
             throw UnsupportedFeatureError("Unsupported main argument " + arg_expr->toString() +
                                           " of type " + arg_expr->node_type_name());
         }
+    } else {
+        throw UnsupportedFeatureError("Unsupported main argument " + arg_expr->toString() +
+                                      " of type " + arg_expr->node_type_name());
+    }
+}
+}  // namespace
+
+MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
+    MainResult merged_vec;
+    const auto param_mapping = mapConstructorArguments(param_info);
+    const auto inferred_types =
+        inferArchitectureTypes(visitor->get_state(), param_info, param_mapping);
+    const auto *concrete_params =
+        param_info.params.apply(TypeModifier(&inferred_types))->checkedTo<IR::ParameterList>();
+    for (const auto &mapping : param_mapping) {
+        const auto *param = concrete_params->getParameter(mapping.first->name);
+        const auto *arg_expr =
+            mapping.second == mapping.first->defaultValue ? param->defaultValue : mapping.second;
+        appendArchitectureArgument(visitor, param, arg_expr, &merged_vec);
     }
     return merged_vec;
 }
@@ -238,7 +281,7 @@ MainResult create_state(Z3Visitor *visitor, const ParamInfo &param_info) {
 MainResult gen_state_from_instance(Z3Visitor *visitor, const IR::Declaration_Instance *di) {
     const IR::Type *resolved_type = visitor->get_state()->resolve_type(di->type);
     const auto *container = resolved_type->to<IR::IContainer>();
-    if (!container) {
+    if (container == nullptr) {
         throw UnsupportedFeatureError("Callable declaration type " + resolved_type->toString() +
                                       " of type " + resolved_type->node_type_name() +
                                       " not supported.");

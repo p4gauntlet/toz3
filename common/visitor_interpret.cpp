@@ -10,6 +10,7 @@
 #include "ir/id.h"
 #include "ir/vector.h"
 #include "lib/cstring.h"
+#include "lib/iterator_range.h"
 #include "lib/ordered_map.h"
 #include "toz3/common/scope.h"
 #include "toz3/common/state.h"
@@ -174,15 +175,18 @@ void register_callable(P4State *state, const IR::StatOrDecl *node, cstring name,
                        const IR::ParameterList &parameters, bool action = false) {
     size_t required = 0;
     for (const auto *parameter : parameters) {
-        if (!parameter->isOptional() && !parameter->defaultValue &&
-            !(action && parameter->direction == IR::Direction::None))
+        if (!parameter->isOptional() && parameter->defaultValue == nullptr &&
+            !(action && parameter->direction == IR::Direction::None)) {
             ++required;
+        }
     }
     auto *declaration = allocate_instance<P4Declaration>(state, node);
     // Arity narrows the candidates; resolve_callable checks their argument names.
     // Table action references omit control-plane arguments; direct calls supply all.
     for (size_t count = required; count <= parameters.size(); ++count) {
-        if (action && count != required && count != parameters.size()) continue;
+        if (action && count != required && count != parameters.size()) {
+            continue;
+        }
         state->declare_static_decl(mangle_name(name, count), declaration);
     }
 }
@@ -284,12 +288,15 @@ bool Z3Visitor::preorder(const IR::P4ValueSet *pvs) {
 
 bool Z3Visitor::preorder(const IR::Declaration_MatchKind *dm) {
     for (const auto *member : dm->members) {
-        if (state->find_var(member->name.name)) continue;
+        if (state->find_var(member->name.name) != nullptr) {
+            continue;
+        }
         const auto *type = IR::Type_MatchKind::get();
         state->declare_var(
             member->name.name,
             allocate_instance<Z3Bitvector>(
-                state, state, type, state->get_z3_ctx()->bv_val(state->allocate_match_kind(), 32)),
+                state, state, type,
+                state->get_z3_ctx()->bv_val(state->allocate_match_kind(), INT_WIDTH)),
             type);
     }
     return false;
@@ -308,7 +315,7 @@ void DoBitFolding::postorder(IR::Type_Bits *tb) {
     if (tb->expression != nullptr) {
         tb->expression->apply(Z3Visitor(state, false));
         const auto *result = state->get_expr_result<NumericVal>();
-        auto int_size = result->get_val()->simplify().get_numeral_uint64();
+        auto int_size = result->get_val()->simplify().get_numeral_int();
         tb->size = int_size;
         tb->expression = nullptr;
     }
@@ -318,17 +325,19 @@ void DoBitFolding::postorder(IR::Type_Varbits *tb) {
     if (tb->expression != nullptr) {
         tb->expression->apply(Z3Visitor(state, false));
         const auto *result = state->get_expr_result<NumericVal>();
-        auto int_size = result->get_val()->simplify().get_numeral_uint64();
+        auto int_size = result->get_val()->simplify().get_numeral_int();
         tb->size = int_size;
         tb->expression = nullptr;
     }
 }
 
 void DoBitFolding::postorder(IR::Type_Array *type) {
-    if (type->size->is<IR::Constant>()) return;
+    if (type->size->is<IR::Constant>()) {
+        return;
+    }
     type->size->apply(Z3Visitor(state, false));
     const auto value = state->get_expr_result<NumericVal>()->get_val()->simplify();
-    type->size = new IR::Constant(value.get_numeral_uint64());
+    type->size = new IR::Constant(big_int{value.get_numeral_uint64()});
 }
 
 /***
@@ -388,7 +397,7 @@ bool Z3Visitor::preorder(const IR::ExitStatement * /*e*/) {
 
     auto scopes = state->get_state();
     auto old_state = state->clone_state();
-    if (in_parser && state->find_var("$parser_accepted"_cs)) {
+    if (in_parser && state->find_var("$parser_accepted"_cs) != nullptr) {
         state->update_var("$parser_accepted"_cs,
                           allocate_instance<Z3Bitvector>(state, state, &BOOL_TYPE,
                                                          state->get_z3_ctx()->bool_val(false)));
@@ -397,8 +406,8 @@ bool Z3Visitor::preorder(const IR::ExitStatement * /*e*/) {
     // We do not want to pop the last scope since we use it to get state
     // TODO: There has to be a cleaner way here...
     // Ideally we should track the input/output variables
-    for (int64_t i = scopes.size() - 1; i > 0; --i) {
-        const auto *scope = &scopes.at(i);
+    for (size_t i = scopes.size(); i > 1; --i) {
+        const auto *scope = &scopes.at(i - 1);
         auto copy_out_args = scope->get_copy_out_args();
         std::vector<P4Z3Instance *> copy_out_vals;
         for (const auto &arg_tuple : copy_out_args) {
@@ -447,7 +456,9 @@ SwitchCasePairs collect_switch_cases(z3::context *ctx, const IR::Vector<IR::Swit
             return branches;
         }
         fall_through = fall_through || match(branch->label);
-        if (!branch->statement) continue;
+        if (branch->statement == nullptr) {
+            continue;
+        }
         branches.emplace_back(fall_through, branch->statement);
         matched = matched || fall_through;
         fall_through = ctx->bool_val(false);
@@ -481,7 +492,9 @@ std::map<cstring, z3::expr> table_action_conditions(Z3Visitor *visitor,
     }
     const auto record = [&](cstring name, const z3::expr &condition) {
         const auto [entry, inserted] = action_matches.emplace(name, condition);
-        if (!inserted) entry->second = entry->second || condition;
+        if (!inserted) {
+            entry->second = entry->second || condition;
+        }
     };
     auto matched = ctx->bool_val(false);
     for (const auto &entry : table->table_props.entries) {
@@ -528,8 +541,12 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
     std::vector<std::pair<z3::expr, VarMap>> case_states;
     for (auto &stmt : stmt_vector) {
         auto case_match = stmt.first.simplify();
-        if (case_match.is_false()) continue;
-        if (!loops.empty()) loops.back().stopped = loop_stopped;
+        if (case_match.is_false()) {
+            continue;
+        }
+        if (!loops.empty()) {
+            loops.back().stopped = loop_stopped;
+        }
         const auto *case_stmt = stmt.second;
         auto old_vars = state->clone_vars();
         state->push_forward_cond(case_match);
@@ -549,10 +566,12 @@ bool Z3Visitor::preorder(const IR::SwitchStatement *ss) {
     }
     state->set_exit(has_exited);
     state->set_returned(has_returned);
-    if (!loops.empty()) loops.back().stopped = all_stopped;
+    if (!loops.empty()) {
+        loops.back().stopped = all_stopped;
+    }
 
-    for (auto it = case_states.rbegin(); it != case_states.rend(); ++it) {
-        state->merge_vars(it->first, it->second);
+    for (auto &caseState : Util::iterator_range(case_states).reverse()) {
+        state->merge_vars(caseState.first, caseState.second);
     }
     return false;
 }
@@ -590,7 +609,9 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     }
     state->set_exit(false);
     state->set_returned(false);
-    if (!loops.empty()) loops.back().stopped = loop_stopped;
+    if (!loops.empty()) {
+        loops.back().stopped = loop_stopped;
+    }
 
     state->restore_vars(old_vars);
     auto old_state = state->clone_vars();
@@ -599,7 +620,9 @@ bool Z3Visitor::preorder(const IR::IfStatement *ifs) {
     state->pop_forward_cond();
     auto else_has_exited = state->has_exited();
     auto else_has_returned = state->has_returned();
-    if (!loops.empty()) loops.back().stopped = then_stopped && loops.back().stopped;
+    if (!loops.empty()) {
+        loops.back().stopped = then_stopped && loops.back().stopped;
+    }
     if (else_has_exited || else_has_returned) {
         state->restore_vars(old_state);
     }
@@ -625,7 +648,9 @@ bool Z3Visitor::preorder(const IR::BlockStatement *b) {
             guard = !(loops.back().break_condition || loops.back().continue_condition);
             guard = guard.simplify();
         }
-        if (guard.is_false()) break;
+        if (guard.is_false()) {
+            break;
+        }
         if (guard.is_true()) {
             visit(c);
         } else {
@@ -638,7 +663,9 @@ bool Z3Visitor::preorder(const IR::BlockStatement *b) {
         if (state->has_returned() || state->has_exited()) {
             break;
         }
-        if (!loops.empty() && loops.back().stopped) break;
+        if (!loops.empty() && loops.back().stopped) {
+            break;
+        }
     }
     return false;
 }
@@ -671,32 +698,33 @@ bool Z3Visitor::preorder(const IR::OpAssignmentStatement *as) {
     visit(as->right);
     const auto *right = state->get_expr_result();
     P4Z3Instance *result = nullptr;
-    if (as->is<IR::MulAssign>())
+    if (as->is<IR::MulAssign>()) {
         result = *left * *right;
-    else if (as->is<IR::DivAssign>())
+    } else if (as->is<IR::DivAssign>()) {
         result = *left / *right;
-    else if (as->is<IR::ModAssign>())
+    } else if (as->is<IR::ModAssign>()) {
         result = *left % *right;
-    else if (as->is<IR::AddAssign>())
+    } else if (as->is<IR::AddAssign>()) {
         result = *left + *right;
-    else if (as->is<IR::SubAssign>())
+    } else if (as->is<IR::SubAssign>()) {
         result = *left - *right;
-    else if (as->is<IR::AddSatAssign>())
+    } else if (as->is<IR::AddSatAssign>()) {
         result = left->operatorAddSat(*right);
-    else if (as->is<IR::SubSatAssign>())
+    } else if (as->is<IR::SubSatAssign>()) {
         result = left->operatorSubSat(*right);
-    else if (as->is<IR::ShlAssign>())
+    } else if (as->is<IR::ShlAssign>()) {
         result = *left << *right;
-    else if (as->is<IR::ShrAssign>())
+    } else if (as->is<IR::ShrAssign>()) {
         result = *left >> *right;
-    else if (as->is<IR::BAndAssign>())
+    } else if (as->is<IR::BAndAssign>()) {
         result = *left & *right;
-    else if (as->is<IR::BOrAssign>())
+    } else if (as->is<IR::BOrAssign>()) {
         result = *left | *right;
-    else if (as->is<IR::BXorAssign>())
+    } else if (as->is<IR::BXorAssign>()) {
         result = *left ^ *right;
-    else
+    } else {
         P4C_UNIMPLEMENTED("Compound assignment %s not implemented", as);
+    }
     state->set_var(target, result);
     return false;
 }

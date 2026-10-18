@@ -5,6 +5,8 @@
 
 namespace P4::ToZ3 {
 
+class Z3Visitor;
+
 P4Z3Instance *execute_packet_method(Z3Visitor *visitor, const IR::Method *method);
 
 }  // namespace P4::ToZ3

@@ -1,18 +1,41 @@
 #include <gtest/gtest.h>
 
 #include "frontends/common/parseInput.h"
+#include "interpreter_state.h"
 #include "lib/error.h"
 #include "toz3/common/create_z3.h"
 
 namespace P4::ToZ3 {
 namespace {
 
-class ParserTest : public ::testing::Test {
- protected:
-    AutoCompileContext context{new P4CContextWithOptions<CompilerOptions>};
-    z3::context ctx;
-    P4State state{&ctx};
+constexpr unsigned BYTE_WIDTH = 8;
+constexpr unsigned WORD_WIDTH = 32;
+constexpr unsigned PAYLOAD_VALUE = 7;
+constexpr unsigned VERIFY_ERROR = 5;
+constexpr unsigned TIMEOUT_ERROR = 6;
+constexpr unsigned PARSER_ROUNDS = 8;
+constexpr unsigned STACK_CAPACITY = 40;
+constexpr unsigned TARGET_COUNT = 5;
+
+z3::expr summaryField(z3::context *ctx, const MainResult &summary, cstring block, cstring field) {
+    for (const auto &entry : summary.at(block).first) {
+        if (entry.first == field) {
+            return entry.second.simplify();
+        }
+    }
+    ADD_FAILURE() << "Missing output " << block << "." << field;
+    return ctx->bool_val(false);
+}
+
+void expectOutput(const z3::expr &output, unsigned width, unsigned value) {
+    EXPECT_EQ(output.get_sort().bv_size(), width);
+    EXPECT_EQ(output.get_numeral_uint(), value);
+}
+
+class ParserTest : public ::testing::Test, protected InterpreterTestState {
     std::vector<std::pair<cstring, z3::expr>> result;
+
+ protected:
     void evaluate(const std::string &source) {
         const auto *program = parseP4String(R"(
             error { NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort, Bad, ParserTimeout }
@@ -32,14 +55,17 @@ class ParserTest : public ::testing::Test {
         result = summary.at("p"_cs).first;
     }
     z3::expr value(cstring name) {
-        for (const auto &entry : result)
-            if (entry.first == name) return entry.second;
+        for (const auto &entry : result) {
+            if (entry.first == name) {
+                return entry.second;
+            }
+        }
         ADD_FAILURE() << "Missing output " << name;
         return ctx.bool_val(false);
     }
     z3::expr length() {
         return ctx.function("packet_length", ctx.string_sort(),
-                            ctx.bv_sort(32))(ctx.string_val("p"));
+                            ctx.bv_sort(WORD_WIDTH))(ctx.string_val("p"));
     }
     z3::expr read(unsigned width, unsigned offset) {
         return ctx.function(("packet_read_" + std::to_string(width)).c_str(), ctx.string_sort(),
@@ -83,14 +109,10 @@ TEST(ArchitectureTypes, GenericPackagesPreserveControlAndParserOutputs) {
     const auto summary = gen_state_from_instance(&interpreter, get_main_decl(&state));
     ASSERT_EQ(summary.size(), 5U);
     const auto value = [&](cstring block, cstring field) {
-        for (const auto &entry : summary.at(block).first)
-            if (entry.first == field) return entry.second.simplify();
-        ADD_FAILURE() << "Missing output " << block << "." << field;
-        return ctx.bool_val(false);
+        return summaryField(&ctx, summary, block, field);
     };
     for (const auto block : {"ablock"_cs, "cblock"_cs, "einnerblock"_cs}) {
-        EXPECT_EQ(value(block, "value"_cs).get_sort().bv_size(), 8U);
-        EXPECT_EQ(value(block, "value"_cs).get_numeral_uint(), 8U);
+        expectOutput(value(block, "value"_cs), BYTE_WIDTH, BYTE_WIDTH);
     }
     EXPECT_EQ(value("bblock"_cs, "value"_cs).get_sort().bv_size(), 16U);
     EXPECT_EQ(value("bblock"_cs, "value"_cs).get_numeral_uint(), 16U);
@@ -111,13 +133,14 @@ TEST_F(ParserTest, StackExtractionAdvancesAndRejectionPreservesExtractedHeaders)
         Top(P()) main;
     )");
     const auto enough = z3::uge(length(), ctx.bv_val(2, 32));
-    equivalent(value("headers.stack.0.x"_cs), read(8, 0), enough);
-    equivalent(value("headers.stack.1.x"_cs), read(8, 8), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(16), enough);
+    equivalent(value("headers.stack.0.x"_cs), read(BYTE_WIDTH, 0), enough);
+    equivalent(value("headers.stack.1.x"_cs), read(BYTE_WIDTH, BYTE_WIDTH), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(2 * BYTE_WIDTH), enough);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(false), ctx.bool_val(true));
-    equivalent(value("$parser_error"_cs), ctx.bv_val(3, 32), enough);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(1, 32), length() == ctx.bv_val(0, 32));
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(0), length() == ctx.bv_val(0, 32));
+    equivalent(value("$parser_error"_cs), ctx.bv_val(3, WORD_WIDTH), enough);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(1, WORD_WIDTH),
+               length() == ctx.bv_val(0, WORD_WIDTH));
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(0), length() == ctx.bv_val(0, WORD_WIDTH));
 }
 
 TEST_F(ParserTest, VerifyRejectsImmediatelyWithTheSpecifiedError) {
@@ -130,10 +153,12 @@ TEST_F(ParserTest, VerifyRejectsImmediatelyWithTheSpecifiedError) {
         Top(P()) main;
     )");
     const auto condition = ctx.bool_const("p.condition");
-    equivalent(value("result"_cs), z3::ite(condition, ctx.bv_val(2, 8), ctx.bv_val(1, 8)),
+    equivalent(value("result"_cs),
+               z3::ite(condition, ctx.bv_val(2, BYTE_WIDTH), ctx.bv_val(1, BYTE_WIDTH)),
                ctx.bool_val(true));
     equivalent(value("$parser_accepted"_cs), condition, ctx.bool_val(true));
-    equivalent(value("$parser_error"_cs), z3::ite(condition, ctx.bv_val(0, 32), ctx.bv_val(5, 32)),
+    equivalent(value("$parser_error"_cs),
+               z3::ite(condition, ctx.bv_val(0, WORD_WIDTH), ctx.bv_val(VERIFY_ERROR, WORD_WIDTH)),
                ctx.bool_val(true));
 }
 
@@ -149,8 +174,8 @@ TEST_F(ParserTest, SelectEvaluatesItsKeyOnceAndUsesTheFirstMatchingCase) {
         package Top(Proto p);
         Top(P()) main;
     )");
-    equivalent(value("count"_cs), ctx.bv_val(1, 8), ctx.bool_val(true));
-    equivalent(value("result"_cs), ctx.bv_val(7, 8), ctx.bool_val(true));
+    equivalent(value("count"_cs), ctx.bv_val(1, BYTE_WIDTH), ctx.bool_val(true));
+    equivalent(value("result"_cs), ctx.bv_val(PAYLOAD_VALUE, BYTE_WIDTH), ctx.bool_val(true));
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(true), ctx.bool_val(true));
 }
 
@@ -171,10 +196,10 @@ TEST_F(ParserTest, LookaheadAndExtractionShareDataWithoutAdvancingLookahead) {
         Top(P()) main;
     )");
     const auto enough = z3::uge(length(), ctx.bv_val(2, 32));
-    equivalent(value("before"_cs), read(8, 0), enough);
-    equivalent(value("hdr.x"_cs), read(8, 0), enough);
-    equivalent(value("after"_cs), read(8, 8), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(8), enough);
+    equivalent(value("before"_cs), read(BYTE_WIDTH, 0), enough);
+    equivalent(value("hdr.x"_cs), read(BYTE_WIDTH, 0), enough);
+    equivalent(value("after"_cs), read(BYTE_WIDTH, BYTE_WIDTH), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(BYTE_WIDTH), enough);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(true), enough);
 }
 
@@ -206,10 +231,10 @@ TEST_F(ParserTest, MergedLoopPathsPreserveValuesAndStackBounds) {
     const auto first = z3::ite(read(8, 0) == ctx.bv_val(0, 8), ctx.bv_val(1, 8), ctx.bv_val(2, 8));
     const auto second = z3::ite(read(8, 8) == ctx.bv_val(0, 8), ctx.bv_val(1, 8), ctx.bv_val(2, 8));
     equivalent(value("result"_cs), first + second, enough);
-    equivalent(value("headers.stack.0.x"_cs), read(8, 0), enough);
-    equivalent(value("headers.stack.1.x"_cs), read(8, 8), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(16), enough);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(3, 32), enough);
+    equivalent(value("headers.stack.0.x"_cs), read(BYTE_WIDTH, 0), enough);
+    equivalent(value("headers.stack.1.x"_cs), read(BYTE_WIDTH, BYTE_WIDTH), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(2 * BYTE_WIDTH), enough);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(3, WORD_WIDTH), enough);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(false), enough);
 }
 
@@ -231,9 +256,9 @@ TEST_F(ParserTest, ShortExtractionPreservesEarlierAssignments) {
         Top(P()) main;
     )");
     const auto short_packet = length() == ctx.bv_val(1, 32);
-    equivalent(value("headers.first.x"_cs), ctx.bv_val(1, 8), short_packet);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(8), short_packet);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(1, 32), short_packet);
+    equivalent(value("headers.first.x"_cs), ctx.bv_val(1, BYTE_WIDTH), short_packet);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(BYTE_WIDTH), short_packet);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(1, WORD_WIDTH), short_packet);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(false), short_packet);
 }
 
@@ -256,12 +281,12 @@ TEST_F(ParserTest, CyclesCanConsumeDifferentStacksUntilTheirCombinedCapacityIsEx
     const auto alternating = z3::uge(length(), ctx.bv_val(4, 32)) &&
                              read(8, 0) == ctx.bv_val(0, 8) && read(8, 8) != ctx.bv_val(0, 8) &&
                              read(8, 16) != ctx.bv_val(0, 8);
-    equivalent(value("count"_cs), ctx.bv_val(3, 8), alternating);
-    equivalent(value("headers.first.0.x"_cs), read(8, 0), alternating);
-    equivalent(value("headers.second.0.x"_cs), read(8, 8), alternating);
-    equivalent(value("headers.second.1.x"_cs), read(8, 16), alternating);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(24), alternating);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(3, 32), alternating);
+    equivalent(value("count"_cs), ctx.bv_val(3, BYTE_WIDTH), alternating);
+    equivalent(value("headers.first.0.x"_cs), read(BYTE_WIDTH, 0), alternating);
+    equivalent(value("headers.second.0.x"_cs), read(BYTE_WIDTH, BYTE_WIDTH), alternating);
+    equivalent(value("headers.second.1.x"_cs), read(BYTE_WIDTH, 2 * BYTE_WIDTH), alternating);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(3 * BYTE_WIDTH), alternating);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(3, WORD_WIDTH), alternating);
 }
 
 TEST_F(ParserTest, ResettingAStackDoesNotImposeItsCapacityAsALoopBound) {
@@ -282,9 +307,9 @@ TEST_F(ParserTest, ResettingAStackDoesNotImposeItsCapacityAsALoopBound) {
         Top(P()) main;
     )");
     const auto enough = z3::uge(length(), ctx.bv_val(3, 32));
-    equivalent(value("count"_cs), ctx.bv_val(3, 8), enough);
-    equivalent(value("headers.stack.0.x"_cs), read(8, 16), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(24), enough);
+    equivalent(value("count"_cs), ctx.bv_val(3, BYTE_WIDTH), enough);
+    equivalent(value("headers.stack.0.x"_cs), read(BYTE_WIDTH, 2 * BYTE_WIDTH), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(3 * BYTE_WIDTH), enough);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(true), enough);
 }
 
@@ -306,9 +331,9 @@ TEST_F(ParserTest, APathCanBypassStackExtractionAndStillTerminateByItsCounter) {
         Top(P()) main;
     )");
     const auto enough = z3::uge(length(), ctx.bv_val(1, 32));
-    equivalent(value("count"_cs), ctx.bv_val(5, 8), enough);
-    equivalent(value("headers.stack.0.x"_cs), read(8, 0), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(8), enough);
+    equivalent(value("count"_cs), ctx.bv_val(TARGET_COUNT, BYTE_WIDTH), enough);
+    equivalent(value("headers.stack.0.x"_cs), read(BYTE_WIDTH, 0), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(BYTE_WIDTH), enough);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(true), enough);
 }
 
@@ -334,16 +359,17 @@ TEST_F(ParserTest, SubparserAcceptanceResumesAndRejectionStopsTheCaller) {
         Top(P()) main;
     )");
     const auto enough = z3::uge(length(), ctx.bv_val(2, 32));
-    equivalent(value("headers.first.x"_cs), read(8, 0), enough);
-    equivalent(value("headers.second.x"_cs), read(8, 8), enough);
-    equivalent(value("result"_cs), ctx.bv_val(3, 8), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(16), enough);
+    equivalent(value("headers.first.x"_cs), read(BYTE_WIDTH, 0), enough);
+    equivalent(value("headers.second.x"_cs), read(BYTE_WIDTH, BYTE_WIDTH), enough);
+    equivalent(value("result"_cs), ctx.bv_val(3, BYTE_WIDTH), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(2 * BYTE_WIDTH), enough);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(true), enough);
     const auto short_packet = length() == ctx.bv_val(1, 32);
-    equivalent(value("result"_cs), ctx.bv_val(2, 8), short_packet);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(8), short_packet);
+    equivalent(value("result"_cs), ctx.bv_val(2, BYTE_WIDTH), short_packet);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(BYTE_WIDTH), short_packet);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(false), short_packet);
-    equivalent(value("result"_cs), ctx.bv_val(1, 8), length() == ctx.bv_val(0, 32));
+    equivalent(value("result"_cs), ctx.bv_val(1, BYTE_WIDTH),
+               length() == ctx.bv_val(0, WORD_WIDTH));
 }
 
 TEST_F(ParserTest, ProvenStackProgressRunsPastTheFallbackLimitWithNamedExtraction) {
@@ -367,9 +393,9 @@ TEST_F(ParserTest, ProvenStackProgressRunsPastTheFallbackLimitWithNamedExtractio
         Top(P()) main;
     )");
     const auto enough = z3::uge(length(), ctx.bv_val(40, 32));
-    equivalent(value("count"_cs), ctx.bv_val(40, 8), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(320), enough);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(3, 32), enough);
+    equivalent(value("count"_cs), ctx.bv_val(STACK_CAPACITY, BYTE_WIDTH), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(STACK_CAPACITY * BYTE_WIDTH), enough);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(3, WORD_WIDTH), enough);
     EXPECT_EQ(warningCount(), warnings);
 }
 
@@ -386,14 +412,14 @@ TEST_F(ParserTest, RepeatedExtractionWarnsAndPreservesTimeoutAndShortPacketState
     )");
     EXPECT_EQ(warningCount(), warnings + 1);
     const auto enough = z3::uge(length(), ctx.bv_val(8, 32));
-    equivalent(value("$parser_error"_cs), ctx.bv_val(6, 32), enough);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(TIMEOUT_ERROR, WORD_WIDTH), enough);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(false), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(64), enough);
-    equivalent(value("hdr.x"_cs), read(8, 56), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(PARSER_ROUNDS * BYTE_WIDTH), enough);
+    equivalent(value("hdr.x"_cs), read(BYTE_WIDTH, (PARSER_ROUNDS - 1) * BYTE_WIDTH), enough);
     const auto short_packet = length() == ctx.bv_val(2, 32);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(1, 32), short_packet);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(16), short_packet);
-    equivalent(value("hdr.x"_cs), read(8, 8), short_packet);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(1, WORD_WIDTH), short_packet);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(2 * BYTE_WIDTH), short_packet);
+    equivalent(value("hdr.x"_cs), read(BYTE_WIDTH, BYTE_WIDTH), short_packet);
 }
 
 TEST_F(ParserTest, ResettableStacksDoNotReceiveAProvenCapacityBound) {
@@ -418,9 +444,10 @@ TEST_F(ParserTest, ResettableStacksDoNotReceiveAProvenCapacityBound) {
     )");
     EXPECT_EQ(warningCount(), warnings + 1);
     const auto enough = z3::uge(length(), ctx.bv_val(8, 32));
-    equivalent(value("$parser_error"_cs), ctx.bv_val(6, 32), enough);
-    equivalent(value("$packet_cursor"_cs), ctx.int_val(64), enough);
-    equivalent(value("headers.stack.0.x"_cs), read(8, 56), enough);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(TIMEOUT_ERROR, WORD_WIDTH), enough);
+    equivalent(value("$packet_cursor"_cs), ctx.int_val(PARSER_ROUNDS * BYTE_WIDTH), enough);
+    equivalent(value("headers.stack.0.x"_cs), read(BYTE_WIDTH, (PARSER_ROUNDS - 1) * BYTE_WIDTH),
+               enough);
 }
 
 TEST_F(ParserTest, TimingOutOnePathPreservesOtherAcceptedPaths) {
@@ -437,12 +464,12 @@ TEST_F(ParserTest, TimingOutOnePathPreservesOtherAcceptedPaths) {
         Top(P()) main;
     )");
     const auto finish = ctx.bool_const("p.finish");
-    equivalent(value("count"_cs), ctx.bv_val(1, 8), finish);
+    equivalent(value("count"_cs), ctx.bv_val(1, BYTE_WIDTH), finish);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(true), finish);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(0, 32), finish);
-    equivalent(value("count"_cs), ctx.bv_val(8, 8), !finish);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(0, WORD_WIDTH), finish);
+    equivalent(value("count"_cs), ctx.bv_val(PARSER_ROUNDS, BYTE_WIDTH), !finish);
     equivalent(value("$parser_accepted"_cs), ctx.bool_val(false), !finish);
-    equivalent(value("$parser_error"_cs), ctx.bv_val(6, 32), !finish);
+    equivalent(value("$parser_error"_cs), ctx.bv_val(TIMEOUT_ERROR, WORD_WIDTH), !finish);
 }
 
 TEST_F(ParserTest, UnionExtractionSelectsAMemberAndShortPacketsPreserveThePreviousMember) {
@@ -463,10 +490,10 @@ TEST_F(ParserTest, UnionExtractionSelectsAMemberAndShortPacketsPreserveThePrevio
     const auto enough = z3::uge(length(), ctx.bv_val(1, 32));
     equivalent(value("u.a.$valid"_cs), ctx.bool_val(false), enough);
     equivalent(value("u.b.$valid"_cs), ctx.bool_val(true), enough);
-    equivalent(value("u.b.x"_cs), read(8, 0), enough);
+    equivalent(value("u.b.x"_cs), read(BYTE_WIDTH, 0), enough);
     equivalent(value("u.a.$valid"_cs), ctx.bool_val(true), !enough);
     equivalent(value("u.b.$valid"_cs), ctx.bool_val(false), !enough);
-    equivalent(value("u.a.x"_cs), ctx.bv_val(7, 8), !enough);
+    equivalent(value("u.a.x"_cs), ctx.bv_val(PAYLOAD_VALUE, BYTE_WIDTH), !enough);
 }
 
 }  // namespace

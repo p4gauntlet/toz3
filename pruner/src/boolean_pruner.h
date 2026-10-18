@@ -22,7 +22,8 @@ class BoolExpressionPruner : public Transform {
     const IR::Node *postorder(IR::Equ *expr) override;
 };
 
-const IR::P4Program *prune_bool_expressions(const IR::P4Program *program, PrunerConfig pruner_conf);
+const IR::P4Program *prune_bool_expressions(const IR::P4Program *program,
+                                            const PrunerConfig &pruner_conf);
 
 }  // namespace P4::ToZ3::Pruner
 

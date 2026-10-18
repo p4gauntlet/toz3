@@ -18,6 +18,7 @@
 #include "lib/cstring.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
+#include "lib/iterator_range.h"
 #include "lib/ordered_map.h"
 #include "toz3/common/state.h"
 #include "toz3/common/type_base.h"
@@ -36,12 +37,14 @@ void Z3Visitor::reject_parser(const z3::expr &condition, cstring error) {
 
 void Z3Visitor::reject_parser(const z3::expr &condition, const z3::expr &error) {
     const auto reject = condition.simplify();
-    if (reject.is_false()) return;
+    if (reject.is_false()) {
+        return;
+    }
     const auto *previous = state->get_var("$parser_error"_cs)->copy();
-    state->update_var(
-        "$parser_error"_cs,
-        allocate_instance<Z3Bitvector>(state, state, &P4_STD_BIT_TYPE,
-                                       pure_bv_cast(error, state->get_z3_ctx()->bv_sort(32))));
+    state->update_var("$parser_error"_cs,
+                      allocate_instance<Z3Bitvector>(
+                          state, state, &P4_STD_BIT_TYPE,
+                          pure_bv_cast(error, state->get_z3_ctx()->bv_sort(INT_WIDTH))));
     state->push_forward_cond(reject);
     const auto saved = in_parser;
     in_parser = true;
@@ -55,8 +58,12 @@ void Z3Visitor::reject_parser(const z3::expr &condition, const z3::expr &error) 
 void Z3Visitor::visit_parser_state(cstring name) {
     if (name == IR::ParserState::accept) {
         auto condition = state->get_exit_cond();
-        for (const auto &guard : state->get_forward_conds()) condition = condition && guard;
-        for (const auto &guard : state->get_return_conds()) condition = condition && guard;
+        for (const auto &guard : state->get_forward_conds()) {
+            condition = condition && guard;
+        }
+        for (const auto &guard : state->get_return_conds()) {
+            condition = condition && guard;
+        }
         state->push_return_state(condition.simplify(), state->clone_vars());
         // Accept is terminal for this parser path. Its complement must not constrain other
         // worklist jobs, which already carry their own reachability conditions.
@@ -66,10 +73,11 @@ void Z3Visitor::visit_parser_state(cstring name) {
     } else if (name == "$no_match"_cs) {
         reject_parser(state->get_z3_ctx()->bool_val(true), "NoMatch"_cs);
     } else if (state->get_static_decl(name)->get_decl()->is<IR::ParserState>()) {
-        if (parser_transition)
+        if (parser_transition) {
             parser_transition(name);
-        else
+        } else {
             run_parser(name);
+        }
     } else {
         visit(state->get_static_decl(name)->get_decl());
     }
@@ -165,14 +173,21 @@ std::vector<std::pair<z3::expr, cstring>> gather_select_conds(Z3Visitor *visitor
 namespace {
 
 constexpr unsigned MAX_UNPROVEN_PARSER_ROUNDS = 8;
+constexpr unsigned PARSER_REACHABILITY_WORK_LIMIT = 100000;
 
 std::vector<cstring> parser_successors(const IR::ParserState *state) {
     const auto *transition = state->selectExpression;
-    if (!transition) return {};
-    if (const auto *path = transition->to<IR::PathExpression>()) return {path->path->name};
+    if (transition == nullptr) {
+        return {};
+    }
+    if (const auto *path = transition->to<IR::PathExpression>()) {
+        return {path->path->name};
+    }
     std::vector<cstring> result;
     if (const auto *select = transition->to<IR::SelectExpression>()) {
-        for (const auto *branch : select->selectCases) result.push_back(branch->state->path->name);
+        for (const auto *branch : select->selectCases) {
+            result.push_back(branch->state->path->name);
+        }
     }
     return result;
 }
@@ -184,6 +199,7 @@ class ParserStackProgress : public Inspector {
     P4State *state;
     const VarMap variables;
     std::set<cstring> scalar_locals;
+    bool preserves_indices = true;
 
     const P4Z3Instance *resolve(const IR::Expression *expression) const {
         if (const auto *path = expression->to<IR::PathExpression>()) {
@@ -194,12 +210,16 @@ class ParserStackProgress : public Inspector {
             const auto *parent = resolve(member->expr);
             // For effect analysis, every element has the same type. Accessing next/last
             // may reject, but a method on that header cannot reset the stack's index.
-            if (const auto *stack = parent ? parent->to<StackInstance>() : nullptr) {
-                if ((member->member == "next" || member->member == "last") && stack->get_int_size())
+            if (const auto *stack = parent != nullptr ? parent->to<StackInstance>() : nullptr) {
+                if ((member->member == "next" || member->member == "last") &&
+                    stack->get_int_size() != 0) {
                     return stack->get_member("0"_cs);
+                }
             }
-            const auto *aggregate = parent ? parent->to<StructBase>() : nullptr;
-            if (!aggregate) return nullptr;
+            const auto *aggregate = parent != nullptr ? parent->to<StructBase>() : nullptr;
+            if (aggregate == nullptr) {
+                return nullptr;
+            }
             const auto &members = *aggregate->get_member_map();
             const auto entry = members.find(member->member.name);
             return entry == members.end() ? nullptr : entry->second;
@@ -208,10 +228,13 @@ class ParserStackProgress : public Inspector {
     }
 
     static bool contains_stack(const P4Z3Instance *value) {
-        if (value->is<StackInstance>()) return true;
+        if (value->is<StackInstance>()) {
+            return true;
+        }
         if (const auto *aggregate = value->to<StructBase>()) {
-            for (const auto &member : *aggregate->get_member_map())
-                if (contains_stack(member.second)) return true;
+            const auto &members = *aggregate->get_member_map();
+            return std::any_of(members.begin(), members.end(),
+                               [](const auto &member) { return contains_stack(member.second); });
         }
         return false;
     }
@@ -220,7 +243,7 @@ class ParserStackProgress : public Inspector {
         if (const auto *value = resolve(left)) {
             preserves_indices &= !contains_stack(value);
         } else if (const auto *path = left->to<IR::PathExpression>()) {
-            preserves_indices &= scalar_locals.count(path->path->name) != 0;
+            preserves_indices &= scalar_locals.contains(path->path->name);
         } else {
             // Dynamic indexing and stack pseudo-members need a separate alias proof.
             preserves_indices = false;
@@ -229,15 +252,31 @@ class ParserStackProgress : public Inspector {
 
     bool preorder(const IR::Declaration_Variable *declaration) override {
         // Resolving a shadowed name using the entry state could identify the wrong stack.
-        if (variables.count(declaration->name.name)) preserves_indices = false;
-        if (declaration->type->is<IR::Type_Bits>() || declaration->type->is<IR::Type_Boolean>())
+        if (variables.count(declaration->name.name) != 0U) {
+            preserves_indices = false;
+        }
+        if (declaration->type->is<IR::Type_Bits>() || declaration->type->is<IR::Type_Boolean>()) {
             scalar_locals.insert(declaration->name.name);
+        }
         return true;
     }
     bool preorder(const IR::BaseAssignmentStatement *assignment) override {
         check_write(assignment->left);
         return true;
     }
+    bool hasStackFreeArguments(const IR::MethodCallExpression *call) const {
+        return std::all_of(
+            call->arguments->begin(), call->arguments->end(), [&](const auto *argument) {
+                if (const auto *value = resolve(argument->expression)) {
+                    return !contains_stack(value);
+                }
+                if (const auto *path = argument->expression->template to<IR::PathExpression>()) {
+                    return scalar_locals.contains(path->path->name);
+                }
+                return argument->expression->template is<IR::Literal>();
+            });
+    }
+
     bool preorder(const IR::MethodCallExpression *call) override {
         if (const auto *member = packet_method(call)) {
             const auto count = call->arguments->size();
@@ -252,37 +291,30 @@ class ParserStackProgress : public Inspector {
                                           ? state->find_static_decl(mangle_name(
                                                 path->path->name, call->arguments->size()))
                                           : nullptr;
-            const auto *method = declaration ? declaration->get_decl()->to<IR::Method>() : nullptr;
+            const auto *method =
+                declaration != nullptr ? declaration->get_decl()->to<IR::Method>() : nullptr;
             preserves_indices &=
-                method && method->getParameters()->size() == 2 &&
+                method != nullptr && method->getParameters()->size() == 2 &&
                 method->getParameters()->getParameter(0)->direction == IR::Direction::In &&
                 method->getParameters()->getParameter(1)->direction == IR::Direction::In;
         } else if (const auto *member = call->method->to<IR::Member>()) {
             const auto *receiver = resolve(member->expr);
             const auto name = member->member;
             const bool header_method =
-                receiver &&
+                receiver != nullptr &&
                 (receiver->is<HeaderInstance>() || receiver->is<HeaderUnionInstance>()) &&
                 call->arguments->empty() &&
                 (name == "isValid" || name == "setValid" || name == "setInvalid");
             const auto *count = call->arguments->size() == 1
                                     ? call->arguments->at(0)->expression->to<IR::Constant>()
                                     : nullptr;
-            const bool push = receiver && receiver->is<StackInstance>() && name == "push_front" &&
-                              count && count->value >= 0;
+            const bool push = receiver != nullptr && receiver->is<StackInstance>() &&
+                              name == "push_front" && count != nullptr && count->value >= 0;
             // A subparser can mutate its caller's stacks only through its arguments.
             // Calls on scalar/header arguments must not disqualify an unrelated stack loop.
-            bool subparser = receiver && receiver->is<ControlInstance>() && name == "apply" &&
-                             receiver->get_p4_type()->is<IR::P4Parser>();
-            for (const auto *argument : *call->arguments) {
-                if (const auto *value = resolve(argument->expression)) {
-                    subparser &= !contains_stack(value);
-                } else if (const auto *path = argument->expression->to<IR::PathExpression>()) {
-                    subparser &= scalar_locals.count(path->path->name) != 0;
-                } else {
-                    subparser &= argument->expression->is<IR::Literal>();
-                }
-            }
+            const bool subparser = receiver != nullptr && receiver->is<ControlInstance>() &&
+                                   name == "apply" && receiver->get_p4_type()->is<IR::P4Parser>() &&
+                                   hasStackFreeArguments(call);
             // pop_front and indirect stack writes still need a separate proof.
             preserves_indices &= header_method || push || subparser;
         } else {
@@ -292,55 +324,87 @@ class ParserStackProgress : public Inspector {
     }
 
  public:
-    bool preserves_indices = true;
+    bool preservesIndices() const { return preserves_indices; }
     explicit ParserStackProgress(P4State *state) : state(state), variables(state->get_vars()) {
         visitDagOnce = false;
     }
     const IR::Member *packet_method(const IR::MethodCallExpression *call) const {
         const auto *member = call->method->to<IR::Member>();
-        const auto *receiver = member ? resolve(member->expr) : nullptr;
-        const auto *type = receiver && receiver->is<ExternInstance>()
+        const auto *receiver = member != nullptr ? resolve(member->expr) : nullptr;
+        const auto *type = receiver != nullptr && receiver->is<ExternInstance>()
                                ? receiver->get_p4_type()->to<IR::Type_Extern>()
                                : nullptr;
-        return type && type->name == "packet_in" ? member : nullptr;
+        return type != nullptr && type->name == "packet_in" ? member : nullptr;
     }
+
+ private:
+    const IR::Expression *extractionTarget(const IR::MethodCallExpression *call,
+                                           const IR::Member *method) const {
+        if (!call->arguments->at(0)->name) {
+            return call->arguments->at(0)->expression;
+        }
+        const IR::Expression *argument = nullptr;
+        const auto *packet = resolve(method->expr)->get_p4_type()->checkedTo<IR::Type_Extern>();
+        for (const auto *declaration : packet->methods) {
+            if (declaration->name != "extract" ||
+                !arguments_match(*declaration->getParameters(), *call->arguments)) {
+                continue;
+            }
+            const auto name = declaration->getParameters()->getParameter(0)->name;
+            for (const auto *supplied : *call->arguments) {
+                if (supplied->name == name) {
+                    argument = supplied->expression;
+                }
+            }
+        }
+        return argument;
+    }
+
+ public:
     const StackInstance *advanced_stack(const IR::StatOrDecl *component) const {
         if (const auto *block = component->to<IR::BlockStatement>()) {
-            for (const auto *nested : block->components)
-                if (const auto *stack = advanced_stack(nested)) return stack;
+            for (const auto *nested : block->components) {
+                if (const auto *stack = advanced_stack(nested)) {
+                    return stack;
+                }
+            }
             return nullptr;
         }
         const auto *statement = component->to<IR::MethodCallStatement>();
-        if (!statement) return nullptr;
+        if (statement == nullptr) {
+            return nullptr;
+        }
         const auto *call = statement->methodCall;
         const auto *method = packet_method(call);
-        if (!method || method->member != "extract" || call->arguments->empty()) return nullptr;
-        // Only an unconditional statement proves progress on every continuing path.
-        const IR::Expression *argument = nullptr;
-        if (!call->arguments->at(0)->name) {
-            argument = call->arguments->at(0)->expression;
-        } else {
-            const auto *packet = resolve(method->expr)->get_p4_type()->checkedTo<IR::Type_Extern>();
-            for (const auto *declaration : packet->methods) {
-                if (declaration->name != "extract" ||
-                    !arguments_match(*declaration->getParameters(), *call->arguments))
-                    continue;
-                const auto name = declaration->getParameters()->getParameter(0)->name;
-                for (const auto *supplied : *call->arguments)
-                    if (supplied->name == name) argument = supplied->expression;
-            }
+        if (method == nullptr || method->member != "extract" || call->arguments->empty()) {
+            return nullptr;
         }
-        if (!argument) return nullptr;
+        // Only an unconditional statement proves progress on every continuing path.
+        const auto *argument = extractionTarget(call, method);
+        if (argument == nullptr) {
+            return nullptr;
+        }
         while (const auto *member = argument->to<IR::Member>()) {
             if (member->member == "next") {
                 const auto *parent = resolve(member->expr);
-                return parent ? parent->to<StackInstance>() : nullptr;
+                return parent != nullptr ? parent->to<StackInstance>() : nullptr;
             }
             argument = member->expr;
         }
         return nullptr;
     }
 };
+
+std::set<const StackInstance *> advancedStacks(const IR::ParserState *parserState,
+                                               const ParserStackProgress &effects) {
+    std::set<const StackInstance *> stacks;
+    for (const auto *component : parserState->components) {
+        if (const auto *stack = effects.advanced_stack(component)) {
+            stacks.insert(stack);
+        }
+    }
+    return stacks;
+}
 
 std::optional<size_t> parser_stack_bound(P4State *state, const std::vector<cstring> &order,
                                          const std::map<cstring, unsigned> &ranks) {
@@ -352,24 +416,32 @@ std::optional<size_t> parser_stack_bound(P4State *state, const std::vector<cstri
         const auto *parser_state =
             state->get_static_decl(name)->get_decl()->checkedTo<IR::ParserState>();
         parser_state->apply(effects);
-        for (const auto *component : parser_state->components) {
-            if (const auto *stack = effects.advanced_stack(component)) {
-                stacks.insert(stack);
-                progress_states.insert(name);
-            }
+        const auto advanced = advancedStacks(parser_state, effects);
+        stacks.insert(advanced.begin(), advanced.end());
+        if (!advanced.empty()) {
+            progress_states.insert(name);
         }
         successors[name] = parser_successors(parser_state);
     }
-    if (!effects.preserves_indices || stacks.empty()) return std::nullopt;
+    if (!effects.preservesIndices() || stacks.empty()) {
+        return std::nullopt;
+    }
     // Removing progress states must leave an acyclic graph. Counting an extract
     // somewhere in a strongly connected component would miss cycles that bypass it.
-    std::set<cstring> active, visited;
+    std::set<cstring> active;
+    std::set<cstring> visited;
     std::map<cstring, size_t> back_edges;
     std::function<bool(cstring)> acyclic = [&](cstring name) {
-        if (progress_states.count(name) || visited.count(name)) return true;
-        if (!active.insert(name).second) return false;
+        if (progress_states.contains(name) || visited.contains(name)) {
+            return true;
+        }
+        if (!active.insert(name).second) {
+            return false;
+        }
         for (const auto next : successors[name]) {
-            if (!acyclic(next)) return false;
+            if (!acyclic(next)) {
+                return false;
+            }
             const auto target = ranks.find(next);
             const auto edge = target != ranks.end() && target->second <= ranks.at(name) ? 1 : 0;
             back_edges[name] = std::max(back_edges[name], back_edges[next] + edge);
@@ -378,12 +450,19 @@ std::optional<size_t> parser_stack_bound(P4State *state, const std::vector<cstri
         visited.insert(name);
         return true;
     };
-    for (const auto name : order)
-        if (!acyclic(name)) return std::nullopt;
+    for (const auto name : order) {
+        if (!acyclic(name)) {
+            return std::nullopt;
+        }
+    }
     size_t capacity = 0;
-    for (const auto *stack : stacks) capacity += stack->get_int_size();
+    for (const auto *stack : stacks) {
+        capacity += stack->get_int_size();
+    }
     size_t gap = 0;
-    for (const auto &entry : back_edges) gap = std::max(gap, entry.second);
+    for (const auto &entry : back_edges) {
+        gap = std::max(gap, entry.second);
+    }
     // A path has at most capacity progress states. Each can leave through a back
     // edge, and each of the capacity + 1 intervals between them can cross at most
     // gap other back edges. Include the initial round and final rejecting attempt.
@@ -392,12 +471,17 @@ std::optional<size_t> parser_stack_bound(P4State *state, const std::vector<cstri
 
 z3::expr simplify_on_parser_path(P4State *state, const z3::expr &expression) {
     auto &ctx = *state->get_z3_ctx();
-    z3::expr_vector sources(ctx), values(ctx);
+    z3::expr_vector sources(ctx);
+    z3::expr_vector values(ctx);
     std::set<unsigned> seen;
     std::function<void(const z3::expr &)> remember = [&](const z3::expr &condition) {
-        if (!seen.insert(condition.id()).second) return;
+        if (!seen.insert(condition.id()).second) {
+            return;
+        }
         if (condition.is_and()) {
-            for (unsigned i = 0; i < condition.num_args(); ++i) remember(condition.arg(i));
+            for (unsigned i = 0; i < condition.num_args(); ++i) {
+                remember(condition.arg(i));
+            }
         } else if (condition.is_eq() && condition.arg(1).is_numeral()) {
             sources.push_back(condition.arg(0));
             values.push_back(condition.arg(1));
@@ -406,7 +490,9 @@ z3::expr simplify_on_parser_path(P4State *state, const z3::expr &expression) {
             values.push_back(ctx.bool_val(!condition.is_not()));
         }
     };
-    for (const auto &condition : state->get_forward_conds()) remember(condition);
+    for (const auto &condition : state->get_forward_conds()) {
+        remember(condition);
+    }
     auto result = expression;
     return result.substitute(sources, values).simplify();
 }
@@ -420,7 +506,9 @@ void process_select_cases(Z3Visitor *visitor,
     std::vector<std::pair<z3::expr, VarMap>> case_states;
     for (const auto &select : select_vector) {
         const auto cond = simplify_on_parser_path(state, select.first);
-        if (cond.is_false()) continue;
+        if (cond.is_false()) {
+            continue;
+        }
         auto path_name = select.second;
         auto old_vars = state->clone_vars();
         state->push_forward_cond(cond);
@@ -439,37 +527,92 @@ void process_select_cases(Z3Visitor *visitor,
     }
     state->set_exit(has_exited);
     state->set_returned(has_returned);
-    for (auto it = case_states.rbegin(); it != case_states.rend(); ++it) {
-        state->merge_vars(it->first, it->second);
+    for (const auto &entry : Util::iterator_range(case_states).reverse()) {
+        state->merge_vars(entry.first, entry.second);
     }
 }
 
-void Z3Visitor::run_parser(cstring start) {
+namespace {
+std::vector<cstring> parserOrder(const P4State *state, cstring start) {
     // Reverse DFS postorder orders forward edges. Back edges begin another unfolding round,
     // so every acyclic join receives all its incoming states before its body is evaluated.
     std::set<cstring> seen;
     std::vector<cstring> order;
     std::function<void(cstring)> discover = [&](cstring name) {
         if (name == IR::ParserState::accept || name == IR::ParserState::reject ||
-            !seen.insert(name).second)
+            !seen.insert(name).second) {
             return;
+        }
         const auto *parser_state =
             state->get_static_decl(name)->get_decl()->checkedTo<IR::ParserState>();
-        for (const auto next : parser_successors(parser_state)) discover(next);
+        for (const auto next : parser_successors(parser_state)) {
+            discover(next);
+        }
         order.push_back(name);
     };
     discover(start);
+    return order;
+}
+struct ParserJob {
+    cstring name;
+    z3::expr condition;
+    VarMap variables;
+};
+using ParserJobs = std::map<unsigned, ParserJob>;
+
+void enqueueParserTransition(P4State *state, cstring target,
+                             const std::map<cstring, unsigned> &ranks, unsigned currentRank,
+                             ParserJobs *current, ParserJobs *next) {
+    auto condition = state->get_exit_cond();
+    for (const auto &guard : state->get_forward_conds()) {
+        condition = condition && guard;
+    }
+    condition = condition.simplify();
+    if (condition.is_false()) {
+        return;
+    }
+    const auto rank = ranks.at(target);
+    auto variables = state->clone_vars();
+    auto &pending = rank > currentRank ? *current : *next;
+    const auto [entry, inserted] = pending.emplace(rank, ParserJob{target, condition, variables});
+    if (!inserted) {
+        // Merge at joins before visiting the next layer; retain shared expression DAGs.
+        for (auto &variable : entry->second.variables) {
+            variable.second.first->merge(condition, *variables.at(variable.first).first);
+        }
+        entry->second.condition = (entry->second.condition || condition).simplify();
+    }
+}
+
+void dischargeParserJobs(z3::solver *reachability, const ParserJobs &jobs) {
+    auto pending = reachability->ctx().bool_val(false);
+    for (const auto &job : jobs) {
+        pending = pending || job.second.condition;
+    }
+    reachability->push();
+    reachability->add(pending);
+    const auto outcome = reachability->check();
+    reachability->pop();
+    if (outcome == z3::sat) {
+        throw InternalError("Parser reached a path beyond its proved stack bound");
+    }
+    if (outcome == z3::unknown) {
+        throw UnsupportedFeatureError("Parser stack bound could not discharge remaining paths");
+    }
+}
+}  // namespace
+
+void Z3Visitor::run_parser(cstring start) {
+    const auto order = parserOrder(state, start);
     std::map<cstring, unsigned> ranks;
-    for (auto it = order.rbegin(); it != order.rend(); ++it) ranks.emplace(*it, ranks.size());
+    for (const auto &name : Util::iterator_range(order).reverse()) {
+        ranks.emplace(name, ranks.size());
+    }
     const auto stack_bound = parser_stack_bound(state, order, ranks);
-    struct Job {
-        cstring name;
-        z3::expr condition;
-        VarMap variables;
-    };
-    std::map<unsigned, Job> current, next;
+    ParserJobs current;
+    ParserJobs next;
     current.emplace(ranks.at(start),
-                    Job{start, state->get_z3_ctx()->bool_val(true), state->clone_vars()});
+                    ParserJob{start, state->get_z3_ctx()->bool_val(true), state->clone_vars()});
     const auto original = state->clone_vars();
     const auto enclosing_continuation = state->get_exit_cond();
     auto continuation = enclosing_continuation;
@@ -477,25 +620,11 @@ void Z3Visitor::run_parser(cstring start) {
     z3::solver reachability(*state->get_z3_ctx());
     z3::params limits(*state->get_z3_ctx());
     // A work limit keeps pruning decisions reproducible across compiler passes.
-    limits.set("rlimit", 100000U);
+    limits.set("rlimit", PARSER_REACHABILITY_WORK_LIMIT);
     reachability.set(limits);
     const auto saved_transition = std::move(parser_transition);
     parser_transition = [&](cstring target) {
-        auto condition = state->get_exit_cond();
-        for (const auto &guard : state->get_forward_conds()) condition = condition && guard;
-        condition = condition.simplify();
-        if (condition.is_false()) return;
-        const auto rank = ranks.at(target);
-        auto variables = state->clone_vars();
-        auto &pending = rank > current_rank ? current : next;
-        const auto [entry, inserted] = pending.emplace(rank, Job{target, condition, variables});
-        if (!inserted) {
-            // Merge at joins before visiting the next layer; retain shared expression DAGs.
-            for (auto &variable : entry->second.variables) {
-                variable.second.first->merge(condition, *variables.at(variable.first).first);
-            }
-            entry->second.condition = (entry->second.condition || condition).simplify();
-        }
+        enqueueParserTransition(state, target, ranks, current_rank, &current, &next);
     };
     const auto initial_returns = state->get_return_states().size();
     try {
@@ -504,17 +633,8 @@ void Z3Visitor::run_parser(cstring start) {
                 // Conditional merges can leave syntactically nonconstant but
                 // unreachable jobs. Discharge them once at the proved bound,
                 // rather than running a solver query on every back edge.
-                auto pending = state->get_z3_ctx()->bool_val(false);
-                for (const auto &job : current) pending = pending || job.second.condition;
-                reachability.push();
-                reachability.add(pending);
-                const auto outcome = reachability.check();
-                reachability.pop();
-                if (outcome == z3::unsat) break;
-                if (outcome == z3::sat)
-                    throw InternalError("Parser reached a path beyond its proved stack bound");
-                throw UnsupportedFeatureError(
-                    "Parser stack bound could not discharge remaining paths");
+                dischargeParserJobs(&reachability, current);
+                break;
             }
             const bool timed_out = !stack_bound && depth >= MAX_UNPROVEN_PARSER_ROUNDS;
             if (timed_out) {
@@ -545,7 +665,9 @@ void Z3Visitor::run_parser(cstring start) {
                 state->pop_forward_cond();
                 continuation = continuation && state->get_exit_cond();
             }
-            if (timed_out) break;
+            if (timed_out) {
+                break;
+            }
             current = std::move(next);
             next.clear();
         }
@@ -564,7 +686,9 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
     state->push_scope();
     for (const auto *component : ps->components) {
         visit(component);
-        if (state->has_exited() || state->has_returned()) break;
+        if (state->has_exited() || state->has_returned()) {
+            break;
+        }
     }
     if (state->has_exited() || state->has_returned()) {
         state->pop_scope();
@@ -579,7 +703,9 @@ bool Z3Visitor::preorder(const IR::ParserState *ps) {
     } else if (const auto *se = ps->selectExpression->to<IR::SelectExpression>()) {
         const auto select_vector = gather_select_conds(this, se);
         state->pop_scope();
-        if (!state->has_exited()) process_select_cases(this, select_vector);
+        if (!state->has_exited()) {
+            process_select_cases(this, select_vector);
+        }
     } else {
         P4C_UNIMPLEMENTED("SelectExpression of type %s not implemented.",
                           ps->selectExpression->node_type_name());

@@ -13,42 +13,97 @@ namespace P4::ToZ3 {
 namespace {
 
 cstring type_variable(const IR::Type *type) {
-    if (const auto *name = type->to<IR::Type_Name>()) return name->path->name;
-    if (const auto *variable = type->to<IR::Type_Var>()) return variable->name;
+    if (const auto *name = type->to<IR::Type_Name>()) {
+        return name->path->name;
+    }
+    if (const auto *variable = type->to<IR::Type_Var>()) {
+        return variable->name;
+    }
     return nullptr;
 }
 
 class FindTypeVariables : public Inspector {
     const IR::TypeParameters &parameters;
-    bool preorder(const IR::TypeParameters *) override { return false; }
+    bool found = false;
+    bool preorder(const IR::TypeParameters * /*unused*/) override { return false; }
     bool preorder(const IR::Type *type) override {
         const auto name = type_variable(type);
-        found |= name && parameters.getDeclByName(name);
+        found |= name && parameters.getDeclByName(name) != nullptr;
         return !found;
     }
 
  public:
-    bool found = false;
+    bool hasVariables() const { return found; }
     explicit FindTypeVariables(const IR::TypeParameters &parameters) : parameters(parameters) {}
 };
 
 class CollectTypeConstraints {
     const P4State &state;
     const IR::TypeParameters &parameters;
+    std::vector<std::pair<cstring, const IR::Type *>> bindings;
+
+    void collectStructure(const IR::Type_StructLike *formal, const IR::Type_StructLike *actual) {
+        for (const auto *field : formal->fields) {
+            const auto *other = actual->fields.getDeclaration<IR::StructField>(field->name);
+            if (other != nullptr) {
+                collect(field->type, other->type);
+            }
+        }
+    }
+
+    void collectComponents(const IR::Type *formal, const IR::Type *actual) {
+        if (const auto *array = formal->to<IR::Type_Array>()) {
+            if (const auto *argument = actual->to<IR::Type_Array>()) {
+                collect(array->elementType, argument->elementType);
+            }
+            return;
+        }
+        if (const auto *tuple = formal->to<IR::Type_BaseList>()) {
+            if (const auto *argument = actual->to<IR::Type_BaseList>()) {
+                for (size_t i = 0;
+                     i < std::min(tuple->components.size(), argument->components.size()); ++i) {
+                    collect(tuple->components.at(i), argument->components.at(i));
+                }
+            }
+            return;
+        }
+        if (const auto *structure = formal->to<IR::Type_StructLike>()) {
+            if (const auto *argument = actual->to<IR::Type_StructLike>()) {
+                collectStructure(structure, argument);
+            }
+            return;
+        }
+        if (const auto *block = formal->to<IR::IApply>()) {
+            const auto *argument = actual->to<IR::IApply>();
+            if (argument == nullptr || formal->node_type_name() != actual->node_type_name()) {
+                return;
+            }
+            const auto *formals = block->getApplyParameters();
+            const auto *actuals = argument->getApplyParameters();
+            for (size_t i = 0; i < std::min(formals->size(), actuals->size()); ++i) {
+                collect(formals->getParameter(i)->type, actuals->getParameter(i)->type);
+            }
+        }
+    }
 
  public:
-    std::vector<std::pair<cstring, const IR::Type *>> bindings;
+    [[nodiscard]] const auto &getBindings() const { return bindings; }
     CollectTypeConstraints(const P4State &state, const IR::TypeParameters &parameters)
         : state(state), parameters(parameters) {}
 
     void collect(const IR::Type *formal, const IR::Type *actual) {
-        if (!actual || actual->is<IR::Type_Dontcare>() || actual->is<IR::Type_Unknown>()) return;
+        if (actual == nullptr || actual->is<IR::Type_Dontcare>() ||
+            actual->is<IR::Type_Unknown>()) {
+            return;
+        }
         const auto name = type_variable(formal);
-        if (name && parameters.getDeclByName(name)) {
+        if (name && parameters.getDeclByName(name) != nullptr) {
             bindings.emplace_back(name, architecture_type(state.resolve_type(actual)));
             return;
         }
-        if (!contains_type_variables(formal, parameters)) return;
+        if (!contains_type_variables(formal, parameters)) {
+            return;
+        }
 
         // Specialize the prototype structurally. Resolving it through P4State
         // would try to look up the very variables this pass is inferring.
@@ -59,65 +114,50 @@ class CollectTypeConstraints {
             TypeBindings substitution;
             BUG_CHECK(specialized->arguments->size() <= generic->parameters.size(),
                       "Too many type arguments for %s", prototype);
-            for (size_t i = 0; i < specialized->arguments->size(); ++i)
+            for (size_t i = 0; i < specialized->arguments->size(); ++i) {
                 substitution.emplace(generic->parameters.at(i)->name,
                                      specialized->arguments->at(i));
+            }
             collect(prototype->apply(TypeModifier(&substitution))->checkedTo<IR::Type>(), actual);
             return;
         }
 
         actual = architecture_type(state.resolve_type(actual));
         formal = architecture_type(formal);
-        if (const auto *array = formal->to<IR::Type_Array>()) {
-            if (const auto *argument = actual->to<IR::Type_Array>())
-                collect(array->elementType, argument->elementType);
-        } else if (const auto *tuple = formal->to<IR::Type_BaseList>()) {
-            if (const auto *argument = actual->to<IR::Type_BaseList>()) {
-                for (size_t i = 0;
-                     i < std::min(tuple->components.size(), argument->components.size()); ++i)
-                    collect(tuple->components.at(i), argument->components.at(i));
-            }
-        } else if (const auto *structure = formal->to<IR::Type_StructLike>()) {
-            if (const auto *argument = actual->to<IR::Type_StructLike>()) {
-                for (const auto *field : structure->fields) {
-                    const auto *other =
-                        argument->fields.getDeclaration<IR::StructField>(field->name);
-                    if (other) collect(field->type, other->type);
-                }
-            }
-        } else if (const auto *block = formal->to<IR::IApply>()) {
-            const auto *argument = actual->to<IR::IApply>();
-            if (!argument || formal->node_type_name() != actual->node_type_name()) return;
-            const auto *formals = block->getApplyParameters();
-            const auto *actuals = argument->getApplyParameters();
-            for (size_t i = 0; i < std::min(formals->size(), actuals->size()); ++i)
-                collect(formals->getParameter(i)->type, actuals->getParameter(i)->type);
-        }
+        collectComponents(formal, actual);
     }
 };
 
 }  // namespace
 
 bool contains_type_variables(const IR::Type *type, const IR::TypeParameters &parameters) {
-    if (parameters.empty()) return false;
+    if (parameters.empty()) {
+        return false;
+    }
     FindTypeVariables visitor(parameters);
     type->apply(visitor);
-    return visitor.found;
+    return visitor.hasVariables();
 }
 
 const IR::Type *architecture_type(const IR::Type *type) {
-    if (const auto *container = type->to<IR::IContainer>()) return container->getType();
+    if (const auto *container = type->to<IR::IContainer>()) {
+        return container->getType();
+    }
     return type;
 }
 
 TypeBindings infer_type_arguments(const P4State &state, const IR::TypeParameters &parameters,
                                   const std::vector<TypeConstraint> &constraints) {
     CollectTypeConstraints collector(state, parameters);
-    for (const auto &[formal, actual] : constraints) collector.collect(formal, actual);
+    for (const auto &[formal, actual] : constraints) {
+        collector.collect(formal, actual);
+    }
     TypeBindings result;
-    for (const auto &[name, type] : collector.bindings) {
+    for (const auto &[name, type] : collector.getBindings()) {
         const auto [entry, inserted] = result.emplace(name, type);
-        if (inserted || entry->second->equiv(*type)) continue;
+        if (inserted || entry->second->equiv(*type)) {
+            continue;
+        }
         // Unsized integer arguments can acquire a bit width from another argument.
         // Two explicitly sized types must agree; argument order cannot choose a winner.
         if (entry->second->is<IR::Type_InfInt>() && type->is<IR::Type_Bits>()) {
@@ -133,21 +173,51 @@ TypeBindings infer_type_arguments(const P4State &state, const IR::TypeParameters
 
 bool arguments_match(const IR::ParameterList &parameters, const IR::Vector<IR::Argument> &arguments,
                      bool action) {
-    if (arguments.size() > parameters.size()) return false;
+    if (arguments.size() > parameters.size()) {
+        return false;
+    }
     std::set<const IR::Parameter *> supplied;
     for (size_t i = 0; i < arguments.size(); ++i) {
         const auto *argument = arguments.at(i);
         const auto *parameter =
             argument->name ? parameters.getParameter(argument->name) : parameters.getParameter(i);
-        if (!parameter || !supplied.insert(parameter).second) return false;
-    }
-    for (const auto *parameter : parameters) {
-        if (!supplied.count(parameter) && !parameter->isOptional() && !parameter->defaultValue &&
-            !(action && parameter->direction == IR::Direction::None))
+        if (parameter == nullptr || !supplied.insert(parameter).second) {
             return false;
+        }
     }
-    return true;
+    return std::all_of(parameters.begin(), parameters.end(), [&](const auto *parameter) {
+        return supplied.contains(parameter) || parameter->isOptional() ||
+               parameter->defaultValue != nullptr ||
+               (action && parameter->direction == IR::Direction::None);
+    });
 }
+
+namespace {
+const IR::Type *pathType(const P4State &state, const IR::PathExpression *path) {
+    if (const auto *declaration = state.find_static_decl(path->path->name)) {
+        if (const auto *instance = declaration->get_decl()->to<IR::Declaration_Instance>()) {
+            return state.resolve_type(instance->type);
+        }
+    }
+    return state.resolve_type(state.get_var_type(path->path->name));
+}
+
+const IR::Type *callReturnType(const P4State &state, const IR::MethodCallExpression *call) {
+    const auto *path = call->method->to<IR::PathExpression>();
+    if (path == nullptr) {
+        return nullptr;
+    }
+    const auto name = mangle_name(path->path->name, call->arguments->size());
+    const auto *callable = state.resolve_callable(name, *call->arguments);
+    if (const auto *function = callable->to<IR::Function>()) {
+        return state.resolve_type(function->type->returnType);
+    }
+    if (const auto *method = callable->to<IR::Method>()) {
+        return state.resolve_type(method->type->returnType);
+    }
+    return nullptr;
+}
+}  // namespace
 
 const IR::Type *expression_type(const P4State &state, const IR::Expression *expression) {
     if (const auto *constructor = expression->to<IR::ConstructorCallExpression>()) {
@@ -157,21 +227,14 @@ const IR::Type *expression_type(const P4State &state, const IR::Expression *expr
         return state.resolve_type(name->typeName);
     }
     if (const auto *path = expression->to<IR::PathExpression>()) {
-        if (const auto *declaration = state.find_static_decl(path->path->name)) {
-            if (const auto *instance = declaration->get_decl()->to<IR::Declaration_Instance>())
-                return state.resolve_type(instance->type);
-        }
-        return state.resolve_type(state.get_var_type(path->path->name));
+        return pathType(state, path);
     }
-    if (const auto *cast = expression->to<IR::Cast>()) return state.resolve_type(cast->destType);
+    if (const auto *cast = expression->to<IR::Cast>()) {
+        return state.resolve_type(cast->destType);
+    }
     if (const auto *call = expression->to<IR::MethodCallExpression>()) {
-        if (const auto *path = call->method->to<IR::PathExpression>()) {
-            const auto name = mangle_name(path->path->name, call->arguments->size());
-            const auto *callable = state.resolve_callable(name, *call->arguments);
-            if (const auto *function = callable->to<IR::Function>())
-                return state.resolve_type(function->type->returnType);
-            if (const auto *method = callable->to<IR::Method>())
-                return state.resolve_type(method->type->returnType);
+        if (const auto *type = callReturnType(state, call)) {
+            return type;
         }
     }
     if (const auto *index = expression->to<IR::ArrayIndex>()) {
@@ -192,7 +255,7 @@ const IR::Type *expression_type(const P4State &state, const IR::Expression *expr
             return state.resolve_type(field->type);
         }
     }
-    if (expression->type && !expression->type->is<IR::Type_Unknown>()) {
+    if (expression->type != nullptr && !expression->type->is<IR::Type_Unknown>()) {
         return state.resolve_type(expression->type);
     }
     throw UnsupportedFeatureError("Cannot infer the type of " + expression->toString());
@@ -200,9 +263,15 @@ const IR::Type *expression_type(const P4State &state, const IR::Expression *expr
 
 big_int serialized_size(const P4State &state, const IR::Type *type, bool maximum) {
     type = state.resolve_type(type);
-    if (const auto *bits = type->to<IR::Type_Bits>()) return bits->size;
-    if (const auto *bits = type->to<IR::Type_Varbits>()) return maximum ? bits->size : 0;
-    if (type->is<IR::Type_Boolean>()) return 1;
+    if (const auto *bits = type->to<IR::Type_Bits>()) {
+        return bits->size;
+    }
+    if (const auto *bits = type->to<IR::Type_Varbits>()) {
+        return maximum ? bits->size : 0;
+    }
+    if (type->is<IR::Type_Boolean>()) {
+        return 1;
+    }
     if (const auto *enumeration = type->to<IR::Type_SerEnum>()) {
         return serialized_size(state, enumeration->type, maximum);
     }
@@ -213,10 +282,11 @@ big_int serialized_size(const P4State &state, const IR::Type *type, bool maximum
     if (const auto *aggregate = type->to<IR::Type_StructLike>()) {
         for (const auto *field : aggregate->fields) {
             const auto field_size = serialized_size(state, field->type, maximum);
-            if (type->is<IR::Type_HeaderUnion>())
+            if (type->is<IR::Type_HeaderUnion>()) {
                 size = std::max(size, field_size);
-            else
+            } else {
                 size += field_size;
+            }
         }
         return size;
     }

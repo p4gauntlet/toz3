@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "evaluation_context.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
 #include "ir/ir-generated.h"
@@ -16,13 +17,13 @@
 #include "ir/visitor.h"
 #include "lib/cstring.h"
 #include "lib/exceptions.h"
+#include "lib/iterator_range.h"
 #include "lib/ordered_map.h"
 #include "state.h"
 #include "toz3/common/type_base.h"
 #include "toz3/common/type_simple.h"
 #include "toz3/common/util.h"
 #include "type_complex.h"
-#include "evaluation_context.h"
 
 namespace P4::ToZ3 {
 /***
@@ -30,6 +31,18 @@ namespace P4::ToZ3 {
 P4TableInstance
 ===============================================================================
 ***/
+
+namespace {
+const IR::MethodCallExpression *actionCall(const IR::Expression *expression) {
+    if (const auto *call = expression->to<IR::MethodCallExpression>()) {
+        return call;
+    }
+    if (expression->is<IR::PathExpression>()) {
+        return new IR::MethodCallExpression(expression);
+    }
+    P4C_UNIMPLEMENTED("Unsupported action %s of type %s", expression, expression->node_type_name());
+}
+}  // namespace
 
 void process_table_properties(const IR::P4Table *p4t, TableProperties *table_props) {
     if (const auto *key_prop = p4t->getKey()) {
@@ -39,53 +52,22 @@ void process_table_properties(const IR::P4Table *p4t, TableProperties *table_pro
     }
     if (const auto *action_list = p4t->getActionList()) {
         for (const auto *act : action_list->actionList) {
-            bool isDefault = false;
-            for (const auto *anno : act->getAnnotations()) {
-                if (anno->name.name == "defaultonly") {
-                    isDefault = true;
-                    break;
-                }
-            }
-            if (isDefault) {
+            if (act->hasAnnotation("defaultonly"_cs)) {
                 continue;
             }
-            if (const auto *method_call = act->expression->to<IR::MethodCallExpression>()) {
-                table_props->actions.push_back(method_call);
-            } else if (act->expression->is<IR::PathExpression>()) {
-                table_props->actions.push_back(new IR::MethodCallExpression(act->expression));
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported action entry %s of type %s", act,
-                                  act->expression->node_type_name());
-            }
+            table_props->actions.push_back(actionCall(act->expression));
         }
     }
     if (const auto *default_expr = p4t->getDefaultAction()) {
         // resolve a default action
-        if (const auto *method_call = default_expr->to<IR::MethodCallExpression>()) {
-            table_props->default_action = method_call;
-        } else if (default_expr->is<IR::PathExpression>()) {
-            table_props->default_action = new IR::MethodCallExpression(default_expr);
-        } else {
-            P4C_UNIMPLEMENTED("Unsupported expression value %s of type %s", default_expr,
-                              default_expr->node_type_name());
-        }
+        table_props->default_action = actionCall(default_expr);
     }
     if (const auto *entries = p4t->getEntries()) {
         // If the entries properties is constant it means the entries are fixed
         // We cannot add or remove table entries
         table_props->immutable = p4t->properties->getProperty("entries"_cs)->isConstant;
         for (const auto *entry : entries->entries) {
-            const auto *action_expr = entry->getAction();
-            const IR::MethodCallExpression *action = nullptr;
-            if (const auto *method_call = action_expr->to<IR::MethodCallExpression>()) {
-                action = method_call;
-            } else if (action_expr->is<IR::PathExpression>()) {
-                action = new IR::MethodCallExpression(action_expr);
-            } else {
-                P4C_UNIMPLEMENTED("Unsupported constant action entry %s of type %s", action_expr,
-                                  action_expr->node_type_name());
-            }
-            table_props->entries.emplace_back(entry->getKeys(), action);
+            table_props->entries.emplace_back(entry->getKeys(), actionCall(entry->getAction()));
         }
     }
 }
@@ -107,7 +89,7 @@ P4TableInstance::P4TableInstance(P4State *state, const IR::P4Table *p4t)
     table_props.immutable = p4t->hasAnnotation(IR::Annotation::hiddenAnnotation);
 }
 
-P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3::expr hit,
+P4TableInstance::P4TableInstance(P4State *state, const IR::StatOrDecl *decl, const z3::expr &hit,
                                  TableProperties table_props)
     : P4Declaration(decl), state(state), hit(hit), table_props(std::move(table_props)) {
     members.insert({"action_run"_cs, this});
@@ -330,8 +312,8 @@ void P4TableInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
     }
     state->set_exit(has_exited && state->has_exited());
 
-    for (auto it = action_vars.rbegin(); it != action_vars.rend(); ++it) {
-        state->merge_vars(it->first, it->second);
+    for (auto &action_var : Util::iterator_range(action_vars).reverse()) {
+        state->merge_vars(action_var.first, action_var.second);
     }
     auto *result =
         allocate_instance<P4TableInstance>(state, state, get_decl(), new_hit, table_props);

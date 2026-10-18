@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "frontends/common/parseInput.h"
+#include "interpreter_state.h"
 #include "toz3/common/create_z3.h"
 #include "toz3/common/exceptions.h"
 #include "toz3/common/state.h"
@@ -9,12 +10,8 @@
 namespace P4::ToZ3 {
 namespace {
 
-class TypeInferenceTest : public ::testing::Test {
+class TypeInferenceTest : public ::testing::Test, protected InterpreterTestState {
  protected:
-    AutoCompileContext context{new P4CContextWithOptions<CompilerOptions>};
-    z3::context ctx;
-    P4State state{&ctx};
-    Z3Visitor visitor{&state};
     TypeInferenceTest() { state.push_scope(); }
 
     void evaluate(const char *source) {
@@ -22,11 +19,20 @@ class TypeInferenceTest : public ::testing::Test {
         ASSERT_NE(program, nullptr);
         visitor.visit(program);
         const auto *control = state.get_type("C"_cs)->checkedTo<IR::P4Control>();
-        for (const auto *local : control->controlLocals) visitor.visit(local);
+        for (const auto *local : control->controlLocals) {
+            visitor.visit(local);
+        }
         visitor.visit(control->body);
     }
     unsigned value(cstring name) {
         return state.get_var<NumericVal>(name)->get_val()->simplify().get_numeral_uint();
+    }
+    void rejectsWidths(int left, int right) {
+        const IR::MethodCallExpression call(new IR::PathExpression("first"_cs),
+                                            {new IR::Constant(IR::Type_Bits::get(left), 1),
+                                             new IR::Constant(IR::Type_Bits::get(right), 2)});
+        Z3Visitor callVisitor(&state);
+        EXPECT_THROW(callVisitor.visit(&call), UnsupportedFeatureError);
     }
 };
 
@@ -51,15 +57,10 @@ TEST_F(TypeInferenceTest, ConflictingSizedArgumentsAreRejectedInEitherOrder) {
         T first<T>(in T left, in T right) { return left; }
         control C() { apply {} }
     )");
-    const auto invoke = [&](unsigned left, unsigned right) {
-        const IR::MethodCallExpression call(new IR::PathExpression("first"_cs),
-                                            {new IR::Constant(IR::Type_Bits::get(left), 1),
-                                             new IR::Constant(IR::Type_Bits::get(right), 2)});
-        Z3Visitor call_visitor(&state);
-        call_visitor.visit(&call);
-    };
-    EXPECT_THROW(invoke(8, 16), UnsupportedFeatureError);
-    EXPECT_THROW(invoke(16, 8), UnsupportedFeatureError);
+    constexpr int NARROW_WIDTH = 8;
+    constexpr int WIDE_WIDTH = 16;
+    rejectsWidths(NARROW_WIDTH, WIDE_WIDTH);
+    rejectsWidths(WIDE_WIDTH, NARROW_WIDTH);
     EXPECT_EQ(state.check_for_type("T"_cs), nullptr);
 }
 

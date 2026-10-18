@@ -3,17 +3,14 @@
 #include <string>
 
 #include "frontends/common/parseInput.h"
+#include "interpreter_state.h"
 #include "toz3/common/state.h"
 #include "toz3/common/visitor_interpret.h"
 
 namespace P4::ToZ3 {
 namespace {
-class ReceiverTest : public ::testing::Test {
+class ReceiverTest : public ::testing::Test, protected InterpreterTestState {
  protected:
-    AutoCompileContext context{new P4CContextWithOptions<CompilerOptions>};
-    z3::context ctx;
-    P4State state{&ctx};
-    Z3Visitor visitor{&state};
     ReceiverTest() { state.push_scope(); }
     void evaluate(const char *source) {
         const auto *program = parseP4String(source);
@@ -21,7 +18,9 @@ class ReceiverTest : public ::testing::Test {
         visitor.visit(program);
         const auto *control = state.get_type("C"_cs)->to<IR::P4Control>();
         ASSERT_NE(control, nullptr);
-        for (const auto *local : control->controlLocals) visitor.visit(local);
+        for (const auto *local : control->controlLocals) {
+            visitor.visit(local);
+        }
         visitor.visit(control->body);
     }
     unsigned value(cstring name) {
@@ -137,8 +136,9 @@ TEST_F(ReceiverTest, NestedSymbolicDestinationsPreserveOtherElementsAndSliceBits
                 *fields->get_member(cstring(std::to_string(j)))->to<NumericVal>()->get_val();
             const unsigned before = 1 + 2 * i + j;
             // Nested slices select bits 5:3 of the original element.
-            const auto expected = z3::ite(row == ctx.bv_val(i, 1) && column == ctx.bv_val(j, 1),
-                                          ctx.bv_val(before | (5 << 3), 8), ctx.bv_val(before, 8));
+            const auto expected =
+                z3::ite(row == ctx.bv_val(i, 1) && column == ctx.bv_val(j, 1),
+                        ctx.bv_val(before | (5U << 3U), 8), ctx.bv_val(before, 8));
             z3::solver solver(ctx);
             solver.add(actual != expected);
             EXPECT_EQ(solver.check(), z3::unsat);

@@ -319,15 +319,17 @@ bool Z3Visitor::preorder(const IR::PlusSlice *sl) {
         state->set_expr_result(allocate_instance<Z3Int>(state, state, 0));
         return false;
     }
-    if (offset.is_bv()) offset = z3::bv2int(offset, false);
+    if (offset.is_bv()) {
+        offset = z3::bv2int(offset, false);
+    }
     const auto sourceWidth = value.get_sort().bv_size();
     auto shifted = z3::lshr(value, z3::int2bv(sourceWidth, offset));
-    shifted = z3::ite(offset >= static_cast<int>(sourceWidth),
+    shifted = z3::ite(offset >= state->get_z3_ctx()->int_val(sourceWidth),
                       state->get_z3_ctx()->bv_val(0, sourceWidth), shifted);
     auto result = width <= sourceWidth ? shifted.extract(width - 1, 0)
                                        : z3::zext(shifted, width - sourceWidth);
-    state->set_expr_result(allocate_instance<Z3Bitvector>(
-        state, state, IR::Type_Bits::get(width, false), result.simplify()));
+    state->set_expr_result(
+        allocate_instance<Z3Bitvector>(state, state, bitType(width), result.simplify()));
     return false;
 }
 

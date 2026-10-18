@@ -6,6 +6,7 @@
 #include <string>
 
 #include "frontends/common/parseInput.h"
+#include "interpreter_state.h"
 #include "toz3/common/create_z3.h"
 #include "toz3/common/util.h"
 #include "toz3/compare/compare.h"
@@ -13,13 +14,12 @@
 namespace P4::ToZ3 {
 namespace {
 
+constexpr int FIELD_WIDTH = 8;
+constexpr int ASSIGNED_VALUE = 7;
+
 // Expectations follow P4-16 sec-expr-hu, including setInvalid on an inactive member.
-class HeaderUnionTest : public ::testing::Test {
+class HeaderUnionTest : public ::testing::Test, protected InterpreterTestState {
  protected:
-    AutoCompileContext context{new P4CContextWithOptions<CompilerOptions>};
-    z3::context ctx;
-    P4State state{&ctx};
-    Z3Visitor visitor{&state};
     HeaderUnionTest() { state.push_scope(); }
 
     void evaluate(const char *source) {
@@ -30,7 +30,9 @@ class HeaderUnionTest : public ::testing::Test {
         ASSERT_NE(program, nullptr);
         visitor.visit(program);
         const auto *control = state.get_type("C"_cs)->checkedTo<IR::P4Control>();
-        for (const auto *local : control->controlLocals) visitor.visit(local);
+        for (const auto *local : control->controlLocals) {
+            visitor.visit(local);
+        }
         visitor.visit(control->body);
     }
     void equivalent(const z3::expr &actual, const z3::expr &expected) {
@@ -41,7 +43,7 @@ class HeaderUnionTest : public ::testing::Test {
     void boolean(cstring name, bool expected) {
         equivalent(*state.get_var<NumericVal>(name)->get_val(), ctx.bool_val(expected));
     }
-    z3::expr valid(const P4Z3Instance *object, cstring member) {
+    static z3::expr valid(const P4Z3Instance *object, cstring member) {
         return *object->get_member(member)->checkedTo<HeaderInstance>()->get_valid();
     }
 };
@@ -85,7 +87,8 @@ TEST_F(HeaderUnionTest, HeaderAndTupleAssignmentsSelectAMemberAndInvalidAssignme
     boolean("selected"_cs, true);
     boolean("sibling"_cs, false);
     boolean("cleared"_cs, true);
-    equivalent(*state.get_var<NumericVal>("value"_cs)->get_val(), ctx.bv_val(7, 8));
+    equivalent(*state.get_var<NumericVal>("value"_cs)->get_val(),
+               ctx.bv_val(ASSIGNED_VALUE, FIELD_WIDTH));
 }
 
 TEST_F(HeaderUnionTest, CopiesHaveIndependentMembershipAndPreserveUnionState) {
@@ -206,9 +209,9 @@ TEST_F(HeaderUnionTest, SummaryMasksInactiveMembersAndIncludesValidity) {
     const auto summary = state.get_var<StructBase>("u"_cs)->get_z3_vars("u"_cs);
     ASSERT_EQ(summary.size(), 4U);
     equivalent(summary[0].second, ctx.bool_val(true));
-    equivalent(summary[1].second, ctx.bv_val(7, 8));
+    equivalent(summary[1].second, ctx.bv_val(ASSIGNED_VALUE, FIELD_WIDTH));
     equivalent(summary[2].second, ctx.bool_val(false));
-    equivalent(summary[3].second, ctx.bv_const("invalid", 8));
+    equivalent(summary[3].second, ctx.bv_const("invalid", FIELD_WIDTH));
 }
 
 TEST_F(HeaderUnionTest, SymbolicInputsAllowEveryLegalUnionStateAndNoOthers) {
@@ -217,7 +220,8 @@ TEST_F(HeaderUnionTest, SymbolicInputsAllowEveryLegalUnionStateAndNoOthers) {
     )");
     auto *u = state.get_var("u"_cs)->checkedTo<HeaderUnionInstance>();
     u->propagate_validity(nullptr);
-    const auto a = valid(u, "a"_cs), b = valid(u, "b"_cs);
+    const auto a = valid(u, "a"_cs);
+    const auto b = valid(u, "b"_cs);
     for (bool av : {false, true}) {
         for (bool bv : {false, true}) {
             z3::solver solver(ctx);
@@ -229,10 +233,10 @@ TEST_F(HeaderUnionTest, SymbolicInputsAllowEveryLegalUnionStateAndNoOthers) {
 }
 
 class HeaderUnionComparison : public ::testing::Test {
- protected:
     AutoCompileContext context{new P4CContextWithOptions<CompilerOptions>};
     std::filesystem::path root;
 
+ protected:
     void SetUp() override {
         auto pattern = (std::filesystem::temp_directory_path() / "toz3-unions-XXXXXX").string();
         const auto *directory = mkdtemp(pattern.data());
@@ -240,7 +244,9 @@ class HeaderUnionComparison : public ::testing::Test {
         root = directory;
     }
     void TearDown() override {
-        if (!root.empty()) std::filesystem::remove_all(root);
+        if (!root.empty()) {
+            std::filesystem::remove_all(root);
+        }
     }
     int compare(const char *before, const char *after) {
         const auto source = root / "source.p4";

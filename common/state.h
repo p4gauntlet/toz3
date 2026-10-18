@@ -27,11 +27,12 @@ namespace P4::ToZ3 {
 // Resolve an address once, including side effects in receivers and indices.
 MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
                                const IR::Expression *target);
-P4Z3Instance *get_member(P4State *state, const MemberStruct &member_struct);
-P4Z3Instance *get_member_parent(P4State *state, const MemberStruct &member_struct);
+P4Z3Instance *get_member(P4State *state, const MemberStruct &reference);
+P4Z3Instance *get_member_parent(P4State *state, const MemberStruct &reference);
 // Unlike a merged symbolic read, these concrete parents can be mutated under their guards.
-std::vector<std::pair<z3::expr, P4Z3Instance *>> get_member_parents(
-    P4State *state, const MemberStruct &member_struct, bool writing_field = false);
+std::vector<std::pair<z3::expr, P4Z3Instance *>> get_member_parents(P4State *state,
+                                                                    const MemberStruct &reference,
+                                                                    bool writing_field = false);
 
 class P4State {
  private:
@@ -49,6 +50,7 @@ class P4State {
     z3::expr exit_cond = ctx->bool_val(true);
     P4Scope *get_mut_current_scope() { return &scopes.back(); }
     P4Z3Instance *find_var(cstring name, P4Scope **owner_scope);
+    void setSlice(const MemberStruct &member_struct, const P4Z3Instance *rval);
 
  public:
     const P4Scope &get_current_scope() const { return scopes.back(); }

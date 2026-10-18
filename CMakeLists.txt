@@ -48,33 +48,37 @@ list(FILTER TOZ3_LINT_LIST EXCLUDE REGEX "pruner/src/contrib")
 add_clang_format_files(${P4C_SOURCE_DIR} "${TOZ3_LINT_LIST}")
 add_cpplint_files(${P4C_SOURCE_DIR} "${TOZ3_LINT_LIST}")
 
-# Enable clang-tidy to force consistent code style across the project.
-# See also: https://gitlab.kitware.com/cmake/cmake/-/issues/18926
+# Enable clang-tidy for this extension and its subdirectories.
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy with the compiler." OFF)
 
 if(CMAKE_RUN_CLANG_TIDY)
-  message(STATUS "Enabling clang-tidy checks.")
-  message(STATUS "Exporting compile commands for clang-tidy.")
-  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-  if(CMake_SOURCE_DIR STREQUAL CMake_BINARY_DIR)
+  if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR "CMAKE_RUN_CLANG_TIDY requires an out-of-source build!")
   endif()
-  set(CLANG_TIDY_COMMAND "${PROJECT_SOURCE_DIR}/scripts/tools/clang-tidy")
+  find_program(TOZ3_CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
   execute_process(
-    COMMAND ${CLANG_TIDY_COMMAND} --version
+    COMMAND "${TOZ3_CLANG_TIDY_EXECUTABLE}" --version
     OUTPUT_VARIABLE clang_tidy_ver
+    RESULT_VARIABLE clang_tidy_status
+    OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  message(STATUS "clang-tidy: ${clang_tidy_ver}")
-  set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
-  # Create a preprocessor definition that depends on .clang-tidy content so
-  # the compile command will change when .clang-tidy changes.  This ensures
-  # that a subsequent build re-runs clang-tidy on all sources even if they
-  # do not otherwise need to be recompiled.  Nothing actually uses this
-  # definition.  We add it to targets on which we run clang-tidy just to
-  # get the build dependency on the .clang-tidy file.
-  file(SHA1 ${CMAKE_CURRENT_LIST_DIR}/.clang-tidy clang_tidy_sha1)
-  set(CLANG_TIDY_DEFINITIONS "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
-  unset(clang_tidy_sha1)
+  if(NOT clang_tidy_status EQUAL 0)
+    message(FATAL_ERROR "Unable to run ${TOZ3_CLANG_TIDY_EXECUTABLE} --version")
+  endif()
+  message(STATUS "Enabling ToZ3 clang-tidy checks: ${clang_tidy_ver}")
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+  # Unity sources live in the build tree and include our .cpp files as headers.
+  # Lint each source directly, with our configuration, rather than P4C's.
+  # These settings are scoped to ToZ3; P4C can still use unity builds.
+  set(CMAKE_UNITY_BUILD OFF)
+  set(TOZ3_CLANG_TIDY_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy")
+  set(CMAKE_CXX_CLANG_TIDY
+    "${TOZ3_CLANG_TIDY_EXECUTABLE};--config-file=${TOZ3_CLANG_TIDY_CONFIG}")
+  # Reconfigure and recheck sources when the lint policy changes, including
+  # when their object files would otherwise be reused from a previous build.
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${TOZ3_CLANG_TIDY_CONFIG}")
+  file(SHA1 "${TOZ3_CLANG_TIDY_CONFIG}" clang_tidy_sha1)
+  add_compile_definitions("TOZ3_CLANG_TIDY_SHA1=${clang_tidy_sha1}")
 endif()
 
 add_library(p4toz3lib ${TOZ3_COMMON_SRCS})

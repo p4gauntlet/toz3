@@ -50,6 +50,17 @@ ctest --output-on-failure -j 2 -R '^(toz3-|pruner)'
 
 Program-level tests use [run_validation_test.py](../tools/run_validation_test.py). Sample validation normally enables undefined-behavior filtering; undefined-value regressions explicitly exercise both comparison modes. The pruner has its own fixed-seed regression driver.
 
+### Clang-tidy enforcement
+
+The lint build checks the interpreter, command-line tools, pruner, and unit-test sources using this repository's `.clang-tidy`. ToZ3 disables unity compilation for these targets when linting is enabled, so diagnostics apply to each source file. P4C's other targets can still use unity compilation. Changes to `.clang-tidy` invalidate the linted objects and trigger another check.
+
+From the P4C build directory, with `clang-tidy` installed:
+
+```sh
+cmake .. -DCMAKE_RUN_CLANG_TIDY=ON -DENABLE_GTESTS=ON -DENABLE_GAUNTLET_PRUNER=ON
+cmake --build . --target p4toz3 p4compare p4validate p4pruner toz3_tests --parallel 2
+```
+
 ## Focused semantic cases
 
 - [Short extraction](violated/parser_short_extract_def_use/README.md): an assignment remains observable when a later extraction rejects.

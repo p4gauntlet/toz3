@@ -11,19 +11,18 @@
 #include <utility>
 #include <vector>
 
-#include <boost/iterator/iterator_facade.hpp>
-#include <boost/iterator/reverse_iterator.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/multiprecision/detail/et_ops.hpp>
 #include <boost/multiprecision/number.hpp>
-#include <boost/range/adaptor/reversed.hpp>
 
 #include "evaluation_context.h"
+#include "exceptions.h"
 #include "ir/id.h"
 #include "ir/node.h"
 #include "ir/visitor.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
+#include "lib/iterator_range.h"
 #include "lib/null.h"
 #include "lib/ordered_map.h"
 #include "lib/stringify.h"
@@ -35,13 +34,8 @@
 
 namespace P4::ToZ3 {
 
-void retain_instance(const P4State *state, std::unique_ptr<P4Z3Instance> instance) {
-    if (state) {
-        state->own_instance(std::move(instance));
-    } else {
-        // Copies of standalone values retain the caller's ownership convention.
-        instance.release();
-    }
+void retain_instance(const P4State &state, std::unique_ptr<P4Z3Instance> instance) {
+    state.own_instance(std::move(instance));
 }
 
 z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
@@ -76,28 +70,38 @@ z3::expr compute_slice(const z3::expr &lval, const z3::expr &rval,
     return z3::concat(assemble);
 }
 
+namespace {
+void appendMember(P4State *state, EvaluationContext *visitor, const IR::Member *member,
+                  MemberStruct *reference) {
+    auto *parent = member->member == "next" || member->member == "last"
+                       ? get_member(state, *reference)
+                       : nullptr;
+    auto *stack = parent != nullptr ? parent->to_mut<StackInstance>() : nullptr;
+    if (stack == nullptr) {
+        reference->members.emplace_back(member->member.name);
+        return;
+    }
+    // Evaluating next saves the destination; extraction advances it later.
+    const auto index = stack->get_next_index();
+    const bool next = member->member == "next";
+    const auto bound = state->get_z3_ctx()->int_val(stack->get_int_size());
+    visitor->reject_parser(next ? index >= bound : index < 1 || index > bound,
+                           "StackOutOfBounds"_cs);
+    if (next) {
+        reference->next_stack = std::make_shared<MemberStruct>(*reference);
+    }
+    reference->members.emplace_back(
+        z3::int2bv(STACK_INDEX_WIDTH, next ? index : index - 1).simplify());
+}
+}  // namespace
+
 MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
                                const IR::Expression *target) {
     MemberStruct member_struct;
     std::function<void(const IR::Expression *)> resolve = [&](const IR::Expression *expression) {
         if (const auto *member = expression->to<IR::Member>()) {
             resolve(member->expr);
-            auto *parent = member->member == "next" || member->member == "last"
-                               ? get_member(state, member_struct)
-                               : nullptr;
-            if (auto *stack = parent ? parent->to_mut<StackInstance>() : nullptr) {
-                // Evaluating next saves the destination; extraction advances it later.
-                const auto index = stack->get_next_index();
-                const bool next = member->member == "next";
-                const auto bound = state->get_z3_ctx()->int_val(stack->get_int_size());
-                visitor->reject_parser(next ? index >= bound : index < 1 || index > bound,
-                                       "StackOutOfBounds"_cs);
-                if (next) member_struct.next_stack = std::make_shared<MemberStruct>(member_struct);
-                member_struct.members.emplace_back(
-                    z3::int2bv(32, next ? index : index - 1).simplify());
-            } else {
-                member_struct.members.emplace_back(member->member.name);
-            }
+            appendMember(state, visitor, member, &member_struct);
         } else if (const auto *index = expression->to<IR::ArrayIndex>()) {
             resolve(index->left);
             visitor->evaluate(index->right);
@@ -126,15 +130,21 @@ MemberStruct get_member_struct(P4State *state, EvaluationContext *visitor,
 namespace {
 
 P4Z3Instance *member_root(P4State *state, const MemberStruct &reference) {
-    if (reference.temporary) return reference.temporary;
+    if (reference.temporary != nullptr) {
+        return reference.temporary;
+    }
     return state->get_var(reference.main_member);
 }
 
 P4Z3Instance *read_member(P4Z3Instance *parent, const NameOrIndex &member) {
-    if (const auto *name = std::get_if<cstring>(&member)) return parent->get_member(*name);
+    if (const auto *name = std::get_if<cstring>(&member)) {
+        return parent->get_member(*name);
+    }
     const auto &index = std::get<z3::expr>(member);
     std::string name;
-    if (index.is_numeral(name)) return parent->get_member(name);
+    if (index.is_numeral(name)) {
+        return parent->get_member(name);
+    }
     return parent->checkedTo<IndexableInstance>()->get_member(index);
 }
 
@@ -143,10 +153,14 @@ P4Z3Instance *read_member(P4Z3Instance *parent, const NameOrIndex &member) {
 std::vector<std::pair<z3::expr, cstring>> member_choices(P4State *state, P4Z3Instance *parent,
                                                          const NameOrIndex &member) {
     auto &ctx = *state->get_z3_ctx();
-    if (const auto *name = std::get_if<cstring>(&member)) return {{ctx.bool_val(true), *name}};
+    if (const auto *name = std::get_if<cstring>(&member)) {
+        return {{ctx.bool_val(true), *name}};
+    }
     const auto &index = std::get<z3::expr>(member);
     std::string name;
-    if (index.is_numeral(name)) return {{ctx.bool_val(true), cstring(name)}};
+    if (index.is_numeral(name)) {
+        return {{ctx.bool_val(true), cstring(name)}};
+    }
     const auto *stack = parent->checkedTo<StackInstance>();
     const auto width = index.get_sort().bv_size();
     const auto count = std::min<big_int>(big_int(1) << width, stack->get_int_size());
@@ -163,10 +177,12 @@ std::vector<std::pair<z3::expr, cstring>> member_choices(P4State *state, P4Z3Ins
 P4Z3Instance *get_member_parent(P4State *state, const MemberStruct &reference) {
     BUG_CHECK(!reference.members.empty(), "Reference has no parent: %s", reference);
     auto *declaration = state->find_static_decl(reference.main_member);
-    auto *parent =
-        !reference.temporary && declaration ? declaration : member_root(state, reference);
-    for (size_t i = 0; i + 1 < reference.members.size(); ++i)
+    auto *parent = reference.temporary == nullptr && declaration != nullptr
+                       ? declaration
+                       : member_root(state, reference);
+    for (size_t i = 0; i + 1 < reference.members.size(); ++i) {
         parent = read_member(parent, reference.members[i]);
+    }
     return parent;
 }
 
@@ -201,38 +217,46 @@ std::vector<std::pair<z3::expr, P4Z3Instance *>> get_member_parents(P4State *sta
 
 P4Z3Instance *get_member(P4State *state, const MemberStruct &reference) {
     auto *value = member_root(state, reference);
-    for (const auto &member : reference.members) value = read_member(value, member);
-    for (const auto &slice : reference.end_slices) value = value->slice(slice.hi, slice.lo);
+    for (const auto &member : reference.members) {
+        value = read_member(value, member);
+    }
+    for (const auto &slice : reference.end_slices) {
+        value = value->slice(slice.hi, slice.lo);
+    }
     return value;
+}
+
+void P4State::setSlice(const MemberStruct &member_struct, const P4Z3Instance *rval) {
+    auto slice_less_member_struct = member_struct;
+    slice_less_member_struct.end_slices.clear();
+    z3::expr target_rval(*get_z3_ctx());
+    z3::expr target_lval(*get_z3_ctx());
+    const auto *lval = get_member(this, slice_less_member_struct);
+    if (const auto *z3_bitvec = lval->to<Z3Bitvector>()) {
+        target_lval = *z3_bitvec->get_val();
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.", lval->get_static_type());
+    }
+    bool is_signed = false;
+    if (const auto *z3_bitvec = rval->to<Z3Bitvector>()) {
+        target_rval = *z3_bitvec->get_val();
+        is_signed = z3_bitvec->bv_is_signed();
+    } else if (const auto *z3_int = rval->to<Z3Int>()) {
+        target_rval = *z3_int->get_val();
+    } else {
+        P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.", rval->get_static_type());
+    }
+    // We progressively slice and merge the lval
+    target_rval = compute_slice(target_lval, target_rval, member_struct.end_slices);
+    const auto *bit_type = bitType(target_rval.get_sort().bv_size());
+    auto *resolved_rval =
+        allocate_instance<Z3Bitvector>(this, this, bit_type, target_rval, is_signed);
+    set_var(slice_less_member_struct, resolved_rval);
 }
 
 void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
     if (!member_struct.end_slices.empty()) {
-        auto slice_less_member_struct = member_struct;
-        slice_less_member_struct.end_slices.clear();
-        z3::expr target_rval(*get_z3_ctx());
-        z3::expr target_lval(*get_z3_ctx());
-        const auto *lval = get_member(this, slice_less_member_struct);
-        if (const auto *z3_bitvec = lval->to<Z3Bitvector>()) {
-            target_lval = *z3_bitvec->get_val();
-        } else {
-            P4C_UNIMPLEMENTED("Unsupported lval of type %s for slice.", lval->get_static_type());
-        }
-        bool is_signed = false;
-        if (const auto *z3_bitvec = rval->to<Z3Bitvector>()) {
-            target_rval = *z3_bitvec->get_val();
-            is_signed = z3_bitvec->bv_is_signed();
-        } else if (const auto *z3_int = rval->to<Z3Int>()) {
-            target_rval = *z3_int->get_val();
-        } else {
-            P4C_UNIMPLEMENTED("Unsupported rval of type %s for slice.", rval->get_static_type());
-        }
-        // We progressively slice and merge the lval
-        target_rval = compute_slice(target_lval, target_rval, member_struct.end_slices);
-        const auto *bit_type = IR::Type_Bits::get(target_rval.get_sort().bv_size(), false);
-        auto *resolved_rval =
-            allocate_instance<Z3Bitvector>(this, this, bit_type, target_rval, is_signed);
-        set_var(slice_less_member_struct, resolved_rval);
+        setSlice(member_struct, rval);
         return;
     }
     if (member_struct.members.empty()) {
@@ -246,14 +270,18 @@ void P4State::set_var(const MemberStruct &member_struct, P4Z3Instance *rval) {
              member_choices(this, parent, member_struct.members.back())) {
             auto *value = rval->cast_allocate(aggregate->get_member_type(name));
             const auto selected = (guard && condition).simplify();
-            if (selected.is_false()) continue;
+            if (selected.is_false()) {
+                continue;
+            }
             if (aggregate->is<HeaderUnionInstance>() && !selected.is_true()) {
                 // Assignment can invalidate siblings; guard the entire union update.
                 const auto *before = aggregate->copy();
                 aggregate->update_member(name, value);
                 aggregate->merge(!selected, *before);
             } else {
-                if (!selected.is_true()) value->merge(!selected, *aggregate->get_member(name));
+                if (!selected.is_true()) {
+                    value->merge(!selected, *aggregate->get_member(name));
+                }
                 aggregate->update_member(name, value);
             }
         }
@@ -278,13 +306,11 @@ void P4State::set_var(EvaluationContext *visitor, const IR::Expression *target,
     set_var(member_struct, tmp_rval);
 }
 
-P4State::BoundArguments P4State::merge_args_with_params(EvaluationContext *visitor,
-                                                        const IR::Vector<IR::Argument> &args,
-                                                        const IR::ParameterList &params,
-                                                        const IR::TypeParameters &type_params) {
-    BoundArguments result;
-    std::vector<std::pair<const IR::Parameter *, const P4Z3Instance *>> inputs;
-    std::vector<TypeConstraint> constraints;
+namespace {
+using ArgumentInputs = std::vector<std::pair<const IR::Parameter *, const P4Z3Instance *>>;
+
+ordered_map<const IR::Parameter *, const IR::Expression *> mapArguments(
+    const IR::Vector<IR::Argument> &args, const IR::ParameterList &params) {
     // Save inputs and copy-back destinations in call-site order, including named arguments.
     ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
     for (size_t idx = 0; idx < args.size(); ++idx) {
@@ -295,8 +321,64 @@ P4State::BoundArguments P4State::merge_args_with_params(EvaluationContext *visit
         param_mapping.emplace(param, arg->expression);
     }
     for (const auto *param : params) {
-        if (!param_mapping.count(param)) param_mapping.emplace(param, param->defaultValue);
+        if (param_mapping.count(param) == 0U) {
+            param_mapping.emplace(param, param->defaultValue);
+        }
     }
+    return param_mapping;
+}
+
+const P4Z3Instance *evaluateArgument(P4State *state, EvaluationContext *visitor,
+                                     const IR::Parameter *param, const IR::Expression *expression,
+                                     CopyArgs *outputs) {
+    const P4Z3Instance *result = nullptr;
+    if (param->direction == IR::Direction::Out || param->direction == IR::Direction::InOut) {
+        auto address = get_member_struct(state, visitor, expression);
+        outputs->push_back({address, param->name.name});
+        result = get_member(state, address);
+    } else {
+        visitor->evaluate(expression);
+        result = state->get_expr_result();
+    }
+    CHECK_NULL(result);
+    return result;
+}
+
+void specializeArguments(P4State *state, const IR::TypeParameters &type_params,
+                         const ArgumentInputs &inputs, P4State::BoundArguments *result) {
+    IR::TypeParameters unresolved;
+    for (const auto *parameter : type_params.parameters) {
+        if (!result->types.contains(parameter->name)) {
+            unresolved.push_back(parameter);
+        }
+    }
+    for (const auto &[param, input] : inputs) {
+        if (contains_type_variables(param->type, unresolved)) {
+            throw UnsupportedFeatureError("Cannot infer argument type for " + param->name.name);
+        }
+        const auto *type = param->type->apply(TypeModifier(&result->types))->checkedTo<IR::Type>();
+        const auto *resolved_type = state->resolve_type(type);
+        P4Z3Instance *value = nullptr;
+        if (param->direction == IR::Direction::Out) {
+            value = state->gen_instance(cstring(UNDEF_LABEL), resolved_type);
+        } else {
+            // A don't-care type preserves the argument's concrete type.
+            value = resolved_type->is<IR::Type_Dontcare>() ? input->copy()
+                                                           : input->cast_allocate(resolved_type);
+        }
+        result->values.insert({param->name.name, {value, resolved_type}});
+    }
+}
+}  // namespace
+
+P4State::BoundArguments P4State::merge_args_with_params(EvaluationContext *visitor,
+                                                        const IR::Vector<IR::Argument> &args,
+                                                        const IR::ParameterList &params,
+                                                        const IR::TypeParameters &type_params) {
+    BoundArguments result;
+    ArgumentInputs inputs;
+    std::vector<TypeConstraint> constraints;
+    const auto param_mapping = mapArguments(args, params);
 
     for (const auto &mapping : param_mapping) {
         const auto *param = mapping.first;
@@ -313,47 +395,18 @@ P4State::BoundArguments P4State::merge_args_with_params(EvaluationContext *visit
             continue;
         }
 
-        const P4Z3Instance *arg_result = nullptr;
-        auto direction = param->direction;
-        if (direction == IR::Direction::Out || direction == IR::Direction::InOut) {
-            auto member_struct = get_member_struct(this, visitor, arg_expr);
-            result.copy_out.push_back({member_struct, param->name.name});
-            arg_result = get_member(this, member_struct);
-        } else {
-            visitor->evaluate(arg_expr);
-            arg_result = get_expr_result();
+        const auto *arg_result = evaluateArgument(this, visitor, param, arg_expr, &result.copy_out);
+        if (has_exited()) {
+            return result;
         }
-        CHECK_NULL(arg_result);
-        if (has_exited()) return result;
         // Later arguments may mutate this value. Save it before inference/casting.
-        inputs.emplace_back(param, direction == IR::Direction::Out ? nullptr : arg_result->copy());
+        inputs.emplace_back(param,
+                            param->direction == IR::Direction::Out ? nullptr : arg_result->copy());
         constraints.push_back({param->type, arg_result->get_p4_type()});
     }
 
     result.types = infer_type_arguments(*this, type_params, constraints);
-    IR::TypeParameters unresolved;
-    for (const auto *parameter : type_params.parameters) {
-        if (!result.types.count(parameter->name)) unresolved.push_back(parameter);
-    }
-    for (const auto &[param, input] : inputs) {
-        if (contains_type_variables(param->type, unresolved))
-            throw UnsupportedFeatureError("Cannot infer argument type for " + param->name.name);
-        const auto *type = param->type->apply(TypeModifier(&result.types))->checkedTo<IR::Type>();
-        const auto *resolved_type = resolve_type(type);
-        if (param->direction == IR::Direction::Out) {
-            auto *instance = gen_instance(cstring(UNDEF_LABEL), resolved_type);
-            result.values.insert({param->name.name, {instance, resolved_type}});
-        } else {
-            P4Z3Instance *cast_val = nullptr;
-            // If the type is don't care we just copy the input argument.
-            if (resolved_type->is<IR::Type_Dontcare>()) {
-                cast_val = input->copy();
-            } else {
-                cast_val = input->cast_allocate(resolved_type);
-            }
-            result.values.insert({param->name.name, {cast_val, resolved_type}});
-        }
-    }
+    specializeArguments(this, type_params, inputs, &result);
     return result;
 }
 
@@ -391,8 +444,8 @@ void P4State::copy_out() {
     auto copy_out_args = get_copy_out_args();
     // merge all the state of the different return points
     const auto &return_states = get_return_states();
-    for (auto it = return_states.rbegin(); it != return_states.rend(); ++it) {
-        merge_vars(it->first, it->second);
+    for (const auto &returnState : Util::iterator_range(return_states).reverse()) {
+        merge_vars(returnState.first, returnState.second);
     }
 
     std::vector<P4Z3Instance *> copy_out_vals;
@@ -413,7 +466,9 @@ void P4State::copy_out() {
 
 z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (const auto *tbi = type->to<IR::Type_Bits>()) {
-        if (tbi->size == 0) return ctx->int_val(0);
+        if (tbi->size == 0) {
+            return ctx->int_val(0);
+        }
         return ctx->bv_const(name.c_str(), tbi->size);
     }
     if (const auto *tvb = type->to<IR::Type_Varbits>()) {
@@ -422,11 +477,27 @@ z3::expr P4State::gen_z3_expr(cstring name, const IR::Type *type) {
     if (type->is<IR::Type_Boolean>()) {
         return ctx->bool_const(name.c_str());
     }
-    if (type->is<IR::Type_MatchKind>()) return ctx->bv_const(name.c_str(), 32);
-    if (type->is<IR::Type_InfInt>()) return ctx->int_const(name.c_str());
-    if (type->is<IR::Type_String>()) return ctx->constant(name.c_str(), ctx->string_sort());
+    if (type->is<IR::Type_MatchKind>()) {
+        return ctx->bv_const(name.c_str(), INT_WIDTH);
+    }
+    if (type->is<IR::Type_InfInt>()) {
+        return ctx->int_const(name.c_str());
+    }
+    if (type->is<IR::Type_String>()) {
+        return ctx->constant(name.c_str(), ctx->string_sort());
+    }
     BUG("Type \"%v\" not supported for Z3 expressions!.", type);
 }
+
+namespace {
+template <typename T>
+P4Z3Instance *enumValue(P4State *state, cstring declaration, cstring name, const IR::Type *type) {
+    auto *instance = state->get_var<T>(declaration)->copy();
+    CHECK_NULL(instance);
+    instance->set_enum_val(state->gen_z3_expr(name, type));
+    return instance;
+}
+}  // namespace
 
 P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t id) {
     P4Z3Instance *instance = nullptr;
@@ -439,24 +510,11 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
     } else if (const auto *t = type->to<IR::Type_Header>()) {
         instance = allocate_instance<HeaderInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_Enum>()) {
-        // TODO: Clean this up
-        // For Enums we just return a copy of the declaration
-        auto *enum_instance = get_var<EnumInstance>(t->name.name)->copy();
-        CHECK_NULL(enum_instance);
-        enum_instance->set_enum_val(gen_z3_expr(name, &P4_STD_BIT_TYPE));
-        instance = enum_instance;
+        instance = enumValue<EnumInstance>(this, t->name.name, name, &P4_STD_BIT_TYPE);
     } else if (const auto *t = type->to<IR::Type_Error>()) {
-        // For Errors we just return a copy of the declaration
-        auto *enum_instance = get_var<ErrorInstance>(t->name.name)->copy();
-        CHECK_NULL(enum_instance);
-        enum_instance->set_enum_val(gen_z3_expr(name, &P4_STD_BIT_TYPE));
-        instance = enum_instance;
+        instance = enumValue<ErrorInstance>(this, t->name.name, name, &P4_STD_BIT_TYPE);
     } else if (const auto *t = type->to<IR::Type_SerEnum>()) {
-        // For SerEnums we just return a copy of the declaration
-        auto *enum_instance = get_var<SerEnumInstance>(t->name.name)->copy();
-        CHECK_NULL(enum_instance);
-        enum_instance->set_enum_val(gen_z3_expr(name, resolve_type(t->type)));
-        instance = enum_instance;
+        instance = enumValue<SerEnumInstance>(this, t->name.name, name, resolve_type(t->type));
     } else if (const auto *t = type->to<IR::Type_Array>()) {
         instance = allocate_instance<StackInstance>(this, this, t, name, id);
     } else if (const auto *t = type->to<IR::Type_HeaderUnion>()) {
@@ -474,7 +532,7 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
     } else if (type->is<IR::Type_Base>()) {
         const auto *bits = type->to<IR::Type_Bits>();
         instance = allocate_instance<Z3Bitvector>(this, this, type, gen_z3_expr(name, type),
-                                                  bits && bits->isSigned);
+                                                  bits != nullptr && bits->isSigned);
     } else {
         P4C_UNIMPLEMENTED("Instance generation for %s of type \"%s\" not supported!.", type,
                           type->node_type_name());
@@ -485,13 +543,21 @@ P4Z3Instance *P4State::gen_instance(cstring name, const IR::Type *type, uint64_t
 void P4State::pop_lexical_scope() {
     const auto scope = std::move(scopes.back());
     pop_scope();
-    for (const auto &entry : scope.get_return_exprs()) push_return_expr(entry.first, entry.second);
+    for (const auto &entry : scope.get_return_exprs()) {
+        push_return_expr(entry.first, entry.second);
+    }
     for (auto entry : scope.get_return_states()) {
-        for (const auto &local : scope.get_var_map()) entry.second.erase(local.first);
+        for (const auto &local : scope.get_var_map()) {
+            entry.second.erase(local.first);
+        }
         push_return_state(entry.first, entry.second);
     }
-    for (const auto &condition : scope.get_return_conds()) push_return_cond(condition);
-    if (scope.has_returned()) set_returned(true);
+    for (const auto &condition : scope.get_return_conds()) {
+        push_return_cond(condition);
+    }
+    if (scope.has_returned()) {
+        set_returned(true);
+    }
 }
 
 void P4State::push_scope() { scopes.push_back(P4Scope()); }
@@ -511,7 +577,7 @@ void P4State::add_type(cstring type_name, const IR::Type *t) {
 }
 
 const IR::Type *P4State::get_type(cstring type_name) const {
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_type(type_name)) {
             return scope.get_type(type_name);
         }
@@ -534,7 +600,7 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) const {
 }
 
 const IR::Type *P4State::check_for_type(cstring type_name) const {
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_type(type_name)) {
             return scope.get_type(type_name);
         }
@@ -554,7 +620,7 @@ const IR::Type *P4State::check_for_type(const IR::Type *t) const {
 }
 
 P4Z3Instance *P4State::get_var(cstring name) const {
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_var(name)) {
             return scope.get_var(name);
         }
@@ -568,7 +634,7 @@ P4Z3Instance *P4State::get_var(cstring name) const {
 }
 
 const IR::Type *P4State::get_var_type(cstring name) const {
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_var(name)) {
             return scope.get_var_type(name);
         }
@@ -582,8 +648,8 @@ const IR::Type *P4State::get_var_type(cstring name) const {
 }
 
 P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
-    for (int64_t i = scopes.size() - 1; i >= 0; --i) {
-        auto *scope = &scopes.at(i);
+    for (auto &entry : Util::iterator_range(scopes).reverse()) {
+        auto *scope = &entry;
         if (scope->has_var(name)) {
             *owner_scope = scope;
             return scope->get_var(name);
@@ -598,7 +664,7 @@ P4Z3Instance *P4State::find_var(cstring name, P4Scope **owner_scope) {
 }
 
 P4Z3Instance *P4State::find_var(cstring name) const {
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_var(name)) {
             return scope.get_var(name);
         }
@@ -630,7 +696,7 @@ void P4State::declare_var(cstring name, P4Z3Instance *var, const IR::Type *decl_
 }
 
 const P4Declaration *P4State::get_static_decl(cstring name) const {
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_static_decl(name)) {
             return scope.get_static_decl(name);
         }
@@ -646,7 +712,7 @@ const P4Declaration *P4State::get_static_decl(cstring name) const {
 const IR::Node *P4State::resolve_callable(cstring name,
                                           const IR::Vector<IR::Argument> &arguments) const {
     const P4Scope *owner = &main_scope;
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_static_decl(name)) {
             owner = &scope;
             break;
@@ -656,14 +722,17 @@ const IR::Node *P4State::resolve_callable(cstring name,
     for (const auto *declaration : owner->get_overloads(name)) {
         const auto *node = declaration->get_decl();
         const IR::ParameterList *parameters = nullptr;
-        if (const auto *function = node->to<IR::Function>())
+        if (const auto *function = node->to<IR::Function>()) {
             parameters = function->getParameters();
-        else if (const auto *method = node->to<IR::Method>())
+        } else if (const auto *method = node->to<IR::Method>()) {
             parameters = method->getParameters();
-        else if (const auto *action = node->to<IR::P4Action>())
+        } else if (const auto *action = node->to<IR::P4Action>()) {
             parameters = action->getParameters();
-        if (!parameters || !arguments_match(*parameters, arguments, node->is<IR::P4Action>()))
+        }
+        if (parameters == nullptr ||
+            !arguments_match(*parameters, arguments, node->is<IR::P4Action>())) {
             continue;
+        }
         BUG_CHECK(!result, "Ambiguous callable %s", name);
         result = node;
     }
@@ -672,7 +741,7 @@ const IR::Node *P4State::resolve_callable(cstring name,
 }
 
 P4Declaration *P4State::find_static_decl(cstring name) const {
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         if (scope.has_static_decl(name)) {
             return scope.get_static_decl(name);
         }
@@ -704,14 +773,16 @@ ProgState P4State::clone_state() const {
 
 VarMap P4State::clone_vars() const {
     auto variables = get_vars();
-    for (auto &[name, variable] : variables) variable.first = variable.first->copy();
+    for (auto &[name, variable] : variables) {
+        variable.first = variable.first->copy();
+    }
     return variables;
 }
 
 VarMap P4State::clone_vars(const std::set<cstring> &names) const {
     VarMap result;
     for (const auto &entry : get_vars()) {
-        if (names.count(entry.first)) {
+        if (names.contains(entry.first)) {
             result.emplace(entry.first,
                            std::make_pair(entry.second.first->copy(), entry.second.second));
         }
@@ -722,7 +793,7 @@ VarMap P4State::clone_vars(const std::set<cstring> &names) const {
 VarMap P4State::get_vars() const {
     VarMap concat_map;
     // this also implicitly shadows
-    for (const auto &scope : boost::adaptors::reverse(scopes)) {
+    for (const auto &scope : Util::iterator_range(scopes).reverse()) {
         const auto &sub_vars = scope.get_var_map();
         concat_map.insert(sub_vars.begin(), sub_vars.end());
     }

@@ -12,8 +12,6 @@
 #include <variant>  // std::variant
 #include <vector>   // std::vector
 
-#include <boost/range/adaptor/reversed.hpp>
-
 #include "ir/ir.h"
 #include "lib/castable.h"
 #include "lib/cstring.h"
@@ -239,8 +237,11 @@ class P4Z3Instance : public P4Z3Node {
     virtual void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_var*/) {
         P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.", get_static_type());
     }
+    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = ""_cs) const {
+        return get_z3_vars(prefix, nullptr);
+    }
     virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
-        cstring /*prefix*/ = ""_cs, const z3 ::expr * /*valid*/ = nullptr) const {
+        cstring /*prefix*/, const z3::expr * /*valid*/) const {
         P4C_UNIMPLEMENTED("get_z3_vars not implemented for %s.", get_static_type());
     }
     virtual P4Z3Instance *copy() const {
@@ -257,7 +258,7 @@ class P4Z3Instance : public P4Z3Node {
         : p4_type(other.p4_type), allocation_owner(other.allocation_owner) {}
 };
 
-void retain_instance(const P4State *state, std::unique_ptr<P4Z3Instance> instance);
+void retain_instance(const P4State &state, std::unique_ptr<P4Z3Instance> instance);
 
 // Interpreter pointers can alias across snapshots of a scope. Own each allocation
 // once for the lifetime of its P4State, while the pointers in scopes remain borrowed.
@@ -266,7 +267,11 @@ T *allocate_instance(const P4State *state, Args &&...args) {
     auto instance = std::make_unique<T>(std::forward<Args>(args)...);
     auto *result = instance.get();
     result->allocation_owner = state;
-    retain_instance(state, std::move(instance));
+    if (state == nullptr) {
+        // Standalone values transfer ownership to the caller.
+        return instance.release();
+    }
+    retain_instance(*state, std::move(instance));
     return result;
 }
 

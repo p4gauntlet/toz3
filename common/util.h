@@ -36,6 +36,12 @@
 
 namespace P4::ToZ3 {
 
+// P4 stack pseudo-members size, nextIndex, and lastIndex have type bit<32>.
+constexpr int STACK_INDEX_WIDTH = 32;
+
+// Z3 and aggregate widths are unsigned; P4C stores bit widths in a signed int.
+const IR::Type_Bits *bitType(uint64_t width, bool isSigned = false);
+
 cstring get_max_bv_val(uint64_t bv_width);
 cstring infer_name(const IR::IAnnotated *node, cstring default_name);
 cstring mangle_name(cstring base_name, size_t num_args);

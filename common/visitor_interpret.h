@@ -41,6 +41,9 @@ class Z3Visitor : public Inspector, public EvaluationContext {
     };
     std::vector<LoopContext> loops;
     bool try_additive_loop(const IR::ForStatement *loop, cstring index);
+    void runCollectionLoop(const IR::ForInStatement *loop);
+    void executeCallable(const IR::MethodCallExpression *mce, const IR::Node *callable,
+                         bool packet_in);
 
     /***** Unimplemented *****/
     bool preorder(const IR::Node *expr) override {
@@ -154,7 +157,8 @@ class Z3Visitor : public Inspector, public EvaluationContext {
     P4State *get_state() const { return state; }
     void set_in_parser(bool is_in_parser) { in_parser = is_in_parser; }
     bool is_in_parser() const { return in_parser; }
-    void reject_parser(const z3::expr &condition, cstring error = "NoError"_cs) override;
+    void reject_parser(const z3::expr &condition) { reject_parser(condition, "NoError"_cs); }
+    void reject_parser(const z3::expr &condition, cstring error) override;
     void reject_parser(const z3::expr &condition, const z3::expr &error);
     void visit_parser_state(cstring name);
     void run_parser(cstring start) override;
