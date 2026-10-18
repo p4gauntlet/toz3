@@ -26,7 +26,7 @@ const IR::Node *PruneUnused::preorder(IR::Type_Extern *type) {
 
 Visitor::profile_t ListStructs::init_apply(const IR::Node *node) {
     auto result = Inspector::init_apply(node);
-    usedFields.clear();
+    usedFields->clear();
     return result;
 }
 
@@ -36,7 +36,7 @@ void ListStructs::retainFields(const IR::Type *type) {
         retainFields(specialized->substituted);
     } else if (const auto *aggregate = type->to<IR::Type_StructLike>()) {
         for (const auto *field : aggregate->fields) {
-            usedFields[aggregate->name.name].insert(field->name.name);
+            (*usedFields)[aggregate->name.name].insert(field->name.name);
             retainFields(field->type);
         }
     } else if (const auto *array = type->to<IR::Type_Array>()) {
@@ -54,7 +54,7 @@ bool ListStructs::preorder(const IR::Expression *expression) {
         }
         if (const auto *aggregate = baseType->to<IR::Type_StructLike>()) {
             if (aggregate->getField(member->member.name) != nullptr) {
-                usedFields[aggregate->name.name].insert(member->member.name);
+                (*usedFields)[aggregate->name.name].insert(member->member.name);
             }
         }
     }

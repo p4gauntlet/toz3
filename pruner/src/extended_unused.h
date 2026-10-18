@@ -9,6 +9,7 @@
 #include "ir/ir.h"
 #include "ir/pass_manager.h"
 #include "lib/cstring.h"
+#include "lib/null.h"
 
 namespace P4::ToZ3::Pruner {
 
@@ -31,13 +32,14 @@ class PruneUnused : public P4::UnusedDeclarations {
 
 class ListStructs : public Inspector {
     const P4::TypeMap &typeMap;
-    UsedFields &usedFields;
+    UsedFields *usedFields;
 
     void retainFields(const IR::Type *type);
 
  public:
-    ListStructs(const P4::TypeMap &typeMap, UsedFields &usedFields)
+    ListStructs(const P4::TypeMap &typeMap, UsedFields *usedFields)
         : typeMap(typeMap), usedFields(usedFields) {
+        CHECK_NULL(usedFields);
         setName("ListStructs");
         visitDagOnce = false;
     }
@@ -55,7 +57,7 @@ class ExtendedUnusedDeclarations : public PassManager {
         addPasses({new PassRepeated({
             new P4::TypeInference(&typeMap, false),
             new P4::CollectUsedDeclarations(usedDeclarations),
-            new ListStructs(typeMap, usedFields),
+            new ListStructs(typeMap, &usedFields),
             new PruneUnused(usedDeclarations, usedFields),
         })});
         setStopOnError(true);
