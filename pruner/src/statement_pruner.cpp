@@ -68,7 +68,7 @@ bool Collector::preorder(const IR::BlockStatement *s) {
     return true;
 }
 
-std::vector<const IR::Statement *> collect_statements(const IR::P4Program *temp, int max) {
+std::vector<const IR::Statement *> collect_statements(const IR::P4Program *temp, uint64_t max) {
     // An inspector that collects some statements at random.
     auto *collector = new Collector(max);
     temp->apply(*collector);
@@ -83,11 +83,13 @@ const IR::P4Program *remove_statements(const IR::P4Program *temp,
     return temp;
 }
 
-const IR::P4Program *prune_statements(const IR::P4Program *program, PrunerConfig pruner_conf,
+const IR::P4Program *prune_statements(const IR::P4Program *program, const PrunerConfig &pruner_conf,
                                       uint64_t prog_size) {
     int same_before_pruning = 0;
     int result = 0;
-    int max_statements = prog_size / STATEMENT_SIZE_BANK_RATIO;
+    // The bank is a fractional share of the program, rounded down to whole statements.
+    auto max_statements =
+        static_cast<uint64_t>(static_cast<double>(prog_size) / STATEMENT_SIZE_BANK_RATIO);
 
     INFO("\nPruning statements");
     for (int i = 0; i < PRUNER_MAX_ITERS; i++) {
@@ -99,7 +101,7 @@ const IR::P4Program *prune_statements(const IR::P4Program *program, PrunerConfig
         result = check_pruned_program(&program, temp, pruner_conf);
         if (result != EXIT_SUCCESS) {
             same_before_pruning++;
-            max_statements = std::max(1, max_statements / AIMD_DECREASE);
+            max_statements = std::max(uint64_t{1}, max_statements / AIMD_DECREASE);
         } else {
             // Successful run, reset short-circuit.
             same_before_pruning = 0;

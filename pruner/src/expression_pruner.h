@@ -55,7 +55,8 @@ class ExpressionPruner : public Transform {
     // const IR::Node *postorder(const IR::StructExpression *s);
 };
 
-const IR::P4Program *prune_expressions(const IR::P4Program *program, PrunerConfig pruner_conf);
+const IR::P4Program *prune_expressions(const IR::P4Program *program,
+                                       const PrunerConfig &pruner_conf);
 
 }  // namespace P4::ToZ3::Pruner
 

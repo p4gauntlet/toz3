@@ -18,6 +18,7 @@ class ValidateOptions : public ParserOptions {
     cstring dump_dir;
     // Toggle this to allow differences in undefined behavior.
     bool undefined_is_ok = false;
+    bool all_passes = false;
 };
 
 using P4toZ3Context = P4CContextWithOptions<ValidateOptions>;

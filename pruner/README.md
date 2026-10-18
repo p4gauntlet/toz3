@@ -1,170 +1,85 @@
-# The Gauntlet Pruner
+# Reducing failure-inducing programs
 
-The Gauntlet pruner is a tool designed to reduce the size of P4 programs that cause crashes or abnormal behavior in P4 compilers. This tool is intended to be used in combination with the [Gauntlet tool suite](https://github.com/p4gauntlet/gauntlet/). The pruner currently supports the pruning of programs with crash  (exit code 1) or semantic translation bugs (exit code 20, as defined [here](https://github.com/p4gauntlet/gauntlet/blob/master/src/p4z3/util.py#L10)).
+The pruner searches for a smaller P4 program that still triggers a compiler failure or a translation-validation violation. We use it after finding a failure, when a large generated program makes the cause difficult to understand.
+
+Reduction preserves an observed failure, not the program's normal behavior. A candidate may change packet processing substantially and still be useful if it reproduces the failure. This distinguishes the pruner's transformations from the compiler transformations checked by the validator.
+
+## The failure oracle
+
+We parse the program into P4C's IR, propose a simplification, emit the candidate as P4, and run an external failure check. We retain the candidate when its exit code and classified error type match the original failure; otherwise, we keep the previous program.
+
+```text
+current program → candidate reduction → compiler or validator
+       ↑                                      |
+       └──────── accept if failure matches ────┘
+```
+
+For compiler failures, classification examines the diagnostic text, including the `Compiler Bug` marker. For validation failures, the expected exit code is `20`. The oracle does not require an identical diagnostic, the same failing compiler pass, or the same counterexample. Consequently, preserving the failure class is not proof that a reduction has preserved its original cause. The reduced program still needs inspection.
+
+## Searching from coarse to fine
+
+We first remove groups of statements. The search chooses statements randomly and adjusts the number of removals using additive increase and multiplicative decrease: successful attempts encourage larger reductions, while unsuccessful attempts reduce the batch size. This makes large reductions possible without testing every statement independently from the start.
+
+We then simplify expressions and replace Boolean expressions with literals. These finer changes can preserve a failure after statement removal stops making progress. The search uses iteration and unsuccessful-attempt limits; it does not establish that the result is globally minimal or even minimal under every available transformation.
+
+A final stage uses compiler analyses to replace variables with constants and remove unused declarations. Constant replacement breaks dependencies that would otherwise keep declarations alive. These stages need resolved references and inferred types, so they run only if the preparatory compiler passes preserve the failure according to the oracle.
+
+This ordering is deliberate. Early reductions work directly on syntax and can retain failures that occur before type checking. Later reductions use richer compiler information when it is available. Unlike the symbolic interpreter, the pruner can use compiler transformations as candidate simplifications because every candidate is checked again by the external oracle.
+
+## Reproducibility
+
+The random seed determines the sequence of candidate choices. Supplying a seed allows a reduction to be repeated with the same program and toolchain. Different compiler revisions or diagnostics can still change which candidates the oracle accepts.
+
+Regression tests use a fixed seed and a compiler binary that retains known failures. They compare the emitted program with a reference reduction. Each test has its own working directory, so parallel tests do not modify each other's candidates or the source tree.
 
 ## Usage
-Note: A sample configuration file is provided [here](https://github.com/p4gauntlet/pruner/blob/documentation/program_with_validation_bug.json).
 
-### Configuration file Format
-The pruner can automatically load some basic configuration parameters from a
-JSON configuration file. The file has the following fields:
+Enable `ENABLE_GAUNTLET_PRUNER` in the P4C CMake configuration and build the `p4pruner` target. From the P4C build directory, a compiler-failure reduction can be run as follows:
 
-```bash
- # Was the validation bug found when undefined behavior was allowed?
-"allow_undef": false,
- # What was the compiler used to compile the P4 program?
-"compiler": "gauntlet/modules/p4c/build/p4test",
- # The exit code of the program
-"exit_code": 1,
- # the input P4 program
-"input_file": "program_with_validation_bug.p4",
- # the target directory of the binary that compiled the program
-"out_dir": "gauntlet/random/validation_bugs",
-# the binary to the P4-to-Z3 interpreter
-"p4z3_bin": "",
-# if we encountered a validation bug, this describes the incorrect program
-"prog_after": "",
-# the program that was still correct, before a miscompilation occurred
-"prog_before": "",
-# the path to the validation tool that found the bug
-"validation_bin": "",
-# the error message that was recorded when the binary exited
-"err_string": ""
+```sh
+./extensions/toz3/pruner/p4pruner \
+  --compiler-bin ./p4test --bug-type CRASH --seed 1 \
+  --working-dir /tmp/opencode/pruner-work \
+  --output reduced.p4 input.p4
 ```
 
-### Pruning with a Configuration File
-If a configuration file is provided only the P4 program is necessary:
+The working directory must not already exist. It holds intermediate candidates and is removed after reduction. `--output` selects the final program; without it, the pruner uses the input name with a `_stripped.p4` suffix.
 
-`p4pruner --config [P4_CONFIG] [P4_PROG]`
+### Validation integration
 
-### Pruning without a Configuration File
-If no configuration file is present, the pruner requires the path to the validation binary that was used, as well as the compiler that was used to translate the P4 program:
+The pruner's `VALIDATION` mode still expects the legacy Python validation-driver interface, not the current C++ `p4validate` command. The driver must accept `-i`, `-p`, `-o`, `-ll`, and `-u`; configuration discovery also invokes it with `-d` and reads the resulting `<program>_info.json` file.
 
-`p4pruner --compiler-bin [PATH_TO_COMPILER_BIN] --validation-bin [PATH_TO_VALIDATION_BIN] [P4_PROG] --bug-type [VALIDATION/CRASH]`
-
-For crash bugs, the validation binary can be omitted:
-
-`p4pruner --compiler-bin [PATH_TO_COMPILER_BIN] [P4_PROG] --bug-type [VALIDATION/CRASH]`
-
-
-## The Pruning Stages
-The pruning passes build on top of each other. The current order of execution is as follows:
-
-```
-Statement pruning // randomly remove statements
-        V
-Expression pruning // randomly remove expressions
-        V
-Boolean expression pruning // simplify boolean expressions
-        V
-Generic passes // reuse initialization passes from P4C
-        V
-Replace variables // replace variables with constants
-        V
-Extended remove unused declarations // remove any unused declarations
+```sh
+./extensions/toz3/pruner/p4pruner \
+  --compiler-bin ./p4test --bug-type VALIDATION \
+  --validation-bin /path/to/legacy-validation-driver.py \
+  --working-dir /tmp/opencode/pruner-work input.p4
 ```
 
-The following passes to prune a P4 program are currently implemented:
+A recorded configuration can instead be supplied with `--config failure.json`. The fields read by the current implementation are:
 
-### Statement Pruning
-
-#### Required Preceding Passes
-
-- None
-
-#### Parameters
-- `SIZE_BANK_RATIO`  : The ratio between the initial size of the bank of statements and the size of the program.
-- `PRUNE_ITERS`     : The number of times the statement pruner would run through the program.
-- `NO_CHNG_ITERS`   : If the program remains the same for this number of iterations then we assume the phase is completed and move to the next pass.
-- `AIDM_INCREASE`   : The additive increasing factor for the bank of statements.
-- `AIDM_DECREASE`   : The multiplicative decreasing factor for the bank of statements.
-
-#### Description
-
-This pass tries to prune statements from the program. A certain number of statements are chosen at random by a `Collector` which is a subclass of an `Inspector`. Then these are fed to a `Pruner` which is a subclass of a `Transform`, which actually prunes the statements from the program tree. We start with a very large number of statements to prune, and then follow an additive increase/multiplicative decrease (AIMD) scheme. If we were successful in our attempt, i.e. the exit code of the program remained the same and the bug still exists in the program, we increase the bank by 2 statements otherwise we half the size of the bank.
-
-
-### Expression Pruning
-
-#### Required Preceding Passes
-
-- None
-
-#### Parameters
-- `PRUNE_ITERS`     : The number of times the expressions pruner would run through the program.
-- `NO_CHNG_ITERS`   : If the program remains the same for this number of iterations then we assume the phase is completed and move to the next pass.
-
-#### Description
-
-This pass operators similarly as the statement pruner but prunes the expressions in the statements that remain. We explicitly define how the pass would handle and prune different types of expressions. For example, given an addition operator, we try to randomly pick a side and see if the bug remains. In other cases, for example shifts, we just pick the value that is to be shifted. Only few expressions are implemented so far, for example  `Range` or a `Slice` are still missing.
-
-
-### Boolean Pruning
-
-#### Required Preceding Passes
-
-- None
-
-#### Parameters
-- `PRUNE_ITERS`     : The number of times the boolean pruner would run through the program.
-- `NO_CHNG_ITERS`   : If the program remains the same for this number of iterations then we assume the phase is completed and move to the next pass.
-
-#### Description
-
-This pass now tries to prune and simplify boolean expressions. Given a boolean expression we try to replace it with a random boolean literal and see if the bug remains.
-
-### Compiler Pruning
-
-The passes after this stage require some generic passes from P4C. We execute these passes
-to retrieve the reference map and infer all types in the program. Note, that because
-type inference requires constant folding, we may not always be able to apply these passes.
-
-```
-ResolveReferences,
-ConstantFolding,
-InstantiateDirectCalls,
-TypeInference
+```json
+{
+  "compiler": "/path/to/p4test",
+  "validation_bin": "/path/to/legacy-validation-driver.py",
+  "exit_code": 20,
+  "allow_undef": true,
+  "err_string": "",
+  "prog_before": "/path/to/before.p4",
+  "prog_after": "/path/to/after.p4"
+}
 ```
 
-### Replace Variables
+The recorded before/after paths do not pin the oracle to a particular failing pass. Candidate validation still uses the configured driver and failure classification.
 
-#### Required Preceding Passes
+## Implementation map
 
-- Generic Passes once
-- `ResolveReferences and TypeInference` every pass
+| Responsibility | Main implementation |
+| --- | --- |
+| Stage ordering and configuration | [main.cpp](src/main.cpp), [pruner_options.cpp](src/pruner_options.cpp) |
+| Failure classification and candidate acceptance | [pruner_util.cpp](src/pruner_util.cpp) |
+| Syntax-directed reductions | [statement_pruner.cpp](src/statement_pruner.cpp), [expression_pruner.cpp](src/expression_pruner.cpp), [boolean_pruner.cpp](src/boolean_pruner.cpp) |
+| Compiler-assisted reductions | [compiler_pruner.cpp](src/compiler_pruner.cpp), [replace_variables.cpp](src/replace_variables.cpp), [extended_unused.cpp](src/extended_unused.cpp) |
+| Repeatable regression checks | [check_prog.py](tests/check_prog.py) |
 
-#### Parameters
-- None
-
-#### Description
-
-This pass tries to replace each variable with a literal and checks if the bug remained. For example, it might turn the expressions `aVar + bVar` to `16w0 + 10w0` depending upon the bit width of the variables. We do this to aid the subsequent pass (i.e Extended unused declarations) which tries to remove all unused declarations from the program. This pass frees up more expressions and declarations, that can then be removed by the next pass.
-
-### Extended Remove Unused Declarations
-
-#### Required Preceding Passes
-
-- Generic Passes once
-- Replace variables
-
-#### Parameters
-- None
-
-#### Description
-
-This is a subclass of `P4::RemoveUnusedDeclarations` where we try to aggressively remove all unused declarations as opposed to the conservative approach of P4C. We do not care about maintaining the functionality of the program only about the bug that exists in it.
-
-===== 
-## Testing
-
-To reproduce pruning of old bugs, we maintain a folder of binaries with bugs in the `tests` folder.
-
-We use `check_prog.p4` for testing. The program takes a P4 file along with a P4C binary ( and optionally a validation binary) as input, prunes the provided program with a fixed seed, and then compares the output to a reference file. If the output and reference file match, the test passes.
-
-Note that the provided P4 program must have a reference present in the `references` directory.
-
-### Usage
-
-`check_prog.py  --pruner_path [PATH_TO_PRUNER_BIN] --compiler [PATH_TO_COMPILER_BIN] --validation [PATH_TO_VALIDATION_BIN] --p4prog [P4_PROG] --type [V/C]`
-
-Also, there is a folder called `p4c_bins` which will house various versions of the P4C compiler each named after the commit hash of the time it was compiled.
+Run the registered regressions from the P4C build directory with `ctest -R '^pruner' --output-on-failure`.

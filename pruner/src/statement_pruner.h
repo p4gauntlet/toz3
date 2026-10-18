@@ -34,7 +34,7 @@ class Collector : public Inspector {
     uint64_t max_statements;
 };
 
-const IR::P4Program *prune_statements(const IR::P4Program *program, PrunerConfig pruner_conf,
+const IR::P4Program *prune_statements(const IR::P4Program *program, const PrunerConfig &pruner_conf,
                                       uint64_t prog_size);
 
 }  // namespace P4::ToZ3::Pruner

@@ -2,7 +2,6 @@
 #define TOZ3_COMMON_SCOPE_H_
 
 #include <map>      // std::map
-#include <set>      // std::set
 #include <utility>  // std::pair
 #include <vector>   // std::vector
 
@@ -14,6 +13,7 @@ class P4Scope {
  private:
     // maps of local values and types
     std::map<cstring, P4Declaration *> static_decls;
+    std::map<cstring, std::vector<P4Declaration *>> overloads;
     VarMap var_map;
     std::map<cstring, const IR::Type *> type_map;
     bool is_returned = false;
@@ -23,7 +23,6 @@ class P4Scope {
     std::vector<z3::expr> forward_conds;
     std::vector<z3::expr> return_conds;
     CopyArgs copy_out_args;
-    std::set<cstring> visited_states;
 
  public:
     /****** STATIC DECLS ******/
@@ -34,7 +33,13 @@ class P4Scope {
         }
         BUG("Key %s not found in static declaration map.", name);
     }
-    void declare_static_decl(cstring name, P4Declaration *val) { static_decls[name] = val; }
+    void declare_static_decl(cstring name, P4Declaration *val) {
+        static_decls[name] = val;
+        overloads[name].push_back(val);
+    }
+    const std::vector<P4Declaration *> &get_overloads(cstring name) const {
+        return overloads.at(name);
+    }
     bool has_static_decl(cstring name) const { return static_decls.count(name) > 0; }
     const std::map<cstring, P4Declaration *> *get_decl_map() const { return &static_decls; }
     /****** VARIABLES ******/
@@ -81,15 +86,6 @@ class P4Scope {
         }
         return ret_type;
     }
-    /****** PARSER STATES ******/
-    void add_visited_state(cstring state_name) { visited_states.insert(state_name); }
-    void clear_visited_states() { visited_states.clear(); }
-    std::set<cstring> get_visited_states() { return visited_states; }
-    void set_visited_states(const std::set<cstring> &new_states) {
-        visited_states.clear();
-        visited_states.insert(new_states.begin(), new_states.end());
-    }
-    bool state_is_visited(cstring state_name) { return visited_states.count(state_name) > 0; }
     /****** RETURN AND EXIT MANAGEMENT ******/
     void set_copy_out_args(const CopyArgs &input_args) { copy_out_args = input_args; }
     CopyArgs get_copy_out_args() const { return copy_out_args; }
@@ -116,7 +112,9 @@ class P4Scope {
     void push_return_state(const z3::expr &cond, const VarMap &state) {
         return_states.emplace_back(cond, state);
     }
-    std::vector<std::pair<z3::expr, VarMap>> get_return_states() const { return return_states; }
+    const std::vector<std::pair<z3::expr, VarMap>> &get_return_states() const {
+        return return_states;
+    }
     void clear_return_states() { return_states.clear(); }
     void clear_return_exprs() { return_exprs.clear(); }
 
@@ -129,18 +127,8 @@ class P4Scope {
         }
         return new_scope;
     }
-    VarMap clone_vars() const {
-        VarMap cloned_map;
-        for (const auto &value_tuple : get_var_map()) {
-            auto var_name = value_tuple.first;
-            auto *member_cpy = value_tuple.second.first->copy();
-            const auto *member_type = value_tuple.second.second;
-            cloned_map.insert({var_name, {member_cpy, member_type}});
-        }
-        return cloned_map;
-    }
     friend inline std::ostream &operator<<(std::ostream &out, const P4Scope &scope) {
-        auto var_map = scope.get_var_map();
+        const auto &var_map = scope.get_var_map();
         for (auto it = var_map.begin(); it != var_map.end(); ++it) {
             const cstring name = it->first;
             auto val = it->second;

@@ -26,6 +26,14 @@ class FunctionClass {
     std::map<cstring, P4Z3Function> member_functions;
 
  public:
+    FunctionClass() = default;
+    // Callbacks capture their receiver. Copies must rebuild them for the new object.
+    FunctionClass(const FunctionClass &) = delete;
+    FunctionClass &operator=(const FunctionClass &) = delete;
+    FunctionClass(FunctionClass &&) = delete;
+    FunctionClass &operator=(FunctionClass &&) = delete;
+    virtual ~FunctionClass() = default;
+
     virtual FunOrMethod get_function(cstring name) const {
         auto it = member_functions.find(name);
         if (it != member_functions.end()) {
@@ -39,6 +47,9 @@ class FunctionClass {
 };
 
 class StructBase : public P4Z3Instance {
+ public:
+    DECLARE_TYPEINFO(StructBase, P4Z3Instance);
+
  protected:
     P4State *state;
     ordered_map<cstring, P4Z3Instance *> members;
@@ -46,11 +57,16 @@ class StructBase : public P4Z3Instance {
     uint64_t width;
     z3::expr valid;
     cstring instance_name;
+    void assign_member(cstring name, const P4Z3Instance *value);
+    void initialize_validity(cstring input_name, unsigned *header_index);
 
  public:
     StructBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id);
 
     uint64_t get_width() const { return width; }
+    using P4Z3Instance::get_z3_vars;
+    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
+        cstring prefix, const z3::expr *valid_expr) const override;
 
     const P4Z3Instance *get_const_member(const cstring name) const {
         auto it = members.find(name);
@@ -80,8 +96,8 @@ class StructBase : public P4Z3Instance {
     void set_undefined() override;
     virtual void propagate_validity(const z3::expr *valid_expr);
     virtual void bind(const z3::expr *bind_var, uint64_t offset);
-    virtual void set_list(std::vector<P4Z3Instance *>);
-    virtual void set_list(std::map<cstring, P4Z3Instance *> input_map);
+    virtual void set_list(const std::vector<P4Z3Instance *> &input_list);
+    virtual void set_list(const std::map<cstring, P4Z3Instance *> &input_map);
 
     // copy constructor
     StructBase(const StructBase &other);
@@ -94,14 +110,16 @@ class StructBase : public P4Z3Instance {
 };
 
 class StructInstance : public StructBase {
+ public:
+    DECLARE_TYPEINFO(StructInstance, StructBase);
+
+ private:
     using StructBase::StructBase;
 
  public:
     StructInstance(P4State *state, const IR::Type_StructLike *type, cstring name,
                    uint64_t member_id);
     StructInstance *copy() const override;
-    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
-        cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "StructInstance"_cs; }
     cstring to_string() const override {
         std::string ret = "StructInstance(";
@@ -123,6 +141,10 @@ class StructInstance : public StructBase {
 };
 
 class HeaderInstance : public StructInstance, public FunctionClass {
+ public:
+    DECLARE_TYPEINFO(HeaderInstance, StructInstance);
+
+ private:
     using StructInstance::StructInstance;
     // HeaderUnionInstances are friend classes because they need direct var
     // access outside the API
@@ -135,14 +157,15 @@ class HeaderInstance : public StructInstance, public FunctionClass {
     HeaderInstance(P4State *state, const IR::Type_Header *type, cstring name, uint64_t member_id);
     void set_valid(const z3::expr &valid_val);
     const z3::expr *get_valid() const;
-    void setValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
-    void setInvalid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
-    void isValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
+    void setValid(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args);
+    void setInvalid(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args);
+    void isValid(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args);
     void propagate_validity(const z3::expr *valid_expr) override;
-    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
-    void set_list(std::vector<P4Z3Instance *> input_list) override;
-    void set_list(std::map<cstring, P4Z3Instance *> input_map) override;
+    void bind(const z3::expr *bind_var, uint64_t offset) override;
+    void set_list(const std::vector<P4Z3Instance *> &input_list) override;
+    void set_list(const std::map<cstring, P4Z3Instance *> &input_map) override;
     void bind_to_union(HeaderUnionInstance *union_parent);
+    HeaderUnionInstance *get_parent_union() const { return parent_union; }
 
     cstring get_static_type() const override { return "HeaderInstance"_cs; }
     cstring to_string() const override {
@@ -169,6 +192,10 @@ class HeaderInstance : public StructInstance, public FunctionClass {
 };
 
 class IndexableInstance : public StructBase {
+ public:
+    DECLARE_TYPEINFO(IndexableInstance, StructBase);
+
+ private:
     using StructBase::StructBase;
 
  public:
@@ -177,6 +204,9 @@ class IndexableInstance : public StructBase {
 };
 
 class StackInstance : public IndexableInstance, public FunctionClass {
+ public:
+    DECLARE_TYPEINFO(StackInstance, IndexableInstance);
+
  private:
     mutable Z3Int nextIndex;
     mutable Z3Int lastIndex;
@@ -185,13 +215,14 @@ class StackInstance : public IndexableInstance, public FunctionClass {
     const IR::Type *elem_type;
 
  public:
-    explicit StackInstance(P4State *state, const IR::Type_Stack *type, cstring name,
+    explicit StackInstance(P4State *state, const IR::Type_Array *type, cstring name,
                            uint64_t member_id);
 
     P4Z3Instance *get_member(const z3::expr &index) const override;
     P4Z3Instance *get_member(cstring name) const override;
     const IR::Type *get_member_type(cstring name) const override;
     void update_member(cstring name, P4Z3Instance *val) override;
+    using StructBase::get_z3_vars;
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "StackInstance"_cs; }
@@ -209,8 +240,12 @@ class StackInstance : public IndexableInstance, public FunctionClass {
         return ret;
     }
     size_t get_int_size() const override { return int_size; }
-    void push_front(Visitor *, const IR::Vector<IR::Argument> *);
-    void pop_front(Visitor *, const IR::Vector<IR::Argument> *);
+    // Bounds use the internal integer index; the P4 nextIndex member remains bit<32>.
+    const z3::expr &get_next_index() const { return *nextIndex.get_val(); }
+    void push_front(EvaluationContext *, const IR::Vector<IR::Argument> *);
+    void pop_front(EvaluationContext *, const IR::Vector<IR::Argument> *);
+    void advance_next();
+    void merge(const z3::expr &cond, const P4Z3Instance &then_expr) override;
 
     // copy constructor
     StackInstance *copy() const override;
@@ -220,6 +255,9 @@ class StackInstance : public IndexableInstance, public FunctionClass {
 };
 
 class TupleInstance : public IndexableInstance {
+ public:
+    DECLARE_TYPEINFO(TupleInstance, IndexableInstance);
+
  public:
     TupleInstance(P4State *state, const IR::Type_Tuple *type, cstring name, uint64_t member_id);
 
@@ -235,6 +273,9 @@ class TupleInstance : public IndexableInstance {
 };
 
 class HeaderUnionInstance : public StructBase, public FunctionClass {
+ public:
+    DECLARE_TYPEINFO(HeaderUnionInstance, StructBase);
+
  private:
     z3::expr get_valid() const;
 
@@ -242,8 +283,6 @@ class HeaderUnionInstance : public StructBase, public FunctionClass {
     explicit HeaderUnionInstance(P4State *state, const IR::Type_HeaderUnion *type, cstring name,
                                  uint64_t member_id);
 
-    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
-        cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "HeaderUnionInstance"_cs; }
     cstring to_string() const override {
         std::string ret = "HeaderUnionInstance(";
@@ -259,7 +298,9 @@ class HeaderUnionInstance : public StructBase, public FunctionClass {
         return ret;
     }
     void update_validity(const HeaderInstance *child, const z3::expr &valid_val);
-    void isValid(Visitor *visitor, const IR::Vector<IR::Argument> *args);
+    void invalidate_fields(const z3::expr &condition);
+    void update_member(cstring name, P4Z3Instance *value) override;
+    void isValid(EvaluationContext *visitor, const IR::Vector<IR::Argument> *args);
     HeaderUnionInstance *copy() const override;
     // copy constructor
     HeaderUnionInstance(const HeaderUnionInstance &other);
@@ -268,6 +309,10 @@ class HeaderUnionInstance : public StructBase, public FunctionClass {
 };
 
 class EnumBase : public StructBase, public ValContainer {
+ public:
+    DECLARE_TYPEINFO(EnumBase, StructBase, ValContainer);
+
+ private:
     using StructBase::StructBase;
 
  protected:
@@ -275,6 +320,7 @@ class EnumBase : public StructBase, public ValContainer {
 
  public:
     EnumBase(P4State *state, const IR::Type *type, cstring name, uint64_t member_id);
+    using StructBase::get_z3_vars;
     std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
         cstring prefix, const z3::expr *valid_expr) const override;
     cstring get_static_type() const override { return "EnumBase"_cs; }
@@ -308,6 +354,9 @@ class EnumBase : public StructBase, public ValContainer {
 
 class EnumInstance : public EnumBase {
  public:
+    DECLARE_TYPEINFO(EnumInstance, EnumBase);
+
+ public:
     EnumInstance(P4State *state, const IR::Type_Enum *type, cstring name, uint64_t member_id);
     cstring get_static_type() const override { return "EnumInstance"_cs; }
     cstring to_string() const override {
@@ -333,6 +382,9 @@ class EnumInstance : public EnumBase {
 
 class ErrorInstance : public EnumBase {
  public:
+    DECLARE_TYPEINFO(ErrorInstance, EnumBase);
+
+ public:
     ErrorInstance(P4State *state, const IR::Type_Error *type, cstring name, uint64_t member_id);
     cstring get_static_type() const override { return "ErrorInstance"_cs; }
     ErrorInstance *copy() const override;
@@ -355,6 +407,9 @@ class ErrorInstance : public EnumBase {
 
 class SerEnumInstance : public EnumBase {
  public:
+    DECLARE_TYPEINFO(SerEnumInstance, EnumBase);
+
+ public:
     SerEnumInstance(P4State *state, const ordered_map<cstring, P4Z3Instance *> &input_members,
                     const IR::Type_SerEnum *type, cstring name, uint64_t member_id);
     cstring get_static_type() const override { return "SerEnumInstance"_cs; }
@@ -374,11 +429,15 @@ class SerEnumInstance : public EnumBase {
     // TODO: SerEnumInstance is static, so no copy allowed
     SerEnumInstance *copy() const override;
     SerEnumInstance *instantiate(const NumericVal &enum_val) const override;
+    P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
     P4Z3Instance *operator&(const P4Z3Instance &other) const override;
     P4Z3Instance *operator|(const P4Z3Instance &other) const override;
 };
 
 class ListInstance : public StructBase {
+ public:
+    DECLARE_TYPEINFO(ListInstance, StructBase);
+
  private:
     bool isLabelled = false;
 
@@ -415,21 +474,23 @@ class ListInstance : public StructBase {
 };
 
 class ControlInstance : public P4Z3Instance, public FunctionClass {
+ public:
+    DECLARE_TYPEINFO(ControlInstance, P4Z3Instance);
+
  private:
     P4State *state;
     VarMap resolved_const_args;
-    std::map<cstring, const IR::Type *> local_type_map;
     // A wrapper class for table declarations
  public:
     // constructor
     explicit ControlInstance(P4State *state, const IR::Type *decl, const VarMap &input_const_args);
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
     ControlInstance *copy() const override {
-        return new ControlInstance(state, p4_type, resolved_const_args);
+        return allocate_instance<ControlInstance>(state, state, p4_type, resolved_const_args);
     }
 
-    void apply(Visitor *, const IR::Vector<IR::Argument> *);
+    void apply(EvaluationContext *, const IR::Vector<IR::Argument> *);
 
     cstring get_static_type() const override { return "ControlInstance"_cs; }
     cstring to_string() const override {
@@ -440,6 +501,10 @@ class ControlInstance : public P4Z3Instance, public FunctionClass {
 };
 
 class P4Declaration : public P4Z3Instance {
+ public:
+    DECLARE_TYPEINFO(P4Declaration, P4Z3Instance);
+
+ private:
     // A wrapper class for declarations
  private:
     const IR::StatOrDecl *decl;
@@ -449,9 +514,11 @@ class P4Declaration : public P4Z3Instance {
     // TODO: This is a declaration, not an object. Distinguish!
     explicit P4Declaration(const IR::StatOrDecl *decl) : P4Z3Instance(nullptr), decl(decl) {}
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
     // TODO: This is a little pointless....
-    P4Declaration *copy() const override { return new P4Declaration(decl); }
+    P4Declaration *copy() const override {
+        return allocate_instance<P4Declaration>(allocation_owner, decl);
+    }
 
     cstring get_static_type() const override { return "P4Declaration"_cs; }
     cstring to_string() const override {
@@ -462,6 +529,10 @@ class P4Declaration : public P4Z3Instance {
 };
 
 class P4TableInstance : public P4Declaration, public FunctionClass {
+ public:
+    DECLARE_TYPEINFO(P4TableInstance, P4Declaration);
+
+ private:
     // A wrapper class for table declarations
  private:
     P4State *state;
@@ -470,15 +541,19 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
  public:
     z3::expr hit;
     TableProperties table_props;
+    std::vector<const P4Z3Instance *> evaluated_keys;
     // constructor
     explicit P4TableInstance(P4State *state, const IR::P4Table *p4t);
-    explicit P4TableInstance(P4State *state, const IR::StatOrDecl *decl, z3::expr hit,
+    explicit P4TableInstance(P4State *state, const IR::StatOrDecl *decl, const z3::expr &hit,
                              TableProperties table_props);
     // Merge is a no-op here.
     void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {}
 
     P4TableInstance *copy() const override {
-        return new P4TableInstance(state, get_decl(), hit, table_props);
+        auto *result =
+            allocate_instance<P4TableInstance>(state, state, get_decl(), hit, table_props);
+        result->evaluated_keys = evaluated_keys;
+        return result;
     }
 
     P4Z3Instance *get_member(cstring name) const override {
@@ -488,19 +563,22 @@ class P4TableInstance : public P4Declaration, public FunctionClass {
         }
         BUG("Name %s not found in member map.", name);
     }
-    void apply(Visitor *, const IR::Vector<IR::Argument> *);
+    void apply(EvaluationContext *, const IR::Vector<IR::Argument> *);
 
     cstring get_static_type() const override { return "P4TableInstance"_cs; }
     cstring to_string() const override {
         std::string ret = "P4TableInstance(";
         return ret + get_decl()->toString() + ")";
     }
-    z3::expr produce_const_match(Visitor *visitor,
+    z3::expr produce_const_match(EvaluationContext *visitor,
                                  std::vector<const P4Z3Instance *> *evaluated_keys,
                                  const IR::ListExpression *entry_keys) const;
 };
 
 class ExternInstance : public P4Z3Instance, public FunctionClass {
+ public:
+    DECLARE_TYPEINFO(ExternInstance, P4Z3Instance);
+
  private:
     std::map<cstring, const IR::Method *> methods;
     P4State *state;
@@ -509,7 +587,7 @@ class ExternInstance : public P4Z3Instance, public FunctionClass {
  public:
     explicit ExternInstance(P4State *state, const IR::Type_Extern *type);
     // Merge is a no-op here.
-    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override {};
+    void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_expr*/) override{};
     cstring get_static_type() const override { return "ExternInstance"_cs; }
     cstring to_string() const override {
         std::string ret = "ExternInstance(";
@@ -524,7 +602,9 @@ class ExternInstance : public P4Z3Instance, public FunctionClass {
         return FunctionClass::get_function(name);
     }
     // TODO: This is a little pointless....
-    ExternInstance *copy() const override { return new ExternInstance(state, extern_type); }
+    ExternInstance *copy() const override {
+        return allocate_instance<ExternInstance>(state, state, extern_type);
+    }
     P4Z3Instance *cast_allocate(const IR::Type *dest_type) const override;
 };
 

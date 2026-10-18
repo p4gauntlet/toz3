@@ -31,7 +31,7 @@ const IR::P4Program *remove_bool_expressions(const IR::P4Program *temp) {
 }
 
 const IR::P4Program *prune_bool_expressions(const IR::P4Program *program,
-                                            PrunerConfig pruner_conf) {
+                                            const PrunerConfig &pruner_conf) {
     int same_before_pruning = 0;
     int result = 0;
     INFO("\nReducing boolean expressions")

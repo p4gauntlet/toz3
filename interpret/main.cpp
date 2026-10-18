@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -13,6 +14,7 @@
 #include "lib/exceptions.h"
 #include "options.h"
 #include "toz3/common/create_z3.h"
+#include "toz3/common/exceptions.h"
 #include "toz3/common/state.h"
 #include "toz3/common/util.h"
 #include "toz3/common/visitor_interpret.h"
@@ -20,7 +22,7 @@
 
 using namespace P4::literals;  // NOLINT
 
-int main(int argc, char *const argv[]) {
+int main(int argc, char *const argv[]) try {
     P4::AutoCompileContext autoP4toZ3Context(new P4::ToZ3::P4toZ3Context);
     auto &options = P4::ToZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
@@ -54,6 +56,10 @@ int main(int argc, char *const argv[]) {
         }
         P4::ToZ3::Z3Visitor toZ3Second(&state);
         auto declResult = gen_state_from_instance(&toZ3Second, decl);
+        const auto input_constraints = state.get_input_constraints().simplify();
+        if (!input_constraints.is_true()) {
+            std::cout << "Input constraints: " << input_constraints << "\n";
+        }
         for (const auto &pipeState : declResult) {
             P4::cstring pipeName = pipeState.first;
             const auto pipeVars = pipeState.second.first;
@@ -68,6 +74,9 @@ int main(int argc, char *const argv[]) {
                 warning("No results for pipe %s", pipeName);
             }
         }
+    } catch (const P4::ToZ3::GauntletException &ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
     } catch (const P4::Util::P4CExceptionBase &bug) {
         std::cerr << bug.what() << std::endl;
         return EXIT_FAILURE;
@@ -77,4 +86,10 @@ int main(int argc, char *const argv[]) {
     }
 
     return EXIT_SUCCESS;
+} catch (const std::exception &error) {
+    std::cerr << error.what() << '\n';
+    return EXIT_FAILURE;
+} catch (...) {
+    std::cerr << "Unhandled interpreter exception.\n";
+    return EXIT_FAILURE;
 }

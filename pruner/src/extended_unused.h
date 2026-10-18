@@ -20,12 +20,12 @@ struct struct_obj {
     std::vector<cstring> *fields{};
 };
 
-class PruneUnused : public P4::RemoveUnusedDeclarations {
+class PruneUnused : public P4::UnusedDeclarations {
     const std::vector<struct_obj *> *_used_structs;
 
  public:
     explicit PruneUnused(const UsedDeclSet &used, std::vector<struct_obj *> *used_structs)
-        : RemoveUnusedDeclarations(used, true), _used_structs(used_structs) {
+        : UnusedDeclarations(used, true, true, true), _used_structs(used_structs) {
         setName("PruneUnused");
     }
     const IR::Node *preorder(IR::Type_StructLike *ts) override;

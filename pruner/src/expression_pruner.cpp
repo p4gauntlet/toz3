@@ -86,7 +86,8 @@ const IR::P4Program *remove_expressions(const IR::P4Program *temp) {
     return temp;
 }
 
-const IR::P4Program *prune_expressions(const IR::P4Program *program, PrunerConfig pruner_conf) {
+const IR::P4Program *prune_expressions(const IR::P4Program *program,
+                                       const PrunerConfig &pruner_conf) {
     int same_before_pruning = 0;
     int result = 0;
     INFO("\nPruning expressions");

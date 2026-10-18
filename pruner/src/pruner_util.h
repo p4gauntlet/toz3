@@ -24,7 +24,10 @@ class PrunerRng {
 
         return instance;
     }
-    static void seed(int s) { instance().rng.seed(s); }
+    static void seed(uint64_t s) {
+        // mt19937 consumes the low 32 bits of the command-line seed.
+        instance().rng.seed(static_cast<boost::random::mt19937::result_type>(s));
+    }
     static int64_t get_rnd_int(int64_t min, int64_t max);
     static double get_rnd_pct();
 };
@@ -61,7 +64,7 @@ struct PrunerConfig {
 ExitInfo get_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
 ExitInfo get_crash_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
 
-ErrorType classify_bug(ExitInfo exit_info);
+ErrorType classify_bug(const ExitInfo &exit_info);
 int get_exit_code(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
 
 void emit_p4_program(const IR::P4Program *program, const std::filesystem::path &prog_name);
