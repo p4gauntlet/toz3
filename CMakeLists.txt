@@ -168,7 +168,6 @@ set(
   ${P4C_TEST_DIR}/parser-unroll-test1.p4
   # Union validity mismatches. STF confirms field-write/extraction
   # defects; BMv2's invalidation behavior masks the copy/retained-type defects.
-  ${P4C_TEST_DIR}/header-union-field-name-collision-bmv2.p4
   ${P4C_TEST_DIR}/invalid-hdr-warnings5.p4
   ${P4C_TEST_DIR}/invalid-hdr-warnings6.p4
   ${P4C_TEST_DIR}/invalid-union.p4
