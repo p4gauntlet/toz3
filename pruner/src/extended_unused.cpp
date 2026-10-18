@@ -1,13 +1,13 @@
 #include "extended_unused.h"
 
-#include "frontends/p4/sideEffects.h"
-#include "pruner_util.h"
+#include "ir/declaration.h"
+#include "ir/id.h"
+#include "lib/log.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
-bool PruneUnused::check_if_field_used(cstring name_of_struct,
-                                      cstring name_of_field) {
-    for (const auto *s : *used_structs) {
+bool PruneUnused::check_if_field_used(cstring name_of_struct, cstring name_of_field) {
+    for (const auto *s : *_used_structs) {
         if (s->name == name_of_struct) {
             for (auto f : *(s->fields)) {
                 if (f == name_of_field) {
@@ -20,7 +20,7 @@ bool PruneUnused::check_if_field_used(cstring name_of_struct,
 }
 
 const IR::Node *PruneUnused::preorder(IR::Type_StructLike *ts) {
-    if (!unused_refMap->isUsed(getOriginal<IR::IDeclaration>())) {
+    if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
         return nullptr;
     }
     return ts;
@@ -28,9 +28,9 @@ const IR::Node *PruneUnused::preorder(IR::Type_StructLike *ts) {
 
 const IR::Node *PruneUnused::preorder(IR::StructField *sf) {
     const auto *p = getParent<IR::Type_StructLike>();
-    cstring p_name = p->getP4Type()->toString();
-    cstring f_name = sf->toString();
-    bool res = check_if_field_used(p_name, f_name);
+    cstring pName = p->getP4Type()->toString();
+    cstring fName = sf->toString();
+    bool res = check_if_field_used(pName, fName);
     if (res) {
         return sf;
     }
@@ -38,21 +38,21 @@ const IR::Node *PruneUnused::preorder(IR::StructField *sf) {
 }
 
 const IR::Node *PruneUnused::preorder(IR::Type_Extern *te) {
-    if (!unused_refMap->isUsed(getOriginal<IR::IDeclaration>())) {
+    if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
         return nullptr;
     }
     return te;
 }
 
 const IR::Node *PruneUnused::preorder(IR::Method *m) {
-    if (!unused_refMap->isUsed(getOriginal<IR::IDeclaration>())) {
+    if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
         return nullptr;
     }
     return m;
 }
 
 const IR::Node *PruneUnused::preorder(IR::Function *f) {
-    if (!unused_refMap->isUsed(getOriginal<IR::IDeclaration>())) {
+    if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
         return nullptr;
     }
     return f;
@@ -65,8 +65,7 @@ bool ListStructs::preorder(const IR::Member *p) {
     if (pexpr == nullptr) {
         return true;  // i.e, expr was not a path expression
     }
-    const IR::IDeclaration *decl =
-        unused_refMap->getDeclaration(pexpr->path, false);
+    const IR::IDeclaration *decl = getDeclaration(pexpr->path, false);
     if (decl == nullptr) {
         return true;
     }
@@ -88,7 +87,7 @@ void ListStructs::insertField(cstring name_of_struct, cstring name_of_field) {
     bool foundStruct = false;
     bool foundField = false;
 
-    for (auto *s : *used_structs) {
+    for (auto *s : *_used_structs) {
         if (name_of_struct == s->name) {
             foundStruct = true;
             for (auto f : *s->fields) {
@@ -106,17 +105,17 @@ void ListStructs::insertField(cstring name_of_struct, cstring name_of_field) {
         auto *s = new struct_obj;
         s->name = name_of_struct;
         s->fields = f;
-        used_structs->push_back(s);
+        _used_structs->push_back(s);
     }
 }
 
 void PruneUnused::show_used_structs() {
     LOG2("Printing Used Structs");
-    if (used_structs->empty()) {
+    if (_used_structs->empty()) {
         LOG1("used_structs is empty");
         return;
     }
-    for (struct_obj *s : *used_structs) {
+    for (struct_obj *s : *_used_structs) {
         LOG2("Struct: " << s->name);
         for (cstring f : *(s->fields)) {
             LOG2("\tField: " << f);
@@ -124,4 +123,4 @@ void PruneUnused::show_used_structs() {
     }
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

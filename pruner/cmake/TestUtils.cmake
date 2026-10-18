@@ -1,6 +1,6 @@
 # These are test utils and macros that are borrowed from P4C and slightly customized.
 
-macro(p4c_add_test_with_args tag driver isXfail alias p4test test_args cmake_args)
+macro(pruner_add_test_with_args tag driver isXfail alias p4test test_args cmake_args)
   set(__testfile "${P4C_BINARY_DIR}/${tag}/${p4test}.test")
   file (WRITE  ${__testfile} "#! /usr/bin/env bash\n")
   file (APPEND ${__testfile} "# Generated file, modify with care\n\n")
@@ -20,9 +20,9 @@ macro(p4c_add_test_with_args tag driver isXfail alias p4test test_args cmake_arg
   else()
     set_tests_properties(${__testname} PROPERTIES LABELS ${tag} TIMEOUT ${${tag}_timeout})
   endif()
-endmacro(p4c_add_test_with_args)
+endmacro(pruner_add_test_with_args)
 
-macro(p4c_add_test_list tag driver tests xfail)
+macro(pruner_add_test_list tag driver tests xfail)
   set (__xfail_list "${xfail}")
   set (__test_list "${tests}")
   set (__testCounter 0)
@@ -31,22 +31,22 @@ macro(p4c_add_test_list tag driver tests xfail)
   foreach(t ${__test_list})
     list (FIND __xfail_list ${t} __xfail_test)
     if(__xfail_test GREATER -1)
-      p4c_add_test_with_args (${tag} ${driver} TRUE ${t} ${t} "${ARGN}" "")
+      pruner_add_test_with_args (${tag} ${driver} TRUE ${t} ${t} "${ARGN}" "")
       math (EXPR __xfailCounter "${__xfailCounter} + 1")
     else()
-      p4c_add_test_with_args (${tag} ${driver} FALSE ${t} ${t} "${ARGN}" "")
+      pruner_add_test_with_args (${tag} ${driver} FALSE ${t} ${t} "${ARGN}" "")
     endif() # __xfail_test
   endforeach() # tests
   math (EXPR __testCounter "${__testCounter} + ${__nTests}")
   # add the tag to the list
   set (TEST_TAGS ${TEST_TAGS} ${tag} CACHE INTERNAL "test tags")
   MESSAGE(STATUS "Added ${__testCounter} tests to '${tag}' (${__xfailCounter} xfails)")
-endmacro(p4c_add_test_list)
+endmacro(pruner_add_test_list)
 
-macro(p4c_add_tests tag driver testsuites xfails)
+macro(pruner_add_tests tag driver testsuites xfails)
   set(__tests "")
   set(__xfails "")
   p4c_find_test_names("${testsuites}" __tests)
   p4c_find_test_names("${xfails}" __xfails)
-  p4c_add_test_list (${tag} ${driver} "${__tests}" "${__xfails}" "${ARGN}")
-endmacro(p4c_add_tests)
+  pruner_add_test_list (${tag} ${driver} "${__tests}" "${__xfails}" "${ARGN}")
+endmacro(pruner_add_tests)

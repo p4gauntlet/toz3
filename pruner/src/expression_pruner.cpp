@@ -1,6 +1,15 @@
 #include "expression_pruner.h"
 
-namespace P4PRUNER {
+#include <cstdlib>
+#include <string>
+#include <vector>
+
+#include "ir/vector.h"
+#include "lib/cstring.h"
+#include "toz3/pruner/src/constants.h"
+#include "toz3/pruner/src/pruner_util.h"
+
+namespace P4::ToZ3::Pruner {
 
 const IR::Node *pick_side_binary(IR::Operation_Binary *expr) {
     auto decision = PrunerRng::get_rnd_pct();
@@ -40,73 +49,45 @@ const IR::Node *ExpressionPruner::postorder(IR::SelectExpression *expr) {
     return expr->selectCases.front()->state;
 }
 
-const IR::Node *ExpressionPruner::postorder(IR::Add *expr) {
-    return pick_side_binary(expr);
-}
-const IR::Node *ExpressionPruner::postorder(IR::AddSat *expr) {
-    return pick_side_binary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Add *expr) { return pick_side_binary(expr); }
+const IR::Node *ExpressionPruner::postorder(IR::AddSat *expr) { return pick_side_binary(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::Sub *expr) {
-    return pick_side_binary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Sub *expr) { return pick_side_binary(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::SubSat *expr) {
-    return pick_side_binary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::SubSat *expr) { return pick_side_binary(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::Mul *expr) {
-    return pick_side_binary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Mul *expr) { return pick_side_binary(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::Div *expr) {
-    return pick_side_binary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Div *expr) { return pick_side_binary(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::BAnd *expr) {
-    return pick_side_binary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::BAnd *expr) { return pick_side_binary(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::BOr *expr) {
-    return pick_side_binary(expr);
-}
-const IR::Node *ExpressionPruner::postorder(IR::BXor *expr) {
-    return pick_side_binary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::BOr *expr) { return pick_side_binary(expr); }
+const IR::Node *ExpressionPruner::postorder(IR::BXor *expr) { return pick_side_binary(expr); }
 
 // Unary operations
 
-const IR::Node *ExpressionPruner::postorder(IR::Neg *expr) {
-    return pick_side_unary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Neg *expr) { return pick_side_unary(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::Cmpl *expr) {
-    return pick_side_unary(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Cmpl *expr) { return pick_side_unary(expr); }
 
 // Shifts
 
-const IR::Node *ExpressionPruner::postorder(IR::Mod *expr) {
-    return pick_side_shift_left(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Mod *expr) { return pick_side_shift_left(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::Shl *expr) {
-    return pick_side_shift_left(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Shl *expr) { return pick_side_shift_left(expr); }
 
-const IR::Node *ExpressionPruner::postorder(IR::Shr *expr) {
-    return pick_side_shift_left(expr);
-}
+const IR::Node *ExpressionPruner::postorder(IR::Shr *expr) { return pick_side_shift_left(expr); }
 
 const IR::P4Program *remove_expressions(const IR::P4Program *temp) {
     // Removes all the nodes it receives from the vector
-    auto *expression_pruner = new P4PRUNER::ExpressionPruner();
+    auto *expression_pruner = new ExpressionPruner();
     temp = temp->apply(*expression_pruner);
     return temp;
 }
 
 const IR::P4Program *prune_expressions(const IR::P4Program *program,
-                                       P4PRUNER::PrunerConfig pruner_conf) {
+                                       const PrunerConfig &pruner_conf) {
     int same_before_pruning = 0;
     int result = 0;
     INFO("\nPruning expressions");
@@ -128,4 +109,4 @@ const IR::P4Program *prune_expressions(const IR::P4Program *program,
     return program;
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

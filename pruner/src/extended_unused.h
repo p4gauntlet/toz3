@@ -6,27 +6,26 @@
 #include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/unusedDeclarations.h"
 #include "ir/ir.h"
+#include "ir/node.h"
+#include "ir/pass_manager.h"
+#include "ir/visitor.h"
+#include "lib/cstring.h"
+#include "lib/null.h"
+#include "lib/safe_vector.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 struct struct_obj {
     cstring name;
     std::vector<cstring> *fields{};
 };
 
-class PruneUnused : public P4::RemoveUnusedDeclarations {
-    // the refmap of the parent class is private so we have to use our own
-    // a little bit unfortunate but the pointer is the same
-    // we also do not modify the map so this is fairly safe
-    const P4::ReferenceMap *unused_refMap;
-    const std::vector<struct_obj *> *used_structs;
+class PruneUnused : public P4::UnusedDeclarations {
+    const std::vector<struct_obj *> *_used_structs;
 
  public:
-    explicit PruneUnused(const P4::ReferenceMap *refMap,
-                         std::vector<struct_obj *> *_used_structs)
-        : P4::RemoveUnusedDeclarations(refMap), unused_refMap(refMap),
-          used_structs(_used_structs) {
-        CHECK_NULL(refMap);
+    explicit PruneUnused(const UsedDeclSet &used, std::vector<struct_obj *> *used_structs)
+        : UnusedDeclarations(used, true, true, true), _used_structs(used_structs) {
         setName("PruneUnused");
     }
     const IR::Node *preorder(IR::Type_StructLike *ts) override;
@@ -38,15 +37,11 @@ class PruneUnused : public P4::RemoveUnusedDeclarations {
     bool check_if_field_used(cstring name_of_struct, cstring name_of_field);
 };
 
-class ListStructs : public Inspector {
-    const P4::ReferenceMap *unused_refMap;
-    std::vector<struct_obj *> *used_structs;
+class ListStructs : public Inspector, ResolutionContext {
+    std::vector<struct_obj *> *_used_structs;
 
  public:
-    explicit ListStructs(const P4::ReferenceMap *refMap,
-                         std::vector<struct_obj *> *_used_structs)
-        : unused_refMap(refMap), used_structs(_used_structs) {
-        CHECK_NULL(refMap);
+    explicit ListStructs(std::vector<struct_obj *> *used_structs) : _used_structs(used_structs) {
         CHECK_NULL(_used_structs);
         setName("ListStructs");
     }
@@ -57,17 +52,16 @@ class ListStructs : public Inspector {
 
 class ExtendedUnusedDeclarations : public PassManager {
  public:
-    explicit ExtendedUnusedDeclarations(
-        P4::ReferenceMap *refMap, std::vector<struct_obj *> *used_structs) {
-        CHECK_NULL(refMap);
-        passes.emplace_back(
-            new PassRepeated{new P4::ResolveReferences(refMap),
-                             new ListStructs(refMap, used_structs),
-                             new PruneUnused(refMap, used_structs)});
+    explicit ExtendedUnusedDeclarations(std::vector<struct_obj *> *used_structs) {
+        const UsedDeclSet *used_decls = new UsedDeclSet();
+        passes.emplace_back(new PassRepeated{
+            new ListStructs(used_structs),
+            new PruneUnused(*used_decls, used_structs),
+        });
         setName("ExtendedUnusedDeclarations");
     }
 };
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
 
 #endif /* _PRUNE_UNUSED_H_ */

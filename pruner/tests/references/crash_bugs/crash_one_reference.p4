@@ -119,7 +119,7 @@ control ingress(inout Headers h) {
     }
     table xLdpWu {
         key = {
-            16w19744: exact @name("wvtOpl") ;
+            16w19744: exact @name("wvtOpl");
         }
         actions = {
             isfLJ(h.IDZn.YRcl);
@@ -128,16 +128,12 @@ control ingress(inout Headers h) {
         default_action = NoAction();
     }
     table uiTHkJ {
-        key = {
-        }
         actions = {
             @defaultonly NoAction();
         }
         default_action = NoAction();
     }
     table YfGdXm {
-        key = {
-        }
         actions = {
             isfLJ(h.uAdg.pvdW[20:17]);
             @defaultonly NoAction();
@@ -146,9 +142,9 @@ control ingress(inout Headers h) {
     }
     table ObUSpl {
         key = {
-            4w9               : exact @name("LzviDL") ;
-            16w19115          : exact @name("SBnBQt") ;
-            48w145114785635731: exact @name("JEgqHq") ;
+            4w9               : exact @name("LzviDL");
+            16w19115          : exact @name("SBnBQt");
+            48w145114785635731: exact @name("JEgqHq");
         }
         actions = {
             isfLJ(h.IDZn.YRcl);
@@ -169,4 +165,3 @@ parser Parser(packet_in b, out Headers hdr);
 control Ingress(inout Headers hdr);
 package top(Parser p, Ingress ig);
 top(p(), ingress()) main;
-

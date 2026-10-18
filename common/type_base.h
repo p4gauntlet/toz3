@@ -1,25 +1,29 @@
 #ifndef TOZ3_COMMON_TYPE_BASE_H_
 #define TOZ3_COMMON_TYPE_BASE_H_
 
-#include <cstdio>
+#include <z3++.h>
 
-#include <map>      // std::map
+#include <algorithm>
+#include <cstdio>
+#include <map>  // std::map
+#include <memory>
 #include <stack>    // std::stack
 #include <utility>  // std::pair
+#include <variant>  // std::variant
 #include <vector>   // std::vector
 
-#include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
+#include "lib/castable.h"
 #include "lib/cstring.h"
 #include "util.h"
 
-#define BOOST_VARIANT_USE_RELAXED_GET_BY_DEFAULT
-#include <boost/range/adaptor/reversed.hpp>
-#include <boost/variant.hpp>
-#include <boost/variant/get.hpp>
+namespace P4::ToZ3 {
 
-namespace TOZ3 {
+using namespace P4::literals;  // NOLINT
 
+class EvaluationContext;
+class P4State;
+class P4Z3Instance;
 class Z3Int;
 class Z3Bitvector;
 class VoidResult;
@@ -33,17 +37,15 @@ class ListInstance;
 class ExternInstance;
 class P4TableInstance;
 
-using P4Z3Function =
-    std::function<void(Visitor *, const IR::Vector<IR::Argument> *)>;
-using FunOrMethod = boost::variant<P4Z3Function, const IR::Method *>;
+using P4Z3Function = std::function<void(EvaluationContext *, const IR::Vector<IR::Argument> *)>;
+using FunOrMethod = std::variant<P4Z3Function, const IR::Method *>;
 
 struct Z3Slice {
     z3::expr hi;
     z3::expr lo;
 };
 
-inline std::ostream &operator<<(std::ostream &out,
-                                const TOZ3::Z3Slice &z3_slice) {
+inline std::ostream &operator<<(std::ostream &out, const Z3Slice &z3_slice) {
     out << "[" << z3_slice.hi << ":" << z3_slice.lo << "]";
     return out;
 }
@@ -68,56 +70,61 @@ struct TableProperties {
     std::vector<const IR::MethodCallExpression *> actions;
     const IR::MethodCallExpression *default_action = nullptr;
     // TODO: Simplify
-    std::vector<
-        std::pair<const IR::ListExpression *, const IR::MethodCallExpression *>>
-        entries;
+    std::vector<std::pair<const IR::ListExpression *, const IR::MethodCallExpression *>> entries;
     bool immutable;
 };
 
-class P4Z3Node {
+class P4Z3Node : public ICastable {
  public:
-    template <typename T> bool is() const { return to<T>() != nullptr; }
-    template <typename T> const T *to() const {
-        return dynamic_cast<const T *>(this);
+    DECLARE_TYPEINFO(P4Z3Node);
+
+ public:
+    template <typename T>
+    T *to_mut() {
+        return to<T>();
     }
-    template <typename T> T *to_mut() { return dynamic_cast<T *>(this); }
 
     virtual cstring get_static_type() const = 0;
     virtual cstring to_string() const = 0;
-    friend inline std::ostream &operator<<(std::ostream &out,
-                                           const TOZ3::P4Z3Node &type) {
+    friend inline std::ostream &operator<<(std::ostream &out, const P4Z3Node &type) {
         return out << type.to_string();
     }
 };
 
-using NameOrIndex = boost::variant<cstring, z3::expr>;
-// These structures are used to cleanly resolve references for copy in and out
+using NameOrIndex = std::variant<cstring, z3::expr>;
+// A saved address: evaluate the receiver, indices and slices once, then reuse it
+// for assignments and copy-out. Members and slices are stored from root to leaf.
 class MemberStruct {
  public:
     cstring main_member = nullptr;
-    std::vector<NameOrIndex> mid_members;
-    NameOrIndex target_member = nullptr;
-    bool has_stack = false;
-    bool is_flat = false;
+    // Evaluated receiver without a variable name, e.g. a header returned by f() in f().isValid().
+    P4Z3Instance *temporary = nullptr;
+    std::vector<NameOrIndex> members;
+    // Saved stack address for the nextIndex effect of extract(stack.next).
+    std::shared_ptr<MemberStruct> next_stack;
     std::vector<Z3Slice> end_slices;
+
+    bool has_index() const {
+        return std::any_of(members.begin(), members.end(), [](const auto &member) {
+            return std::holds_alternative<z3::expr>(member);
+        });
+    }
 
     cstring to_string() const {
         std::stringstream ret;
         ret << *this;
         return ret;
     }
-    // TODO: Improve printing here.
-    friend inline std::ostream &
-    operator<<(std::ostream &out, const TOZ3::MemberStruct &member_struct) {
-        if (member_struct.main_member != nullptr) {
-            out << member_struct.main_member << ".";
+    friend inline std::ostream &operator<<(std::ostream &out, const MemberStruct &member_struct) {
+        out << (member_struct.temporary ? "<temporary>"_cs : member_struct.main_member);
+        for (const auto &member : member_struct.members) {
+            if (const auto *name = std::get_if<cstring>(&member))
+                out << "." << *name;
+            else
+                out << "[" << std::get<z3::expr>(member) << "]";
         }
-        for (const auto &mid_member : member_struct.mid_members) {
-            out << mid_member << ".";
-        }
-        out << member_struct.target_member;
         for (const auto &end_slice : member_struct.end_slices) {
-            out << end_slice << ".";
+            out << end_slice;
         }
         return out;
     }
@@ -130,12 +137,19 @@ struct ParserError : public std::exception {
 };
 
 class P4Z3Instance : public P4Z3Node {
+ public:
+    DECLARE_TYPEINFO(P4Z3Instance, P4Z3Node);
+
  protected:
     const IR::Type *p4_type = nullptr;
+    const P4State *allocation_owner = nullptr;
+
+    template <typename T, typename... Args>
+    friend T *allocate_instance(const P4State *state, Args &&...args);
 
  public:
     explicit P4Z3Instance(const IR::Type *p4_type) : p4_type(p4_type) {}
-    ~P4Z3Instance() = default;
+    virtual ~P4Z3Instance() = default;
 
     const IR::Type *get_p4_type() const { return p4_type; }
     /****** UNARY OPERANDS ******/
@@ -213,47 +227,58 @@ class P4Z3Instance : public P4Z3Node {
         P4C_UNIMPLEMENTED("concat not implemented for %s.", get_static_type());
     }
     virtual P4Z3Instance *cast_allocate(const IR::Type * /*dest_sort*/) const {
-        P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.",
-                          get_static_type());
+        P4C_UNIMPLEMENTED("cast_allocate not implemented for %s.", get_static_type());
     }
     /****** TERNARY OPERANDS ******/
-    virtual P4Z3Instance *slice(const z3::expr & /*hi*/,
-                                const z3::expr & /*lo*/) const {
+    virtual P4Z3Instance *slice(const z3::expr & /*hi*/, const z3::expr & /*lo*/) const {
         P4C_UNIMPLEMENTED("slice not implemented for %s.", get_static_type());
     }
     /****** CUSTOM FUNCTIONS ******/
-    virtual void merge(const z3::expr & /*cond*/,
-                       const P4Z3Instance & /*then_var*/) {
-        P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.",
-                          get_static_type());
+    virtual void merge(const z3::expr & /*cond*/, const P4Z3Instance & /*then_var*/) {
+        P4C_UNIMPLEMENTED("Complex expression merge not implemented for %s.", get_static_type());
     }
-    virtual std::vector<std::pair<cstring, z3::expr>>
-    get_z3_vars(cstring /*prefix*/ = "",
-                const z3 ::expr * /*valid*/ = nullptr) const {
-        P4C_UNIMPLEMENTED("get_z3_vars not implemented for %s.",
-                          get_static_type());
+    std::vector<std::pair<cstring, z3::expr>> get_z3_vars(cstring prefix = ""_cs) const {
+        return get_z3_vars(prefix, nullptr);
+    }
+    virtual std::vector<std::pair<cstring, z3::expr>> get_z3_vars(
+        cstring /*prefix*/, const z3::expr * /*valid*/) const {
+        P4C_UNIMPLEMENTED("get_z3_vars not implemented for %s.", get_static_type());
     }
     virtual P4Z3Instance *copy() const {
         P4C_UNIMPLEMENTED("Copy not implemented for %s.", get_static_type());
     }
     virtual void set_undefined() {
-        P4C_UNIMPLEMENTED("set_undefined not implemented for %s.",
-                          get_static_type());
+        P4C_UNIMPLEMENTED("set_undefined not implemented for %s.", get_static_type());
     }
     virtual P4Z3Instance *get_member(cstring /*member_name*/) const {
-        P4C_UNIMPLEMENTED("get_member not implemented for %s.",
-                          get_static_type());
+        P4C_UNIMPLEMENTED("get_member not implemented for %s.", get_static_type());
     }
 
-    P4Z3Instance(const P4Z3Instance &other) { p4_type = other.p4_type; }
+    P4Z3Instance(const P4Z3Instance &other)
+        : p4_type(other.p4_type), allocation_owner(other.allocation_owner) {}
 };
 
-using VarMap =
-    ordered_map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
-using MainResult =
-    ordered_map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>,
-                                   const IR::Type *>>;
+void retain_instance(const P4State &state, std::unique_ptr<P4Z3Instance> instance);
 
-}  // namespace TOZ3
+// Interpreter pointers can alias across snapshots of a scope. Own each allocation
+// once for the lifetime of its P4State, while the pointers in scopes remain borrowed.
+template <typename T, typename... Args>
+T *allocate_instance(const P4State *state, Args &&...args) {
+    auto instance = std::make_unique<T>(std::forward<Args>(args)...);
+    auto *result = instance.get();
+    result->allocation_owner = state;
+    if (state == nullptr) {
+        // Standalone values transfer ownership to the caller.
+        return instance.release();
+    }
+    retain_instance(*state, std::move(instance));
+    return result;
+}
+
+using VarMap = ordered_map<cstring, std::pair<P4Z3Instance *, const IR::Type *>>;
+using MainResult =
+    ordered_map<cstring, std::pair<std::vector<std::pair<cstring, z3::expr>>, const IR::Type *>>;
+
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_TYPE_BASE_H_

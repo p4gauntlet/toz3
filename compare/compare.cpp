@@ -1,47 +1,65 @@
 #include "compare.h"
 
-#include <set>
+#include <cstdlib>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+#include <list>
 #include <string>
+#include <unordered_map>
+#include <utility>
 
 #include "frontends/common/parseInput.h"
-
+#include "ir/ir.h"
+#include "lib/error.h"
+#include "lib/exceptions.h"
 #include "toz3/common/create_z3.h"
+#include "toz3/common/exceptions.h"
+#include "toz3/common/state.h"
+#include "toz3/common/type_base.h"
+#include "toz3/common/util.h"
 #include "toz3/common/visitor_interpret.h"
+#include "z3++.h"
+#include "z3_api.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
-MainResult get_z3_repr(cstring prog_name, const IR::P4Program *program,
-                       z3::context *ctx) {
+bool is_undefined_const(const z3::expr &e) {
+    if (!e.is_const()) {
+        return false;
+    }
+    return e.decl().name().str().starts_with(UNDEF_LABEL);
+}
+
+MainResult get_z3_repr(const std::filesystem::path &prog_name, const IR::P4Program *program,
+                       z3::context *ctx, z3::expr *input_constraints) {
     try {
         // Convert the P4 program to Z3
-        TOZ3::P4State state(ctx);
-        TOZ3::Z3Visitor to_z3(&state, false);
+        P4State state(ctx);
+        Z3Visitor to_z3(&state, false);
         program->apply(to_z3);
         const auto *decl = get_main_decl(&state);
         if (decl == nullptr) {
             return {};
         }
-        TOZ3::Z3Visitor to_z3_second(&state);
-        return gen_state_from_instance(&to_z3_second, decl);
+        Z3Visitor to_z3_second(&state);
+        auto result = gen_state_from_instance(&to_z3_second, decl);
+        *input_constraints = state.get_input_constraints().simplify();
+        return result;
     } catch (const Util::P4CExceptionBase &bug) {
-        std::cerr << "Failed to interpret pass \"" << prog_name << "\"."
-                  << std::endl;
-        std::cerr << bug.what() << std::endl;
-        exit(EXIT_FAILURE);
+        throw P4::ToZ3::InternalError("Failed to interpret pass \"" + prog_name.string() + "\".\n" +
+                                      bug.what());
     } catch (z3::exception &ex) {
-        std::cerr << "Failed to interpret pass \"" << prog_name << "\"."
-                  << std::endl;
-        std::cerr << "Z3 exception: " << ex << std::endl;
-        exit(EXIT_FAILURE);
+        throw P4::ToZ3::Z3Error("Failed to interpret pass \"" + prog_name.string() +
+                                "\".\nZ3 exception: " + ex.msg());
     }
-    return {};
 }
 
 void unroll_result(const MainResult &z3_repr_prog,
                    std::vector<std::pair<cstring, z3::expr>> *result_vec) {
     for (const auto &result_tuple : z3_repr_prog) {
         auto name = result_tuple.first;
-        auto z3_result = result_tuple.second.first;
+        const auto &z3_result = result_tuple.second.first;
         for (const auto &sub_tuple : z3_result) {
             auto sub_name = name + "_" + sub_tuple.first;
             result_vec->push_back({sub_name, sub_tuple.second});
@@ -49,9 +67,8 @@ void unroll_result(const MainResult &z3_repr_prog,
     }
 }
 
-z3::expr
-create_z3_struct(z3::context *ctx,
-                 const std::vector<std::pair<cstring, z3::expr>> &z3_prog) {
+z3::expr create_z3_struct(z3::context *ctx,
+                          const std::vector<std::pair<cstring, z3::expr>> &z3_prog) {
     z3::expr_vector z3_vec(*ctx);
     std::vector<z3::sort> z3_vec_sorts;
     std::vector<const char *> names;
@@ -63,217 +80,223 @@ create_z3_struct(z3::context *ctx,
         z3_vec.push_back(prog_tuple.second);
         z3_vec_sorts.push_back(prog_tuple.second.get_sort());
     }
-    auto before_sort = ctx->tuple_sort("State", z3_vec.size(), names.data(),
-                                       z3_vec_sorts.data(), getters);
+    auto before_sort =
+        ctx->tuple_sort("State", z3_vec.size(), names.data(), z3_vec_sorts.data(), getters);
 
-    return before_sort(z3_vec);
+    // Rewrite the complete summary once so Z3 can share work across output fields.
+    z3::params normalization(*ctx);
+    // P4C strength reduction replaces multiplication by powers of two with shifts.
+    // Canonicalize both forms before they become arguments of packet-read functions.
+    normalization.set("mul2concat", true);
+    return before_sort(z3_vec).simplify(normalization);
 }
 
 void print_violation_error(const z3::solver &s, const Z3Prog &prog_before,
                            const Z3Prog &prog_after) {
     std::cerr << "Found validation error.\n";
-    std::cerr << "Program " << prog_before.first << " before:\n";
-    for (const auto &prog_tuple_before : prog_before.second) {
+    std::cerr << "Program " << prog_before.name << " before:\n";
+    for (const auto &prog_tuple_before : prog_before.outputs) {
         cstring left_name = prog_tuple_before.first + ": ";
         std::cerr << std::left << std::setw(COLUMN_WIDTH) << left_name;
-        std::cerr << std::right << std::setw(COLUMN_WIDTH)
-                  << prog_tuple_before.second.simplify() << std::endl;
+        std::cerr << std::right << std::setw(COLUMN_WIDTH) << prog_tuple_before.second.simplify()
+                  << std::endl;
     }
-    std::cerr << "\nProgram " << prog_after.first << " after:\n";
-    for (const auto &prog_tuple_after : prog_after.second) {
+    std::cerr << "\nProgram " << prog_after.name << " after:\n";
+    for (const auto &prog_tuple_after : prog_after.outputs) {
         cstring left_name = prog_tuple_after.first + ": ";
         std::cerr << std::left << std::setw(COLUMN_WIDTH) << left_name;
-        std::cerr << std::right << std::setw(COLUMN_WIDTH)
-                  << prog_tuple_after.second.simplify() << std::endl;
+        std::cerr << std::right << std::setw(COLUMN_WIDTH) << prog_tuple_after.second.simplify()
+                  << std::endl;
     }
     auto model = s.get_model();
     std::cerr << "\nSolution :\n";
-    for (size_t idx = 0; idx < model.size(); idx++) {
-        auto var = model[idx];
-        std::cerr << var.name() << " = " << model.get_const_interp(var)
-                  << std::endl;
-    }
+    std::cerr << model << std::endl;
 }
 
-z3::expr substitute_taint(z3::context *ctx, const z3::expr &z3_var,
-                          std::set<z3::expr> *taint_vars) {
-    auto decl = z3_var.decl();
-    auto z3_sort = z3_var.get_sort();
-    if (decl.decl_kind() == Z3_OP_ITE) {
-        auto cond_expr = z3_var.arg(0);
-        auto then_expr = z3_var.arg(1);
-        auto else_expr = z3_var.arg(2);
-        std::set<z3::expr> cond_taint_vars;
-        cond_expr = substitute_taint(ctx, cond_expr, &cond_taint_vars);
-        // Check if the cond expr is an ite statement after substitution.
-        // If the condition is tainted, do not even bother to evaluate the rest.
-        if (cond_expr.decl().decl_kind() != Z3_OP_ITE &&
-            !cond_taint_vars.empty()) {
-            auto taint_const =
-                z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
-            taint_vars->insert(taint_const);
-            return taint_const;
+namespace {
+
+class Definedness {
+    // Retain the ASTs so Z3 cannot recycle an ID when a field's simplified root dies.
+    std::unordered_map<unsigned, std::pair<z3::expr, z3::expr>> conditions;
+
+    static z3::expr both(const z3::expr &a, const z3::expr &b) {
+        if (a.is_false() || b.is_true()) {
+            return a;
         }
-        // Evaluate the branches.
-        std::set<z3::expr> then_taint_vars;
-        then_expr = substitute_taint(ctx, then_expr, &then_taint_vars);
-        std::set<z3::expr> else_taint_vars;
-        else_expr = substitute_taint(ctx, else_expr, &else_taint_vars);
-        // Check if the branches are an ite statement after substitution.
-        if (then_expr.decl().decl_kind() != Z3_OP_ITE &&
-            else_expr.decl().decl_kind() != Z3_OP_ITE &&
-            !then_taint_vars.empty() && !else_taint_vars.empty()) {
-            // Both branches are fully tainted. Replace and return.
-            auto taint_const =
-                z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
-            taint_vars->insert(taint_const);
-            return taint_const;
+        if (b.is_false() || a.is_true() || z3::eq(a, b)) {
+            return b;
         }
-        // Merge taints and create a new ite statement
-        taint_vars->insert(cond_taint_vars.begin(), cond_taint_vars.end());
-        taint_vars->insert(then_taint_vars.begin(), then_taint_vars.end());
-        taint_vars->insert(else_taint_vars.begin(), else_taint_vars.end());
-        if (!taint_vars->empty()) {
-            return z3::ite(cond_expr, then_expr, else_expr);
+        return a && b;
+    }
+
+    z3::expr combineArguments(const z3::expr &node) const {
+        if (node.is_ite()) {
+            const auto &yes = conditions.at(node.arg(1).id()).second;
+            const auto &no = conditions.at(node.arg(2).id()).second;
+            // Only the selected branch must be defined. An invalid-header read
+            // must not taint the valid-input path.
+            return both(conditions.at(node.arg(0).id()).second,
+                        z3::eq(yes, no) ? yes : z3::ite(node.arg(0), yes, no));
         }
-        return z3_var;
-    }
-    if (z3_var.is_const() &&
-        z3_var.to_string().find("undefined") != std::string::npos) {
-        // The expression is tainted replace it.
-        // Really dumb check, do not need anything else.
-        auto taint_const =
-            z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
-        taint_vars->insert(taint_const);
-        return taint_const;
-    }
-    // Remaining expressions are more complex, need to evaluate children.
-    auto arg_num = z3_var.num_args();
-    z3::expr_vector new_child_vars(*ctx);
-    for (size_t idx = 0; idx < arg_num; ++idx) {
-        auto child = z3_var.arg(idx);
-        std::set<z3::expr> child_taint_vars;
-        child = substitute_taint(ctx, child, &child_taint_vars);
-        // Replace entire expression if one non-ite member is tainted.
-        if (child.decl().decl_kind() != Z3_OP_ITE &&
-            !child_taint_vars.empty()) {
-            // The expression is tained. Replace it.
-            auto taint_const =
-                z3::expr(*ctx, Z3_mk_fresh_const(*ctx, "taint", z3_sort));
-            taint_vars->insert(taint_const);
-            return taint_const;
+        auto defined = node.ctx().bool_val(true);
+        for (unsigned i = 0; i < node.num_args(); ++i) {
+            defined = both(defined, conditions.at(node.arg(i).id()).second);
         }
-        taint_vars->insert(child_taint_vars.begin(), child_taint_vars.end());
-        new_child_vars.push_back(child);
+        if (defined.is_true() || (!node.is_and() && !node.is_or())) {
+            return defined;
+        }
+        // Simplification may turn a guarded undefined read into an AND/OR.
+        // A defined false/true operand determines the result even when another
+        // operand is undefined.
+        for (unsigned i = 0; i < node.num_args(); ++i) {
+            const auto arg = node.arg(i);
+            const auto decisive = both(conditions.at(arg.id()).second, node.is_and() ? !arg : arg);
+            if (decisive.is_false()) {
+                continue;
+            }
+            defined = defined.is_false() || decisive.is_true() ? decisive : defined || decisive;
+            if (defined.is_true()) {
+                break;
+            }
+        }
+        return defined;
     }
-    // We have taint, return a new expression.
-    if (!taint_vars->empty()) {
-        return decl(new_child_vars);
+
+ public:
+    z3::expr when(const z3::expr &expression) {
+        // Traverse the shared DAG once, rather than expanding it as an expression tree.
+        // Keep the traversal iterative because parser summaries can be deeply nested.
+        std::vector<std::pair<z3::expr, bool>> pending{{expression, false}};
+        while (!pending.empty()) {
+            auto [node, expanded] = pending.back();
+            pending.pop_back();
+            if (conditions.contains(node.id())) {
+                continue;
+            }
+            if (node.is_const()) {
+                conditions.emplace(
+                    node.id(),
+                    std::make_pair(node, node.ctx().bool_val(!is_undefined_const(node))));
+            } else if (!expanded) {
+                pending.emplace_back(node, true);
+                for (unsigned i = 0; i < node.num_args(); ++i) {
+                    if (!conditions.contains(node.arg(i).id())) {
+                        pending.emplace_back(node.arg(i), false);
+                    }
+                }
+            } else {
+                const auto defined = combineArguments(node);
+                conditions.emplace(node.id(), std::make_pair(node, defined));
+            }
+        }
+        return conditions.at(expression.id()).second;
     }
-    return z3_var;
+};
+
+}  // namespace
+
+z3::expr defined_when(const z3::expr &expression) {
+    Definedness analysis;
+    return analysis.when(expression);
 }
 
-z3::check_result check_undefined(z3::context *ctx, z3::solver *s,
-                                 const z3::expr &z3_prog_before,
-                                 const z3::expr &z3_prog_after) {
+z3::check_result check_undefined(z3::solver *s, const z3::expr &z3_prog_before,
+                                 const z3::expr &z3_prog_after, const z3::expr &input_constraints) {
     auto arg_num = z3_prog_before.num_args();
+    Definedness analysis;
     s->reset();
+    s->add(input_constraints);
     for (size_t idx = 0; idx < arg_num; ++idx) {
         s->push();
         auto m_before = z3_prog_before.arg(idx).simplify();
         auto m_after = z3_prog_after.arg(idx).simplify();
-        std::set<z3::expr> taint_vars;
-        m_before = substitute_taint(ctx, m_before, &taint_vars);
-        z3::expr tv_equiv = (m_before != m_after);
-        for (const auto &taint_var : taint_vars) {
-            if (m_before.get_sort().sort_kind() ==
-                taint_var.get_sort().sort_kind()) {
-                tv_equiv = tv_equiv && m_before != taint_var;
-            }
-        }
+        const auto tv_equiv = analysis.when(m_before) && m_before != m_after;
         // Check the equivalence of the modified clause.
         Logger::log_msg(1, "Checking member %s... ", idx);
-        cstring equ = tv_equiv.to_string().c_str();
-        Logger::log_msg(1, "Equation:\n%s", equ);
+        if (Logger::enabled(1)) {
+            cstring equ = tv_equiv.to_string();
+            Logger::log_msg(1, "Equation:\n%s", equ);
+        }
         s->add(tv_equiv);
         auto ret = s->check();
-        s->pop();
-        if (ret != z3::unsat) {
+        if (ret == z3::sat) {
+            // Keep the failing assertion in scope so diagnostics can retrieve its model.
             std::cerr << "Violation holds despite undefined behavior check.";
             return ret;
+        }
+        s->pop();
+        if (ret == z3::unknown) {
+            throw Z3Error("Could not determine equality during undefined behavior check");
         }
     }
     std::cerr << "Violation was caused by undefined behavior." << std::endl;
     return z3::check_result::unsat;
 }
 
-int compare_progs(z3::context *ctx, const std::vector<Z3Prog> &z3_progs,
-                  bool allow_undefined) {
+int compareProgs(z3::context *ctx, const std::vector<std::filesystem::path> &prog_list,
+                 const std::function<Z3Prog(const std::filesystem::path &)> &interpret,
+                 bool allow_undefined, bool diagnostics) {
     z3::solver s(*ctx);
-    auto prog_before = z3_progs[0];
-    auto z3_prog_before = create_z3_struct(ctx, prog_before.second);
-    for (size_t i = 1; i < z3_progs.size(); ++i) {
-        Logger::log_msg(1, "\nComparing %s and %s.", prog_before.first,
-                        z3_progs[i].first);
-        auto prog_after = z3_progs[i];
-        auto z3_prog_after = create_z3_struct(ctx, z3_progs[i].second);
-
-        s.push();
+    auto prog_before = interpret(prog_list.front());
+    auto input_constraints = prog_before.input_constraints;
+    auto z3_prog_before = create_z3_struct(ctx, prog_before.outputs);
+    for (size_t i = 1; i < prog_list.size(); ++i) {
+        // Retain only adjacent summaries, and stop interpreting at the first violation.
+        auto prog_after = interpret(prog_list[i]);
+        auto z3_prog_after = create_z3_struct(ctx, prog_after.outputs);
+        // Preserve the source input domain after a lowering removes union types.
+        input_constraints = (input_constraints && prog_before.input_constraints).simplify();
+        Logger::log_msg(1, "\nComparing %s and %s.", prog_before.name, prog_after.name);
+        // Each adjacent pair is an independent query. Keep a failing query
+        // intact so diagnostics can retrieve its counterexample model.
+        s.reset();
+        s.add(input_constraints);
         s.add(z3_prog_before != z3_prog_after);
         Logger::log_msg(1, "Checking... ");
         auto ret = s.check();
         Logger::log_msg(1, "Result: %s", ret);
+        if (ret == z3::sat && allow_undefined) {
+            std::cerr << "Rechecking whether violation is caused by "
+                         "undefined behavior."
+                      << std::endl;
+            ret = check_undefined(&s, z3_prog_before, z3_prog_after, input_constraints);
+        }
         if (ret == z3::sat) {
-            s.pop();
-            std::cerr << "Programs are not equal!" << std::endl;
-            if (allow_undefined) {
-                std::cerr << "Rechecking whether violation is caused by "
-                             "undefined behavior."
-                          << std::endl;
-                ret = check_undefined(ctx, &s, z3_prog_before, z3_prog_after);
-                if (ret != z3::unsat) {
-                    print_violation_error(s, prog_before, prog_after);
-                    return EXIT_VIOLATION;
-                }
-                prog_before = prog_after;
-                z3_prog_before = z3_prog_after;
-                continue;
+            if (diagnostics) {
+                print_violation_error(s, prog_before, prog_after);
             }
-            print_violation_error(s, prog_before, prog_after);
             return EXIT_VIOLATION;
         }
         if (ret == z3::unknown) {
-            std::cerr << "Error: Could not determine equality. Error"
-                      << std::endl;
-            return EXIT_FAILURE;
+            throw Z3Error("Could not determine equality between " + prog_before.name.string() +
+                          " and " + prog_after.name.string());
         }
-        s.pop();
-        prog_before = prog_after;
+        prog_before = std::move(prog_after);
         z3_prog_before = z3_prog_after;
     }
     Logger::log_msg(0, "Passed all checks.");
     return EXIT_SUCCESS;
 }
 
-int process_programs(const std::vector<cstring> &prog_list,
-                     ParserOptions *options, bool allow_undefined) {
-    z3::context ctx;
-    // Parse the first program
-    // Use a little trick here to get the second program
-    std::vector<Z3Prog> z3_progs;
-    for (auto prog : prog_list) {
-        options->file = prog;
-        const auto *prog_parsed = P4::parseP4File(*options);
-        if (prog_parsed == nullptr || ::errorCount() > 0) {
-            std::cerr << "Unable to parse program." << std::endl;
-            return EXIT_FAILURE;
-        }
-        auto z3_repr_prog = get_z3_repr(prog, prog_parsed, &ctx);
-        std::vector<std::pair<cstring, z3::expr>> result_vec;
-        unroll_result(z3_repr_prog, &result_vec);
-        z3_progs.emplace_back(prog, result_vec);
+int process_programs(const std::vector<std::filesystem::path> &prog_list, ParserOptions *options,
+                     bool allow_undefined, bool diagnostics) {
+    if (prog_list.empty()) {
+        return EXIT_SKIPPED;
     }
-    return compare_progs(&ctx, z3_progs, allow_undefined);
+    z3::context ctx;
+    const auto interpret = [&](const std::filesystem::path &prog) -> Z3Prog {
+        options->file = prog;
+        const auto *progParsed = P4::parseP4File(*options);
+        if (progParsed == nullptr || P4::errorCount() > 0) {
+            throw GauntletException("Unable to parse program: " + prog.string());
+        }
+        auto input_constraints = ctx.bool_val(true);
+        auto z3ReprProg = get_z3_repr(prog, progParsed, &ctx, &input_constraints);
+        std::vector<std::pair<cstring, z3::expr>> resultVec;
+        unroll_result(z3ReprProg, &resultVec);
+        return Z3Prog{cstring(prog.string()), std::move(resultVec), input_constraints};
+    };
+    return compareProgs(&ctx, prog_list, interpret, allow_undefined, diagnostics);
 }
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3

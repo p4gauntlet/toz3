@@ -48,9 +48,9 @@ control XjhdqPA() {
     }
     table GhsaxE {
         key = {
-            XAHFaZ: exact @name("lpWdPY") ;
-            32w10 : exact @name("srdvlo") ;
-            32w10 : exact @name("xIxLbp") ;
+            XAHFaZ: exact @name("lpWdPY");
+            32w10 : exact @name("srdvlo");
+            32w10 : exact @name("xIxLbp");
         }
         actions = {
             @defaultonly NoAction();
@@ -59,8 +59,8 @@ control XjhdqPA() {
     }
     table NZqfiU {
         key = {
-            NBhxOY: exact @name("PYKqvq") ;
-            32w10 : exact @name("esQVok") ;
+            NBhxOY: exact @name("PYKqvq");
+            32w10 : exact @name("esQVok");
         }
         actions = {
             @defaultonly NoAction();
@@ -69,8 +69,8 @@ control XjhdqPA() {
     }
     table yvZmvC {
         key = {
-            XAHFaZ: exact @name("Ehmics") ;
-            128w10: exact @name("ZonmhE") ;
+            XAHFaZ: exact @name("Ehmics");
+            128w10: exact @name("ZonmhE");
         }
         actions = {
             @defaultonly NoAction();
@@ -115,7 +115,7 @@ control ingress(inout Headers h) {
     }
     table KWzGQN {
         key = {
-            32w10: exact @name("MarebU") ;
+            32w10: exact @name("MarebU");
         }
         actions = {
             fjxzW(h.eth_hdr.eth_type);
@@ -125,7 +125,7 @@ control ingress(inout Headers h) {
     }
     table KWnxHC {
         key = {
-            128w10: exact @name("rXqbdF") ;
+            128w10: exact @name("rXqbdF");
         }
         actions = {
             QyHme(h.eth_hdr.eth_type);
@@ -144,4 +144,3 @@ parser Parser(packet_in b, out Headers hdr);
 control Ingress(inout Headers hdr);
 package top(Parser p, Ingress ig);
 top(p(), ingress()) main;
-

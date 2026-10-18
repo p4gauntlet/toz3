@@ -1,10 +1,10 @@
 #ifndef TOZ3_VALIDATE_OPTIONS_H_
 #define TOZ3_VALIDATE_OPTIONS_H_
-#include <vector>
 
-#include "ir/ir.h"
+#include "frontends/common/parser_options.h"
+#include "lib/cstring.h"
 
-#include "frontends/common/options.h"
+namespace P4::ToZ3 {
 
 class ValidateOptions : public ParserOptions {
  private:
@@ -18,8 +18,11 @@ class ValidateOptions : public ParserOptions {
     cstring dump_dir;
     // Toggle this to allow differences in undefined behavior.
     bool undefined_is_ok = false;
+    bool all_passes = false;
 };
 
 using P4toZ3Context = P4CContextWithOptions<ValidateOptions>;
+
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_VALIDATE_OPTIONS_H_
