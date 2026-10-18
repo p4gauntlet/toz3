@@ -1,6 +1,6 @@
 #include <core.p4>
 
-bit<3> max(in bit<3> val, in bit<3> bound) {
+bit<3> max(in bit<3> val) {
     return 3w2;
 }
 header ethernet_t {
@@ -31,7 +31,7 @@ struct Headers {
     gshtZr[6]  XgXd;
 }
 
-bit<16> zvVNECN(inout bit<64> UgWi, gshtZr jFuj) {
+bit<16> zvVNECN(gshtZr jFuj) {
     return 16w10;
     return 16w10;
 }
@@ -51,10 +51,10 @@ parser p(packet_in pkt, out Headers hdr) {
 
 control ingress(inout Headers h) {
     ethernet_t eFxdzn = h.eth_hdr;
-    action dUbOl(bit<64> sLPS) {
+    action dUbOl() {
         const bit<32> gZlvTF = 32w10;
         bit<32> nBmBDv = 32w10;
-        h.XgXd[max((bit<3>)zvVNECN(h.szOQ.nYRO, { 32w10, 64w13544346735733648404, 32w10, 64w10, 16w23806 }), 3w5)].RbAp = 32w10;
+        h.XgXd[max((bit<3>)zvVNECN({ 32w10, 64w13544346735733648404, 32w10, 64w10, 16w23806 }))].RbAp = 32w10;
     }
     table RGCyPy {
         key = {

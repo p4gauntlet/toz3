@@ -34,7 +34,7 @@ struct Headers {
     ethernet_t YskI;
 }
 
-bit<16> vSDNsyx(in bit<32> saFq, VWxZaz vqBE) {
+bit<16> vSDNsyx(VWxZaz vqBE) {
     bit<16> LfCwyK = 16w10;
     return 16w10;
 }
@@ -43,7 +43,7 @@ control XjhdqPA() {
     bit<128> difcYb = 128w10;
     bit<32> NHAcsf = 32w10;
     bit<32> NBhxOY = 32w10;
-    action ejnWB(bit<8> xpbU) {
+    action ejnWB() {
         const bool HaGozC = false;
     }
     table GhsaxE {
@@ -103,12 +103,12 @@ control ingress(inout Headers h) {
     bit<8> cSydCp = 8w10;
     bit<8> sdWZsc = 8w10;
     XjhdqPA() sSDiPy;
-    action fjxzW(out bit<16> VQxM, bit<32> DQDm) {
+    action fjxzW() {
         bit<128> eVpRxp = 128w10;
         bit<16> tpbMDX = h.YskI.eth_type;
     }
-    action QyHme(out bit<16> ecWy, bit<16> bZof) {
-        h.Qcqz[max((bit<3>)vSDNsyx(32w10, { 4w10, 64w10 }), 3w2)].udHf = FhOckJ.FnFc;
+    action QyHme() {
+        h.Qcqz[max((bit<3>)vSDNsyx({ 4w10, 64w10 }), 3w2)].udHf = FhOckJ.FnFc;
         const VWxZaz LSqkmT = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
         bit<16> YZnNif = 16w10;
         bit<8> rbgkDJ = sdWZsc;
@@ -118,7 +118,7 @@ control ingress(inout Headers h) {
             32w10: exact @name("MarebU");
         }
         actions = {
-            fjxzW(h.eth_hdr.eth_type);
+            fjxzW();
             @defaultonly NoAction();
         }
         default_action = NoAction();
@@ -128,8 +128,8 @@ control ingress(inout Headers h) {
             128w10: exact @name("rXqbdF");
         }
         actions = {
-            QyHme(h.eth_hdr.eth_type);
-            fjxzW(h.eth_hdr.eth_type);
+            QyHme();
+            fjxzW();
             @defaultonly NoAction();
         }
         default_action = NoAction();
