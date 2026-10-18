@@ -100,7 +100,7 @@ ExitInfo get_crash_exit_info(const std::filesystem::path &file, const PrunerConf
     return exit_info;
 }
 
-ErrorType classify_bug(ExitInfo exit_info) {
+ErrorType classify_bug(const ExitInfo &exit_info) {
     int exit_code = exit_info.exit_code;
 
     if (exit_code == EXIT_TEST_VALIDATION) {
@@ -151,7 +151,7 @@ double measure_size(const IR::P4Program *prog) {
     auto *prog_stream = new std::stringstream;
     auto *toP4 = new P4::ToP4(prog_stream, false);
     prog->apply(*toP4);
-    return prog_stream->str().length();
+    return static_cast<double>(prog_stream->str().length());
 }
 
 uint64_t count_statements(const IR::P4Program *prog) {

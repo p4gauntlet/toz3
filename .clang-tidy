@@ -1,24 +1,24 @@
 ---
-Checks:
-'clang-diagnostic-*,
-clang-analyzer-*,
-modernize-*,
-performance-*,
-readability-*,
-bugprone-*,
-cppcoreguidelines-*,
-boost-*,
-hicpp-*,
-misc-*,
-llvm-*,
-google-*,
--modernize-use-trailing-return-type,
--readability-identifier-length,
--cppcoreguidelines-owning-memory,
--bugprone-easily-swappable-parameters,
--clang-analyzer-cplusplus.NewDelete*,
--llvm-header-guard,
--misc-no-recursion'
+Checks: >-
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  boost-*,
+  hicpp-*,
+  misc-*,
+  llvm-*,
+  google-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -cppcoreguidelines-owning-memory,
+  -bugprone-easily-swappable-parameters,
+  -clang-analyzer-cplusplus.NewDelete*,
+  -llvm-header-guard,
+  -misc-no-recursion
 CheckOptions:
   - { key: misc-const-correctness.AnalyzeValues,              value: false }
   - { key: readability-identifier-naming.NamespaceCase,       value: CamelCase }
@@ -29,22 +29,18 @@ CheckOptions:
   - { key: readability-identifier-naming.GlobalConstantCase,  value: UPPER_CASE }
   - { key: readability-identifier-naming.StaticConstantCase,  value: UPPER_CASE }
   - { key: readability-identifier-naming.StaticVariableCase,  value: UPPER_CASE }
-ExtraArgs:
-  - '--std=c++17'
 # These checks will throw an error, if encountered.
-WarningsAsErrors:
-'clang-diagnostic-*,
-misc-*,
-llvm-*,
-google-*,
-modernize-*,
-clang-analyzer-*,
-cppcoreguidelines-*,
-readability-*,
--readability-identifier-naming*,
--google-readability-todo,
-'
+WarningsAsErrors: >-
+  clang-diagnostic-*,
+  misc-*,
+  llvm-*,
+  google-*,
+  modernize-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  readability-*,
+  -readability-identifier-naming*,
+  -google-readability-todo
 HeaderFilterRegex: ''
-AnalyzeTemporaryDtors: false
 UseColor: true
 ...

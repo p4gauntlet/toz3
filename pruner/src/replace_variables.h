@@ -25,7 +25,8 @@ class ReplaceVariables : public Transform {
     const IR::Node *postorder(IR::MethodCallExpression *s);
 };
 
-const IR::P4Program *replace_variables(const IR::P4Program *program, PrunerConfig pruner_conf);
+const IR::P4Program *replace_variables(const IR::P4Program *program,
+                                       const PrunerConfig &pruner_conf);
 
 }  // namespace P4::ToZ3::Pruner
 
