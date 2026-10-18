@@ -2,23 +2,30 @@
 #define TOZ3_COMMON_VISITOR_SPECIALIZE_H_
 
 #include <map>
+#include <string>
 #include <vector>
 
-#include "../contrib/z3/z3++.h"
 #include "ir/ir.h"
+#include "ir/node.h"
+#include "ir/vector.h"
 #include "ir/visitor.h"
+#include "lib/cstring.h"
+#include "lib/exceptions.h"
 #include "state.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 class TypeModifier : public Transform {
  private:
     const std::map<cstring, const IR::Type *> *type_mapping;
     const IR::Node *postorder(IR::Type *type) override;
+    const IR::Node *preorder(IR::TypeParameters *parameters) override {
+        prune();
+        return parameters;
+    }
 
  public:
-    explicit TypeModifier(
-        const std::map<cstring, const IR::Type *> *type_mapping)
+    explicit TypeModifier(const std::map<cstring, const IR::Type *> *type_mapping)
         : type_mapping(type_mapping) {
         visitDagOnce = false;
     }
@@ -28,10 +35,10 @@ class TypeSpecializer : public Transform {
  private:
     const P4State &state;
     const IR::Vector<IR::Type> &types;
+    const IR::Node *specialize(const IR::Node *node, const IR::TypeParameters *parameters);
 
     const IR::Node *preorder(IR::Node *node) override {
-        P4C_UNIMPLEMENTED("TypeSpecializer: IR Node %s not implemented!",
-                          node->node_type_name());
+        P4C_UNIMPLEMENTED("TypeSpecializer: IR Node %s not implemented!", node->node_type_name());
     }
     const IR::Node *preorder(IR::Type_Extern *te) override;
     const IR::Node *preorder(IR::P4Control *c) override;
@@ -47,13 +54,12 @@ class TypeSpecializer : public Transform {
     const IR::Node *preorder(IR::Method *m) override;
 
  public:
-    explicit TypeSpecializer(const P4State &state,
-                             const IR::Vector<IR::Type> &types)
+    explicit TypeSpecializer(const P4State &state, const IR::Vector<IR::Type> &types)
         : state(state), types(types) {
         visitDagOnce = false;
     }
 };
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_COMMON_VISITOR_SPECIALIZE_H_

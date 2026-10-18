@@ -111,9 +111,9 @@ control ingress(inout Headers h) {
     }
     table LXUTiq {
         key = {
-            48w237754727661431: exact @name("knrnEO") ;
-            h.gUPl.bUKc       : exact @name("ZQHnkq") ;
-            48w10             : exact @name("jbKdTS") ;
+            48w237754727661431: exact @name("knrnEO");
+            h.gUPl.bUKc       : exact @name("ZQHnkq");
+            48w10             : exact @name("jbKdTS");
         }
         actions = {
             @defaultonly NoAction();
@@ -133,4 +133,3 @@ parser Parser(packet_in b, out Headers hdr);
 control Ingress(inout Headers hdr);
 package top(Parser p, Ingress ig);
 top(p(), ingress()) main;
-

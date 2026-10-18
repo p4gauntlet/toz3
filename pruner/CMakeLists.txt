@@ -26,12 +26,6 @@ set(
   src/counter.h
 )
 
-if(NOT CMAKE_RUN_CLANG_TIDY)
-  # Only build unified if CMAKE_RUN_CLANG_TIDY is not enable.
-  # clang-tidy does not work well with unified compilation
-  build_unified(P4PRUNER_SRCS)
-endif()
-
 add_executable(p4pruner ${P4PRUNER_SRCS})
 target_link_libraries(p4pruner ${P4C_LIBRARIES} ${P4C_LIB_DEPS})
 add_dependencies(p4pruner frontend)
@@ -56,9 +50,7 @@ set(PRUNER_COMPILER_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_prog.py")
 
 file(GLOB CRASH_TESTS "${TEST_DIR}/references/crash_bugs/*.p4")
 
-# Remove references from the list of tests.
-# TODO: Make this more systematic
-file(GLOB CRASH_REFS "${TEST_DIR}/references/crash_bugs/*_reference.p4")
-list(REMOVE_ITEM CRASH_TESTS ${CRASH_REFS})
+# References and output from manual pruning runs are not test inputs.
+list(FILTER CRASH_TESTS EXCLUDE REGEX "_(reference|stripped)\\.p4$")
 
-p4c_add_tests("pruner" ${PRUNER_COMPILER_DRIVER} "${CRASH_TESTS}" "" "--pruner_path ${PRUNER_BIN} --compiler ${P4C_TEST_BIN} -ll DEBUG --type CRASH --p4prog")
+pruner_add_tests("pruner" ${PRUNER_COMPILER_DRIVER} "${CRASH_TESTS}" "" "--pruner_path ${PRUNER_BIN} --compiler ${P4C_TEST_BIN} -ll DEBUG --type CRASH --p4prog")

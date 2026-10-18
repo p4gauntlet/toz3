@@ -1,12 +1,15 @@
 
 #ifndef _STATEMENT_PRUNER_H
 #define _STATEMENT_PRUNER_H
+#include <cstdint>
 #include <vector>
 
 #include "ir/ir.h"
+#include "ir/node.h"
+#include "ir/visitor.h"
 #include "pruner_util.h"
 
-namespace P4PRUNER {
+namespace P4::ToZ3::Pruner {
 
 class Pruner : public Transform {
  public:
@@ -31,10 +34,9 @@ class Collector : public Inspector {
     uint64_t max_statements;
 };
 
-const IR::P4Program *prune_statements(const IR::P4Program *program,
-                                      P4PRUNER::PrunerConfig pruner_conf,
+const IR::P4Program *prune_statements(const IR::P4Program *program, const PrunerConfig &pruner_conf,
                                       uint64_t prog_size);
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner
 
 #endif /* _STATEMENT_PRUNER_H */

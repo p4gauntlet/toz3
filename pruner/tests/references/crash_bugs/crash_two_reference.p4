@@ -58,9 +58,9 @@ control ingress(inout Headers h) {
     }
     table RGCyPy {
         key = {
-            h.XgXd[5].SwvD : exact @name("YQNeBH") ;
-            h.JQlW.gpRw    : exact @name("ifCVyt") ;
-            h.YYSU.src_addr: exact @name("yaGJNK") ;
+            h.XgXd[5].SwvD : exact @name("YQNeBH");
+            h.JQlW.gpRw    : exact @name("ifCVyt");
+            h.YYSU.src_addr: exact @name("yaGJNK");
         }
         actions = {
             dUbOl();
@@ -86,4 +86,3 @@ parser Parser(packet_in b, out Headers hdr);
 control Ingress(inout Headers hdr);
 package top(Parser p, Ingress ig);
 top(p(), ingress()) main;
-

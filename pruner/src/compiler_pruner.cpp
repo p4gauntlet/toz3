@@ -1,31 +1,34 @@
+#include "compiler_pruner.h"
+
+#include <cstdlib>
 #include <vector>
 
+#include "extended_unused.h"
 #include "frontends/common/constantFolding.h"
+#include "frontends/common/parser_options.h"
+#include "frontends/common/resolveReferences/referenceMap.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/createBuiltins.h"
 #include "frontends/p4/directCalls.h"
-#include "frontends/p4/simplify.h"
-#include "frontends/p4/simplifyDefUse.h"
-#include "frontends/p4/unusedDeclarations.h"
-
-#include "compiler_pruner.h"
-#include "extended_unused.h"
-#include "pruner_util.h"
+#include "frontends/p4/typeChecking/typeChecker.h"
+#include "frontends/p4/typeMap.h"
+#include "ir/pass_manager.h"
+#include "lib/error_reporter.h"
 #include "replace_variables.h"
-namespace P4PRUNER {
+#include "toz3/pruner/src/pruner_util.h"
+
+namespace P4::ToZ3::Pruner {
 
 const IR::P4Program *apply_generic_passes(const IR::P4Program *program,
-                                          P4PRUNER::PrunerConfig pruner_conf,
-                                          bool *applied) {
+                                          const PrunerConfig &pruner_conf, bool *applied) {
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
 
-    PassManager pass_manager({new P4::CreateBuiltins(),
-                              new P4::ResolveReferences(&refMap, true),
-                              new P4::ConstantFolding(&refMap, nullptr),
-                              new P4::InstantiateDirectCalls(&refMap),
-                              new P4::TypeInference(&refMap, &typeMap, false)});
+    PassManager pass_manager({new P4::CreateBuiltins(), new P4::ResolveReferences(&refMap, true),
+                              new P4::ConstantFolding(new P4::ConstantFoldingPolicy()),
+                              new P4::InstantiateDirectCalls(),
+                              new P4::TypeInference(&typeMap, false)});
 
     INFO("Applying Generic passes...");
     temp = program->apply(pass_manager);
@@ -37,7 +40,7 @@ const IR::P4Program *apply_generic_passes(const IR::P4Program *program,
 }
 
 const IR::P4Program *apply_replace_vars(const IR::P4Program *program,
-                                        P4PRUNER::PrunerConfig pruner_conf) {
+                                        const PrunerConfig &pruner_conf) {
     INFO("Replacing variables...");
     const IR::P4Program *temp = replace_variables(program, pruner_conf);
     check_pruned_program(&program, temp, pruner_conf);
@@ -46,23 +49,20 @@ const IR::P4Program *apply_replace_vars(const IR::P4Program *program,
 }
 
 const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
-                                        P4PRUNER::PrunerConfig pruner_conf) {
+                                        const PrunerConfig &pruner_conf) {
     P4::ReferenceMap refMap;
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
     std::vector<struct_obj *> used_structs;
-    PassManager pass_manager(
-        {new ExtendedUnusedDeclarations(&refMap, &used_structs)});
-    emit_p4_program(program, "before_unused.p4");
+    PassManager pass_manager({new ExtendedUnusedDeclarations(&used_structs)});
     temp = program->apply(pass_manager);
-    emit_p4_program(temp, "after_unused.p4");
     check_pruned_program(&program, temp, pruner_conf);
 
     return program;
 }
 
 const IR::P4Program *apply_compiler_passes(const IR::P4Program *program,
-                                           P4PRUNER::PrunerConfig pruner_conf) {
+                                           const PrunerConfig &pruner_conf) {
     // this disables warning temporarily to avoid spam
     auto prev_action = P4CContext::get().getDefaultWarningDiagnosticAction();
     auto action = DiagnosticAction::Ignore;
@@ -85,4 +85,4 @@ const IR::P4Program *apply_compiler_passes(const IR::P4Program *program,
     return program;
 }
 
-}  // namespace P4PRUNER
+}  // namespace P4::ToZ3::Pruner

@@ -1,12 +1,10 @@
 #ifndef TOZ3_INTERPRET_OPTIONS_H_
 #define TOZ3_INTERPRET_OPTIONS_H_
 
-#include "ir/ir.h"
-
 #include "frontends/common/options.h"
-#include "lib/options.h"
+#include "frontends/common/parser_options.h"
 
-namespace TOZ3 {
+namespace P4::ToZ3 {
 
 class toz3Options : public CompilerOptions {
  public:
@@ -15,6 +13,6 @@ class toz3Options : public CompilerOptions {
 
 using P4toZ3Context = P4CContextWithOptions<toz3Options>;
 
-}  // namespace TOZ3
+}  // namespace P4::ToZ3
 
 #endif  // TOZ3_INTERPRET_OPTIONS_H_
