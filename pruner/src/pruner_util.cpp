@@ -1,7 +1,5 @@
 #include "pruner_util.h"
 
-#include <sys/stat.h>
-
 #include <array>
 #include <cstdint>
 #include <cstdio>

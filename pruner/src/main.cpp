@@ -121,15 +121,9 @@ PrunerConfig get_conf_from_script(const PrunerOptions &options) {
         P4::warning("There was no error. Pruning will yield bogus results.");
     }
 
-    std::string file_stem = std::filesystem::path(options.file.c_str()).stem().string();
-    // assemble the path for the config file
-    // this is not great but we have no other way right now
-    std::string conf_file = realpath(options.working_dir.c_str(), nullptr);
-    conf_file += "/";
-    conf_file += file_stem;
-    conf_file += "/";
-    conf_file += file_stem;
-    conf_file += "_info.json";
+    const auto file_stem = std::filesystem::path(options.file.c_str()).stem().string();
+    const auto conf_file =
+        std::filesystem::absolute(options.working_dir) / file_stem / (file_stem + "_info.json");
     return get_config_from_json(conf_file, options.working_dir, options.file.c_str(), options);
 }
 
