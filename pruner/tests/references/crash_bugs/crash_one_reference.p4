@@ -65,32 +65,32 @@ struct Headers {
 }
 
 bit<16> SaTkzAX(PguzcJ Oofi) {
-    bool cmdluC = true;
-    bit<32> cqckxY = 32w10;
-    bit<128> RfSkhs = 128w10;
-    bit<64> nZqXev = 64w10;
-    bit<128> xYhUqh = RfSkhs;
+    bool flag = true;
+    bit<32> value = 32w10;
+    bit<128> value_0 = 128w10;
+    bit<64> value_1 = 64w10;
+    bit<128> value_2 = value_0;
     return 16w10;
 }
 yLNoil wClaYko(jUHTpn DoHl) {
-    bit<4> wgIKEQ = 4w14;
-    const zRDuhm zTQmam = (zRDuhm){LEQY = 128w232569008864530135157127505601818385808,KOcO = 8w10,EWpj = (ethernet_t){dst_addr = 48w211703505640505,src_addr = 48w10,eth_type = 16w10},BUWO = 32w10,NnjD = 32w2274055191};
+    bit<4> value_3 = 4w14;
+    const zRDuhm constant = (zRDuhm){LEQY = 128w232569008864530135157127505601818385808,KOcO = 8w10,EWpj = (ethernet_t){dst_addr = 48w211703505640505,src_addr = 48w10,eth_type = 16w10},BUWO = 32w10,NnjD = 32w2274055191};
     return (yLNoil){ILBe = 128w10,MXzB = 64w10};
 }
 bit<4> rjsgGkN(bit<16> SOZw) {
-    const bit<128> cMIrQM = 128w10;
-    bit<16> YVHHin = (bit<16>)16w10;
+    const bit<128> constant_0 = 128w10;
+    bit<16> value_4 = (bit<16>)16w10;
     return 4w10;
-    bit<8> XmGxDm = (bit<8>)8w143;
-    bit<16> aneguV = 16w46085;
+    bit<8> value_5 = (bit<8>)8w143;
+    bit<16> value_6 = 16w46085;
     return 4w12;
 }
 parser p(packet_in pkt, out Headers hdr) {
-    bit<4> WCyPOo = 145w10[106:58][12:9];
-    bit<4> OpKEBC = 4w14;
-    yLNoil LnJSsf = (yLNoil){ILBe = 128w10,MXzB = 64w8739799105651448972};
-    bool MHFZYM = false;
-    bit<8> AfRsJs = 8w38;
+    bit<4> value_7 = 145w10[106:58][12:9];
+    bit<4> value_8 = 4w14;
+    yLNoil hdr_0 = (yLNoil){ILBe = 128w10,MXzB = 64w8739799105651448972};
+    bool flag_0 = false;
+    bit<8> value_9 = 8w38;
     state start {
         transition parse_hdrs;
     }
@@ -100,22 +100,22 @@ parser p(packet_in pkt, out Headers hdr) {
 }
 
 control ingress(inout Headers h) {
-    bit<128> WbiJDx = 128w230764102599282411499082228184235706426;
+    bit<128> value_10 = 128w230764102599282411499082228184235706426;
     action AWhhg(inout bit<16> HpDQ, OXxQuH GSUK) {
     }
     action TyIkj(bit<8> cFUf, bit<64> UYcs) {
-        const bool naGUDB = false;
+        const bool constant_1 = false;
         return;
-        const bit<32> kFhgzn = 32w10;
+        const bit<32> constant_2 = 32w10;
         return;
     }
     action isfLJ(inout bit<4> zayb, bit<32> ezim, bit<16> pxcw) {
         {
         }
         {
-            avXIXF paUCEG = (avXIXF){Vpbo = 64w10,CeRJ = 32w10,tkyq = (zRDuhm){LEQY = 128w10,KOcO = (bit<8>)h.uAdg.HQZo,EWpj = (ethernet_t){dst_addr = 48w10,src_addr = 48w10,eth_type = pxcw},BUWO = 32w502793114,NnjD = 32w10}};
+            avXIXF data = (avXIXF){Vpbo = 64w10,CeRJ = 32w10,tkyq = (zRDuhm){LEQY = 128w10,KOcO = (bit<8>)h.uAdg.HQZo,EWpj = (ethernet_t){dst_addr = 48w10,src_addr = 48w10,eth_type = pxcw},BUWO = 32w502793114,NnjD = 32w10}};
         }
-        const gPTIia khmurm = (gPTIia){pvdW = 32w10,HQZo = 8w10};
+        const gPTIia constant_3 = (gPTIia){pvdW = 32w10,HQZo = 8w10};
     }
     table xLdpWu {
         key = {
@@ -153,11 +153,11 @@ control ingress(inout Headers h) {
         default_action = NoAction();
     }
     apply {
-        const int XsZqcA = 181433741;
-        bit<128> CYNOag = 128w334026077963046502987531789306364882607;
-        const bit<4> lgWdgD = 4w10;
+        const int constant_4 = 181433741;
+        bit<128> value_11 = 128w334026077963046502987531789306364882607;
+        const bit<4> constant_5 = 4w10;
         h.gvFM[max((bit<3>)SaTkzAX({ 4w6, 32w10, 16w10 }), 3w5)].src_addr = 48w10;
-        bit<64> GTZTgt = 64w10;
+        bit<64> value_12 = 64w10;
     }
 }
 

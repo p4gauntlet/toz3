@@ -36,11 +36,11 @@ bit<16> zvVNECN(inout bit<64> UgWi, gshtZr jFuj) {
     return 16w10;
 }
 parser p(packet_in pkt, out Headers hdr) {
-    bit<128> dXiaZd = 128w10;
-    bit<16> nmvNXu = hdr.YYSU.eth_type;
-    bit<128> myxqRj = 128w10;
-    bool TzCKMV = false;
-    bool bEVMPO = true;
+    bit<128> value = 128w10;
+    bit<16> value_0 = hdr.YYSU.eth_type;
+    bit<128> value_1 = 128w10;
+    bool flag = false;
+    bool flag_0 = true;
     state start {
         transition parse_hdrs;
     }
@@ -50,10 +50,10 @@ parser p(packet_in pkt, out Headers hdr) {
 }
 
 control ingress(inout Headers h) {
-    ethernet_t eFxdzn = h.eth_hdr;
+    ethernet_t hdr_0 = h.eth_hdr;
     action dUbOl(bit<64> sLPS) {
-        const bit<32> gZlvTF = 32w10;
-        bit<32> nBmBDv = 32w10;
+        const bit<32> constant = 32w10;
+        bit<32> value_2 = 32w10;
         h.XgXd[max((bit<3>)zvVNECN(h.szOQ.nYRO, { 32w10, 64w13544346735733648404, 32w10, 64w10, 16w23806 }), 3w5)].RbAp = 32w10;
     }
     table RGCyPy {
@@ -69,15 +69,15 @@ control ingress(inout Headers h) {
         default_action = NoAction();
     }
     apply {
-        bool Jvuqrm = true;
-        bit<4> ZGknBz = (bit<4>)eFxdzn.eth_type;
-        bit<64> VytFjf = 64w10;
-        const int AXUyrM = 238813955;
-        const bit<128> IcoSKn = 128w10;
-        bit<8> OCNltr = 8w10;
+        bool flag_1 = true;
+        bit<4> value_3 = (bit<4>)hdr_0.eth_type;
+        bit<64> value_4 = 64w10;
+        const int constant_0 = 238813955;
+        const bit<128> constant_1 = 128w10;
+        bit<8> value_5 = 8w10;
         {
-            const bit<16> QMseko = 16w10;
-            const bit<32> mYhKao = 32w10;
+            const bit<16> constant_2 = 16w10;
+            const bit<32> constant_3 = 32w10;
         }
     }
 }

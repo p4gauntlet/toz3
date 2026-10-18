@@ -35,22 +35,22 @@ struct Headers {
 }
 
 bit<16> vSDNsyx(in bit<32> saFq, VWxZaz vqBE) {
-    bit<16> LfCwyK = 16w10;
+    bit<16> value = 16w10;
     return 16w10;
 }
 control XjhdqPA() {
-    bit<4> XAHFaZ = 4w10;
-    bit<128> difcYb = 128w10;
-    bit<32> NHAcsf = 32w10;
-    bit<32> NBhxOY = 32w10;
+    bit<4> value_0 = 4w10;
+    bit<128> value_1 = 128w10;
+    bit<32> value_2 = 32w10;
+    bit<32> value_3 = 32w10;
     action ejnWB(bit<8> xpbU) {
-        const bool HaGozC = false;
+        const bool constant = false;
     }
     table GhsaxE {
         key = {
-            XAHFaZ: exact @name("lpWdPY");
-            32w10 : exact @name("srdvlo");
-            32w10 : exact @name("xIxLbp");
+            value_0: exact @name("lpWdPY");
+            32w10  : exact @name("srdvlo");
+            32w10  : exact @name("xIxLbp");
         }
         actions = {
             @defaultonly NoAction();
@@ -59,8 +59,8 @@ control XjhdqPA() {
     }
     table NZqfiU {
         key = {
-            NBhxOY: exact @name("PYKqvq");
-            32w10 : exact @name("esQVok");
+            value_3: exact @name("PYKqvq");
+            32w10  : exact @name("esQVok");
         }
         actions = {
             @defaultonly NoAction();
@@ -69,8 +69,8 @@ control XjhdqPA() {
     }
     table yvZmvC {
         key = {
-            XAHFaZ: exact @name("Ehmics");
-            128w10: exact @name("ZonmhE");
+            value_0: exact @name("Ehmics");
+            128w10 : exact @name("ZonmhE");
         }
         actions = {
             @defaultonly NoAction();
@@ -78,16 +78,16 @@ control XjhdqPA() {
         default_action = NoAction();
     }
     apply {
-        bit<8> JVUnlO = 8w10;
+        bit<8> value_4 = 8w10;
     }
 }
 
 parser p(packet_in pkt, out Headers hdr) {
-    bit<128> UhlOhS = 128w10;
-    bit<8> LYaBct = hdr.Qcqz[6].aPsC;
-    bit<16> sbygWO = 16w10;
-    umHNtO pPtwdp = (umHNtO){jXYS = 8w104,SDFX = (bnsYVz){jrPy = 128w10,udHf = 64w10,aPsC = 8w10,wzfl = 32w10}};
-    bool kYEOCD = false;
+    bit<128> value_5 = 128w10;
+    bit<8> value_6 = hdr.Qcqz[6].aPsC;
+    bit<16> value_7 = 16w10;
+    umHNtO data = (umHNtO){jXYS = 8w104,SDFX = (bnsYVz){jrPy = 128w10,udHf = 64w10,aPsC = 8w10,wzfl = 32w10}};
+    bool flag = false;
     state start {
         transition parse_hdrs;
     }
@@ -97,21 +97,21 @@ parser p(packet_in pkt, out Headers hdr) {
 }
 
 control ingress(inout Headers h) {
-    bit<64> wOFsfK = 64w10;
-    bit<128> nLpKxc = 128w10;
-    VWxZaz FhOckJ = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
-    bit<8> cSydCp = 8w10;
-    bit<8> sdWZsc = 8w10;
+    bit<64> value_8 = 64w10;
+    bit<128> value_9 = 128w10;
+    VWxZaz data_0 = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
+    bit<8> value_10 = 8w10;
+    bit<8> value_11 = 8w10;
     XjhdqPA() sSDiPy;
     action fjxzW(out bit<16> VQxM, bit<32> DQDm) {
-        bit<128> eVpRxp = 128w10;
-        bit<16> tpbMDX = h.YskI.eth_type;
+        bit<128> value_12 = 128w10;
+        bit<16> value_13 = h.YskI.eth_type;
     }
     action QyHme(out bit<16> ecWy, bit<16> bZof) {
-        h.Qcqz[max((bit<3>)vSDNsyx(32w10, { 4w10, 64w10 }), 3w2)].udHf = FhOckJ.FnFc;
-        const VWxZaz LSqkmT = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
-        bit<16> YZnNif = 16w10;
-        bit<8> rbgkDJ = sdWZsc;
+        h.Qcqz[max((bit<3>)vSDNsyx(32w10, { 4w10, 64w10 }), 3w2)].udHf = data_0.FnFc;
+        const VWxZaz constant_0 = (VWxZaz){yJxL = 4w10,FnFc = 64w10};
+        bit<16> value_14 = 16w10;
+        bit<8> value_15 = value_11;
     }
     table KWzGQN {
         key = {
@@ -135,8 +135,8 @@ control ingress(inout Headers h) {
         default_action = NoAction();
     }
     apply {
-        bool rbaYHy = false;
-        const bit<16> HTkrRS = 16w10;
+        bool flag_0 = false;
+        const bit<16> constant_1 = 16w10;
     }
 }
 
