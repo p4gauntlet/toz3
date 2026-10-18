@@ -12,7 +12,7 @@ A disagreement between two compiler snapshots can indicate a compiler defect, an
 
 **Driver tests.** [Pass-generation tests](gtest/passes.cpp) simulate a compiler's pass trace and dumps. This lets us check snapshot selection, ordering, fallback, and error handling independently of changes to the real compiler pipeline. [Comparator tests](gtest/compare.cpp) check the semantic queries separately.
 
-**Independent packet tests.** For a reported mismatch, running a reduced program on a target provides evidence outside the symbolic interpreter. The [archived reproducers](https://github.com/p4gauntlet/gauntlet/tree/master/bugs/validation/parser-union) use P4C's normal packet-test runners. A passing packet test covers its concrete inputs; it does not prove equality for all symbolic inputs. A failing test must also be interpreted in light of the target's own behavior.
+**Independent packet tests.** For a reported mismatch, running a reduced program on a target provides evidence outside the symbolic interpreter. The [archived reproducers](https://github.com/p4gauntlet/gauntlet/tree/master/bugs/validation) use P4C's normal packet-test runners. A passing packet test covers its concrete inputs; it does not prove equality for all symbolic inputs. A failing test must also be interpreted in light of the target's own behavior.
 
 ## Expected violations and expected test failures
 
@@ -20,7 +20,7 @@ A regression that detects a known semantic difference is a successful test. The 
 
 An XFAIL has a different meaning: the test currently cannot meet its intended expectation. For example, a compiler sample that should validate may fail because of a known compiler defect. We record such cases individually rather than excluding an entire compiler pass. An unexpected success then fails CTest and prompts us to revisit the expectation.
 
-The registrations and explanations live in [CMakeLists.txt](../CMakeLists.txt). `P4C_VALIDATION_XFAIL_TESTS` records sample failures, while the violation and undefined-value groups have their own expectations. The [reproducer index](https://github.com/p4gauntlet/gauntlet/tree/master/bugs/validation/parser-union) maps the sample XFAILs to their underlying cases and filed reports.
+The registrations and explanations live in [CMakeLists.txt](../CMakeLists.txt). `P4C_VALIDATION_XFAIL_TESTS` records sample failures, while the violation and undefined-value groups have their own expectations. The [reproducer index](https://github.com/p4gauntlet/gauntlet/blob/master/bugs/README.md#p4c-semantic-bugs) lists the underlying cases and filed reports.
 
 Timeouts are separate from expected semantic failures. CTest's `WILL_FAIL` does not invert a timeout, so known timeout cases are excluded from registration through `P4C_VALIDATION_TIMEOUT_TESTS`. Unsupported cases are also listed explicitly. Normal test runs use no artificial process memory limit.
 
