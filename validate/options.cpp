@@ -4,6 +4,13 @@ namespace P4::ToZ3 {
 
 ValidateOptions::ValidateOptions() {
     registerOption(
+        "--all-passes", nullptr,
+        [this](const char *) {
+            all_passes = true;
+            return true;
+        },
+        "Check every compiler pass directly instead of checking phase boundaries first.");
+    registerOption(
         "--dump-dir", "folder",
         [this](const char *arg) {
             dump_dir = cstring(arg);

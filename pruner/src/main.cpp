@@ -162,7 +162,7 @@ PrunerConfig get_conf_from_compiler(const PrunerOptions &options) {
 
 }  // namespace P4::ToZ3::Pruner
 
-int main(int argc, char *const argv[]) {
+int main(int argc, char *const argv[]) try {
     P4::AutoCompileContext autoP4toZ3Context(new P4::ToZ3::Pruner::P4PrunerContext);
     auto &options = P4::ToZ3::Pruner::P4PrunerContext::get().options();
     options.langVersion = P4::CompilerOptions::FrontendVersion::P4_16;
@@ -186,8 +186,6 @@ int main(int argc, char *const argv[]) {
         return EXIT_FAILURE;
     }
 
-    P4::ToZ3::Pruner::ErrorType error_type;
-
     if (!options.bug_type.has_value() && !options.config_file.has_value()) {
         P4::error("Please provide a valid bug type or a config file");
         options.usage();
@@ -197,41 +195,33 @@ int main(int argc, char *const argv[]) {
     if (options.config_file.has_value()) {
         pruner_conf = get_config_from_json(options.config_file.value(), options.working_dir,
                                            options.file.c_str(), options);
-    } else {
-        if (options.bug_type.value() == "CRASH") {
-            INFO("Ignoring validation bin for crash bug");
-            error_type = P4::ToZ3::Pruner::ErrorType::CrashBug;
-        } else if (options.bug_type.value() == "VALIDATION") {
-            error_type = P4::ToZ3::Pruner::ErrorType::SemanticBug;
-        } else {
+    } else if (options.bug_type.value() == "VALIDATION") {
+        if (!(options.validation_bin.has_value() && options.compiler_bin.has_value())) {
             P4::error(
-                "Please enter a valid bug type. VALIDATION for validation or "
-                "CRASH for crash bug");
-            exit(EXIT_FAILURE);
+                "Need to provide both a validation binary and a compiler "
+                "binary to prune a validation bug");
+            options.usage();
+            return EXIT_FAILURE;
         }
-        if (error_type == P4::ToZ3::Pruner::ErrorType::SemanticBug) {
-            if (!(options.validation_bin.has_value() && options.compiler_bin.has_value())) {
-                P4::error(
-                    "Need to provide both a validation binary and a compiler "
-                    "binary to prune a validation bug");
-                options.usage();
-                return EXIT_FAILURE;
-            }
 
-            // we are not provided with a config but validation and compiler bin
-            // we should infer the expected output from these first
-            pruner_conf = get_conf_from_script(options);
-        } else if (error_type == P4::ToZ3::Pruner::ErrorType::CrashBug) {
-            if (!options.compiler_bin.has_value()) {
-                P4::error("Need to provide a compiler binary to prune a crash bug");
-                options.usage();
-                return EXIT_FAILURE;
-            }
-
-            // we are not provided with a config but a compiler bin
-            // we should infer the expected output from the compiler bin first
-            pruner_conf = get_conf_from_compiler(options);
+        // we are not provided with a config but validation and compiler bin
+        // we should infer the expected output from these first
+        pruner_conf = get_conf_from_script(options);
+    } else if (options.bug_type.value() == "CRASH") {
+        INFO("Ignoring validation bin for crash bug");
+        if (!options.compiler_bin.has_value()) {
+            P4::error("Need to provide a compiler binary to prune a crash bug");
+            options.usage();
+            return EXIT_FAILURE;
         }
+
+        // we are not provided with a config but a compiler bin
+        // we should infer the expected output from the compiler bin first
+        pruner_conf = get_conf_from_compiler(options);
+    } else {
+        P4::error(
+            "Please enter a valid bug type. VALIDATION for validation or CRASH for crash bug");
+        return EXIT_FAILURE;
     }
 
     // create the working dir
@@ -253,7 +243,7 @@ int main(int argc, char *const argv[]) {
 
         if (program != nullptr && P4::errorCount() == 0) {
             const auto *original = program;
-            double prog_size = P4::ToZ3::Pruner::count_statements(original);
+            const auto prog_size = P4::ToZ3::Pruner::count_statements(original);
             INFO("Size of the program :" << prog_size << " statements");
 
             program = prune(program, pruner_conf, prog_size);
@@ -275,4 +265,10 @@ int main(int argc, char *const argv[]) {
     // need to wait a little because of race conditions
     std::filesystem::remove_all(pruner_conf.working_dir);
     return static_cast<int>(P4::errorCount() > 0);
+} catch (const std::exception &error) {
+    std::cerr << error.what() << '\n';
+    return EXIT_FAILURE;
+} catch (...) {
+    std::cerr << "Unhandled pruner exception.\n";
+    return EXIT_FAILURE;
 }

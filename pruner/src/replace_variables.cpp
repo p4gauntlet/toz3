@@ -37,7 +37,7 @@ const IR::Node *ReplaceVariables::postorder(IR::Expression *s) {
     return s;
 }
 
-const IR::P4Program *apply_replace(const IR::P4Program *program, PrunerConfig /*pruner_conf*/) {
+const IR::P4Program *apply_replace(const IR::P4Program *program) {
     P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
 
@@ -49,7 +49,8 @@ const IR::P4Program *apply_replace(const IR::P4Program *program, PrunerConfig /*
 
     return temp;
 }
-const IR::P4Program *replace_variables(const IR::P4Program *program, PrunerConfig pruner_conf) {
+const IR::P4Program *replace_variables(const IR::P4Program *program,
+                                       const PrunerConfig &pruner_conf) {
     int same_before_pruning = 0;
     int result = 0;
     auto prev_action = P4CContext::get().getDefaultWarningDiagnosticAction();
@@ -60,7 +61,7 @@ const IR::P4Program *replace_variables(const IR::P4Program *program, PrunerConfi
     for (int i = 0; i < REPLACE_VARS_MAX_ITERS; i++) {
         const auto *temp = program;
 
-        temp = apply_replace(temp, pruner_conf);
+        temp = apply_replace(temp);
 
         result = check_pruned_program(&program, temp, pruner_conf);
 
