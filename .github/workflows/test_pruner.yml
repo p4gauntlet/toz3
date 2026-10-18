@@ -38,7 +38,7 @@ jobs:
           -DENABLE_BMV2=OFF \
           -DENABLE_EBPF=OFF \
           -DENABLE_UBPF=OFF \
-          -DENABLE_GTESTS=ON \
+          -DENABLE_GTESTS=OFF \
           -DENABLE_P4TC=OFF \
           -DENABLE_P4FMT=OFF \
           -DENABLE_P4C_GRAPHS=OFF \
@@ -51,4 +51,4 @@ jobs:
       - name: Test Pruner with CMake
         run: |
           cd $GITHUB_WORKSPACE/../p4c/build
-          ctest -R '^pruner' --output-on-failure --schedule-random
+          ctest -R pruner/ --output-on-failure --schedule-random
