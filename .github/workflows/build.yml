@@ -47,4 +47,4 @@ jobs:
       - name: Build and lint ToZ3 targets
         run: |
           cd $GITHUB_WORKSPACE/../p4c/build
-          cmake --build . --target p4toz3 p4compare p4validate p4pruner toz3_tests --parallel 2
+          cmake --build . --target p4toz3 p4compare p4validate p4pruner toz3_tests pruner_tests --parallel 2

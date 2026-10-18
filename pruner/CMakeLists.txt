@@ -30,6 +30,14 @@ add_executable(p4pruner ${P4PRUNER_SRCS})
 target_link_libraries(p4pruner ${P4C_LIBRARIES} ${P4C_LIB_DEPS})
 add_dependencies(p4pruner frontend)
 
+if(ENABLE_GTESTS)
+  add_executable(pruner_tests tests/extended_unused.cpp src/extended_unused.cpp)
+  target_link_libraries(pruner_tests PRIVATE ${P4C_LIBRARIES} ${P4C_LIB_DEPS} gtest_main)
+  add_dependencies(pruner_tests frontend)
+  add_test(NAME pruner-unit COMMAND pruner_tests)
+  set_tests_properties(pruner-unit PROPERTIES LABELS "gtest;pruner")
+endif()
+
 
 install(TARGETS p4pruner RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 

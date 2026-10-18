@@ -1,126 +1,79 @@
 #include "extended_unused.h"
 
-#include "ir/declaration.h"
-#include "ir/id.h"
-#include "lib/log.h"
-
 namespace P4::ToZ3::Pruner {
 
-bool PruneUnused::check_if_field_used(cstring name_of_struct, cstring name_of_field) {
-    for (const auto *s : *_used_structs) {
-        if (s->name == name_of_struct) {
-            for (auto f : *(s->fields)) {
-                if (f == name_of_field) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-const IR::Node *PruneUnused::preorder(IR::Type_StructLike *ts) {
+const IR::Node *PruneUnused::preorder(IR::Type_StructLike *type) {
     if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
+        prune();
         return nullptr;
     }
-    return ts;
+    return type;
 }
 
-const IR::Node *PruneUnused::preorder(IR::StructField *sf) {
-    const auto *p = getParent<IR::Type_StructLike>();
-    cstring pName = p->getP4Type()->toString();
-    cstring fName = sf->toString();
-    bool res = check_if_field_used(pName, fName);
-    if (res) {
-        return sf;
-    }
-    return nullptr;
+const IR::Node *PruneUnused::preorder(IR::StructField *field) {
+    const auto *parent = getParent<IR::Type_StructLike>();
+    const auto fields = usedFields.find(parent->name.name);
+    return fields != usedFields.end() && fields->second.count(field->name.name) != 0U ? field
+                                                                                      : nullptr;
 }
 
-const IR::Node *PruneUnused::preorder(IR::Type_Extern *te) {
-    if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
-        return nullptr;
-    }
-    return te;
-}
-
-const IR::Node *PruneUnused::preorder(IR::Method *m) {
-    if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
-        return nullptr;
-    }
-    return m;
-}
-
-const IR::Node *PruneUnused::preorder(IR::Function *f) {
-    if (!used.isUsed(getOriginal<IR::IDeclaration>())) {
-        return nullptr;
-    }
-    return f;
-}
-
-// List unused struct declarations
-
-bool ListStructs::preorder(const IR::Member *p) {
-    const auto *pexpr = p->expr->to<IR::PathExpression>();
-    if (pexpr == nullptr) {
-        return true;  // i.e, expr was not a path expression
-    }
-    const IR::IDeclaration *decl = getDeclaration(pexpr->path, false);
-    if (decl == nullptr) {
-        return true;
-    }
-    const auto *v = decl->to<IR::Parameter>();
-    if (v == nullptr) {
-        return true;  // Only handle parameters for now
-    }
-    cstring mem = p->member.name;
-    cstring parent = v->type->getP4Type()->toString();
-    insertField(parent, mem);
-    return true;
+const IR::Node *PruneUnused::preorder(IR::Type_Extern *type) {
+    // Member calls refer to the extern instance, not to individual method
+    // declarations. Keep the signatures of a live extern intact.
+    prune();
+    return used.isUsed(getOriginal<IR::IDeclaration>()) ? type : nullptr;
 }
 
 Visitor::profile_t ListStructs::init_apply(const IR::Node *node) {
-    return Inspector::init_apply(node);
+    auto result = Inspector::init_apply(node);
+    usedFields.clear();
+    return result;
 }
 
-void ListStructs::insertField(cstring name_of_struct, cstring name_of_field) {
-    bool foundStruct = false;
-    bool foundField = false;
-
-    for (auto *s : *_used_structs) {
-        if (name_of_struct == s->name) {
-            foundStruct = true;
-            for (auto f : *s->fields) {
-                foundField = name_of_field == f;
-            }
-            if (!foundField) {
-                s->fields->push_back(name_of_field);
-            }
+void ListStructs::retainFields(const IR::Type *type) {
+    if (type == nullptr) return;
+    if (const auto *specialized = type->to<IR::Type_SpecializedCanonical>()) {
+        retainFields(specialized->substituted);
+    } else if (const auto *aggregate = type->to<IR::Type_StructLike>()) {
+        for (const auto *field : aggregate->fields) {
+            usedFields[aggregate->name.name].insert(field->name.name);
+            retainFields(field->type);
         }
-    }
-    if (!foundStruct) {
-        // Lets have this on the heap
-        auto *f = new std::vector<cstring>();
-        f->push_back(name_of_field);
-        auto *s = new struct_obj;
-        s->name = name_of_struct;
-        s->fields = f;
-        _used_structs->push_back(s);
+    } else if (const auto *array = type->to<IR::Type_Array>()) {
+        retainFields(array->elementType);
+    } else if (const auto *tuple = type->to<IR::Type_BaseList>()) {
+        for (const auto *component : tuple->components) retainFields(component);
     }
 }
 
-void PruneUnused::show_used_structs() {
-    LOG2("Printing Used Structs");
-    if (_used_structs->empty()) {
-        LOG1("used_structs is empty");
-        return;
-    }
-    for (struct_obj *s : *_used_structs) {
-        LOG2("Struct: " << s->name);
-        for (cstring f : *(s->fields)) {
-            LOG2("\tField: " << f);
+bool ListStructs::preorder(const IR::Expression *expression) {
+    if (const auto *member = expression->to<IR::Member>()) {
+        const auto *baseType = typeMap.getType(member->expr, true);
+        if (const auto *specialized = baseType->to<IR::Type_SpecializedCanonical>()) {
+            baseType = specialized->substituted;
+        }
+        if (const auto *aggregate = baseType->to<IR::Type_StructLike>()) {
+            if (aggregate->getField(member->member.name) != nullptr) {
+                usedFields[aggregate->name.name].insert(member->member.name);
+            }
         }
     }
+
+    // A receiver used only to select a field does not consume the whole value.
+    // This handles nested members, locals, constants, parameters and stacks
+    // uniformly, using inferred types rather than the declaration's spelling.
+    if (const auto *member = getParent<IR::Member>()) {
+        if (member->expr == expression) return true;
+    }
+    if (const auto *index = getParent<IR::ArrayIndex>()) {
+        if (index->left == expression) return true;
+    }
+
+    // Whole-value uses require the complete layout, including implicit tuple
+    // initializers that TypeInference converts to typed StructExpressions.
+    // Retaining recursively also covers calls, returns, copies and comparisons.
+    retainFields(typeMap.getType(expression, true));
+    return true;
 }
 
 }  // namespace P4::ToZ3::Pruner

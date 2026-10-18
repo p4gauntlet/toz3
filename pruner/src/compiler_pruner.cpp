@@ -50,13 +50,12 @@ const IR::P4Program *apply_replace_vars(const IR::P4Program *program,
 
 const IR::P4Program *apply_unused_decls(const IR::P4Program *program,
                                         const PrunerConfig &pruner_conf) {
-    P4::ReferenceMap refMap;
-    P4::TypeMap typeMap;
     const IR::P4Program *temp = nullptr;
-    std::vector<struct_obj *> used_structs;
-    PassManager pass_manager({new ExtendedUnusedDeclarations(&used_structs)});
+    PassManager pass_manager({new ExtendedUnusedDeclarations()});
     temp = program->apply(pass_manager);
-    check_pruned_program(&program, temp, pruner_conf);
+    if (temp != nullptr) {
+        check_pruned_program(&program, temp, pruner_conf);
+    }
 
     return program;
 }
