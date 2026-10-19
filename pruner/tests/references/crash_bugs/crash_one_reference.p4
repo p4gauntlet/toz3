@@ -1,6 +1,6 @@
 #include <core.p4>
 
-bit<3> max(in bit<3> val, in bit<3> bound) {
+bit<3> max(in bit<3> val) {
     return val;
 }
 header ethernet_t {
@@ -72,12 +72,12 @@ bit<16> SaTkzAX(PguzcJ Oofi) {
     bit<128> value_2 = value_0;
     return 16w10;
 }
-yLNoil wClaYko(jUHTpn DoHl) {
+yLNoil wClaYko() {
     bit<4> value_3 = 4w14;
     const zRDuhm constant = (zRDuhm){LEQY = 128w232569008864530135157127505601818385808,KOcO = 8w10,EWpj = (ethernet_t){dst_addr = 48w211703505640505,src_addr = 48w10,eth_type = 16w10},BUWO = 32w10,NnjD = 32w2274055191};
     return (yLNoil){ILBe = 128w10,MXzB = 64w10};
 }
-bit<4> rjsgGkN(bit<16> SOZw) {
+bit<4> rjsgGkN() {
     const bit<128> constant_0 = 128w10;
     bit<16> value_4 = (bit<16>)16w10;
     return 4w10;
@@ -86,7 +86,7 @@ bit<4> rjsgGkN(bit<16> SOZw) {
     return 4w12;
 }
 parser p(packet_in pkt, out Headers hdr) {
-    bit<4> value_7 = 145w10[106:58][12:9];
+    bit<4> value_7 = 4w0;
     bit<4> value_8 = 4w14;
     yLNoil hdr_0 = (yLNoil){ILBe = 128w10,MXzB = 64w8739799105651448972};
     bool flag_0 = false;
@@ -101,15 +101,15 @@ parser p(packet_in pkt, out Headers hdr) {
 
 control ingress(inout Headers h) {
     bit<128> value_10 = 128w230764102599282411499082228184235706426;
-    action AWhhg(inout bit<16> HpDQ, OXxQuH GSUK) {
+    action AWhhg() {
     }
-    action TyIkj(bit<8> cFUf, bit<64> UYcs) {
+    action TyIkj() {
         const bool constant_1 = false;
         return;
         const bit<32> constant_2 = 32w10;
         return;
     }
-    action isfLJ(inout bit<4> zayb, bit<32> ezim, bit<16> pxcw) {
+    action isfLJ(bit<16> pxcw) {
         {
         }
         {
@@ -122,7 +122,7 @@ control ingress(inout Headers h) {
             16w19744: exact @name("wvtOpl");
         }
         actions = {
-            isfLJ(h.IDZn.YRcl);
+            isfLJ();
             @defaultonly NoAction();
         }
         default_action = NoAction();
@@ -135,7 +135,7 @@ control ingress(inout Headers h) {
     }
     table YfGdXm {
         actions = {
-            isfLJ(h.uAdg.pvdW[20:17]);
+            isfLJ();
             @defaultonly NoAction();
         }
         default_action = NoAction();
@@ -147,7 +147,7 @@ control ingress(inout Headers h) {
             48w145114785635731: exact @name("JEgqHq");
         }
         actions = {
-            isfLJ(h.IDZn.YRcl);
+            isfLJ();
             @defaultonly NoAction();
         }
         default_action = NoAction();
@@ -156,7 +156,7 @@ control ingress(inout Headers h) {
         const int constant_4 = 181433741;
         bit<128> value_11 = 128w334026077963046502987531789306364882607;
         const bit<4> constant_5 = 4w10;
-        h.gvFM[max((bit<3>)SaTkzAX({ 4w6, 32w10, 16w10 }), 3w5)].src_addr = 48w10;
+        h.gvFM[max((bit<3>)SaTkzAX({ 4w6, 32w10, 16w10 }))].src_addr = 48w10;
         bit<64> value_12 = 64w10;
     }
 }
