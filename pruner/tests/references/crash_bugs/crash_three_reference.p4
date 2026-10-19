@@ -1,6 +1,6 @@
 #include <core.p4>
 
-bit<3> max(in bit<3> val, in bit<3> bound) {
+bit<3> max(in bit<3> val) {
     return 3w2;
 }
 header ethernet_t {
@@ -37,7 +37,7 @@ struct Headers {
     ethernet_t[9] aTcs;
 }
 
-bit<8> TFhEvSU(in Mdpvgb Mkfw, out bit<4> VPgh, Mdpvgb kemL) {
+bit<8> TFhEvSU(Mdpvgb kemL) {
     bit<16> wUwiNa = 16w10;
     const bit<128> KNGgzK = 128w10;
     {
@@ -58,7 +58,7 @@ bool AuSgrSB() {
     vNUuQP hBKPvL = (vNUuQP){ETrI = hVBtEn,bUKc = 64w10,yxiq = 64w10,JyBT = 4w10};
     return true;
 }
-bit<16> mMjjrfi(bit<32> XROz) {
+bit<16> mMjjrfi() {
     const bit<4> DTLpkP = 4w10;
     {
         bool uEPPnT = false;
@@ -97,15 +97,15 @@ control ingress(inout Headers h) {
     bit<4> VogrIJ = 4w10;
     bit<4> DglsCD = VogrIJ;
     vNUuQP JJtpaz = (vNUuQP){ETrI = 8w10,bUKc = h.dSgK.bUKc,yxiq = 64w10,JyBT = h.gUPl.JyBT};
-    action lBJGe(bit<4> VqqH, bit<128> mlYh) {
+    action lBJGe() {
         bit<128> dGmlno = 128w10;
     }
-    action naNRp(inout bit<64> fyaf, out bit<32> OEEJ, bit<128> KZqQ) {
+    action naNRp() {
         bool oDBhFM = true;
-        h.aTcs[max((bit<3>)TFhEvSU((Mdpvgb){TeIY = h.vTHH[9].TeIY,LfLO = 4w10}, h.AMIB.LfLO, { 8w10, 4w10 }), 3w2)].src_addr = h.eth_hdr.src_addr;
+        h.aTcs[max((bit<3>)TFhEvSU({ 8w10, 4w10 }))].src_addr = h.eth_hdr.src_addr;
         const bool XneKsi = false;
     }
-    action TtncC(inout bit<4> ClFo, bit<8> xLMh) {
+    action TtncC() {
         return;
         const int xWEAyC = 1563578230;
     }
