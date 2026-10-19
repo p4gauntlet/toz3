@@ -32,7 +32,7 @@ const IR::P4Program *prune(const IR::P4Program *program, const PrunerConfig &pru
     program = prune_expressions(program, pruner_conf);
     program = prune_bool_expressions(program, pruner_conf);
     program = apply_compiler_passes(program, pruner_conf);
-    if (pruner_conf.options->rename_variables) {
+    if (pruner_conf.rename_variables) {
         program = rename_variables(program, pruner_conf);
     }
     return program;
@@ -66,7 +66,7 @@ PrunerConfig get_config_from_json(const std::filesystem::path &json_path,
         P4::error("Config file %s does not exist! Exiting.", json_path);
         exit(EXIT_FAILURE);
     }
-    PrunerConfig pruner_conf(options);
+    PrunerConfig pruner_conf;
     nlohmann::json config_json;
 
     std::ifstream config_file(json_path);
@@ -137,7 +137,7 @@ PrunerConfig get_conf_from_compiler(const PrunerOptions &options) {
         P4::error("Path to compiler binary %s invalid! Exiting.", options.compiler_bin.value());
         exit(EXIT_FAILURE);
     }
-    PrunerConfig pruner_conf(options);
+    PrunerConfig pruner_conf;
 
     // we do not have munch info, so leave most of this empty, we don't need it
     pruner_conf.compiler = options.compiler_bin.value();
@@ -189,7 +189,7 @@ int main(int argc, char *const argv[]) try {
         options.usage();
         return EXIT_FAILURE;
     }
-    P4::ToZ3::Pruner::PrunerConfig pruner_conf(options);
+    P4::ToZ3::Pruner::PrunerConfig pruner_conf;
     if (options.config_file.has_value()) {
         pruner_conf = get_config_from_json(options.config_file.value(), options.working_dir,
                                            options.file.c_str(), options);
@@ -221,6 +221,8 @@ int main(int argc, char *const argv[]) try {
             "Please enter a valid bug type. VALIDATION for validation or CRASH for crash bug");
         return EXIT_FAILURE;
     }
+
+    pruner_conf.rename_variables = options.rename_variables;
 
     // create the working dir
     std::filesystem::create_directories(pruner_conf.working_dir);

@@ -14,8 +14,6 @@
 
 namespace P4::ToZ3::Pruner {
 
-class PrunerOptions;
-
 class PrunerRng {
  private:
     boost::random::mt19937 rng;
@@ -50,7 +48,6 @@ struct ExitInfo {
 };
 
 struct PrunerConfig {
-    const PrunerOptions *options;
     int exit_code = 0;
     std::optional<std::filesystem::path> validation_bin;
     std::string prog_before;
@@ -60,8 +57,9 @@ struct PrunerConfig {
     std::filesystem::path out_file_name;
     std::string err_string;
     bool allow_undef = false;
+    bool rename_variables = true;
     ErrorType err_type = ErrorType::Unknown;
-    explicit PrunerConfig(const PrunerOptions &options) : options(&options) {}
+    PrunerConfig() {}
 };
 
 ExitInfo get_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
