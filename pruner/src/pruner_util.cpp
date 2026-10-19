@@ -1,6 +1,10 @@
 #include "pruner_util.h"
 
+#include <sys/wait.h>
+#include <unistd.h>
+
 #include <array>
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -9,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <boost/random/uniform_int_distribution.hpp>
 
@@ -18,6 +23,37 @@
 #include "toz3/pruner/src/constants.h"
 
 namespace P4::ToZ3::Pruner {
+
+bool is_interesting(const std::filesystem::path &file, const PrunerConfig &pruner_conf) {
+    if (!pruner_conf.interestingness_test.has_value()) {
+        const auto result = get_exit_info(file, pruner_conf);
+        return result.exit_code == pruner_conf.exit_code &&
+               classify_bug(result) == pruner_conf.err_type;
+    }
+
+    std::vector<std::string> arguments{pruner_conf.interestingness_test->string()};
+    arguments.insert(arguments.end(), pruner_conf.test_arguments.begin(),
+                     pruner_conf.test_arguments.end());
+    arguments.push_back(std::filesystem::absolute(file).string());
+    std::vector<char *> argv;
+    for (auto &argument : arguments) argv.push_back(argument.data());
+    argv.push_back(nullptr);
+
+    // Execute directly so spaces and shell metacharacters in paths or arguments
+    // reach the script unchanged. The script owns the interestingness policy.
+    const auto child = fork();
+    if (child < 0) throw std::runtime_error("Could not start interestingness test");
+    if (child == 0) {
+        execv(argv.front(), argv.data());
+        perror("Could not execute interestingness test");
+        _exit(127);
+    }
+    int status = 0;
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno != EINTR) throw std::runtime_error("Could not wait for interestingness test");
+    }
+    return WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS;
+}
 
 int64_t PrunerRng::get_rnd_int(int64_t min, int64_t max) {
     boost::random::uniform_int_distribution<int64_t> distribution(min, max);
@@ -174,13 +210,10 @@ int check_pruned_program(const IR::P4Program **orig_program, const IR::P4Program
         INFO("File has not changed. Skipping analysis.");
         return EXIT_SUCCESS;
     }
-    ExitInfo exit_info = get_exit_info(out_file, pruner_conf);
-    int exit_code = exit_info.exit_code;
-    ErrorType err_type = classify_bug(exit_info);
     // if got the right exit code and the right error type
     // then modify the original program, if not
     // then choose a smaller bank of statements to remove now.
-    if (exit_code != pruner_conf.exit_code || err_type != pruner_conf.err_type) {
+    if (!is_interesting(out_file, pruner_conf)) {
         INFO("FAILED");
         return EXIT_FAILURE;
     }

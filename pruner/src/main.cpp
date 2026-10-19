@@ -1,4 +1,6 @@
 
+#include <unistd.h>
+
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
@@ -180,13 +182,40 @@ int main(int argc, char *const argv[]) try {
         return EXIT_FAILURE;
     }
 
-    if (!options.bug_type.has_value() && !options.config_file.has_value()) {
-        P4::error("Please provide a valid bug type or a config file");
+    if (!options.interestingness_test.has_value() && !options.test_arguments.empty()) {
+        P4::error("--test-arg requires --interestingness-test");
+        return EXIT_FAILURE;
+    }
+    if (options.interestingness_test.has_value() &&
+        (options.bug_type.has_value() || options.config_file.has_value())) {
+        P4::error("--interestingness-test cannot be combined with --bug-type or --config");
+        return EXIT_FAILURE;
+    }
+    if (!options.bug_type.has_value() && !options.config_file.has_value() &&
+        !options.interestingness_test.has_value()) {
+        P4::error("Please provide an interestingness test, a valid bug type, or a config file");
         options.usage();
         return EXIT_FAILURE;
     }
     P4::ToZ3::Pruner::PrunerConfig pruner_conf;
-    if (options.config_file.has_value()) {
+    if (options.interestingness_test.has_value()) {
+        const auto script = std::filesystem::absolute(options.interestingness_test.value());
+        if (!std::filesystem::is_regular_file(script) || access(script.c_str(), X_OK) != 0) {
+            P4::error("Interestingness test %s must be an executable file", script);
+            return EXIT_FAILURE;
+        }
+        pruner_conf.interestingness_test = script;
+        pruner_conf.test_arguments = options.test_arguments;
+        pruner_conf.working_dir = options.working_dir;
+        pruner_conf.out_file_name = options.output_file.has_value()
+                                       ? options.output_file.value()
+                                       : std::filesystem::path(options.file.c_str())
+                                                 .replace_extension().string() + "_stripped.p4";
+        if (!P4::ToZ3::Pruner::is_interesting(options.file.c_str(), pruner_conf)) {
+            P4::error("The input program does not pass the interestingness test");
+            return EXIT_FAILURE;
+        }
+    } else if (options.config_file.has_value()) {
         pruner_conf = get_config_from_json(options.config_file.value(), options.working_dir,
                                            options.file.c_str(), options);
     } else if (options.bug_type.value() == "VALIDATION") {
@@ -254,6 +283,8 @@ int main(int argc, char *const argv[]) try {
         INFO("Done.");
     } catch (const std::exception &bug) {
         std::cerr << bug.what() << std::endl;
+        std::filesystem::remove_all(pruner_conf.working_dir);
+        return EXIT_FAILURE;
     }
     INFO("Removing ephemeral working directory.");
     // need to wait a little because of race conditions

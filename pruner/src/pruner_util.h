@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <boost/random/mersenne_twister.hpp>
 
@@ -49,6 +50,8 @@ struct ExitInfo {
 
 struct PrunerConfig {
     int exit_code = 0;
+    std::optional<std::filesystem::path> interestingness_test;
+    std::vector<std::string> test_arguments;
     std::optional<std::filesystem::path> validation_bin;
     std::string prog_before;
     std::string prog_post;
@@ -62,6 +65,7 @@ struct PrunerConfig {
 };
 
 ExitInfo get_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
+bool is_interesting(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
 ExitInfo get_crash_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf);
 
 ErrorType classify_bug(const ExitInfo &exit_info);

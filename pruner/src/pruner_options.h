@@ -2,6 +2,7 @@
 #define _P4PRUNER_OPTIONS_H_
 
 #include <string>
+#include <vector>
 
 #include "frontends/common/options.h"
 #include "frontends/common/parser_options.h"
@@ -15,6 +16,8 @@ class PrunerOptions : public CompilerOptions {
     std::optional<std::string> config_file;
     std::optional<std::string> validation_bin;
     std::optional<std::string> compiler_bin = std::nullopt;
+    std::optional<std::string> interestingness_test;
+    std::vector<std::string> test_arguments;
     std::string working_dir = "pruned";
     bool dry_run = false;
     bool do_rnd_prune = false;

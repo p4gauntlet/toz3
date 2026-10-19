@@ -4,6 +4,21 @@ namespace P4::ToZ3::Pruner {
 
 PrunerOptions::PrunerOptions() {
     registerOption(
+        "--interestingness-test", "file",
+        [this](const char *arg) {
+            interestingness_test = arg;
+            return true;
+        },
+        "Executable test script. Receives the absolute candidate path as its last argument; "
+        "exit 0 keeps the candidate. Runs in the invocation directory.");
+    registerOption(
+        "--test-arg", "argument",
+        [this](const char *arg) {
+            test_arguments.emplace_back(arg);
+            return true;
+        },
+        "Argument passed before the candidate path to --interestingness-test (repeatable).");
+    registerOption(
         "--dry-run", nullptr,
         [this](const char * /*arg*/) {
             dry_run = true;
