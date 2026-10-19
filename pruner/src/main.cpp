@@ -27,12 +27,14 @@
 namespace P4::ToZ3::Pruner {
 
 const IR::P4Program *prune(const IR::P4Program *program, const PrunerConfig &pruner_conf,
-                           uint64_t prog_size) {
+                           uint64_t prog_size, bool rename) {
     program = prune_statements(program, pruner_conf, prog_size);
     program = prune_expressions(program, pruner_conf);
     program = prune_bool_expressions(program, pruner_conf);
     program = apply_compiler_passes(program, pruner_conf);
-    program = rename_variables(program, pruner_conf);
+    if (rename) {
+        program = rename_variables(program, pruner_conf);
+    }
     return program;
 }
 
@@ -242,7 +244,7 @@ int main(int argc, char *const argv[]) try {
             const auto prog_size = P4::ToZ3::Pruner::count_statements(original);
             INFO("Size of the program :" << prog_size << " statements");
 
-            program = prune(program, pruner_conf, prog_size);
+            program = prune(program, pruner_conf, prog_size, options.rename_variables);
             if (options.print_pruned) {
                 P4::ToZ3::Pruner::print_p4_program(program);
             }
