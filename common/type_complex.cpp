@@ -836,10 +836,11 @@ std::vector<std::pair<cstring, z3::expr>> EnumBase::get_z3_vars(cstring prefix,
     } else {
         tmp_valid = &valid;
     }
-    cstring name = instance_name;
-    if (prefix.size() != 0) {
-        name = prefix + "." + name;
+    cstring name = prefix;
+    if (!instance_name.isNullOrEmpty()) {
+        name = name.isNullOrEmpty() ? instance_name : name + "." + instance_name;
     }
+    BUG_CHECK(!name.isNullOrEmpty(), "EnumBase has neither a prefix nor a name.");
     auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), member_type);
     auto valid_var = z3::ite(*tmp_valid, val, invalid_var);
     std::vector<std::pair<cstring, z3::expr>> z3_vars = {{name, valid_var}};

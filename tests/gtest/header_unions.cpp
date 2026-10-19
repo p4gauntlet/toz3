@@ -211,7 +211,8 @@ TEST_F(HeaderUnionTest, SummaryMasksInactiveMembersAndIncludesValidity) {
     equivalent(summary[0].second, ctx.bool_val(true));
     equivalent(summary[1].second, ctx.bv_val(ASSIGNED_VALUE, FIELD_WIDTH));
     equivalent(summary[2].second, ctx.bool_val(false));
-    equivalent(summary[3].second, ctx.bv_const("invalid", FIELD_WIDTH));
+    equivalent(summary[3].second, ctx.bv_const(UNDEF_LABEL, FIELD_WIDTH));
+    EXPECT_TRUE(defined_when(summary[3].second).is_false());
 }
 
 TEST_F(HeaderUnionTest, SymbolicInputsAllowEveryLegalUnionStateAndNoOthers) {
