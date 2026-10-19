@@ -19,6 +19,7 @@ class PrunerOptions : public CompilerOptions {
     bool dry_run = false;
     bool do_rnd_prune = false;
     bool print_pruned = false;
+    bool rename_variables = true;
     std::optional<std::string> seed;
     std::optional<std::string> bug_type = std::nullopt;
     std::optional<std::string> output_file = std::nullopt;

@@ -4,6 +4,13 @@ namespace P4::ToZ3::Pruner {
 
 PrunerOptions::PrunerOptions() {
     registerOption(
+        "--no-rename-variables", nullptr,
+        [this](const char * /*arg*/) {
+            rename_variables = false;
+            return true;
+        },
+        "Disable the final variable-renaming pass (enabled by default).");
+    registerOption(
         "--dry-run", nullptr,
         [this](const char * /*arg*/) {
             dry_run = true;

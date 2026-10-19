@@ -57,6 +57,7 @@ struct PrunerConfig {
     std::filesystem::path out_file_name;
     std::string err_string;
     bool allow_undef = false;
+    bool rename_variables = true;
     ErrorType err_type = ErrorType::Unknown;
     PrunerConfig() {}
 };

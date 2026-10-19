@@ -11,6 +11,7 @@ set(
   src/boolean_pruner.cpp
   src/extended_unused.cpp
   src/replace_variables.cpp
+  src/rename_variables.cpp
   src/counter.cpp
 )
 set(
@@ -23,6 +24,7 @@ set(
   src/boolean_pruner.h
   src/extended_unused.h
   src/replace_variables.h
+  src/rename_variables.h
   src/counter.h
 )
 

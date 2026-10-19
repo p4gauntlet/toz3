@@ -21,6 +21,7 @@
 #include "lib/error.h"
 #include "pruner_options.h"
 #include "pruner_util.h"
+#include "rename_variables.h"
 #include "statement_pruner.h"
 
 namespace P4::ToZ3::Pruner {
@@ -31,6 +32,9 @@ const IR::P4Program *prune(const IR::P4Program *program, const PrunerConfig &pru
     program = prune_expressions(program, pruner_conf);
     program = prune_bool_expressions(program, pruner_conf);
     program = apply_compiler_passes(program, pruner_conf);
+    if (pruner_conf.rename_variables) {
+        program = rename_variables(program, pruner_conf);
+    }
     return program;
 }
 
@@ -217,6 +221,8 @@ int main(int argc, char *const argv[]) try {
             "Please enter a valid bug type. VALIDATION for validation or CRASH for crash bug");
         return EXIT_FAILURE;
     }
+
+    pruner_conf.rename_variables = options.rename_variables;
 
     // create the working dir
     std::filesystem::create_directories(pruner_conf.working_dir);
