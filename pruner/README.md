@@ -6,15 +6,25 @@ Reduction preserves an observed failure, not the program's normal behavior. A ca
 
 ## The failure oracle
 
-We parse the program into P4C's IR, propose a simplification, emit the candidate as P4, and run an external failure check. We retain the candidate when its exit code and classified error type match the original failure; otherwise, we keep the previous program.
+We parse the program into P4C's IR, propose a simplification, emit the candidate as P4, and run an external interestingness test. We follow the test-driven reduction approach used by [C-Reduce](https://manpages.ubuntu.com/manpages/xenial/man1/creduce.1.html): the reducer proposes smaller programs, while the test defines the property that must survive. A candidate is retained only if the test accepts it; otherwise, we keep the previous program.
 
 ```text
-current program → candidate reduction → compiler or validator
-       ↑                                      |
-       └──────── accept if failure matches ────┘
+current program → candidate reduction → interestingness test
+        ↑                                      |
+        └──────── accept if interesting ────────┘
 ```
 
-For compiler failures, classification examines the diagnostic text, including the `Compiler Bug` marker. For validation failures, the expected exit code is `20`. The oracle does not require an identical diagnostic, the same failing compiler pass, or the same counterexample. Consequently, preserving the failure class is not proof that a reduction has preserved its original cause. The reduced program still needs inspection.
+With `--interestingness-test`, an executable program, usually a shell script, supplies this test. Exit status **0** means interesting; any nonzero status or termination by a signal means uninteresting. The original input must pass the test before reduction starts. The script can check a particular compiler diagnostic, a validation violation, or any other property of the candidate.
+
+The invocation is:
+
+```text
+test-script [--test-arg values, in order] /absolute/path/to/candidate.p4
+```
+
+The script runs in the directory from which the pruner was invoked. The candidate's absolute path is always the last argument; each repeated `--test-arg` supplies one preceding argument. Arguments are passed literally, without shell expansion by the pruner. Treat the candidate as read-only. Tests run sequentially, and the pruner waits for each result without imposing a timeout. A test should be deterministic and place a timeout on commands that may hang.
+
+The built-in `--bug-type` and `--config` modes instead compare the candidate's exit code and classified error type with the original failure. For compiler failures, classification examines the diagnostic text, including the `Compiler Bug` marker. For validation failures, the expected exit code is `20`. These modes do not require an identical diagnostic, the same failing compiler pass, or the same counterexample. A script can make the acceptance condition more specific. `--interestingness-test` cannot be combined with `--bug-type` or `--config`.
 
 ## Searching from coarse to fine
 
@@ -44,6 +54,46 @@ Enable `ENABLE_GAUNTLET_PRUNER` in the P4C CMake configuration and build the `p4
 ```
 
 The working directory must not already exist. It holds intermediate candidates and is removed after reduction. `--output` selects the final program; without it, the pruner uses the input name with a `_stripped.p4` suffix.
+
+### Script-based reduction
+
+For example, save the following as `interesting.sh` to retain a compiler failure with a particular diagnostic. It takes the compiler path and diagnostic text before the candidate path, and uses GNU `timeout` to bound each compiler run:
+
+```sh
+#!/bin/sh
+compiler=$1
+diagnostic=$2
+candidate=$3
+log=$(mktemp) || exit 1
+trap 'rm -f "$log"' EXIT
+
+status=0
+timeout --kill-after=5s 30s "$compiler" "$candidate" >"$log" 2>&1 || status=$?
+case "$status" in
+    0|124|125|126|127|137) exit 1 ;;
+esac
+grep -Fq -- "$diagnostic" "$log"
+```
+
+Replace `Compiler Bug: your diagnostic` below with distinctive text from the failure you want to preserve. Make the script executable and check it on the original input from the P4C build directory:
+
+```sh
+chmod +x interesting.sh
+./interesting.sh "$PWD/p4test" 'Compiler Bug: your diagnostic' "$PWD/input.p4"
+echo $?
+```
+
+The result must be `0`. Then run the pruner with the same test and arguments:
+
+```sh
+./extensions/toz3/pruner/p4pruner \
+  --interestingness-test ./interesting.sh \
+  --test-arg "$PWD/p4test" --test-arg 'Compiler Bug: your diagnostic' \
+  --seed 1 --working-dir /tmp/opencode/pruner-work \
+  --output reduced.p4 input.p4
+```
+
+The script determines interestingness; the pruner does not interpret its diagnostic output. In this example, successful compilations, timeouts, and command-launch failures are rejected, and a failing compilation is accepted only when its output contains the selected diagnostic.
 
 ### Validation integration
 
