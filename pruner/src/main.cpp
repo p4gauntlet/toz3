@@ -27,12 +27,12 @@
 namespace P4::ToZ3::Pruner {
 
 const IR::P4Program *prune(const IR::P4Program *program, const PrunerConfig &pruner_conf,
-                           uint64_t prog_size, bool rename) {
+                           uint64_t prog_size) {
     program = prune_statements(program, pruner_conf, prog_size);
     program = prune_expressions(program, pruner_conf);
     program = prune_bool_expressions(program, pruner_conf);
     program = apply_compiler_passes(program, pruner_conf);
-    if (rename) {
+    if (pruner_conf.options->rename_variables) {
         program = rename_variables(program, pruner_conf);
     }
     return program;
@@ -66,7 +66,7 @@ PrunerConfig get_config_from_json(const std::filesystem::path &json_path,
         P4::error("Config file %s does not exist! Exiting.", json_path);
         exit(EXIT_FAILURE);
     }
-    PrunerConfig pruner_conf;
+    PrunerConfig pruner_conf(options);
     nlohmann::json config_json;
 
     std::ifstream config_file(json_path);
@@ -137,7 +137,7 @@ PrunerConfig get_conf_from_compiler(const PrunerOptions &options) {
         P4::error("Path to compiler binary %s invalid! Exiting.", options.compiler_bin.value());
         exit(EXIT_FAILURE);
     }
-    PrunerConfig pruner_conf;
+    PrunerConfig pruner_conf(options);
 
     // we do not have munch info, so leave most of this empty, we don't need it
     pruner_conf.compiler = options.compiler_bin.value();
@@ -189,7 +189,7 @@ int main(int argc, char *const argv[]) try {
         options.usage();
         return EXIT_FAILURE;
     }
-    P4::ToZ3::Pruner::PrunerConfig pruner_conf;
+    P4::ToZ3::Pruner::PrunerConfig pruner_conf(options);
     if (options.config_file.has_value()) {
         pruner_conf = get_config_from_json(options.config_file.value(), options.working_dir,
                                            options.file.c_str(), options);
@@ -244,7 +244,7 @@ int main(int argc, char *const argv[]) try {
             const auto prog_size = P4::ToZ3::Pruner::count_statements(original);
             INFO("Size of the program :" << prog_size << " statements");
 
-            program = prune(program, pruner_conf, prog_size, options.rename_variables);
+            program = prune(program, pruner_conf, prog_size);
             if (options.print_pruned) {
                 P4::ToZ3::Pruner::print_p4_program(program);
             }
