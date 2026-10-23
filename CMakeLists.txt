@@ -158,6 +158,8 @@ set(P4C_VALIDATION_TESTS "${P4C_VALIDATION_TESTS};${MANUAL_VALIDATION_TESTS}")
 
 set(
   P4C_VALIDATION_XFAIL_TESTS
+  # Loop exceeds the supported interpretation limit.
+  ${P4C_TEST_DIR}/forloop13.p4
   # SimplifyDefUse removes an assignment observable after extraction rejects.
   ${P4C_TEST_DIR}/invalid-hdr-warnings4.p4
   # SideEffectOrdering moves lookahead before a rejecting stack.next argument.
