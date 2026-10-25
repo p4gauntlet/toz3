@@ -43,12 +43,13 @@ jobs:
           -DENABLE_P4FMT=OFF \
           -DENABLE_P4C_GRAPHS=OFF \
           -DCMAKE_UNITY_BUILD=ON \
+          -DVALIDATION_IGNORE_CRASHES=OFF \
           -DENABLE_GAUNTLET_PRUNER=ON
       - name: Install P4C with toz3
         run: |
           cd $GITHUB_WORKSPACE/../p4c/build
           make -j2
-      - name: Test toz3 with CMake
+      - name: Test toz3 with strict validation
         run: |
           cd $GITHUB_WORKSPACE/../p4c/build
           ctest -j4 -R toz3-validate --output-on-failure --schedule-random
