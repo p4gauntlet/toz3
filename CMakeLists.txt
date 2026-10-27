@@ -136,6 +136,8 @@ add_custom_target(
 add_dependencies(p4c_driver linkp4toz3)
 
 # Test configuration
+option(VALIDATION_IGNORE_CRASHES "Skip validator/comparator errors and crashes in tests." OFF)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ToZ3Tests.cmake)
 set(P4C_TEST_DIR "${CMAKE_SOURCE_DIR}/testdata/p4_16_samples")
 set(TOZ3_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(VALIDATION_BIN "${CMAKE_BINARY_DIR}/p4validate")
@@ -223,13 +225,13 @@ if(VALIDATION_IGNORE_CRASHES)
   string(APPEND TEST_FLAGS " --ignore-crashes")
 endif()
 set(VALIDATION_FLAGS "--validation-bin ${VALIDATION_BIN} ${TEST_FLAGS}")
-p4c_add_tests("toz3-validate-p4c" ${VALIDATION_DRIVER} "${P4C_VALIDATION_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
+toz3_add_validation_tests("toz3-validate-p4c" ${VALIDATION_DRIVER} "${P4C_VALIDATION_TESTS}" "${P4C_VALIDATION_XFAIL_TESTS}" "${VALIDATION_FLAGS}")
 
 ################# CUSTOM TESTS #################
 
 file(GLOB VALIDATION_FRIENDS_TESTS "${TOZ3_TEST_DIR}/false_friends/*.p4")
 
-p4c_add_tests("toz3-validate-friends" ${VALIDATION_DRIVER} "${VALIDATION_FRIENDS_TESTS}" "" "${VALIDATION_FLAGS}")
+toz3_add_validation_tests("toz3-validate-friends" ${VALIDATION_DRIVER} "${VALIDATION_FRIENDS_TESTS}" "" "${VALIDATION_FLAGS}")
 
 ################# VIOLATION TESTS #################
 
@@ -243,7 +245,7 @@ set(
 )
 
 set(VIOLATION_FLAGS "--validation-bin ${COMPARE_BIN} ${TEST_FLAGS} --check-violation")
-p4c_add_tests("toz3-validate-violation" ${VALIDATION_DRIVER} "${VIOLATION_TESTS}" "${VIOLATION_XFAIL_TESTS}" "${VIOLATION_FLAGS}")
+toz3_add_validation_tests("toz3-validate-violation" ${VALIDATION_DRIVER} "${VIOLATION_TESTS}" "${VIOLATION_XFAIL_TESTS}" "${VIOLATION_FLAGS}")
 
 ################# UNDEFINED TESTS #################
 
@@ -258,7 +260,7 @@ set(
 )
 
 set(UNDEFINED_FLAGS "--validation-bin ${COMPARE_BIN} ${TEST_FLAGS} --check-undefined")
-p4c_add_tests("toz3-validate-undefined" ${VALIDATION_DRIVER} "${UNDEFINED_TESTS}" "${UNDEFINED_XFAIL_TESTS}" "${UNDEFINED_FLAGS}")
+toz3_add_validation_tests("toz3-validate-undefined" ${VALIDATION_DRIVER} "${UNDEFINED_TESTS}" "${UNDEFINED_XFAIL_TESTS}" "${UNDEFINED_FLAGS}")
 
 # This also builds the pruner module
 if(ENABLE_GAUNTLET_PRUNER)

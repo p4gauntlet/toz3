@@ -51,6 +51,17 @@ class Options():
         self.verbose = False            # Enable verbose output.
 
 
+def should_skip(options, returncode):
+    if returncode == util.EXIT_SKIPPED:
+        print("Skipping file %s." % options.p4_file)
+        return True
+    if options.ignore_crashes and returncode not in (
+            util.EXIT_SUCCESS, util.EXIT_UNDEF, util.EXIT_VIOLATION):
+        warnings.warn("Ignored crash in %s" % options.p4_file)
+        return True
+    return False
+
+
 def run_validation_test(options, target_dir, allow_undefined):
     cmd = "%s " % options.validation_bin
     cmd += "--dump-dir %s " % target_dir
@@ -62,10 +73,8 @@ def run_validation_test(options, target_dir, allow_undefined):
     if options.verbose:
         print("Validation output:\n%s" % result.stdout.decode())
         print("Validation error output:\n%s" % result.stderr.decode())
-    if result.returncode not in [util.EXIT_SUCCESS, util.EXIT_UNDEF, util.EXIT_VIOLATION] and options.ignore_crashes:
-        msg = "Ignored crash in %s" % options.p4_file
-        warnings.warn(msg)
-        return util.EXIT_SUCCESS
+    if should_skip(options, result.returncode):
+        return util.EXIT_SKIPPED
     if result.returncode == util.EXIT_UNDEF:
         if allow_undefined:
             msg = "Ignored undefined behavior in %s" % options.p4_file
@@ -73,29 +82,29 @@ def run_validation_test(options, target_dir, allow_undefined):
             return util.EXIT_SUCCESS
         else:
             return util.EXIT_VIOLATION
-    if result.returncode == util.EXIT_SKIPPED:
-        print("Skipping file %s." % options.p4_file)
-        return util.EXIT_SUCCESS
     return result.returncode
 
 
-def run_violation_test(options, allow_undefined):
+def run_violation_test(options, allow_undefined, expect_violation=True):
     src_p4_file = options.p4_file.joinpath("orig.p4")
     for p4_file in list(options.p4_file.glob("**/[0-9]*.p4")):
         cmd = "%s %s,%s " % (options.validation_bin, src_p4_file, p4_file)
         if allow_undefined:
             cmd += "--allow-undefined "
         result = util.exec_process(cmd).returncode
-        if result != util.EXIT_VIOLATION:
+        if should_skip(options, result):
+            return util.EXIT_SKIPPED
+        if result not in (util.EXIT_SUCCESS, util.EXIT_UNDEF, util.EXIT_VIOLATION):
+            return util.EXIT_FAILURE
+        if (result == util.EXIT_VIOLATION) != expect_violation:
             return util.EXIT_FAILURE
     return util.EXIT_SUCCESS
 
 def run_undef_test(options):
-    if run_violation_test(options, False) != util.EXIT_SUCCESS:
-        return util.EXIT_FAILURE
-    if run_violation_test(options, True) != util.EXIT_FAILURE:
-        return util.EXIT_FAILURE
-    return util.EXIT_SUCCESS
+    result = run_violation_test(options, False)
+    if result != util.EXIT_SUCCESS:
+        return result
+    return run_violation_test(options, True, expect_violation=False)
 
 def run_test(options, argv):
     if (options.check_violation):
@@ -138,7 +147,7 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="verbose operation")
     parser.add_argument("-ic", "--ignore-crashes", action="store_true",
-                        help="Ignore any crashes that may happen.")
+                        help="Skip tests on validator/comparator errors or crashes (exit 10).")
     parser.add_argument("-da", "--disallow-undefined", action="store_true",
                         help="If active, undefined violations must be detected.")
     parser.add_argument("-cv", "--check-violation", action="store_true",
