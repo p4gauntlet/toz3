@@ -10,15 +10,12 @@
 #include <utility>
 #include <vector>
 
-#include <boost/multiprecision/cpp_int.hpp>
-#include <boost/multiprecision/detail/et_ops.hpp>
-#include <boost/multiprecision/number.hpp>
-
 #include "defaults.h"
 #include "evaluation_context.h"
 #include "ir/id.h"
 #include "ir/indexed_vector.h"
 #include "ir/node.h"
+#include "lib/big_int.h"
 #include "lib/big_int_util.h"
 #include "lib/error.h"
 #include "lib/null.h"

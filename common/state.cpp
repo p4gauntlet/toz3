@@ -11,15 +11,12 @@
 #include <utility>
 #include <vector>
 
-#include <boost/multiprecision/cpp_int.hpp>
-#include <boost/multiprecision/detail/et_ops.hpp>
-#include <boost/multiprecision/number.hpp>
-
 #include "evaluation_context.h"
 #include "exceptions.h"
 #include "ir/id.h"
 #include "ir/node.h"
 #include "ir/visitor.h"
+#include "lib/big_int.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
 #include "lib/iterator_range.h"
