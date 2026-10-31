@@ -245,7 +245,7 @@ void P4State::setSlice(const MemberStruct &member_struct, const P4Z3Instance *rv
     }
     // We progressively slice and merge the lval
     target_rval = compute_slice(target_lval, target_rval, member_struct.end_slices);
-    const auto *bit_type = bitType(target_rval.get_sort().bv_size());
+    const auto bit_type = bitType(target_rval.get_sort().bv_size());
     auto *resolved_rval =
         allocate_instance<Z3Bitvector>(this, this, bit_type, target_rval, is_signed);
     set_var(slice_less_member_struct, resolved_rval);
@@ -311,13 +311,13 @@ ordered_map<const IR::Parameter *, const IR::Expression *> mapArguments(
     // Save inputs and copy-back destinations in call-site order, including named arguments.
     ordered_map<const IR::Parameter *, const IR::Expression *> param_mapping;
     for (size_t idx = 0; idx < args.size(); ++idx) {
-        const auto *arg = args.at(idx);
-        const auto *param =
+        const auto arg = args.at(idx);
+        const auto param =
             arg->name ? params.getParameter(arg->name.name) : params.getParameter(idx);
         BUG_CHECK(param && !param_mapping.count(param), "Invalid argument %s", arg);
         param_mapping.emplace(param, arg->expression);
     }
-    for (const auto *param : params) {
+    for (const auto &param : params) {
         if (param_mapping.count(param) == 0U) {
             param_mapping.emplace(param, param->defaultValue);
         }
@@ -344,7 +344,7 @@ const P4Z3Instance *evaluateArgument(P4State *state, EvaluationContext *visitor,
 void specializeArguments(P4State *state, const IR::TypeParameters &type_params,
                          const ArgumentInputs &inputs, P4State::BoundArguments *result) {
     IR::TypeParameters unresolved;
-    for (const auto *parameter : type_params.parameters) {
+    for (const auto &parameter : type_params.parameters) {
         if (!result->types.contains(parameter->name)) {
             unresolved.push_back(parameter);
         }
@@ -590,7 +590,7 @@ const IR::Type *P4State::resolve_type(const IR::Type *type) const {
     }
     if (const auto *ts = type->to<IR::Type_Specialized>()) {
         TypeSpecializer specializer(*this, *ts->arguments);
-        const auto *resolved_node = ts->baseType->apply(specializer);
+        const auto resolved_node = ts->baseType->apply(specializer);
         return resolved_node->checkedTo<IR::Type>();
     }
     return type;

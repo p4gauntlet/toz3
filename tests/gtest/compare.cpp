@@ -75,7 +75,7 @@ TEST(Definedness, SimplifiedBooleanGuardsStillMaskUndefinedReads) {
 TEST(Definedness, InvalidHeaderOutputFieldsAreUndefinedButValidityRemainsDefined) {
     z3::context ctx;
     P4State state(&ctx);
-    const auto *bits = IR::Type_Bits::get(COMPARED_FIELD_WIDTH);
+    const auto bits = IR::Type_Bits::get(COMPARED_FIELD_WIDTH);
     const IR::Type_Header type(IR::ID("H"_cs), {new IR::StructField("field"_cs, bits)});
     HeaderInstance header(&state, &type, "input"_cs, 0);
     const auto valid = ctx.bool_const("valid");

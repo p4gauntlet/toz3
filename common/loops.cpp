@@ -78,7 +78,7 @@ class LoopWrites : public Inspector {
         if (const auto *member = call->method->to<IR::Member>()) {
             if (member->member == "isValid" && call->arguments->empty()) {
                 try {
-                    const auto *receiver = expression_type(state, member->expr);
+                    const auto receiver = expression_type(state, member->expr);
                     if (receiver->is<IR::Type_Header>() || receiver->is<IR::Type_HeaderUnion>()) {
                         // The built-in is pure, but evaluating its receiver can call functions.
                         return true;
@@ -230,7 +230,7 @@ LoopAnalysis analyzeLoop(const P4State *state, const IR::ForStatement *loop) {
     loop->condition->apply(conditionWrites);
     LoopWrites updateWrites(*state);
     LoopReads updateReads;
-    for (const auto *update : loop->updates) {
+    for (const auto &update : loop->updates) {
         update->apply(updateWrites);
         update->apply(updateReads);
     }
@@ -286,7 +286,7 @@ bool repeatedIndex(const P4State *state, cstring index, bool *canDetectCycle,
 
 bool Z3Visitor::preorder(const IR::ForStatement *loop) {
     state->push_scope();
-    for (const auto *initial : loop->init) {
+    for (const auto &initial : loop->init) {
         visit(initial);
     }
     loops.emplace_back(state->get_z3_ctx());
@@ -351,7 +351,7 @@ bool Z3Visitor::preorder(const IR::ForStatement *loop) {
         }
         loops.back().stopped = false;
         state->push_forward_cond(active);
-        for (const auto *update : loop->updates) {
+        for (const auto &update : loop->updates) {
             visit(update);
         }
         state->pop_forward_cond();

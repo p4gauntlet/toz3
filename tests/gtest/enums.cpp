@@ -42,7 +42,7 @@ void checkEnumWidening(P4State *state, const SerEnumInstance &value, const IR::T
 void checkSerializedEnum(bool isSigned) {
     z3::context ctx;
     P4State state(&ctx);
-    const auto *bits = IR::Type_Bits::get(ENUM_WIDTH, isSigned);
+    const auto bits = IR::Type_Bits::get(ENUM_WIDTH, isSigned);
     const IR::Type_SerEnum type(IR::ID("E"_cs), bits, {});
     SerEnumInstance value(&state, {}, &type, "e"_cs, 0);
     const auto symbolic = ctx.bv_const("e", ENUM_WIDTH);
@@ -77,7 +77,7 @@ TEST(SerializedEnums, OutputNamesJoinOnlyNonemptyComponents) {
 
 TEST(SerializedEnums, NestedOutputLabelsMatchLoweredBitFields) {
     InterpreterTestState test;
-    const auto *program = parseP4String(R"(
+    const auto program = parseP4String(R"(
         enum bit<8> E { A = 1 }
         struct Original { E field; }
         struct Lowered { bit<8> field; }

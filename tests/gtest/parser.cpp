@@ -37,7 +37,7 @@ class ParserTest : public ::testing::Test, protected InterpreterTestState {
 
  protected:
     void evaluate(const std::string &source) {
-        const auto *program = parseP4String(R"(
+        const auto program = parseP4String(R"(
             error { NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort, Bad, ParserTimeout }
             extern packet_in {
                 void extract<T>(out T hdr);
@@ -83,7 +83,7 @@ TEST(ArchitectureTypes, GenericPackagesPreserveControlAndParserOutputs) {
     AutoCompileContext context{new P4CContextWithOptions<CompilerOptions>};
     z3::context ctx;
     P4State state(&ctx);
-    const auto *program = parseP4String(R"(
+    const auto program = parseP4String(R"(
         error { NoError, NoMatch }
         control C8(out bit<8> value) { apply { value = 8; } }
         control C16(out bit<16> value) { apply { value = 16; } }

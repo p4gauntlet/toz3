@@ -15,11 +15,11 @@ class TypeInferenceTest : public ::testing::Test, protected InterpreterTestState
     TypeInferenceTest() { state.push_scope(); }
 
     void evaluate(const char *source) {
-        const auto *program = parseP4String(source);
+        const auto program = parseP4String(source);
         ASSERT_NE(program, nullptr);
         visitor.visit(program);
         const auto *control = state.get_type("C"_cs)->checkedTo<IR::P4Control>();
-        for (const auto *local : control->controlLocals) {
+        for (const auto &local : control->controlLocals) {
             visitor.visit(local);
         }
         visitor.visit(control->body);
@@ -217,7 +217,7 @@ TEST_F(TypeInferenceTest, InferredTuplesKeepCallerTypesWithTheSameNameAsATypePar
 }
 
 TEST_F(TypeInferenceTest, ArchitectureDefaultsConsumeTypesInferredFromSuppliedBlocks) {
-    const auto *program = parseP4String(R"(
+    const auto program = parseP4String(R"(
         control Stage<T>(out T result);
         control Empty<T>(out T result) { apply { result = (T) 0; } }
         control Used(out bit<8> result) { apply { result = 7; } }

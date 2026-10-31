@@ -138,7 +138,7 @@ z3::expr handle_select_cond(Z3Visitor *visitor, const StructBase *select_list,
     const auto select_members = get_vec_from_map(select_list);
 
     for (size_t idx = 0; idx < list_expr->size(); ++idx) {
-        const auto *match_key = list_expr->components.at(idx);
+        const auto match_key = list_expr->components.at(idx);
         const auto *select_eval = select_members.at(idx);
         match_cond = match_cond && check_cond(visitor, select_eval, match_key);
     }
@@ -152,7 +152,7 @@ std::vector<std::pair<z3::expr, cstring>> gather_select_conds(Z3Visitor *visitor
     bool has_default = false;
     visitor->visit(se->select);
     const auto *list_instance = visitor->get_state()->copy_expr_result<ListInstance>();
-    for (const auto *select_case : se->selectCases) {
+    for (const auto &select_case : se->selectCases) {
         auto state_name = select_case->state->path->name.name;
         if (select_case->keyset->is<IR::DefaultExpression>()) {
             select_vector.emplace_back(!matches, state_name);
@@ -176,7 +176,7 @@ constexpr unsigned MAX_UNPROVEN_PARSER_ROUNDS = 8;
 constexpr unsigned PARSER_REACHABILITY_WORK_LIMIT = 100000;
 
 std::vector<cstring> parser_successors(const IR::ParserState *state) {
-    const auto *transition = state->selectExpression;
+    const auto transition = state->selectExpression;
     if (transition == nullptr) {
         return {};
     }
@@ -185,7 +185,7 @@ std::vector<cstring> parser_successors(const IR::ParserState *state) {
     }
     std::vector<cstring> result;
     if (const auto *select = transition->to<IR::SelectExpression>()) {
-        for (const auto *branch : select->selectCases) {
+        for (const auto &branch : select->selectCases) {
             result.push_back(branch->state->path->name);
         }
     }
@@ -266,7 +266,7 @@ class ParserStackProgress : public Inspector {
     }
     bool hasStackFreeArguments(const IR::MethodCallExpression *call) const {
         return std::all_of(
-            call->arguments->begin(), call->arguments->end(), [&](const auto *argument) {
+            call->arguments->begin(), call->arguments->end(), [&](const auto &argument) {
                 if (const auto *value = resolve(argument->expression)) {
                     return !contains_stack(value);
                 }
@@ -345,13 +345,13 @@ class ParserStackProgress : public Inspector {
         }
         const IR::Expression *argument = nullptr;
         const auto *packet = resolve(method->expr)->get_p4_type()->checkedTo<IR::Type_Extern>();
-        for (const auto *declaration : packet->methods) {
+        for (const auto &declaration : packet->methods) {
             if (declaration->name != "extract" ||
                 !arguments_match(*declaration->getParameters(), *call->arguments)) {
                 continue;
             }
             const auto name = declaration->getParameters()->getParameter(0)->name;
-            for (const auto *supplied : *call->arguments) {
+            for (const auto &supplied : *call->arguments) {
                 if (supplied->name == name) {
                     argument = supplied->expression;
                 }
@@ -363,7 +363,7 @@ class ParserStackProgress : public Inspector {
  public:
     const StackInstance *advanced_stack(const IR::StatOrDecl *component) const {
         if (const auto *block = component->to<IR::BlockStatement>()) {
-            for (const auto *nested : block->components) {
+            for (const auto &nested : block->components) {
                 if (const auto *stack = advanced_stack(nested)) {
                     return stack;
                 }
@@ -374,7 +374,7 @@ class ParserStackProgress : public Inspector {
         if (statement == nullptr) {
             return nullptr;
         }
-        const auto *call = statement->methodCall;
+        const auto call = statement->methodCall;
         const auto *method = packet_method(call);
         if (method == nullptr || method->member != "extract" || call->arguments->empty()) {
             return nullptr;
@@ -398,7 +398,7 @@ class ParserStackProgress : public Inspector {
 std::set<const StackInstance *> advancedStacks(const IR::ParserState *parserState,
                                                const ParserStackProgress &effects) {
     std::set<const StackInstance *> stacks;
-    for (const auto *component : parserState->components) {
+    for (const auto &component : parserState->components) {
         if (const auto *stack = effects.advanced_stack(component)) {
             stacks.insert(stack);
         }
@@ -684,7 +684,7 @@ void Z3Visitor::run_parser(cstring start) {
 
 bool Z3Visitor::preorder(const IR::ParserState *ps) {
     state->push_scope();
-    for (const auto *component : ps->components) {
+    for (const auto &component : ps->components) {
         visit(component);
         if (state->has_exited() || state->has_returned()) {
             break;

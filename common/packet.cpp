@@ -76,7 +76,7 @@ z3::expr argument(P4State *state, const IR::Method *method, unsigned index) {
 P4Z3Instance *execute_packet_method(Z3Visitor *visitor, const IR::Method *method) {
     auto *state = visitor->get_state();
     auto &ctx = *state->get_z3_ctx();
-    const auto *return_type = state->resolve_type(method->type->returnType);
+    const auto return_type = state->resolve_type(method->type->returnType);
     if (method->name == "length") {
         return allocate_instance<Z3Bitvector>(state, state, IR::Type_Bits::get(PACKET_LENGTH_WIDTH),
                                               packet_length(state));
@@ -117,8 +117,8 @@ namespace {
 P4Z3Instance *extractPacket(Z3Visitor *visitor, const IR::Method *method) {
     auto *state = visitor->get_state();
     auto &ctx = *state->get_z3_ctx();
-    const auto *parameter = method->getParameters()->getParameter(0);
-    const auto *header_type = state->resolve_type(parameter->type);
+    const auto parameter = method->getParameters()->getParameter(0);
+    const auto header_type = state->resolve_type(parameter->type);
     auto bits =
         ctx.int_val(Util::toString(serialized_size(*state, header_type, false), 0, false).c_str());
     const bool variable = method->getParameters()->size() == 2;

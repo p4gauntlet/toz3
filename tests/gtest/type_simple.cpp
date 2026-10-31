@@ -47,7 +47,7 @@ TEST(BitvectorMerging, FactoringSharedAddendsPreservesOverflow) {
 
 TEST(BitvectorShifts, CountsDoNotWrapAndSignedRightShiftsPreserveTheSign) {
     z3::context ctx;
-    const auto *bits = IR::Type_Bits::get(BITVECTOR_WIDTH, true);
+    const auto bits = IR::Type_Bits::get(BITVECTOR_WIDTH, true);
     const Z3Bitvector value(nullptr, bits, ctx.bv_val(BYTE_SIGN_BIT, BITVECTOR_WIDTH), true);
     for (const auto count : {1U, 8U, 256U}) {
         const Z3Bitvector wide(nullptr, IR::Type_Bits::get(INT_WIDTH),
@@ -66,7 +66,7 @@ TEST(BitvectorShifts, CountsDoNotWrapAndSignedRightShiftsPreserveTheSign) {
 TEST(BitvectorAllocation, DeclaredSignednessSurvivesAggregateBinding) {
     z3::context ctx;
     P4State state(&ctx);
-    const auto *bits = IR::Type_Bits::get(WIDE_WIDTH, true);
+    const auto bits = IR::Type_Bits::get(WIDE_WIDTH, true);
     const auto *value = state.gen_instance("signed"_cs, bits)->to<Z3Bitvector>();
     ASSERT_NE(value, nullptr);
     EXPECT_TRUE(value->bv_is_signed());
