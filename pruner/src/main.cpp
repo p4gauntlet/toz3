@@ -1,4 +1,5 @@
 
+#include <charconv>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
@@ -6,8 +7,7 @@
 #include <fstream>  // IWYU pragma: keep
 #include <iostream>
 #include <random>
-
-#include <boost/lexical_cast.hpp>
+#include <system_error>
 
 #include "boolean_pruner.h"
 #include "compiler_pruner.h"
@@ -42,9 +42,10 @@ void process_seed(const PrunerOptions &options) {
     uint64_t seed = 0;
     if (options.seed.has_value()) {
         std::cerr << "Using provided seed.\n";
-        try {
-            seed = boost::lexical_cast<uint64_t>(options.seed.value());
-        } catch (boost::bad_lexical_cast &) {
+        const auto &text = options.seed.value();
+        const auto *end = text.data() + text.size();
+        const auto result = std::from_chars(text.data(), end, seed);
+        if (result.ec != std::errc() || result.ptr != end) {
             P4::error("invalid seed %s", options.seed.value());
             exit(EXIT_FAILURE);
         }

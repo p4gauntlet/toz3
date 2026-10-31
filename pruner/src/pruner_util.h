@@ -3,9 +3,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <random>
 #include <string>
-
-#include <boost/random/mersenne_twister.hpp>
 
 #include "ir/ir.h"
 #include "lib/cstring.h"
@@ -16,7 +15,7 @@ namespace P4::ToZ3::Pruner {
 
 class PrunerRng {
  private:
-    boost::random::mt19937 rng;
+    std::mt19937 rng;
 
  public:
     static PrunerRng &instance() {
@@ -26,7 +25,7 @@ class PrunerRng {
     }
     static void seed(uint64_t s) {
         // mt19937 consumes the low 32 bits of the command-line seed.
-        instance().rng.seed(static_cast<boost::random::mt19937::result_type>(s));
+        instance().rng.seed(static_cast<std::mt19937::result_type>(s));
     }
     static int64_t get_rnd_int(int64_t min, int64_t max);
     static double get_rnd_pct();

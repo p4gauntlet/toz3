@@ -5,12 +5,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>  // IWYU pragma: keep
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include <boost/random/uniform_int_distribution.hpp>
 
 #include "counter.h"
 #include "frontends/p4/toP4/toP4.h"
@@ -20,16 +19,15 @@
 namespace P4::ToZ3::Pruner {
 
 int64_t PrunerRng::get_rnd_int(int64_t min, int64_t max) {
-    boost::random::uniform_int_distribution<int64_t> distribution(min, max);
+    std::uniform_int_distribution<int64_t> distribution(min, max);
     return distribution(instance().rng);
 }
 
 double PrunerRng::get_rnd_pct() {
-    // Do not use boosts uniform_real_distribution, instead round coarsely by
+    // Do not use uniform_real_distribution, instead round coarsely by
     // dividing by a 100. This is not as precise but avoids floating point
     // inconsistencies.
-    boost::random::uniform_int_distribution<uint8_t> distribution(0, 100);  // NOLINT
-    return distribution(instance().rng) / 100.0;
+    return static_cast<double>(get_rnd_int(0, 100)) / 100.0;
 }
 
 ExitInfo get_exit_info(const std::filesystem::path &file, const PrunerConfig &pruner_conf) {

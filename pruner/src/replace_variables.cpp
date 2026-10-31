@@ -2,8 +2,6 @@
 
 #include <cstdlib>
 
-#include <boost/multiprecision/cpp_int.hpp>
-
 #include "frontends/common/parser_options.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 #include "ir/pass_manager.h"

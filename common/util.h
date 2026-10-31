@@ -5,14 +5,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <initializer_list>
 #include <iosfwd>
 #include <string>
 
-#include <boost/format.hpp>
-
 #include "ir/ir.h"
 #include "lib/cstring.h"
+#include "lib/format.h"
 #include "lib/log.h"
 
 // The program is empty, there is nothing to do here
@@ -57,16 +55,11 @@ class Logger {
     }
     static bool enabled(size_t level) { return level <= LOG_LEVEL && LOGGING(level); }
     template <typename... Args>
-    static void log_msg(size_t level, const std::string &msg, Args &...args) {
+    static void log_msg(size_t level, const std::string &msg, const Args &...args) {
         if (!enabled(level)) {
             return;
         }
-        boost::format f(msg);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-value"
-        std::initializer_list<char>{(static_cast<void>(f % args), char{})...};  // NOLINT
-#pragma GCC diagnostic pop
-        LOGN(level, boost::str(f));
+        LOGN(level, P4::createFormattedMessage(msg.c_str(), args...));
     }
 };
 

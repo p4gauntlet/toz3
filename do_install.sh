@@ -23,9 +23,6 @@ sudo apt install -y bison \
                     cmake \
                     git \
                     flex \
-                    libboost-dev \
-                    libboost-graph-dev \
-                    libboost-iostreams-dev \
                     libfl-dev \
                     libgc-dev \
                     libgmp-dev \
