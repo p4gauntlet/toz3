@@ -25,7 +25,7 @@ namespace P4::ToZ3 {
 
 bool Z3Visitor::preorder(const IR::P4Program *p) {
     // Start to visit the actual AST objects
-    for (const auto *o : p->objects) {
+    for (const auto &o : p->objects) {
         visit(o);
     }
     return false;
@@ -49,7 +49,7 @@ bool Z3Visitor::preorder(const IR::Type_Enum *t) {
     if (var != nullptr) {
         auto *enum_instance = var->to_mut<EnumBase>();
         BUG_CHECK(enum_instance, "Unexpected enum instance %s", var->to_string());
-        for (const auto *member : t->members) {
+        for (const auto &member : t->members) {
             enum_instance->add_enum_member(member->name.name);
         }
     } else {
@@ -70,7 +70,7 @@ bool Z3Visitor::preorder(const IR::Type_Error *t) {
     if (var != nullptr) {
         auto *enum_instance = var->to_mut<EnumBase>();
         BUG_CHECK(enum_instance, "Unexpected enum instance %s", var->to_string());
-        for (const auto *member : t->members) {
+        for (const auto &member : t->members) {
             enum_instance->add_enum_member(member->name.name);
         }
     } else {
@@ -92,14 +92,14 @@ bool Z3Visitor::preorder(const IR::Type_SerEnum *t) {
     if (var != nullptr) {
         auto *enum_instance = var->to_mut<EnumBase>();
         BUG_CHECK(enum_instance, "Unexpected enum instance %s", var->to_string());
-        for (const auto *member : t->members) {
+        for (const auto &member : t->members) {
             enum_instance->add_enum_member(member->name.name);
         }
     } else {
         ordered_map<cstring, P4Z3Instance *> input_members;
-        const auto *member_type = state->resolve_type(t->type);
+        const auto member_type = state->resolve_type(t->type);
         state->push_scope();
-        for (const auto *member : t->members) {
+        for (const auto &member : t->members) {
             visit(member->value);
             auto *value = state->get_expr_result()->cast_allocate(member_type);
             input_members.emplace(member->name.name, value);
@@ -174,7 +174,7 @@ namespace {
 void register_callable(P4State *state, const IR::StatOrDecl *node, cstring name,
                        const IR::ParameterList &parameters, bool action = false) {
     size_t required = 0;
-    for (const auto *parameter : parameters) {
+    for (const auto &parameter : parameters) {
         if (!parameter->isOptional() && parameter->defaultValue == nullptr &&
             !(action && parameter->direction == IR::Direction::None)) {
             ++required;
@@ -215,15 +215,17 @@ bool Z3Visitor::preorder(const IR::P4Table *t) {
 
 bool Z3Visitor::preorder(const IR::Declaration_Instance *di) {
     auto instance_name = di->name.name;
-    const IR::Type *resolved_type = state->resolve_type(di->type);
+    auto resolved_type = state->resolve_type(di->type);
     // TODO: Figure out a way to process packages
     if (resolved_type->is<IR::Type_Package>()) {
         state->declare_static_decl(instance_name, allocate_instance<P4Declaration>(state, di));
         return false;
     }
     if (const auto *te = resolved_type->to<IR::Type_Extern>()) {
-        te = specialize_extern(te, *di->arguments);
-        state->declare_var(instance_name, allocate_instance<ExternInstance>(state, state, te), te);
+        const auto specialized = specialize_extern(te, *di->arguments);
+        state->declare_var(instance_name,
+                           allocate_instance<ExternInstance>(state, state, specialized),
+                           specialized);
         return false;
     }
     if (const auto *array = resolved_type->to<IR::Type_Array>()) {
@@ -266,7 +268,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Constant *dc) {
 
 bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
     P4Z3Instance *left = nullptr;
-    const auto *resolved_type = state->resolve_type(dv->type);
+    const auto resolved_type = state->resolve_type(dv->type);
     if (dv->initializer != nullptr) {
         visit(dv->initializer);
         left = state->get_expr_result()->cast_allocate(resolved_type);
@@ -279,7 +281,7 @@ bool Z3Visitor::preorder(const IR::Declaration_Variable *dv) {
 }
 
 bool Z3Visitor::preorder(const IR::P4ValueSet *pvs) {
-    const auto *resolved_type = state->resolve_type(pvs->elementType);
+    const auto resolved_type = state->resolve_type(pvs->elementType);
     auto pvs_name = infer_name(pvs, pvs->name.name);
     auto *instance = state->gen_instance(pvs_name, resolved_type);
     state->declare_var(pvs->name.name, instance, resolved_type);
@@ -287,11 +289,11 @@ bool Z3Visitor::preorder(const IR::P4ValueSet *pvs) {
 }
 
 bool Z3Visitor::preorder(const IR::Declaration_MatchKind *dm) {
-    for (const auto *member : dm->members) {
+    for (const auto &member : dm->members) {
         if (state->find_var(member->name.name) != nullptr) {
             continue;
         }
-        const auto *type = IR::Type_MatchKind::get();
+        const auto type = IR::Type_MatchKind::get();
         state->declare_var(
             member->name.name,
             allocate_instance<Z3Bitvector>(
@@ -303,7 +305,7 @@ bool Z3Visitor::preorder(const IR::Declaration_MatchKind *dm) {
 }
 
 bool Z3Visitor::preorder(const IR::IndexedVector<IR::Declaration> *decls) {
-    for (const auto *local_decl : *decls) {
+    for (const auto &local_decl : *decls) {
         visit(local_decl);
     }
     return false;
@@ -450,7 +452,7 @@ SwitchCasePairs collect_switch_cases(z3::context *ctx, const IR::Vector<IR::Swit
     SwitchCasePairs branches;
     auto fall_through = ctx->bool_val(false);
     auto matched = ctx->bool_val(false);
-    for (const auto *branch : cases) {
+    for (const auto &branch : cases) {
         if (branch->label->is<IR::DefaultExpression>()) {
             branches.emplace_back(!matched, branch->statement);
             return branches;
@@ -476,7 +478,7 @@ std::map<cstring, z3::expr> table_action_conditions(Z3Visitor *visitor,
         const auto name = table->table_props.table_name + "action_idx";
         const auto action_taken = ctx->int_const(name.c_str());
         int index = 0;
-        for (const auto *action : table->table_props.actions) {
+        for (const auto &action : table->table_props.actions) {
             action_matches.emplace(action->method->toString(), action_taken == index && table->hit);
             ++index;
         }
@@ -485,7 +487,7 @@ std::map<cstring, z3::expr> table_action_conditions(Z3Visitor *visitor,
 
     auto evaluated_keys = table->evaluated_keys;
     if (evaluated_keys.empty()) {
-        for (const auto *key : table->table_props.keys) {
+        for (const auto &key : table->table_props.keys) {
             visitor->visit(key->expression);
             evaluated_keys.push_back(state->copy_expr_result());
         }
@@ -502,7 +504,7 @@ std::map<cstring, z3::expr> table_action_conditions(Z3Visitor *visitor,
         record(entry.second->method->toString(), match && !matched);
         matched = matched || match;
     }
-    if (const auto *defaultAction = table->table_props.default_action) {
+    if (const auto &defaultAction = table->table_props.default_action) {
         record(defaultAction->method->toString(), !matched);
     }
     return action_matches;
@@ -642,7 +644,7 @@ BlockStatement
 ***/
 
 bool Z3Visitor::preorder(const IR::BlockStatement *b) {
-    for (const auto *c : b->components) {
+    for (const auto &c : b->components) {
         auto guard = state->get_z3_ctx()->bool_val(true);
         if (!loops.empty()) {
             guard = !(loops.back().break_condition || loops.back().continue_condition);

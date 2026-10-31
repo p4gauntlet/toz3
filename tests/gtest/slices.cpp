@@ -26,7 +26,7 @@ TEST(WidthSlices, SymbolicOffsetsDoNotWrapOrSignExtend) {
     z3::context ctx;
     P4State state(&ctx);
     Z3Visitor visitor(&state);
-    const auto *offsetType = IR::Type_Bits::get(OFFSET_WIDTH);
+    const auto offsetType = IR::Type_Bits::get(OFFSET_WIDTH);
     auto offset = ctx.bv_const("offset", OFFSET_WIDTH);
     state.declare_var("offset"_cs,
                       allocate_instance<Z3Bitvector>(&state, &state, offsetType, offset),

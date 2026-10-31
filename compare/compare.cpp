@@ -286,7 +286,7 @@ int process_programs(const std::vector<std::filesystem::path> &prog_list, Parser
     z3::context ctx;
     const auto interpret = [&](const std::filesystem::path &prog) -> Z3Prog {
         options->file = prog;
-        const auto *progParsed = P4::parseP4File(*options);
+        const auto progParsed = P4::parseP4File(*options);
         if (progParsed == nullptr || P4::errorCount() > 0) {
             throw GauntletException("Unable to parse program: " + prog.string());
         }

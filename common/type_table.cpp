@@ -45,28 +45,28 @@ const IR::MethodCallExpression *actionCall(const IR::Expression *expression) {
 }  // namespace
 
 void process_table_properties(const IR::P4Table *p4t, TableProperties *table_props) {
-    if (const auto *key_prop = p4t->getKey()) {
-        for (const auto *ke : key_prop->keyElements) {
+    if (const auto key_prop = p4t->getKey()) {
+        for (const auto &ke : key_prop->keyElements) {
             table_props->keys.push_back(ke);
         }
     }
-    if (const auto *action_list = p4t->getActionList()) {
-        for (const auto *act : action_list->actionList) {
+    if (const auto action_list = p4t->getActionList()) {
+        for (const auto &act : action_list->actionList) {
             if (act->hasAnnotation("defaultonly"_cs)) {
                 continue;
             }
             table_props->actions.push_back(actionCall(act->expression));
         }
     }
-    if (const auto *default_expr = p4t->getDefaultAction()) {
+    if (const auto default_expr = p4t->getDefaultAction()) {
         // resolve a default action
         table_props->default_action = actionCall(default_expr);
     }
-    if (const auto *entries = p4t->getEntries()) {
+    if (const auto entries = p4t->getEntries()) {
         // If the entries properties is constant it means the entries are fixed
         // We cannot add or remove table entries
         table_props->immutable = p4t->properties->getProperty("entries"_cs)->isConstant;
-        for (const auto *entry : entries->entries) {
+        for (const auto &entry : entries->entries) {
             table_props->entries.emplace_back(entry->getKeys(), actionCall(entry->getAction()));
         }
     }
@@ -109,7 +109,7 @@ z3::expr compute_table_hit(EvaluationContext *visitor, P4State *state, cstring t
     auto *ctx = state->get_z3_ctx();
     z3::expr hit = ctx->bool_val(false);
     for (std::size_t idx = 0; idx < keys.size(); ++idx) {
-        const auto *key = keys.at(idx);
+        const auto key = keys.at(idx);
         // TODO: Actually look up the match type here. Not sure why needed...
         visitor->evaluate(key->expression);
         const auto *key_eval = state->copy_expr_result();
@@ -182,7 +182,7 @@ void handle_table_action(EvaluationContext *visitor, P4State *state,
     auto args_len = act->arguments->size();
     auto ctrl_idx = 0;
     for (size_t idx = 0; idx < method_params->size(); ++idx) {
-        const auto *param = method_params->getParameter(idx);
+        const auto param = method_params->getParameter(idx);
         if (args_len <= idx && param->direction == IR::Direction::None) {
             cstring arg_name = action_label + std::to_string(ctrl_idx);
             auto *ctrl_arg = state->gen_instance(arg_name, param->type);
@@ -204,7 +204,7 @@ z3::expr P4TableInstance::produce_const_match(EvaluationContext *visitor,
     z3::expr match = state->get_z3_ctx()->bool_val(true);
     for (size_t idx = 0; idx < evaluated_keys->size(); ++idx) {
         const auto *key_eval = evaluated_keys->at(idx);
-        const auto *c_key = entry_keys->components.at(idx);
+        const auto c_key = entry_keys->components.at(idx);
         if (c_key->is<IR::DefaultExpression>()) {
             continue;
         }
@@ -257,8 +257,8 @@ void P4TableInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
         uint64_t idx = 0;
         // First the constant entries
         for (const auto &entry : table_props.entries) {
-            const auto *keys = entry.first;
-            const auto *action = entry.second;
+            const auto keys = entry.first;
+            const auto action = entry.second;
             auto key_match = produce_const_match(visitor, &evaluated_keys, keys);
             auto cond = new_hit && (key_match);
             auto old_vars = state->clone_vars();
@@ -280,7 +280,7 @@ void P4TableInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
         if (!table_props.immutable) {
             auto table_action_name = table_props.table_name + "action_idx";
             auto table_action = ctx->int_const(table_action_name.c_str());
-            for (const auto *action : table_props.actions) {
+            for (const auto &action : table_props.actions) {
                 auto cond = new_hit && (table_action == state->get_z3_ctx()->int_val(idx));
                 auto old_vars = state->clone_vars();
                 state->push_forward_cond(cond);

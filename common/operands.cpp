@@ -335,7 +335,7 @@ bool Z3Visitor::preorder(const IR::PlusSlice *sl) {
 
 bool Z3Visitor::preorder(const IR::Cast *c) {
     // Resolve the type.
-    const auto *resolved_type = state->resolve_type(c->destType);
+    const auto resolved_type = state->resolve_type(c->destType);
     if (c->expr->is<IR::Invalid>()) {
         BUG_CHECK(resolved_type->is<IR::Type_Header>() || resolved_type->is<IR::Type_HeaderUnion>(),
                   "Invalid literal cast to %s", resolved_type);

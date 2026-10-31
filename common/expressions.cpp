@@ -77,7 +77,7 @@ bool Z3Visitor::preorder(const IR::Dots * /*unused*/) {
 
 bool Z3Visitor::preorder(const IR::ListExpression *le) {
     std::vector<P4Z3Instance *> members;
-    for (const auto *component : le->components) {
+    for (const auto &component : le->components) {
         visit(component);
         members.push_back(state->copy_expr_result());
     }
@@ -87,7 +87,7 @@ bool Z3Visitor::preorder(const IR::ListExpression *le) {
 
 bool Z3Visitor::preorder(const IR::StructExpression *se) {
     std::map<cstring, P4Z3Instance *> members;
-    for (const auto *component : se->components) {
+    for (const auto &component : se->components) {
         visit(component);
         members[component->name] = state->copy_expr_result();
     }
@@ -197,7 +197,7 @@ FunOrMethod resolve_var_or_decl_parent(P4State *state, const MemberStruct &membe
     if (parent_class->is<ExternInstance>()) {
         const auto *type = parent_class->get_p4_type()->checkedTo<IR::Type_Extern>();
         const IR::Method *selected = nullptr;
-        for (const auto *method : type->methods) {
+        for (const auto &method : type->methods) {
             if (method->name != *name || !arguments_match(*method->getParameters(), arguments)) {
                 continue;
             }
@@ -242,7 +242,7 @@ P4Z3Instance *exec_function(Z3Visitor *visitor, const IR::Function *f) {
     auto begin = return_exprs.rbegin();
     auto end = return_exprs.rend();
     if (begin != end) {
-        const auto *return_type = f->type->returnType;
+        const auto return_type = f->type->returnType;
         auto *merged_return = begin->second->cast_allocate(return_type);
         for (auto it = std::next(begin); it != end; ++it) {
             z3::expr cond = it->first;
@@ -272,9 +272,9 @@ P4Z3Instance *exec_method(Z3Visitor *visitor, const IR::Method *m, bool packet_i
         return allocate_instance<VoidResult>(state);
     }
     auto method_name = infer_name(m, m->name.name);
-    const auto *method_type = state->resolve_type(m->type->returnType);
+    const auto method_type = state->resolve_type(m->type->returnType);
     // TODO: Different types of arguments and multiple calls
-    for (const auto *param : *m->getParameters()) {
+    for (const auto &param : *m->getParameters()) {
         cstring param_name = param->name.name;
         cstring merged_param_name = method_name + "_" + param_name;
         if (param->direction == IR::Direction::Out || param->direction == IR::Direction::InOut) {
@@ -311,7 +311,7 @@ bool evaluateSizeMethod(P4State *state, const IR::MethodCallExpression *mce) {
         if (name == "minSizeInBits" || name == "minSizeInBytes" || name == "maxSizeInBits" ||
             name == "maxSizeInBytes") {
             BUG_CHECK(mce->arguments->empty(), "Size methods take no arguments");
-            const auto *type = expression_type(*state, member->expr);
+            const auto type = expression_type(*state, member->expr);
             auto size =
                 serialized_size(*state, type, name == "maxSizeInBits" || name == "maxSizeInBytes");
             if (name == "minSizeInBytes" || name == "maxSizeInBytes") {
@@ -333,10 +333,10 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
     }
     const IR::Node *callable = nullptr;
     bool packet_in = false;
-    const auto *arguments = mce->arguments;
+    const auto arguments = mce->arguments;
     auto arg_size = arguments->size();
 
-    const auto *method_type = mce->method;
+    const auto method_type = mce->method;
     if (const auto *path_expr = method_type->to<IR::PathExpression>()) {
         auto path_identifier = mangle_name(path_expr->path->name.name, arg_size);
         callable = state->resolve_callable(path_identifier, *arguments);
@@ -380,9 +380,10 @@ bool Z3Visitor::preorder(const IR::MethodCallExpression *mce) {
 
 void Z3Visitor::executeCallable(const IR::MethodCallExpression *mce, const IR::Node *callable,
                                 bool packet_in) {
-    const auto *arguments = mce->arguments;
+    const auto arguments = mce->arguments;
     TypeSpecializer specializer(*state, *mce->typeArguments);
-    callable = callable->clone()->apply(specializer);
+    auto specialized = callable->apply(specializer);
+    callable = specialized;
 
     const IR::ParameterList *params = nullptr;
     const IR::TypeParameters *type_params = nullptr;
@@ -398,7 +399,8 @@ void Z3Visitor::executeCallable(const IR::MethodCallExpression *mce, const IR::N
         return;
     }
     // Substitute into the declaration rather than shadowing caller-side type names.
-    callable = callable->apply(TypeModifier(&inferred_types));
+    specialized = callable->apply(TypeModifier(&inferred_types));
+    callable = specialized;
     // Switch based on the dynamic callable type. The visitor is too cumbersome.
     P4Z3Instance *return_expr = nullptr;
     if (const auto *a = callable->to<IR::P4Action>()) {
@@ -439,14 +441,14 @@ const IR::Type_Extern *Z3Visitor::specialize_extern(const IR::Type_Extern *type,
     if (type->getTypeParameters()->empty()) {
         return type;
     }
-    const auto *constructor = type->lookupConstructor(&arguments);
+    const auto constructor = type->lookupConstructor(&arguments);
     CHECK_NULL(constructor);
     std::vector<TypeConstraint> constraints;
     for (size_t idx = 0; idx < arguments.size(); ++idx) {
-        const auto *argument = arguments.at(idx);
-        const auto *parameter =
-            argument->name ? constructor->getParameters()->getParameter(argument->name.name)
-                           : constructor->getParameters()->getParameter(idx);
+        const auto argument = arguments.at(idx);
+        const auto parameter = argument->name
+                                   ? constructor->getParameters()->getParameter(argument->name.name)
+                                   : constructor->getParameters()->getParameter(idx);
         if (!contains_type_variables(parameter->type, *type->getTypeParameters())) {
             continue;
         }
@@ -459,8 +461,8 @@ const IR::Type_Extern *Z3Visitor::specialize_extern(const IR::Type_Extern *type,
 }
 
 bool Z3Visitor::preorder(const IR::ConstructorCallExpression *cce) {
-    const IR::Type *resolved_type = state->resolve_type(cce->constructedType);
-    const auto *arguments = cce->arguments;
+    auto resolved_type = state->resolve_type(cce->constructedType);
+    const auto arguments = cce->arguments;
     if (const auto *ext = resolved_type->to<IR::Type_Extern>()) {
         auto *ext_instance =
             state->gen_instance(cstring(UNDEF_LABEL), specialize_extern(ext, *arguments));

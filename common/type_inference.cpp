@@ -43,8 +43,8 @@ class CollectTypeConstraints {
     std::vector<std::pair<cstring, const IR::Type *>> bindings;
 
     void collectStructure(const IR::Type_StructLike *formal, const IR::Type_StructLike *actual) {
-        for (const auto *field : formal->fields) {
-            const auto *other = actual->fields.getDeclaration<IR::StructField>(field->name);
+        for (const auto &field : formal->fields) {
+            const auto other = actual->fields.getDeclaration<IR::StructField>(field->name);
             if (other != nullptr) {
                 collect(field->type, other->type);
             }
@@ -78,8 +78,8 @@ class CollectTypeConstraints {
             if (argument == nullptr || formal->node_type_name() != actual->node_type_name()) {
                 return;
             }
-            const auto *formals = block->getApplyParameters();
-            const auto *actuals = argument->getApplyParameters();
+            const auto formals = block->getApplyParameters();
+            const auto actuals = argument->getApplyParameters();
             for (size_t i = 0; i < std::min(formals->size(), actuals->size()); ++i) {
                 collect(formals->getParameter(i)->type, actuals->getParameter(i)->type);
             }
@@ -108,7 +108,7 @@ class CollectTypeConstraints {
         // Specialize the prototype structurally. Resolving it through P4State
         // would try to look up the very variables this pass is inferring.
         if (const auto *specialized = formal->to<IR::Type_Specialized>()) {
-            const auto *prototype = state.resolve_type(specialized->baseType);
+            const auto prototype = state.resolve_type(specialized->baseType);
             const auto *generic =
                 prototype->checkedTo<IR::IMayBeGenericType>()->getTypeParameters();
             TypeBindings substitution;
@@ -178,14 +178,14 @@ bool arguments_match(const IR::ParameterList &parameters, const IR::Vector<IR::A
     }
     std::set<const IR::Parameter *> supplied;
     for (size_t i = 0; i < arguments.size(); ++i) {
-        const auto *argument = arguments.at(i);
-        const auto *parameter =
+        const auto argument = arguments.at(i);
+        const auto parameter =
             argument->name ? parameters.getParameter(argument->name) : parameters.getParameter(i);
         if (parameter == nullptr || !supplied.insert(parameter).second) {
             return false;
         }
     }
-    return std::all_of(parameters.begin(), parameters.end(), [&](const auto *parameter) {
+    return std::all_of(parameters.begin(), parameters.end(), [&](const auto &parameter) {
         return supplied.contains(parameter) || parameter->isOptional() ||
                parameter->defaultValue != nullptr ||
                (action && parameter->direction == IR::Direction::None);
@@ -233,12 +233,12 @@ const IR::Type *expression_type(const P4State &state, const IR::Expression *expr
         return state.resolve_type(cast->destType);
     }
     if (const auto *call = expression->to<IR::MethodCallExpression>()) {
-        if (const auto *type = callReturnType(state, call)) {
+        if (const auto type = callReturnType(state, call)) {
             return type;
         }
     }
     if (const auto *index = expression->to<IR::ArrayIndex>()) {
-        const auto *base = expression_type(state, index->left);
+        const auto base = expression_type(state, index->left);
         if (const auto *array = base->to<IR::Type_Array>()) {
             return state.resolve_type(array->elementType);
         }
@@ -248,9 +248,9 @@ const IR::Type *expression_type(const P4State &state, const IR::Expression *expr
         }
     }
     if (const auto *member = expression->to<IR::Member>()) {
-        const auto *base = expression_type(state, member->expr);
+        const auto base = expression_type(state, member->expr);
         if (const auto *aggregate = base->to<IR::Type_StructLike>()) {
-            const auto *field = aggregate->fields.getDeclaration<IR::StructField>(member->member);
+            const auto field = aggregate->fields.getDeclaration<IR::StructField>(member->member);
             CHECK_NULL(field);
             return state.resolve_type(field->type);
         }
@@ -280,7 +280,7 @@ big_int serialized_size(const P4State &state, const IR::Type *type, bool maximum
     }
     big_int size = 0;
     if (const auto *aggregate = type->to<IR::Type_StructLike>()) {
-        for (const auto *field : aggregate->fields) {
+        for (const auto &field : aggregate->fields) {
             const auto field_size = serialized_size(state, field->type, maximum);
             if (type->is<IR::Type_HeaderUnion>()) {
                 size = std::max(size, field_size);
@@ -291,7 +291,7 @@ big_int serialized_size(const P4State &state, const IR::Type *type, bool maximum
         return size;
     }
     if (const auto *tuple = type->to<IR::Type_BaseList>()) {
-        for (const auto *component : tuple->components) {
+        for (const auto &component : tuple->components) {
             size += serialized_size(state, component, maximum);
         }
         return size;

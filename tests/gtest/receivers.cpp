@@ -13,12 +13,12 @@ class ReceiverTest : public ::testing::Test, protected InterpreterTestState {
  protected:
     ReceiverTest() { state.push_scope(); }
     void evaluate(const char *source) {
-        const auto *program = parseP4String(source);
+        const auto program = parseP4String(source);
         ASSERT_NE(program, nullptr);
         visitor.visit(program);
         const auto *control = state.get_type("C"_cs)->to<IR::P4Control>();
         ASSERT_NE(control, nullptr);
-        for (const auto *local : control->controlLocals) {
+        for (const auto &local : control->controlLocals) {
             visitor.visit(local);
         }
         visitor.visit(control->body);

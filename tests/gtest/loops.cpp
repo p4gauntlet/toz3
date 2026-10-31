@@ -34,7 +34,7 @@ class LoopTest : public ::testing::Test, protected LoopTestState {
             condition, {increment(index)}, body);
     }
     void number(cstring name, unsigned value, int width = VALUE_WIDTH) {
-        const auto *type = IR::Type_Bits::get(width);
+        const auto type = IR::Type_Bits::get(width);
         state.declare_var(name, new Z3Bitvector(&state, type, ctx.bv_val(value, width)), type);
     }
     z3::expr value(cstring name) { return *state.get_var(name)->to<NumericVal>()->get_val(); }
@@ -62,7 +62,7 @@ TEST_F(LoopTest, SymbolicBreakAndContinueSkipRemainingStatements) {
 }
 
 TEST_F(LoopTest, NestedSymbolicLoopsHaveExactFiniteResults) {
-    const auto *type = IR::Type_Bits::get(2);
+    const auto type = IR::Type_Bits::get(2);
     auto bound = ctx.bv_const("bound", 2);
     state.declare_var("bound"_cs, new Z3Bitvector(&state, type, bound), type);
     number("sum"_cs, 0);
@@ -77,7 +77,7 @@ TEST_F(LoopTest, NestedSymbolicLoopsHaveExactFiniteResults) {
 TEST_F(LoopTest, AdditiveSummaryPreservesModularOverflow) {
     constexpr unsigned START = 5;
     constexpr unsigned STEP = 7;
-    const auto *type = IR::Type_Bits::get(LOOP_COUNTER_WIDTH);
+    const auto type = IR::Type_Bits::get(LOOP_COUNTER_WIDTH);
     auto bound = ctx.bv_const("bound", LOOP_COUNTER_WIDTH);
     state.declare_var("bound"_cs, new Z3Bitvector(&state, type, bound), type);
     number("sum"_cs, START, 3);
@@ -96,7 +96,7 @@ TEST_F(LoopTest, CounterDependentBoundIsEvaluatedEveryIteration) {
 }
 
 TEST_F(LoopTest, CounterWrapIsReportedAsNontermination) {
-    const auto *type = IR::Type_Bits::get(3);
+    const auto type = IR::Type_Bits::get(3);
     auto bound = ctx.bv_const("bound", 3);
     state.declare_var("bound"_cs, new Z3Bitvector(&state, type, bound), type);
     number("sum"_cs, 0);
@@ -137,7 +137,7 @@ TEST_F(LoopTest, RepeatedCounterWithChangingUpdateInputsCanTerminate) {
 }
 
 TEST_F(LoopTest, MultipleUpdatesArePreservedOnEachSymbolicFinishingPath) {
-    const auto *type = IR::Type_Bits::get(2);
+    const auto type = IR::Type_Bits::get(2);
     auto bound = ctx.bv_const("bound", 2);
     state.declare_var("bound"_cs, new Z3Bitvector(&state, type, bound), type);
     number("sum"_cs, 0);
@@ -178,7 +178,7 @@ TEST_F(LoopTest, BreakInSwitchExitsTheLoopWithoutExecutingItsUpdates) {
 TEST_F(LoopTest, ImmutableSwitchUsesEntriesAndDefaultForEveryKey) {
     AutoCompileContext context(new P4CContextWithOptions<ParserOptions>);
     const auto key = ctx.bv_const("key", 2);
-    const auto *bits = IR::Type_Bits::get(2);
+    const auto bits = IR::Type_Bits::get(2);
     state.declare_var("key"_cs, new Z3Bitvector(&state, bits, key), bits);
     number("sum"_cs, 0);
     const auto *entryAction = new IR::MethodCallExpression(path("entry"_cs));
@@ -216,7 +216,7 @@ TEST_F(LoopTest, ImmutableSwitchUsesEntriesAndDefaultForEveryKey) {
 }
 
 TEST_F(LoopTest, SwitchFallThroughPreservesTheImplicitDefaultPath) {
-    const auto *bits = IR::Type_Bits::get(2);
+    const auto bits = IR::Type_Bits::get(2);
     const auto key = ctx.bv_const("key", 2);
     state.declare_var("key"_cs, state.gen_instance("key"_cs, bits), bits);
     number("sum"_cs, 0);
@@ -231,7 +231,7 @@ TEST_F(LoopTest, SwitchFallThroughPreservesTheImplicitDefaultPath) {
 
 TEST_F(LoopTest, SignedRangesIncludeNegativeValues) {
     number("sum"_cs, 0);
-    const auto *type = IR::Type_Bits::get(4, true);
+    const auto type = IR::Type_Bits::get(4, true);
     IR::ForInStatement statement(
         new IR::Declaration_Variable(IR::ID("i"_cs), type),
         new IR::Range(new IR::Constant(type, -2), new IR::Constant(type, 2)), increment("sum"_cs));
@@ -263,7 +263,7 @@ TEST_F(LoopTest, ForInBreakPreservesAnExistingCounter) {
 
 TEST_F(LoopTest, SymbolicRangesIncludeBothBoundsAndPreserveSnapshot) {
     number("sum"_cs, 0);
-    const auto *bits = IR::Type_Bits::get(2);
+    const auto bits = IR::Type_Bits::get(2);
     const auto lower = ctx.bv_const("lower", 2);
     const auto upper = ctx.bv_const("upper", 2);
     state.declare_var("lower"_cs, new Z3Bitvector(&state, bits, lower), bits);

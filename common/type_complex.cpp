@@ -301,7 +301,7 @@ std::vector<std::pair<cstring, z3::expr>> StructBase::get_z3_vars(
         }
         const auto *member = member_tuple.second;
         if (const auto *z3_var = member->to<Z3Bitvector>()) {
-            const auto *dest_type = member_types.at(member_tuple.first);
+            const auto dest_type = member_types.at(member_tuple.first);
             auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), dest_type);
             auto valid_var = z3::ite(*tmp_valid, *z3_var->get_val(), invalid_var);
             z3_vars.emplace_back(name, valid_var);
@@ -310,7 +310,7 @@ std::vector<std::pair<cstring, z3::expr>> StructBase::get_z3_vars(
             z3_vars.insert(z3_vars.end(), z3_sub_vars.begin(), z3_sub_vars.end());
         } else if (const auto *z3_var = member->to<Z3Int>()) {
             // We need to cast towards the member type
-            const auto *dest_type = member_types.at(member_tuple.first);
+            const auto dest_type = member_types.at(member_tuple.first);
             if (const auto *tb = dest_type->to<IR::Type_Bits>()) {
                 auto cast_val = z3::int2bv(tb->size, *z3_var->get_val()).simplify();
                 auto invalid_var = state->gen_z3_expr(cstring(INVALID_LABEL), dest_type);
@@ -558,7 +558,7 @@ StackInstance &StackInstance::operator=(const StackInstance &other) {
 
 P4Z3Instance *StackInstance::get_member(cstring name) const {
     if (name == "size" || name == "nextIndex" || name == "lastIndex") {
-        const auto *type = IR::Type_Bits::get(STACK_INDEX_WIDTH);
+        const auto type = IR::Type_Bits::get(STACK_INDEX_WIDTH);
         const auto &value = name == "size" ? size : name == "nextIndex" ? nextIndex : lastIndex;
         auto result = z3::int2bv(STACK_INDEX_WIDTH, *value.get_val()).simplify();
         if (name == "lastIndex") {
@@ -910,7 +910,7 @@ EnumInstance::EnumInstance(P4State *p4_state, const IR::Type_Enum *type, cstring
     // FIXME: Enums should not be a struct base, actually
     width = INT_WIDTH;
     uint64_t idx = 0;
-    for (const auto *member : type->members) {
+    for (const auto &member : type->members) {
         auto *member_var = allocate_instance<Z3Bitvector>(
             state, state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
@@ -950,7 +950,7 @@ ErrorInstance::ErrorInstance(P4State *p4_state, const IR::Type_Error *type, cstr
     // FIXME: Enums should not be a struct base, actually
     width = INT_WIDTH;
     uint64_t idx = 0;
-    for (const auto *member : type->members) {
+    for (const auto &member : type->members) {
         auto *member_var = allocate_instance<Z3Bitvector>(
             state, state, member_type, state->get_z3_ctx()->bv_val(idx, INT_WIDTH));
         insert_member(member->name.name, member_var);
@@ -982,7 +982,7 @@ SerEnumInstance::SerEnumInstance(P4State *p4_state,
     : EnumBase(p4_state, type, name, member_id) {
     members.clear();
     members.insert(input_members.begin(), input_members.end());
-    const auto *resolved_type = state->resolve_type(type->type);
+    const auto resolved_type = state->resolve_type(type->type);
     val = state->gen_z3_expr(cstring(UNDEF_LABEL), resolved_type);
     if (const auto *tb = resolved_type->to<IR::Type_Bits>()) {
         member_type = tb;
@@ -1006,7 +1006,8 @@ SerEnumInstance *SerEnumInstance::instantiate(const NumericVal &enum_val) const 
 }
 
 P4Z3Instance *SerEnumInstance::cast_allocate(const IR::Type *dest_type) const {
-    dest_type = state->resolve_type(dest_type);
+    const auto resolved_type = state->resolve_type(dest_type);
+    dest_type = resolved_type;
     if (dest_type->is<IR::Type_SerEnum>()) {
         return Z3Bitvector(state, member_type, val, member_type->isSigned).cast_allocate(dest_type);
     }
@@ -1035,12 +1036,12 @@ ExternInstance
 
 ExternInstance::ExternInstance(P4State *state, const IR::Type_Extern *p4_type)
     : P4Z3Instance(p4_type), state(state), extern_type(p4_type) {
-    for (const auto *method : p4_type->methods) {
+    for (const auto &method : p4_type->methods) {
         // FIXME: Overloading uses num of parameters, it should use types
         cstring overloaded_name = method->name.name;
         auto num_params = 0;
         auto num_optional_params = 0;
-        for (const auto *param : method->getParameters()->parameters) {
+        for (const auto &param : method->getParameters()->parameters) {
             if (param->isOptional() || param->defaultValue != nullptr) {
                 num_optional_params += 1;
             } else {
@@ -1108,7 +1109,7 @@ ListInstance::ListInstance(P4State *state, const IR::Type_List *list_type, cstri
     : StructBase(state, list_type, name, member_id) {
     // auto flat_id = member_id;
     for (size_t idx = 0; idx < list_type->components.size(); ++idx) {
-        const auto *type = list_type->components[idx];
+        const auto type = list_type->components[idx];
         cstring name = std::to_string(idx);
         insert_member(name, state->gen_instance(name, type));
         member_types.insert({name, type});
@@ -1210,7 +1211,7 @@ TupleInstance::TupleInstance(P4State *state, const IR::Type_Tuple *type, cstring
     size_t idx = 0;
     auto flat_id = member_id;
     for (const auto &field_type : type->components) {
-        const IR::Type *resolved_type = state->resolve_type(field_type);
+        const auto resolved_type = state->resolve_type(field_type);
         auto *member_var = state->gen_instance(name, resolved_type, flat_id);
         if (const auto *structure = member_var->to<StructBase>()) {
             width += structure->get_width();
@@ -1251,10 +1252,10 @@ ControlInstance::ControlInstance(P4State *state, const IR::Type *decl,
                                  const VarMap &input_const_args)
     : P4Z3Instance(decl), state(state) {
     resolved_const_args.insert(input_const_args.begin(), input_const_args.end());
-    const auto *params = decl->checkedTo<IR::IApply>()->getApplyParameters();
+    const auto params = decl->checkedTo<IR::IApply>()->getApplyParameters();
     auto num_params = 0;
     auto num_optional_params = 0;
-    for (const auto *param : *params) {
+    for (const auto &param : *params) {
         if (param->isOptional() || param->defaultValue != nullptr) {
             num_optional_params += 1;
         } else {
@@ -1293,7 +1294,7 @@ void ControlInstance::apply(EvaluationContext *visitor, const IR::Vector<IR::Arg
     for (const auto &const_arg : resolved_const_args) {
         state->declare_var(const_arg.first, const_arg.second.first, const_arg.second.second);
     }
-    for (const auto *local_decl : local_decls) {
+    for (const auto &local_decl : local_decls) {
         visitor->evaluate(local_decl);
     }
     if (!parser_states.empty()) {

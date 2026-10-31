@@ -23,14 +23,14 @@ class HeaderUnionTest : public ::testing::Test, protected InterpreterTestState {
     HeaderUnionTest() { state.push_scope(); }
 
     void evaluate(const char *source) {
-        const auto *program = parseP4String(std::string(R"(
+        const auto program = parseP4String(std::string(R"(
             header H { bit<8> x; }
             header_union U { H a; H b; }
         )") + source);
         ASSERT_NE(program, nullptr);
         visitor.visit(program);
         const auto *control = state.get_type("C"_cs)->checkedTo<IR::P4Control>();
-        for (const auto *local : control->controlLocals) {
+        for (const auto &local : control->controlLocals) {
             visitor.visit(local);
         }
         visitor.visit(control->body);

@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,7 @@ std::vector<std::filesystem::path> splitInputProgs(P4::cstring inputProgs) {
 }
 
 int main(int argc, char *const argv[]) {
-    P4::AutoCompileContext autoP4toZ3Context(new P4::ToZ3::P4toZ3Context);
+    P4::AutoCompileContext autoP4toZ3Context(std::make_unique<P4::ToZ3::P4toZ3Context>());
     auto &options = P4::ToZ3::P4toZ3Context::get().options();
     // we only handle P4_16 right now
     options.langVersion = P4::CompilerOptions::FrontendVersion::P4_16;
